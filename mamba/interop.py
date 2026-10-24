@@ -1,27 +1,207 @@
 """
-Black Mamba (.bmb) CPython Host Interop Bridge.
+Black Mamba (.bmb) CPython Host Interop Bridge & Zero-Copy Tensor Exchange.
 
-Provides zero-copy, pay-as-you-go interoperability with host Python 3.14 (and PyPI):
-1. Dynamically links to host CPython C-API (`python314.dll`) without binary bloat.
+Provides zero-copy, pay-as-you-go interoperability with host Python (and PyPI):
+1. Dynamically links to host CPython C-API without binary bloat.
 2. Allows Black Mamba programs to call PyPI packages (NumPy, PyTorch, SciPy, math).
-3. Zero-copy buffer exchange: accesses raw memory pointers of NumPy/Tensors for SIMD processing.
-4. Dynamic `eval()` and deoptimization fallback execution.
+3. Zero-copy tensor buffer exchange: accesses raw memory pointers of NumPy ndarrays,
+   PyTorch tensors, and Python buffer protocol objects for direct SIMD/AVX processing.
+4. Bidirectional zero-copy views: wraps Black Mamba memory as NumPy/PyTorch arrays.
+5. Dynamic `eval()` and deoptimization fallback execution.
 """
 
 import ctypes
 import os
 import sys
 import struct
-from typing import Any, Optional
+from typing import Any, Optional, Tuple, Dict, List, Union
+
+
+class Py_buffer(ctypes.Structure):
+    """CPython standard buffer protocol descriptor (PEP 3118)."""
+    _fields_ = [
+        ("buf", ctypes.c_void_p),
+        ("obj", ctypes.c_void_p),
+        ("len", ctypes.c_ssize_t),
+        ("itemsize", ctypes.c_ssize_t),
+        ("readonly", ctypes.c_int),
+        ("ndim", ctypes.c_int),
+        ("format", ctypes.c_char_p),
+        ("shape", ctypes.POINTER(ctypes.c_ssize_t)),
+        ("strides", ctypes.POINTER(ctypes.c_ssize_t)),
+        ("suboffsets", ctypes.POINTER(ctypes.c_ssize_t)),
+        ("internal", ctypes.c_void_p),
+    ]
+
+
+PyBUF_SIMPLE = 0
+PyBUF_WRITABLE = 0x0001
+
+
+def try_extract_buffer(obj: Any) -> Optional[Tuple[int, int, int, str]]:
+    """
+    Attempts to extract (pointer_addr, element_count, itemsize_bytes, format_str)
+    from any Python object supporting contiguous memory buffers.
+    
+    Supports:
+    - NumPy ndarray (numpy.ndarray)
+    - PyTorch Tensor (torch.Tensor)
+    - Python standard array (array.array)
+    - memoryview, bytearray, bytes
+    - ctypes arrays and pointers
+    - Universal PEP 3118 CPython Buffer Protocol
+    
+    Returns None if obj is not a buffer object.
+    """
+    if obj is None:
+        return None
+
+    # 1. NumPy ndarray / array-like with __array_interface__
+    if hasattr(obj, "__array_interface__"):
+        try:
+            arr_info = obj.__array_interface__
+            data = arr_info.get("data")
+            if data and data[0]:
+                ptr = int(data[0])
+                size = int(getattr(obj, "size", 1))
+                itemsize = int(getattr(obj, "itemsize", 8))
+                dtype_s = str(getattr(obj, "dtype", "float64"))
+                return ptr, size, itemsize, dtype_s
+        except Exception:
+            pass
+
+    # 2. PyTorch Tensor (torch.Tensor)
+    if hasattr(obj, "data_ptr") and callable(obj.data_ptr):
+        try:
+            ptr = int(obj.data_ptr())
+            size = int(obj.numel())
+            itemsize = int(obj.element_size())
+            dtype_s = str(obj.dtype)
+            return ptr, size, itemsize, dtype_s
+        except Exception:
+            pass
+
+    # 3. Python standard library array (array.array)
+    if hasattr(obj, "buffer_info") and callable(obj.buffer_info):
+        try:
+            info = obj.buffer_info()
+            ptr = int(info[0])
+            count = int(info[1])
+            itemsize = int(obj.itemsize)
+            typecode = str(getattr(obj, "typecode", "d"))
+            return ptr, count, itemsize, typecode
+        except Exception:
+            pass
+
+    # 4. ctypes Array / Pointer
+    if isinstance(obj, ctypes.Array):
+        try:
+            ptr = ctypes.addressof(obj)
+            count = len(obj)
+            itemsize = ctypes.sizeof(obj._type_)
+            return ptr, count, itemsize, "ctypes"
+        except Exception:
+            pass
+
+    if isinstance(obj, (ctypes._Pointer, ctypes.c_void_p)):
+        try:
+            ptr = ctypes.cast(obj, ctypes.c_void_p).value or 0
+            return ptr, 1, 8, "pointer"
+        except Exception:
+            pass
+
+    # 5. memoryview, bytearray, bytes
+    if isinstance(obj, (memoryview, bytearray, bytes)):
+        try:
+            buf_view = memoryview(obj)
+            ptr = ctypes.addressof(ctypes.c_char.from_buffer(buf_view))
+            itemsize = int(getattr(buf_view, "itemsize", 1))
+            count = len(buf_view)
+            fmt = str(getattr(buf_view, "format", "B"))
+            return ptr, count, itemsize, fmt
+        except Exception:
+            pass
+
+    # 6. Fallback to CPython Buffer Protocol via ctypes.pythonapi
+    try:
+        pyapi = ctypes.pythonapi
+        view = Py_buffer()
+        res = pyapi.PyObject_GetBuffer(ctypes.py_object(obj), ctypes.byref(view), PyBUF_SIMPLE)
+        if res == 0 and view.buf:
+            ptr = int(view.buf)
+            itemsize = max(1, int(view.itemsize))
+            count = int(view.len) // itemsize
+            fmt = view.format.decode("utf-8") if view.format else "B"
+            pyapi.PyBuffer_Release(ctypes.byref(view))
+            return ptr, count, itemsize, fmt
+    except Exception:
+        pass
+
+    return None
+
+
+def as_numpy_array(ptr: int, shape: Union[int, Tuple[int, ...]], dtype: str = "float64") -> Any:
+    """
+    Constructs a zero-copy NumPy ndarray viewing the raw memory address `ptr`.
+    Any mutation to this array directly modifies Black Mamba memory.
+    """
+    import numpy as np
+
+    c_type_map = {
+        "float64": ctypes.c_double,
+        "f64": ctypes.c_double,
+        "float": ctypes.c_double,
+        "int64": ctypes.c_int64,
+        "i64": ctypes.c_int64,
+        "int": ctypes.c_int64,
+        "int32": ctypes.c_int32,
+        "i32": ctypes.c_int32,
+        "uint8": ctypes.c_uint8,
+        "bool": ctypes.c_bool,
+    }
+    c_type = c_type_map.get(str(dtype), ctypes.c_double)
+    if isinstance(shape, int):
+        total_elements = shape
+        shape_tuple = (shape,)
+    else:
+        shape_tuple = tuple(shape)
+        total_elements = 1
+        for d in shape_tuple:
+            total_elements *= d
+
+    arr_c = (c_type * total_elements).from_address(ptr)
+    np_arr = np.ctypeslib.as_array(arr_c)
+    if len(shape_tuple) > 1:
+        return np_arr.reshape(shape_tuple)
+    return np_arr
+
+
+def as_torch_tensor(ptr: int, shape: Union[int, Tuple[int, ...]], dtype: Optional[Any] = None) -> Any:
+    """
+    Constructs a zero-copy PyTorch tensor viewing the raw memory address `ptr`.
+    Requires PyTorch (`import torch`).
+    """
+    try:
+        import torch
+    except ImportError:
+        raise ImportError("PyTorch is not installed in the current environment")
+
+    np_view = as_numpy_array(ptr, shape, dtype="float64")
+    t = torch.from_numpy(np_view)
+    if dtype is not None and t.dtype != dtype:
+        return t.to(dtype)
+    return t
 
 
 class CPythonHostBridge:
-    """Manages dynamic bindings to host CPython C-API."""
+    """Manages dynamic bindings to host CPython C-API and Tensor Exchange."""
 
     _instance: Optional["CPythonHostBridge"] = None
 
     def __init__(self):
         self.pyapi = ctypes.pythonapi
+        self._tensor_registry: Dict[int, Any] = {}
+        self._named_tensors: Dict[str, Any] = {}
         self._setup_c_signatures()
 
     @classmethod
@@ -111,3 +291,53 @@ class CPythonHostBridge:
     def eval_code(self, code_expr: str) -> Any:
         """Executes dynamic Python expression or statement with shape-guard fallback."""
         return eval(code_expr)
+
+    def eval_tensor(self, code_expr: str) -> Tuple[int, int, int]:
+        """
+        Evaluates a Python expression returning a NumPy array or PyTorch tensor.
+        Retains a strong reference to prevent GC while in native execution.
+        Returns (ptr: int, count: int, itemsize: int).
+        """
+        env = {
+            "sys": sys,
+            "os": os,
+            "bridge": self,
+            "self": self,
+        }
+        env.update(self._named_tensors)
+        try:
+            import numpy as np
+            env["np"] = np
+            env["numpy"] = np
+        except ImportError:
+            pass
+        try:
+            import torch
+            env["torch"] = torch
+        except ImportError:
+            pass
+
+        obj = eval(code_expr, env)
+        info = try_extract_buffer(obj)
+        if info is None:
+            raise TypeError(f"Expression {code_expr!r} did not evaluate to a contiguous buffer or tensor")
+        ptr, count, itemsize, _ = info
+        self._tensor_registry[ptr] = obj
+        return ptr, count, itemsize
+
+    def register_tensor(self, name: str, obj: Any) -> int:
+        """Registers a named Python tensor and returns its raw pointer."""
+        info = try_extract_buffer(obj)
+        if info is None:
+            raise TypeError(f"Object {name!r} is not a valid contiguous buffer or tensor")
+        ptr, _, _, _ = info
+        self._named_tensors[name] = obj
+        self._tensor_registry[ptr] = obj
+        return ptr
+
+    def get_registered_tensor(self, name: str) -> Optional[Any]:
+        return self._named_tensors.get(name)
+
+    def release_tensor(self, ptr: int) -> None:
+        self._tensor_registry.pop(ptr, None)
+

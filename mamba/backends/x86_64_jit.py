@@ -799,6 +799,10 @@ class X86_64CodeBuffer:
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("py_eval_f64")
                 store_from_rax(str(ins.dst))
+            elif op == "PY_EVAL_TENSOR":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_eval_tensor")
+                store_from_rax(str(ins.dst))
             elif op == "PY_CALL_F64":
                 load_into("rcx", str(ins.arg1))
                 load_into("rdx", str(ins.arg2))
@@ -930,6 +934,9 @@ class NativeJITModule:
                 return b""
             raw = (ctypes.c_char * n).from_address(data_addr)
             return bytes(raw)
+
+        self._get_str_bytes = get_str_bytes
+        self._make_str_handle = make_str_handle
 
         # Pre-allocate static string descriptors for string pool entries > 7 bytes
         self.static_str_descs = {}
@@ -1118,22 +1125,29 @@ class NativeJITModule:
         bridge = CPythonHostBridge.get_instance()
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
-        def rt_py_call_f64(mod_idx: int, func_idx: int, arg_bits: int) -> int:
-            mod_s = self.mir_module.string_pool[mod_idx]
-            func_s = self.mir_module.string_pool[func_idx]
+        def rt_py_call_f64(mod_val: int, func_val: int, arg_bits: int) -> int:
+            mod_s = get_str_bytes(mod_val).decode("utf-8")
+            func_s = get_str_bytes(func_val).decode("utf-8")
             arg_f = struct.unpack("<d", struct.pack("<q", arg_bits))[0]
             res_f = bridge.call_func_f64_1(mod_s, func_s, arg_f)
             return struct.unpack("<q", struct.pack("<d", res_f))[0]
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
-        def rt_py_eval_f64(expr_idx: int) -> int:
-            expr_s = self.mir_module.string_pool[expr_idx]
+        def rt_py_eval_f64(val: int) -> int:
+            expr_s = get_str_bytes(val).decode("utf-8")
             res = float(bridge.eval_code(expr_s))
             return struct.unpack("<q", struct.pack("<d", res))[0]
 
-        self._callbacks.extend([rt_py_call_f64, rt_py_eval_f64])
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_eval_tensor(val: int) -> int:
+            expr_s = get_str_bytes(val).decode("utf-8")
+            ptr, _, _ = bridge.eval_tensor(expr_s)
+            return ptr
+
+        self._callbacks.extend([rt_py_call_f64, rt_py_eval_f64, rt_py_eval_tensor])
         self.addr_py_call_f64 = ctypes.cast(rt_py_call_f64, ctypes.c_void_p).value
         self.addr_py_eval_f64 = ctypes.cast(rt_py_eval_f64, ctypes.c_void_p).value
+        self.addr_py_eval_tensor = ctypes.cast(rt_py_eval_tensor, ctypes.c_void_p).value
 
     def _write_out(self, text: str) -> None:
         self.printed_lines.append(text)
@@ -1151,6 +1165,7 @@ class NativeJITModule:
             "pow_f64": (self.addr_pow_f64, "__bmb_pow_f64"),
             "py_call_f64": (self.addr_py_call_f64, "__bmb_py_call_f64"),
             "py_eval_f64": (self.addr_py_eval_f64, "__bmb_py_eval_f64"),
+            "py_eval_tensor": (self.addr_py_eval_tensor, "__bmb_py_eval_tensor"),
             "arena_save": (self.addr_arena_save, "__bmb_arena_save"),
             "arena_restore": (self.addr_arena_restore, "__bmb_arena_restore"),
             "str_concat": (self.addr_str_concat, "__bmb_str_concat"),
@@ -1201,30 +1216,54 @@ class NativeJITModule:
         self.exec_ptr = ptr
         ctypes.memmove(self.exec_ptr, raw_code, len(raw_code))
 
-    def call_function(self, func_name: str, *args: Union[int, float]) -> Union[int, float]:
+    def __getattr__(self, name: str) -> Any:
+        if name in self.func_offsets:
+            return lambda *args: self.call_function(name, *args)
+        raise AttributeError(f"'NativeJITModule' object has no attribute '{name}'")
+
+    def call_function(self, func_name: str, *args: Any) -> Any:
         if func_name not in self.func_offsets:
             raise KeyError(f"Function {func_name!r} not found in compiled module")
         fn_mir = next(f for f in self.mir_module.functions if f.name == func_name)
         fn_addr = self.exec_ptr + self.func_offsets[func_name]
 
+        from ..interop import try_extract_buffer
+
         c_arg_types = [ctypes.c_int64] * len(args)
         proto = ctypes.CFUNCTYPE(ctypes.c_int64, *c_arg_types)
         native_fn = proto(fn_addr)
 
+        keepalive = []
         packed_args: List[int] = []
         for idx, a in enumerate(args):
             p_type = fn_mir.params[idx][1] if idx < len(fn_mir.params) else "i64"
-            if p_type == "f64" or isinstance(a, float):
+            buf_info = try_extract_buffer(a)
+            if buf_info is not None:
+                ptr, _, _, _ = buf_info
+                keepalive.append(a)
+                packed_args.append(ptr)
+            elif p_type == "f64" or isinstance(a, float):
                 bits = struct.unpack("<q", struct.pack("<d", float(a)))[0]
                 packed_args.append(bits)
+            elif isinstance(a, bool):
+                packed_args.append(1 if a else 0)
+            elif isinstance(a, int):
+                packed_args.append(int(a))
+            elif isinstance(a, str):
+                s_bytes = a.encode("utf-8")
+                packed_args.append(self._make_str_handle(s_bytes))
             else:
                 packed_args.append(int(a))
 
         raw_ret = native_fn(*packed_args)
+        del keepalive
+
         if fn_mir.return_type == "f64":
             return struct.unpack("<d", struct.pack("<q", raw_ret))[0]
         if fn_mir.return_type == "bool":
             return bool(raw_ret)
+        if fn_mir.return_type == "str":
+            return self._get_str_bytes(raw_ret).decode("utf-8", errors="replace")
         return int(raw_ret)
 
     def run_main(self) -> int:

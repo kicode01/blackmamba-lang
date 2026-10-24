@@ -292,6 +292,7 @@ class ELF64ExecutableBuilder:
             "pow_f64": "rt__py_stub",
             "py_call_f64": "rt__py_stub",
             "py_eval_f64": "rt__py_stub",
+            "py_eval_tensor": "rt__py_stub",
             "arena_save": "rt__arena_save",
             "arena_restore": "rt__arena_restore",
             "str_concat": "rt__str_stub",

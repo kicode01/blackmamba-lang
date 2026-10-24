@@ -10,7 +10,9 @@ import copy
 import os
 from typing import Dict, List, Optional, Set
 from .ast_nodes import (
+    ArrayLit,
     Assign,
+    BinOp,
     Call,
     Expr,
     ExprStmt,
@@ -20,11 +22,17 @@ from .ast_nodes import (
     FuncDef,
     IfStmt,
     ImportStmt,
+    IndexAssign,
+    IndexAugAssign,
+    IndexExpr,
     MethodCall,
     Module,
     Return,
+    SliceExpr,
     Stmt,
     StructDef,
+    TernaryIf,
+    UnaryOp,
     Var,
     WhileStmt,
 )
@@ -99,6 +107,78 @@ def _rewrite_stmt(stmt: Stmt, imported_mods: Set[str]) -> None:
             _rewrite_stmt(s, imported_mods)
 
 
+def _collect_callees(fn: FuncDef) -> Set[str]:
+    callees: Set[str] = set()
+
+    def scan_expr(e: Expr) -> None:
+        if isinstance(e, Call):
+            callees.add(e.func)
+            for a in e.args:
+                scan_expr(a)
+        elif isinstance(e, MethodCall):
+            for a in e.args:
+                scan_expr(a)
+        elif isinstance(e, BinOp):
+            scan_expr(e.left)
+            scan_expr(e.right)
+        elif isinstance(e, UnaryOp):
+            scan_expr(e.operand)
+        elif isinstance(e, IndexExpr):
+            scan_expr(e.target)
+            scan_expr(e.index)
+        elif isinstance(e, SliceExpr):
+            scan_expr(e.target)
+            if e.start:
+                scan_expr(e.start)
+            if e.stop:
+                scan_expr(e.stop)
+            if e.step:
+                scan_expr(e.step)
+        elif isinstance(e, TernaryIf):
+            scan_expr(e.cond)
+            scan_expr(e.then_expr)
+            scan_expr(e.else_expr)
+        elif isinstance(e, ArrayLit):
+            for el in e.elements:
+                scan_expr(el)
+            if e.repeat_value:
+                scan_expr(e.repeat_value)
+            if e.repeat_count:
+                scan_expr(e.repeat_count)
+
+    def scan_stmt(s: Stmt) -> None:
+        if isinstance(s, ExprStmt):
+            scan_expr(s.expr)
+        elif isinstance(s, Assign):
+            scan_expr(s.value)
+        elif isinstance(s, (IndexAssign, IndexAugAssign)):
+            scan_expr(s.target)
+            scan_expr(s.index)
+            scan_expr(s.value)
+        elif isinstance(s, Return) and s.value:
+            scan_expr(s.value)
+        elif isinstance(s, IfStmt):
+            scan_expr(s.cond)
+            for b in s.then_body:
+                scan_stmt(b)
+            for b in s.else_body:
+                scan_stmt(b)
+        elif isinstance(s, WhileStmt):
+            scan_expr(s.cond)
+            for b in s.body:
+                scan_stmt(b)
+        elif isinstance(s, ForRangeStmt):
+            scan_expr(s.start)
+            scan_expr(s.stop)
+            scan_expr(s.step)
+            for b in s.body:
+                scan_stmt(b)
+
+    for s in fn.body:
+        scan_stmt(s)
+    return callees
+
+
 def resolve_imports(mod: Module, base_dir: str, loaded_modules: Optional[Set[str]] = None) -> Module:
     if loaded_modules is None:
         loaded_modules = set()
@@ -133,12 +213,27 @@ def resolve_imports(mod: Module, base_dir: str, loaded_modules: Optional[Set[str
                     prepended_stmts.extend(imported_ast.statements)
                 else:
                     wanted = set(stmt.names)
+                    # Transitive dependency closure
+                    func_map = {s.name: s for s in imported_ast.statements if isinstance(s, FuncDef)}
+                    changed = True
+                    while changed:
+                        changed = False
+                        new_callees = set()
+                        for name in list(wanted):
+                            if name in func_map:
+                                for c in _collect_callees(func_map[name]):
+                                    if c in func_map and c not in wanted:
+                                        new_callees.add(c)
+                        if new_callees:
+                            wanted.update(new_callees)
+                            changed = True
+
                     for s in imported_ast.statements:
                         if isinstance(s, FuncDef) and s.name in wanted:
                             prepended_stmts.append(s)
                         elif isinstance(s, StructDef) and s.name in wanted:
                             prepended_stmts.append(s)
-                        elif isinstance(s, Assign) and s.target in wanted:
+                        elif isinstance(s, Assign):
                             prepended_stmts.append(s)
             elif isinstance(stmt, ImportStmt):
                 prepended_stmts.extend(imported_ast.statements)

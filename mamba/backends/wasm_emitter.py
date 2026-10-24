@@ -505,7 +505,7 @@ class WasmBackend:
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
-        if op in ("PY_CALL_F64", "PY_EVAL_F64") and dst_l is not None:
+        if op in ("PY_CALL_F64", "PY_EVAL_F64", "PY_EVAL_TENSOR") and dst_l is not None:
             code.extend(b"\x44" + struct.pack("<d", 0.0))
             code.extend(b"\x21" + _uleb128(dst_l))
             return

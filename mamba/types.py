@@ -65,19 +65,40 @@ TYPE_ALIASES = {
     "list[int]": "Array[i64]",
     "list[i64]": "Array[i64]",
     "List[int]": "Array[i64]",
+    "List[i64]": "Array[i64]",
     "Array[int]": "Array[i64]",
     "Array[i64]": "Array[i64]",
     "list[float]": "Array[f64]",
     "list[f64]": "Array[f64]",
     "List[float]": "Array[f64]",
+    "List[f64]": "Array[f64]",
     "Array[float]": "Array[f64]",
     "Array[f64]": "Array[f64]",
+    "Tensor": "Array[f64]",
+    "Tensor[f64]": "Array[f64]",
+    "Tensor[float]": "Array[f64]",
+    "Tensor[i64]": "Array[i64]",
+    "Tensor[int]": "Array[i64]",
+    "ndarray": "Array[f64]",
+    "ndarray[f64]": "Array[f64]",
+    "ndarray[float]": "Array[f64]",
+    "ndarray[i64]": "Array[i64]",
+    "ndarray[int]": "Array[i64]",
 }
 
 
 def normalize_type(t: Optional[str]) -> Optional[str]:
     if t is None:
         return None
+    if t in TYPE_ALIASES:
+        return TYPE_ALIASES[t]
+    if t.startswith(("List[", "list[", "Array[", "Tensor[", "ndarray[")) and t.endswith("]"):
+        inner = t[t.index("[") + 1 : -1].strip()
+        inner_norm = normalize_type(inner)
+        if inner_norm in ("f64", "float"):
+            return "Array[f64]"
+        elif inner_norm in ("i64", "int", "bool"):
+            return "Array[i64]"
     return TYPE_ALIASES.get(t, t)
 
 
@@ -381,7 +402,7 @@ class TypeInferencer:
         if isinstance(expr, IndexExpr):
             tt = self._infer_expr(expr.target, env)
             self._infer_expr(expr.index, env)
-            if tt == "Array[f64]":
+            if tt == "Array[f64]" or (tt and tt.endswith("[f64]")):
                 expr.inferred_type = "f64"
                 return "f64"
             if tt == "str":
@@ -435,9 +456,12 @@ class TypeInferencer:
                     return "f64"
                 expr.inferred_type = "i64"
                 return "i64"
-            if expr.func in ("float", "f64", "sqrt", "sin", "cos", "exp", "log", "fabs", "clock_sec"):
+            if expr.func in ("float", "f64", "sqrt", "sin", "cos", "exp", "log", "fabs", "clock_sec", "py_eval", "py_call"):
                 expr.inferred_type = "f64"
                 return "f64"
+            if expr.func in ("py_eval_tensor", "as_tensor"):
+                expr.inferred_type = "Array[f64]"
+                return "Array[f64]"
             if expr.func == "bool":
                 expr.inferred_type = "bool"
                 return "bool"

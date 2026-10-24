@@ -255,7 +255,7 @@ class C11Backend:
                     out.append(f"    {dst} = bmb_{ins.arg1}({args_c});")
                 else:
                     out.append(f"    bmb_{ins.arg1}({args_c});")
-            elif op in ("PY_CALL_F64", "PY_EVAL_F64"):
+            elif op in ("PY_CALL_F64", "PY_EVAL_F64", "PY_EVAL_TENSOR"):
                 out.append(f"    {dst} = 0.0; /* CPython Host Call */")
             elif op == "ARENA_SAVE":
                 out.append(f"    {dst} = 0; /* lexical arena checkpoint */")

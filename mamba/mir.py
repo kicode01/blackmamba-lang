@@ -46,7 +46,7 @@ from .ast_nodes import (
     Var,
     WhileStmt,
 )
-from .types import TypeInferencer, unify_types
+from .types import TypeInferencer, unify_types, normalize_type
 
 
 @dataclass
@@ -152,6 +152,12 @@ class MIRBuilder:
         if s not in self.string_pool:
             self.string_pool.append(s)
         return self.string_pool.index(s)
+
+    def _is_f64_array(self, arr_t: Optional[str]) -> bool:
+        if not arr_t:
+            return False
+        t = normalize_type(arr_t)
+        return t == "Array[f64]" or (t is not None and (t.endswith("[f64]") or t.endswith("[float]")))
 
     def build(self, module: Module, base_dir: str = "") -> MIRModule:
         from .module_loader import resolve_imports
@@ -272,7 +278,7 @@ class MIRBuilder:
             arr_v, arr_t = self._lower_expr(stmt.target, instrs, local_types)
             idx_v, _ = self._lower_expr(stmt.index, instrs, local_types)
             val_v, val_t = self._lower_expr(stmt.value, instrs, local_types)
-            elem_t = "f64" if arr_t == "Array[f64]" or val_t == "f64" else "i64"
+            elem_t = "f64" if self._is_f64_array(arr_t) or val_t == "f64" else "i64"
             if elem_t == "f64" and val_t == "i64":
                 conv = self.new_temp(local_types, "f64")
                 instrs.append(MIRInstr(op="I64_TO_F64", dst=conv, arg1=val_v, val_type="f64"))
@@ -283,7 +289,7 @@ class MIRBuilder:
         if isinstance(stmt, IndexAugAssign):
             arr_v, arr_t = self._lower_expr(stmt.target, instrs, local_types)
             idx_v, _ = self._lower_expr(stmt.index, instrs, local_types)
-            elem_t = "f64" if arr_t == "Array[f64]" else "i64"
+            elem_t = "f64" if self._is_f64_array(arr_t) else "i64"
             cur_v = self.new_temp(local_types, elem_t)
             instrs.append(MIRInstr(op="LOAD_IDX", dst=cur_v, arg1=arr_v, arg2=idx_v, val_type=elem_t))
             rhs_v, rhs_t = self._lower_expr(stmt.value, instrs, local_types)
@@ -569,7 +575,7 @@ class MIRBuilder:
 
         if isinstance(expr, ArrayLit):
             arr_t = expr.inferred_type or "Array[i64]"
-            elem_t = "f64" if arr_t == "Array[f64]" else "i64"
+            elem_t = "f64" if self._is_f64_array(arr_t) else "i64"
             dst = self.new_temp(local_types, arr_t)
             if expr.repeat_value is not None and expr.repeat_count is not None:
                 cnt_v, _ = self._lower_expr(expr.repeat_count, instrs, local_types)
@@ -611,7 +617,7 @@ class MIRBuilder:
                 dst = self.new_temp(local_types, "str")
                 instrs.append(MIRInstr(op="STR_INDEX", dst=dst, arg1=arr_v, arg2=idx_v, val_type="str"))
                 return dst, "str"
-            elem_t = "f64" if arr_t == "Array[f64]" else "i64"
+            elem_t = "f64" if self._is_f64_array(arr_t) else "i64"
             dst = self.new_temp(local_types, elem_t)
             instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=arr_v, arg2=idx_v, val_type=elem_t))
             return dst, elem_t
@@ -760,6 +766,12 @@ class MIRBuilder:
                 dst = self.new_temp(local_types, "f64")
                 instrs.append(MIRInstr(op="PY_EVAL_F64", dst=dst, arg1=av, val_type="f64"))
                 return dst, "f64"
+
+            if expr.func == "py_eval_tensor" and len(expr.args) == 1:
+                av, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "Array[f64]")
+                instrs.append(MIRInstr(op="PY_EVAL_TENSOR", dst=dst, arg1=av, val_type="Array[f64]"))
+                return dst, "Array[f64]"
 
             if expr.func == "py_call" and len(expr.args) == 3:
                 m_v, _ = self._lower_expr(expr.args[0], instrs, local_types)

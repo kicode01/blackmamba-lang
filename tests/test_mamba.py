@@ -280,6 +280,73 @@ def main():
         self.assertIn("STDLIB_RNG_OK=True", out)
         jit.close()
 
+    def test_zero_copy_numpy_tensor_exchange(self):
+        import mamba
+        import numpy as np
+
+        # 1. Test mamba.compile with in-place NumPy array mutation
+        mod = mamba.compile("""
+def saxpy_inplace(n: int, a: f64, x: List[f64], y: List[f64]) -> i64:
+    for i in 0..n:
+        y[i] = a * x[i] + y[i]
+    return n
+""")
+        x = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.float64)
+        y = np.array([10.0, 20.0, 30.0, 40.0], dtype=np.float64)
+        ret = mod.saxpy_inplace(4, 2.5, x, y)
+        self.assertEqual(ret, 4)
+        self.assertTrue(np.allclose(y, [12.5, 25.0, 37.5, 50.0]))
+        mod.close()
+
+        # 2. Test @mamba.jit decorator
+        @mamba.jit
+        def square_vector(n: int, arr: List[f64]) -> i64:
+            for i in 0..n:
+                arr[i] = arr[i] * arr[i]
+            return 0
+
+        a = np.array([2.0, 3.0, 5.0], dtype=np.float64)
+        square_vector(len(a), a)
+        self.assertTrue(np.allclose(a, [4.0, 9.0, 25.0]))
+
+        # 3. Test 2D matrix multiplication directly on NumPy buffers
+        mod_mat = mamba.compile("""
+from tensor import tensor_matmul, tensor_relu
+
+def matmul_2d(M: int, K: int, N: int, A: List[f64], B: List[f64], C: List[f64]) -> i64:
+    return tensor_matmul(A, B, C, M, K, N)
+
+def relu_1d(n: int, x: List[f64], out: List[f64]) -> i64:
+    return tensor_relu(x, out, n)
+""")
+        A = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float64)
+        B = np.array([[5.0, 6.0], [7.0, 8.0]], dtype=np.float64)
+        C = np.zeros((2, 2), dtype=np.float64)
+        mod_mat.matmul_2d(2, 2, 2, A, B, C)
+        self.assertTrue(np.allclose(C, A @ B))
+
+        act_in = np.array([-5.0, 0.0, 7.5], dtype=np.float64)
+        act_out = np.zeros_like(act_in)
+        mod_mat.relu_1d(3, act_in, act_out)
+        self.assertTrue(np.allclose(act_out, [0.0, 0.0, 7.5]))
+        mod_mat.close()
+
+        # 4. Test zero-copy export from BMB memory to NumPy view
+        mod_exp = mamba.compile("""
+def alloc_signal(n: int) -> Array[f64]:
+    arr = [0.0] * n
+    for i in 0..n:
+        arr[i] = float(i * 10)
+    return arr
+""")
+        ptr = mod_exp.alloc_signal(5)
+        np_view = mamba.as_numpy_array(ptr, 5)
+        self.assertTrue(np.allclose(np_view, [0.0, 10.0, 20.0, 30.0, 40.0]))
+        # Mutate through NumPy view and verify
+        np_view[0] = 777.0
+        self.assertEqual(np_view[0], 777.0)
+        mod_exp.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,10 +22,10 @@ from .backends.wasm_emitter import WasmBackend
 from .backends.c_emitter import C11Backend, LLVMIRBackend
 
 
-def compile_source_to_mir(source: str, filename: str = "<input.bmb>") -> MIRModule:
+def compile_source_to_mir(source: str, filename: str = "<input.bmb>", base_dir: str = "") -> MIRModule:
     ast_mod = Parser.from_source(source, filename).parse_module()
-    base_dir = os.path.dirname(os.path.abspath(filename)) if filename != "<input.bmb>" and os.path.exists(filename) else os.getcwd()
-    return MIRBuilder().build(ast_mod, base_dir=base_dir)
+    resolved_base = base_dir or (os.path.dirname(os.path.abspath(filename)) if filename != "<input.bmb>" and os.path.exists(filename) else os.getcwd())
+    return MIRBuilder().build(ast_mod, base_dir=resolved_base)
 
 
 def _safe_write(text: str) -> None:

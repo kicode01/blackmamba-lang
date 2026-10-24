@@ -92,8 +92,11 @@ Reduce reliance on the host Python runtime by providing high-speed, native imple
   - `array`: Contiguous fixed-size and dynamic vector buffers.
   - `path`: Zero-allocation file path manipulation.
   - `test`: Built-in assertions and benchmark harness.
-- [ ] **Zero-Copy NumPy / PyTorch Tensor Exchange**:
-  - Buffer protocol pointer casting: pass multi-dimensional `ndarray` memory directly to Black Mamba SIMD/AVX loops without copying memory.
+- [x] **Zero-Copy NumPy / PyTorch Tensor Exchange**:
+  - Direct Win64/SystemV ABI pointer passing: pass multi-dimensional `ndarray`, `torch.Tensor`, and Python buffer objects directly into Black Mamba JIT functions with zero memory copy and zero GC overhead.
+  - Python frontend bindings: `mamba.compile(...)`, `@mamba.jit` decorator, and `mamba.as_numpy_array(...)` / `mamba.as_torch_tensor(...)` bidirectional zero-copy views.
+  - `mamba/stdlib/tensor.bmb`: Pure native 1D elementwise (SAXPY, scale, div), reductions (sum, mean, dot, L2 norm, min, max, argmax), neural activations (ReLU, LeakyReLU, Sigmoid, clamp), and 2D matrix multiplication (`tensor_matmul`).
+  - Benchmarked at 6.7 GB/s memory bandwidth on 10,000,000 float64 elements (19.7x faster than standard Python).
 - [ ] **True Hardware Multithreading & Concurrency**:
   - Native thread spawning with zero Global Interpreter Lock (GIL).
   - Atomic memory primitives (`atomic_add`, `compare_and_swap`).

@@ -1,0 +1,185 @@
+# Black Mamba Standard Library: tensor.bmb
+# High-Performance Zero-Copy 1D & 2D Tensor Computing Routines
+# Compatible with standalone native compilation and NumPy/PyTorch memory sharing.
+
+from math import sqrt, exp
+
+# --- 1D Elementwise Vector Operations ---
+
+def tensor_fill(arr: List[f64], n: i64, val: f64) -> i64:
+    for i in 0..n:
+        arr[i] = val
+    return n
+
+def tensor_copy(src: List[f64], dst: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        dst[i] = src[i]
+    return n
+
+def tensor_add(a: List[f64], b: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        out[i] = a[i] + b[i]
+    return n
+
+def tensor_sub(a: List[f64], b: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        out[i] = a[i] - b[i]
+    return n
+
+def tensor_mul(a: List[f64], b: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        out[i] = a[i] * b[i]
+    return n
+
+def tensor_div(a: List[f64], b: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        bv = b[i]
+        if bv != 0.0:
+            out[i] = a[i] / bv
+        else:
+            out[i] = 0.0
+    return n
+
+def tensor_scale(arr: List[f64], factor: f64, out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        out[i] = arr[i] * factor
+    return n
+
+def tensor_saxpy(x: List[f64], y: List[f64], out: List[f64], a: f64, n: i64) -> i64:
+    for i in 0..n:
+        out[i] = a * x[i] + y[i]
+    return n
+
+# --- Reductions & Statistics ---
+
+def tensor_sum(arr: List[f64], n: i64) -> f64:
+    acc = 0.0
+    for i in 0..n:
+        acc = acc + arr[i]
+    return acc
+
+def tensor_mean(arr: List[f64], n: i64) -> f64:
+    if n <= 0:
+        return 0.0
+    s = tensor_sum(arr, n)
+    return s / float(n)
+
+def tensor_dot(a: List[f64], b: List[f64], n: i64) -> f64:
+    acc = 0.0
+    for i in 0..n:
+        acc = acc + a[i] * b[i]
+    return acc
+
+def tensor_norm(arr: List[f64], n: i64) -> f64:
+    d = tensor_dot(arr, arr, n)
+    return sqrt(d)
+
+def tensor_min(arr: List[f64], n: i64) -> f64:
+    if n <= 0:
+        return 0.0
+    m = arr[0]
+    for i in 1..n:
+        v = arr[i]
+        if v < m:
+            m = v
+    return m
+
+def tensor_max(arr: List[f64], n: i64) -> f64:
+    if n <= 0:
+        return 0.0
+    m = arr[0]
+    for i in 1..n:
+        v = arr[i]
+        if v > m:
+            m = v
+    return m
+
+def tensor_argmax(arr: List[f64], n: i64) -> i64:
+    if n <= 0:
+        return 0
+    best_idx = 0
+    best_val = arr[0]
+    for i in 1..n:
+        v = arr[i]
+        if v > best_val:
+            best_val = v
+            best_idx = i
+    return best_idx
+
+# --- Neural Network Activation Functions ---
+
+def tensor_relu(x: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        v = x[i]
+        if v > 0.0:
+            out[i] = v
+        else:
+            out[i] = 0.0
+    return n
+
+def tensor_leaky_relu(x: List[f64], out: List[f64], n: i64, alpha: f64) -> i64:
+    for i in 0..n:
+        v = x[i]
+        if v > 0.0:
+            out[i] = v
+        else:
+            out[i] = alpha * v
+    return n
+
+def tensor_sigmoid(x: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        v = x[i]
+        if v >= 40.0:
+            out[i] = 1.0
+        elif v <= -40.0:
+            out[i] = 0.0
+        else:
+            out[i] = 1.0 / (1.0 + exp(0.0 - v))
+    return n
+
+def tensor_clamp(x: List[f64], out: List[f64], n: i64, min_val: f64, max_val: f64) -> i64:
+    for i in 0..n:
+        v = x[i]
+        if v < min_val:
+            out[i] = min_val
+        elif v > max_val:
+            out[i] = max_val
+        else:
+            out[i] = v
+    return n
+
+# --- 2D Matrix Computations (Row-Major: [r * cols + c]) ---
+
+def tensor_2d_get(data: List[f64], r: i64, c: i64, cols: i64) -> f64:
+    idx = r * cols + c
+    return data[idx]
+
+def tensor_2d_set(data: List[f64], r: i64, c: i64, cols: i64, val: f64) -> i64:
+    idx = r * cols + c
+    data[idx] = val
+    return idx
+
+def tensor_matmul(A: List[f64], B: List[f64], C: List[f64], M: i64, K: i64, N: i64) -> i64:
+    # C[i, j] = sum_k(A[i, k] * B[k, j])
+    for i in 0..M:
+        row_a = i * K
+        row_c = i * N
+        for j in 0..N:
+            acc = 0.0
+            for k in 0..K:
+                acc = acc + A[row_a + k] * B[k * N + j]
+            C[row_c + j] = acc
+    return M * N
+
+def tensor_transpose(src: List[f64], dst: List[f64], rows: i64, cols: i64) -> i64:
+    for r in 0..rows:
+        for c in 0..cols:
+            dst[c * rows + r] = src[r * cols + c]
+    return rows * cols
+
+def tensor_add_bias(data: List[f64], bias: List[f64], rows: i64, cols: i64) -> i64:
+    for r in 0..rows:
+        row_off = r * cols
+        for c in 0..cols:
+            data[row_off + c] = data[row_off + c] + bias[c]
+    return rows * cols

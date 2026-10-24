@@ -1,0 +1,50 @@
+# Black Mamba Standard Library Showcase: tensor.bmb
+# Tests 1D vectors, reductions, 2D matrix multiplication, and activations.
+
+from tensor import tensor_fill, tensor_saxpy, tensor_dot, tensor_norm, tensor_matmul, tensor_relu, tensor_sigmoid
+
+def main():
+    print("=== Black Mamba Native Tensor Computing Showcase ===")
+    
+    # 1. 1D Vector SAXPY & Dot Product
+    n = 5
+    x = [1.0] * n
+    y = [2.0] * n
+    out = [0.0] * n
+    
+    for i in 0..n:
+        x[i] = float(i + 1)
+        y[i] = 10.0
+        
+    tensor_saxpy(x, y, out, 3.0, n)
+    print("SAXPY (3.0 * x + y):")
+    for i in 0..n:
+        print(out[i])
+        
+    dot_val = tensor_dot(out, out, n)
+    norm_val = tensor_norm(out, n)
+    print("Dot product:")
+    print(dot_val)
+    print("Euclidean L2 Norm:")
+    print(norm_val)
+    
+    # 2. 2D Matrix Multiplication (2x2)
+    A = [1.0, 2.0, 3.0, 4.0]
+    B = [5.0, 6.0, 7.0, 8.0]
+    C = [0.0, 0.0, 0.0, 0.0]
+    tensor_matmul(A, B, C, 2, 2, 2)
+    print("Matrix Multiplication C = A @ B:")
+    print(C[0])
+    print(C[1])
+    print(C[2])
+    print(C[3])
+    
+    # 3. Activations
+    acts_in = [-2.0, 0.0, 1.5, 4.0]
+    relu_out = [0.0] * 4
+    tensor_relu(acts_in, relu_out, 4)
+    print("ReLU Activation:")
+    print(relu_out[0])
+    print(relu_out[1])
+    print(relu_out[2])
+    print(relu_out[3])
