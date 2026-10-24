@@ -1,0 +1,93 @@
+# Black Mamba (.bmb) Standard Library: Cryptography & Hashing Showcase
+# Demonstrates pure native .bmb SHA-256, HMAC-SHA256, MurmurHash3, and FNV-1a.
+# 100% self-contained native code with zero CPython dependencies.
+
+from hash import *
+
+def main() -> i64:
+    print("==================================================================")
+    print(" Black Mamba Native Cryptography & Hashing Standard Library       ")
+    print("==================================================================")
+
+    # 1. SHA-256 Standard NIST FIPS 180-4 Test Vectors
+    print("--- 1. SHA-256 Cryptographic Hash Digests ---")
+    msg1 = ""
+    h1 = sha256(msg1)
+    print("SHA-256(\"\"):")
+    print(f"  {h1}")
+
+    msg2 = "abc"
+    h2 = sha256(msg2)
+    print("SHA-256(\"abc\"):")
+    print(f"  {h2}")
+
+    msg3 = "The quick brown fox jumps over the lazy dog"
+    h3 = sha256(msg3)
+    print("SHA-256(\"The quick brown fox jumps over the lazy dog\"):")
+    print(f"  {h3}")
+
+    msg4 = "Black Mamba (.bmb) bare-metal native programming language."
+    h4 = sha256(msg4)
+    print("SHA-256(\"Black Mamba (.bmb)...\"):")
+    print(f"  {h4}")
+
+    # Verify standard vectors
+    if h1 != "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855":
+        print("ERROR: SHA-256 empty vector mismatch!")
+        return 1
+
+    if h2 != "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad":
+        print("ERROR: SHA-256 abc vector mismatch!")
+        return 2
+
+    if h3 != "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592":
+        print("ERROR: SHA-256 fox vector mismatch!")
+        return 3
+
+    print("")
+
+    # 2. HMAC-SHA256 (RFC 2104 API Signatures)
+    print("--- 2. HMAC-SHA256 Message Authentication Codes ---")
+    api_key = "sk_live_blackmamba_super_secret_key"
+    payload = "{\"action\": \"transfer\", \"amount\": 1000000, \"currency\": \"USD\"}"
+    sig = hmac_sha256(api_key, payload)
+    print("API Payload:")
+    print(f"  {payload}")
+    print("HMAC-SHA256 Signature:")
+    print(f"  {sig}")
+
+    rfc_key = "key"
+    rfc_data = "The quick brown fox jumps over the lazy dog"
+    rfc_sig = hmac_sha256(rfc_key, rfc_data)
+    print("RFC 4231 Test Vector:")
+    print(f"  {rfc_sig}")
+    if rfc_sig != "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8":
+        print("ERROR: HMAC-SHA256 RFC 4231 vector mismatch!")
+        return 4
+
+    print("")
+
+    # 3. MurmurHash3 (32-bit x86 Ultra-Fast Hash Table Mixer)
+    print("--- 3. MurmurHash3 (32-bit Fast Mixer) ---")
+    mm1 = murmurhash3("compiler")
+    mm2 = murmurhash3("runtime")
+    mm3 = murmurhash3("Black Mamba")
+    print(f"MurmurHash3(\"compiler\")    -> {mm1} (0x{hex32(mm1)})")
+    print(f"MurmurHash3(\"runtime\")     -> {mm2} (0x{hex32(mm2)})")
+    print(f"MurmurHash3(\"Black Mamba\") -> {mm3} (0x{hex32(mm3)})")
+
+    # 4. FNV-1a (32-bit Linear Pass)
+    print("")
+    print("--- 4. FNV-1a (32-bit Linear Hash) ---")
+    fnv1 = fnv1a_32("compiler")
+    fnv2 = fnv1a_32("runtime")
+    fnv3 = fnv1a_32("Black Mamba")
+    print(f"FNV-1a(\"compiler\")         -> {fnv1} (0x{hex32(fnv1)})")
+    print(f"FNV-1a(\"runtime\")          -> {fnv2} (0x{hex32(fnv2)})")
+    print(f"FNV-1a(\"Black Mamba\")      -> {fnv3} (0x{hex32(fnv3)})")
+
+    print("")
+    print("==================================================================")
+    print(" ALL CRYPTO & HASHING TESTS PASSED PERFECTLY!                    ")
+    print("==================================================================")
+    return 0

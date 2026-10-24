@@ -84,11 +84,11 @@ Reduce reliance on the host Python runtime by providing high-speed, native imple
   - [x] `time.bmb`: Nanosecond monotonic hardware clock (`clock_ns`), high-precision float seconds (`clock_sec`), and microsecond/nanosecond sleep primitives (`sleep_ms`, `sleep_ns`).
   - [x] `random.bmb`: Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period, BigCrush validated) with 53-bit uniform double generator (`rng_random_f64`), bounded integer ranges (`rng_randint`), and array sampling (`rng_choice`).
   - [x] `json.bmb`: Pure native Black Mamba JSON parser and serializer with zero CPython dependencies. Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters (`json_get`, `json_get_str`, `json_get_int`, `json_get_float`, `json_get_bool`), array indexing (`json_array_get`, `json_array_len`), and high-speed stringification (`json_dumps`, `json_dumps_int_array`, `json_dumps_float_array`, `json_dumps_str_array`).
+  - [x] `hash.bmb`: Cryptographic & fast non-cryptographic hashing with zero CPython dependencies. SHA-256 (NIST FIPS 180-4 standard), HMAC-SHA256 (RFC 2104 authenticated message signatures), MurmurHash3 (32-bit x86 mixer for fast hash tables), FNV-1a (32-bit linear pass), and high-speed hex encoders (`hex_byte`, `hex32`, `hex256`).
   - [x] `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and module-level constant inlining.
 - [ ] **Next Standard Modules**:
   - `os`: Native filesystem access, directory traversal, environment variables.
   - `socket`: Non-blocking TCP/UDP networking sockets.
-  - `hash`: Native SHA-256 and MurmurHash3 implementations.
   - `array`: Contiguous fixed-size and dynamic vector buffers.
   - `path`: Zero-allocation file path manipulation.
   - `test`: Built-in assertions and benchmark harness.
@@ -131,7 +131,7 @@ For full architectural transparency, every known limitation, missing feature, an
 2. **Platform Coverage**: Windows PE32+ and Linux ELF64 (3.9 KB) fully native; macOS ARM64 native binary generation in progress.
 3. **Strings**: Small String Optimization (SSO), zero-copy slicing, and dynamic operations resolved; complex Unicode normalization & regex engine in progress.
 4. **Hardware Exceptions**: No `.pdata`/`.xdata` SEH unwinding tables in the PE linker; unhandled CPU faults terminate the process immediately.
-5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, and `json` are pure native `.bmb`; I/O and networking (`socket`, `os`, `hash`) in development.
+5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, and `hash` are pure native `.bmb`; I/O and networking (`socket`, `os`) in development.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
 7. **Concurrency Syntax**: No native `spawn` or `mutex` syntax in JIT mode (multithreading currently requires the C11/OpenMP emitter).
 8. **Developer Tooling**: No dedicated VS Code LSP server daemon or package registry yet.

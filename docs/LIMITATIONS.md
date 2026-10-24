@@ -73,14 +73,15 @@
     - `random.bmb`: Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period, BigCrush validated) with 53-bit uniform double generator (`rng_random_f64`), bounded integer ranges (`rng_randint`), continuous distributions (`rng_uniform`), and array sampling (`rng_choice`).
     - `tensor.bmb`: Pure native 1D vector and 2D matrix operations (SAXPY, reductions, dot product, L2 norm, neural activations, GEMM matmul) with zero-copy NumPy/PyTorch host tensor bridging.
     - `json.bmb`: Pure native Black Mamba JSON parser and serializer with zero CPython dependencies. Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters (`json_get`, `json_get_str`, `json_get_int`, `json_get_float`, `json_get_bool`), array indexing (`json_array_get`, `json_array_len`), and high-speed stringification (`json_dumps`, `json_dumps_int_array`, `json_dumps_float_array`, `json_dumps_str_array`).
+    - `hash.bmb`: Cryptographic & fast non-cryptographic hashing with zero CPython dependencies. SHA-256 (NIST FIPS 180-4 standard), HMAC-SHA256 (RFC 2104 authenticated message signatures), MurmurHash3 (32-bit x86 mixer for fast hash tables), FNV-1a (32-bit linear pass), and high-speed hex encoders (`hex_byte`, `hex32`, `hex256`).
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
   * **Remaining Limitation**:
-    - High-level I/O, hashing, and networking modules (`socket`, `os`, `hash`, `sqlite3`, `http`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
+    - High-level I/O and networking modules (`socket`, `os`, `sqlite3`, `http`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`) for compute, timing, tensors, and data exchange.
+  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`) for compute, timing, tensors, data exchange, and security hashing.
   * For raw socket operations or complex OS filesystem calls, call `py_call("socket", ...)` or `py_call("os", ...)` via the CPython Host Bridge.
 * **Planned Future Work (Phase 4)**:
-  * Pure `.bmb` zero-copy file I/O in `os.bmb`, native SHA-256 in `hash.bmb`, and non-blocking networking in `socket.bmb`.
+  * Pure `.bmb` zero-copy file I/O in `os.bmb` and non-blocking networking in `socket.bmb`.
 ---
 
 ## 6. Dynamic OOP: No C3 MRO or Dynamic Monkey-Patching
@@ -131,7 +132,7 @@
 | **Platform** | Linux ELF64 shipped (3.9KB); macOS ARM64 in progress | Medium | Phase 2 In Progress |
 | **Strings** | Static interned string pool; no dynamic slicing/concatenation in JIT | Medium | Phase 3 Target |
 | **Exceptions** | Process termination on hardware fault; no `.xdata` unwinding tables | Low | Phase 3 Target |
-| **Stdlib** | Core (math, time, random, tensor, json) pure native; OS, Socket, Hash remaining | Medium | Phase 4 Core Done |
+| **Stdlib** | Core (math, time, random, tensor, json, hash) pure native; OS, Socket remaining | Medium | Phase 4 Core Done |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| No native `spawn` / `mutex` keywords in JIT (requires C11/OpenMP) | Medium | Phase 4 Target |
 | **Tooling** | No dedicated VS Code extension or LSP daemon | Medium | Phase 5 Target |

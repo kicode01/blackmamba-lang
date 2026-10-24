@@ -399,6 +399,47 @@ def test_parse_and_serialize() -> i64:
         self.assertIn('Serialized={"compiler": "Black Mamba", "version": 2, "speed": 42.5, "active": true, "tags": ["fast", "native"]}', out)
         mod.close()
 
+    def test_stdlib_hash_module(self):
+        """
+        Phase 4: Pure native Black Mamba (.bmb) Cryptography & Hashing standard library.
+        Verifies SHA-256 (NIST FIPS 180-4), HMAC-SHA256 (RFC 2104), MurmurHash3, and FNV-1a.
+        """
+        import mamba
+        hash_bmb_code = """
+from hash import *
+
+def test_hashing() -> i64:
+    # 1. SHA-256
+    h_empty = sha256("")
+    h_abc = sha256("abc")
+    h_fox = sha256("The quick brown fox jumps over the lazy dog")
+    print(f"sha256_empty={h_empty}")
+    print(f"sha256_abc={h_abc}")
+    print(f"sha256_fox={h_fox}")
+
+    # 2. HMAC-SHA256 (RFC 4231)
+    sig = hmac_sha256("key", "The quick brown fox jumps over the lazy dog")
+    print(f"hmac_fox={sig}")
+
+    # 3. MurmurHash3 & FNV-1a
+    mm = murmurhash3("Black Mamba")
+    fnv = fnv1a_32("Black Mamba")
+    print(f"mmh3={mm}")
+    print(f"fnv1a={fnv}")
+    return 0
+"""
+        mod = mamba.compile(hash_bmb_code)
+        res = mod.test_hashing()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("sha256_empty=e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", out)
+        self.assertIn("sha256_abc=ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", out)
+        self.assertIn("sha256_fox=d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592", out)
+        self.assertIn("hmac_fox=f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8", out)
+        self.assertIn("mmh3=3565214588", out)
+        self.assertIn("fnv1a=817612296", out)
+        mod.close()
+
 
 if __name__ == "__main__":
     unittest.main()

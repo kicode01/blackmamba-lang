@@ -379,6 +379,13 @@ class WasmBackend:
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
+        if op == "NOT_I64" and dst_l is not None:
+            load_as(str(ins.arg1), WASM_I64)
+            code.extend(b"\x42" + _sleb128(-1))  # i64.const -1
+            code.extend(b"\x85")  # i64.xor
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
         if op == "NEG_F64" and dst_l is not None:
             load_as(str(ins.arg1), WASM_F64)
             code.extend(b"\x9A")  # f64.neg
