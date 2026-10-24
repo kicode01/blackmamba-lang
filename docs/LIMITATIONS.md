@@ -20,15 +20,16 @@
 
 ---
 
-## 2. Platform Architecture: Win64 x86-64 Native Bias
+## 2. Platform Architecture: macOS Apple Silicon (ARM64)
 
-* **The Limitation**:
-  * The direct native machine-code JIT (`mamba/backends/x86_64_jit.py`) and standalone executable linker (`mamba/backends/pe_exe.py`) are written specifically for **Windows x86-64** (PE32+ format, Win64 calling convention: `rcx, rdx, r8, r9` with 32-byte shadow space).
-  * Direct standalone binary generation (`bmb build --target exe`) does not yet produce native **Linux ELF64** or **macOS ARM64** binaries directly.
-* **Current Workaround**:
-  * On Linux and macOS, compile via the portable C11 backend (`bmb build script.bmb --target c` and `gcc -O3 script.c`), or compile to WebAssembly (`--target wasm`) and run via Node.js / Wasmtime.
+* **Current Status**:
+  * **Windows x86-64**: Full native support via PE32+ linker (`bmb build --target exe`, 5.5 KB).
+  * **Linux x86-64**: Full native support via direct ELF64 linker (`bmb build --target elf`, 3.9 KB static binary using direct `sys_write` and `sys_exit` syscalls).
+  * **macOS / Apple Silicon**: Native standalone binary generation (`.dylib` / Mach-O ARM64) is currently in progress.
+* **Current Workaround on macOS**:
+  * Compile via the portable C11 backend (`bmb build script.bmb --target c` and `clang -O3 script.c`), or compile to WebAssembly (`--target wasm`) and run via Node.js / Wasmtime.
 * **Planned Fix (Phase 2)**:
-  * Implement an ELF64 binary emitter with System V AMD64 ABI and raw Linux syscalls (`sys_write`, `sys_mmap`), followed by an AArch64 machine-code emitter for Apple Silicon.
+  * Implement an AArch64 machine-code emitter and 64-bit Mach-O binary packaging for Apple Silicon M1/M2/M3/M4 chips.
 
 ---
 
@@ -117,7 +118,7 @@
 | Category | Flaw | Severity | Status |
 | :--- | :--- | :--- | :--- |
 | **Memory** | Linear arena leaks on cyclic heap graphs | Medium | Phase 3 Target |
-| **Platform** | Direct native JIT/EXE is Win64-only (Linux/Mac require C11/WASM) | Medium | Phase 2 Target |
+| **Platform** | Linux ELF64 shipped (3.9KB); macOS ARM64 in progress | Medium | Phase 2 In Progress |
 | **Strings** | Static interned string pool; no dynamic slicing/concatenation in JIT | Medium | Phase 3 Target |
 | **Exceptions** | Process termination on hardware fault; no `.xdata` unwinding tables | Low | Phase 3 Target |
 | **Stdlib** | Missing native implementations of heavy standard libraries (JSON, OS) | High | Phase 4 Target |

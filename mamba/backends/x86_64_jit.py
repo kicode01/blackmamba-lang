@@ -105,6 +105,12 @@ class X86_64CodeBuffer:
         else:
             self.emit(b"\x48\x81\xEC" + struct.pack("<i", imm), f"sub rsp, 0x{imm:X}")
 
+    def add_rsp_imm32(self, imm: int) -> None:
+        if imm <= 127:
+            self.emit(b"\x48\x83\xC4" + struct.pack("<b", imm), f"add rsp, 0x{imm:X}")
+        else:
+            self.emit(b"\x48\x81\xC4" + struct.pack("<i", imm), f"add rsp, 0x{imm:X}")
+
     def mov_rsp_rbp(self) -> None:
         self.emit(b"\x48\x89\xEC", "mov rsp, rbp")
 

@@ -165,6 +165,28 @@ def sum_array(n: i64) -> i64:
         llvm_code = LLVMIRBackend(mir).emit_llvm()
         self.assertIn("define dso_local i64 @sum_array", llvm_code)
 
+    def test_elf64_backend_emission(self):
+        code = """
+def main():
+    print("Linux ELF64 Test")
+    return 42
+"""
+        mod = Parser.from_source(code).parse_module()
+        mir = MIRBuilder().build(mod)
+        from mamba.backends.elf_exe import ELF64ExecutableBuilder
+        raw = ELF64ExecutableBuilder(mir).build_bytes()
+        # Verify ELF64 header magic
+        self.assertEqual(raw[:4], b"\x7fELF")
+        self.assertEqual(raw[4], 2)       # 64-bit
+        self.assertEqual(raw[5], 1)       # Little-endian
+        # Verify machine is EM_X86_64
+        import struct
+        machine = struct.unpack_from("<H", raw, 18)[0]
+        self.assertEqual(machine, 0x3E)
+        # Verify PT_LOAD program header
+        p_type = struct.unpack_from("<I", raw, 64)[0]
+        self.assertEqual(p_type, 1)
+
 
 if __name__ == "__main__":
     unittest.main()

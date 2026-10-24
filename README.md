@@ -32,9 +32,9 @@ Verified tail_sum(5_000_000) = 12500002500000 (0 stack frames allocated via Auto
 1. **Win64 x86-64 Native JIT**:
    * Eliminates CPython's **2,112-byte** stack frame (`_PyEval_EvalFrameDefault`, `sub rsp, 0x840`) down to standard 32–48 byte ABI frames.
    * Compiles and executes in executable RAM (`VirtualAlloc`) in sub-millisecond times.
-2. **Zero-Dependency PE32+ Standalone Linker**:
-   * Emits valid 64-bit Windows executables (`.exe`) directly in pure Python bytecode.
-   * Binary size: **5.5 KB** with zero external dependencies (no Visual Studio or GCC needed).
+2. **Zero-Dependency PE32+ (Windows) & ELF64 (Linux) Standalone Linkers**:
+   * Emits valid 64-bit Windows executables (`.exe`, 5.5 KB) and static Linux executables (`.elf`, 3.9 KB) directly in pure Python bytecode.
+   * Uses raw Linux `syscall` integration (`sys_write`, `sys_exit`) with zero external dependencies (no Visual Studio or GCC needed).
 3. **1.7 KB WebAssembly Engine**:
    * Compiles directly to standard WebAssembly 1.0 (`.wasm`).
    * Over **18,000x smaller** than Pyodide (32 MB), booting in **0.12 ms** and driving 60/120 FPS HTML5 Canvas games.
@@ -120,7 +120,8 @@ python bmb.py run examples/black_mamba_flagship.bmb --stats
 python bmb.py build examples/black_mamba_flagship.bmb --target all
 ```
 * Generates:
-  * `build/black_mamba_flagship.exe` (5.5 KB native PE32+ executable)
+  * `build/black_mamba_flagship.exe` (5.5 KB native Windows PE32+ executable)
+  * `build/black_mamba_flagship.elf` (3.9 KB static Linux x86-64 ELF64 binary)
   * `build/black_mamba_flagship.wasm` (2.7 KB WebAssembly binary)
   * `build/black_mamba_flagship.wat` (Human-readable WebAssembly text)
   * `build/black_mamba_flagship.c` (Portable C11 + OpenMP)

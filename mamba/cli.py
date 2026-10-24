@@ -17,6 +17,7 @@ from .parser import Parser
 from .mir import MIRBuilder, MIRModule
 from .backends.x86_64_jit import NativeJITModule
 from .backends.pe_exe import PE32PlusExecutableBuilder
+from .backends.elf_exe import ELF64ExecutableBuilder
 from .backends.wasm_emitter import WasmBackend
 from .backends.c_emitter import C11Backend, LLVMIRBackend
 
@@ -73,12 +74,16 @@ def cmd_build(args: argparse.Namespace) -> int:
     out_dir = os.path.dirname(os.path.abspath(args.output)) if args.output else os.path.join(os.getcwd(), "build")
     os.makedirs(out_dir, exist_ok=True)
 
-    targets = ["exe", "wasm", "wat", "c", "llvm"] if args.target == "all" else [args.target]
+    targets = ["exe", "elf", "wasm", "wat", "c", "llvm"] if args.target == "all" else [args.target]
     for tgt in targets:
         if tgt == "exe":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.exe")
             path = PE32PlusExecutableBuilder(mir).write_executable(out_path)
             print(f"[Black Mamba] Built standalone Windows x86-64 PE32+ executable -> {path} ({os.path.getsize(path)} bytes)")
+        elif tgt in ("elf", "linux"):
+            out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.elf")
+            path = ELF64ExecutableBuilder(mir).write_executable(out_path)
+            print(f"[Black Mamba] Built standalone Linux x86-64 ELF64 binary      -> {path} ({os.path.getsize(path)} bytes)")
         elif tgt == "wasm":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.wasm")
             path = WasmBackend(mir).write_wasm(out_path)
@@ -297,7 +302,7 @@ def main(argv: Optional[list] = None) -> int:
     p_build.add_argument(
         "--target",
         "-t",
-        choices=["exe", "wasm", "wat", "c", "llvm", "all"],
+        choices=["exe", "elf", "linux", "wasm", "wat", "c", "llvm", "all"],
         default="exe",
         help="Target output format (default: exe)",
     )
