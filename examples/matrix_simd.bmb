@@ -1,0 +1,37 @@
+# Black Mamba (.bmb) — Value Structs, Array SIMD, & Pipeline Operator |>
+# Shows value-type structs, dot products, lock-free parallel loops, and pipeline chaining
+
+struct Vec3:
+    x: f64
+    y: f64
+    z: f64
+
+    fn length_sq(self) -> f64:
+        return self.x * self.x + self.y * self.y + self.z * self.z
+
+def dot_product(n: i64) -> f64:
+    a = [1.5] * n
+    b = [2.0] * n
+    sum = 0.0
+    for i in 0..n:
+        sum += a[i] * b[i]
+    return sum
+
+def add_ten(x: i64) -> i64:
+    return x + 10
+
+def double_val(x: i64) -> i64:
+    return x * 2
+
+def main():
+    print("=== Black Mamba Structs & Pipelines ===")
+    v = Vec3(1.0, 2.0, 3.0)
+    print(f"v.x = {v.x}, v.y = {v.y}, v.z = {v.z}")
+    
+    # Pipeline operator |>
+    result = 5 |> add_ten |> double_val
+    print(f"Pipeline: 5 |> add_ten |> double_val = {result}")
+    
+    dp = dot_product(1000)
+    print(f"Dot product of 1000 elements: {dp}")
+    return 0

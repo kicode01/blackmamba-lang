@@ -1,0 +1,39 @@
+# Black Mamba (.bmb) — Prime Counting & Collatz Kernel
+# Demonstrates tight integer arithmetic loops, modulo, bitwise shifts, and break
+
+def is_prime(n: i64) -> bool:
+    if n <= 1:
+        return False
+    d = 2
+    while d * d <= n:
+        if n % d == 0:
+            return False
+        d += 1
+    return True
+
+def count_primes_up_to(limit: i64) -> i64:
+    count = 0
+    for n in 2..=limit:
+        if is_prime(n):
+            count += 1
+    return count
+
+def collatz_steps(n: i64) -> i64:
+    steps = 0
+    while n > 1:
+        if (n & 1) == 0:
+            n = n >> 1
+        else:
+            n = 3 * n + 1
+        steps += 1
+    return steps
+
+def main():
+    print("=== Black Mamba Prime & Collatz Kernel ===")
+    limit = 10000
+    p_cnt = count_primes_up_to(limit)
+    print(f"Number of primes up to {limit} = {p_cnt}")
+    
+    c_steps = collatz_steps(27)
+    print(f"Collatz steps for 27 = {c_steps}")
+    return 0

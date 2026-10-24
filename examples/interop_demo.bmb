@@ -1,0 +1,28 @@
+# ==============================================================================
+#  BLACK MAMBA (.bmb) CPYTHON HOST INTEROP DEMO
+#  Zero-overhead C-API bridge accessing host Python modules & dynamic eval
+# ==============================================================================
+
+def main():
+    print("==================================================================")
+    print("     BLACK MAMBA (.bmb) ZERO-COPY CPYTHON HOST INTEROP DEMO       ")
+    print("==================================================================")
+
+    # 1. Calling standard host Python math module via C-API
+    angle = 1.57079632679
+    s = py_call("math", "sin", angle)
+    print(f"CPython math.sin(pi/2) = {s}")
+
+    # 2. Calling another host Python module function
+    num = 144.0
+    root = py_call("math", "sqrt", num)
+    print(f"CPython math.sqrt(144) = {root}")
+
+    # 3. Dynamic Python expression evaluation (eval) without slowing down native loops
+    dyn_calc = py_eval("2.5 * 4.0 + 32.0")
+    print(f"CPython Dynamic Eval (2.5 * 4.0 + 32.0) = {dyn_calc}")
+
+    print("==================================================================")
+    print("Host CPython 3.14 C-API seamlessly bridged to Native x86-64 JIT!")
+    print("==================================================================")
+    return 0

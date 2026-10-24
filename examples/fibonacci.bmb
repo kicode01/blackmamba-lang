@@ -1,0 +1,25 @@
+# Black Mamba (.bmb) — Fibonacci Benchmark Kernel
+# Showcases unannotated Python syntax with whole-program Cartesian type inference
+
+def fib(n):
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+fn fib_iterative(n: i64) -> i64:
+    if n <= 1:
+        return n
+    a = 0
+    b = 1
+    for i in 2..=n:
+        c = a + b
+        a = b
+        b = c
+    return b
+
+def main():
+    print("=== Black Mamba Fibonacci Kernel ===")
+    print(f"Recursive fib(20) = {fib(20)}")
+    print(f"Recursive fib(30) = {fib(30)}")
+    print(f"Iterative fib(50) = {fib_iterative(50)}")
+    return 0

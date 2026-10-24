@@ -1,0 +1,38 @@
+# Black Mamba (.bmb) — Complete Language Showcase
+# Demonstrates unified def/fn, type inference, structs, pattern matching, TCO, and multi-backend compilation
+
+struct Point:
+    x: i64
+    y: i64
+
+def classify_quadrant(p: Point) -> str:
+    match p.x > 0:
+        case True:
+            if p.y > 0:
+                return "Q1"
+            return "Q4"
+        case False:
+            if p.y > 0:
+                return "Q2"
+            return "Q3"
+    return "Origin"
+
+# Tail-recursive sum compiled with automatic TCO into a 0-stack-frame loop
+def tail_sum(n, acc):
+    if n <= 0:
+        return acc
+    return tail_sum(n - 1, acc + n)
+
+def main():
+    print("==================================================")
+    print("🐍 WELCOME TO BLACK MAMBA (.bmb) 🐍")
+    print("Bare-Metal Speed with 100% Python Ergonomics")
+    print("==================================================")
+    
+    pt = Point(12, -5)
+    quad = classify_quadrant(pt)
+    print(f"Point({pt.x}, {pt.y}) is in quadrant: {quad}")
+    
+    t_sum = tail_sum(100000, 0)
+    print(f"Auto-TCO tail_sum(100000) = {t_sum}")
+    return 0

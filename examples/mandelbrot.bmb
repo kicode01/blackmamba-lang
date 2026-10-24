@@ -1,0 +1,35 @@
+# Black Mamba (.bmb) — Mandelbrot Fractal & Floating-Point SSE2 Kernel
+# Showcases 64-bit IEEE-754 float arithmetic, nested loops, and ASCII fractal renderer
+
+def mandelbrot_point(cx: f64, cy: f64, max_iter: i64) -> i64:
+    zx = 0.0
+    zy = 0.0
+    for i in 0..max_iter:
+        if zx * zx + zy * zy > 4.0:
+            return i
+        new_zx = zx * zx - zy * zy + cx
+        zy = 2.0 * zx * zy + cy
+        zx = new_zx
+    return max_iter
+
+def render_ascii_mandelbrot(width: i64, height: i64):
+    for y in 0..height:
+        cy = (float(y) / float(height)) * 2.4 - 1.2
+        for x in 0..width:
+            cx = (float(x) / float(width)) * 3.0 - 2.0
+            iters = mandelbrot_point(cx, cy, 50)
+            if iters >= 50:
+                print("*")
+            elif iters > 20:
+                print(":")
+            elif iters > 5:
+                print(".")
+            else:
+                print(" ")
+        print("")
+
+def main():
+    print("=== Black Mamba 64-bit Float Mandelbrot ===")
+    iters_center = mandelbrot_point(-0.75, 0.1, 100)
+    print(f"Center escape iterations: {iters_center}")
+    return 0

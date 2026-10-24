@@ -1,0 +1,46 @@
+# ==============================================================================
+#  BLACK MAMBA (.bmb) WEB KERNEL: HIGH-SPEED CANVAS PHYSICS SIMULATOR
+#  Compiled directly to WebAssembly (.wasm) for in-browser 60 FPS animation
+# ==============================================================================
+
+# Calculates the next position and velocity for interactive canvas particles
+def update_particle_x(x: f64, vx: f64, dt: f64, max_w: f64) -> f64:
+    nx = x + vx * dt
+    if nx < 0.0:
+        return 0.0
+    if nx > max_w:
+        return max_w
+    return nx
+
+def update_particle_y(y: f64, vy: f64, dt: f64, max_h: f64) -> f64:
+    ny = y + vy * dt
+    if ny < 0.0:
+        return 0.0
+    if ny > max_h:
+        return max_h
+    return ny
+
+def update_particle_vx(x: f64, vx: f64, dt: f64, max_w: f64, bounce: f64) -> f64:
+    nx = x + vx * dt
+    if nx <= 0.0:
+        return 0.0 - (vx * bounce)
+    if nx >= max_w:
+        return 0.0 - (vx * bounce)
+    return vx * 0.999  # Air resistance drag
+
+def update_particle_vy(y: f64, vy: f64, dt: f64, max_h: f64, gravity: f64, bounce: f64) -> f64:
+    new_vy = vy + gravity * dt
+    ny = y + new_vy * dt
+    if ny <= 0.0:
+        return 0.0 - (new_vy * bounce)
+    if ny >= max_h:
+        return 0.0 - (new_vy * bounce)
+    return new_vy * 0.999  # Air resistance drag
+
+# Edge / Web Microservice Benchmark: Computes aggregate spatial collision metrics
+def compute_kinetic_total(n: i64, scale: f64) -> f64:
+    total = 0.0
+    for i in 1..=n:
+        v = (i % 50) * scale
+        total = total + (0.5 * 1.5 * v * v)
+    return total
