@@ -11,6 +11,7 @@ Windows x64 Calling Convention (Win64 ABI) with:
 
 import ctypes
 import math
+import os
 import struct
 import time
 from dataclasses import dataclass
@@ -1163,12 +1164,74 @@ class NativeJITModule:
         def rt_clock_ns() -> int:
             return time.perf_counter_ns()
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_exists(path_val: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            return 1 if os.path.exists(p) else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_size(path_val: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            if not os.path.exists(p):
+                return -1
+            try:
+                return os.path.getsize(p)
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_read(path_val: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            try:
+                with open(p, "rb") as f:
+                    data = f.read()
+            except Exception:
+                data = b""
+            return make_str_handle(data)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_write(path_val: int, content_val: int, mode: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            c = get_str_bytes(content_val)
+            m = "ab" if mode == 1 else "wb"
+            try:
+                with open(p, m) as f:
+                    f.write(c)
+                return len(c)
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_remove(path_val: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            try:
+                os.remove(p)
+                return 1
+            except Exception:
+                return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_get_cwd() -> int:
+            try:
+                cwd = os.getcwd().encode("utf-8")
+            except Exception:
+                cwd = b""
+            return make_str_handle(cwd)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_get_env(key_val: int) -> int:
+            k = get_str_bytes(key_val).decode("utf-8", errors="replace")
+            v = os.environ.get(k, "").encode("utf-8")
+            return make_str_handle(v)
+
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
             rt_str_cmp_lt, rt_str_cmp_le, rt_str_cmp_gt, rt_str_cmp_ge,
             rt_str_from_i64, rt_str_from_f64, rt_str_from_bool, rt_clock_ns,
             rt_str_ord, rt_str_chr, rt_str_to_i64, rt_str_to_f64,
+            rt_bmb_file_exists, rt_bmb_file_size, rt_bmb_file_read, rt_bmb_file_write,
+            rt_bmb_file_remove, rt_bmb_get_cwd, rt_bmb_get_env,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1194,6 +1257,13 @@ class NativeJITModule:
         self.addr_str_to_i64 = ctypes.cast(rt_str_to_i64, ctypes.c_void_p).value
         self.addr_str_to_f64 = ctypes.cast(rt_str_to_f64, ctypes.c_void_p).value
         self.addr_clock_ns = ctypes.cast(rt_clock_ns, ctypes.c_void_p).value
+        self.addr_bmb_file_exists = ctypes.cast(rt_bmb_file_exists, ctypes.c_void_p).value
+        self.addr_bmb_file_size = ctypes.cast(rt_bmb_file_size, ctypes.c_void_p).value
+        self.addr_bmb_file_read = ctypes.cast(rt_bmb_file_read, ctypes.c_void_p).value
+        self.addr_bmb_file_write = ctypes.cast(rt_bmb_file_write, ctypes.c_void_p).value
+        self.addr_bmb_file_remove = ctypes.cast(rt_bmb_file_remove, ctypes.c_void_p).value
+        self.addr_bmb_get_cwd = ctypes.cast(rt_bmb_get_cwd, ctypes.c_void_p).value
+        self.addr_bmb_get_env = ctypes.cast(rt_bmb_get_env, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -1279,6 +1349,22 @@ class NativeJITModule:
         def emit_helper_call(kind: str) -> None:
             addr, name = helper_addrs[kind]
             self.code_buf.call_abs_addr(addr, name)
+
+        os_trampolines = [
+            ("__bmb_file_exists", self.addr_bmb_file_exists),
+            ("__bmb_file_size", self.addr_bmb_file_size),
+            ("__bmb_file_read", self.addr_bmb_file_read),
+            ("__bmb_file_write", self.addr_bmb_file_write),
+            ("__bmb_file_remove", self.addr_bmb_file_remove),
+            ("__bmb_get_cwd", self.addr_bmb_get_cwd),
+            ("__bmb_get_env", self.addr_bmb_get_env),
+        ]
+        for name, addr in os_trampolines:
+            self.code_buf.mark_label(f"fn__{name}")
+            self.code_buf.emit(b"\x48\x83\xEC\x28", "sub rsp, 0x28")
+            self.code_buf.call_abs_addr(addr, name)
+            self.code_buf.emit(b"\x48\x83\xC4\x28", "add rsp, 0x28")
+            self.code_buf.ret()
 
         for fn in self.mir_module.functions:
             self.func_offsets[fn.name] = len(self.code_buf.code)

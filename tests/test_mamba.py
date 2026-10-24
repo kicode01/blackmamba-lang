@@ -440,6 +440,73 @@ def test_hashing() -> i64:
         self.assertIn("fnv1a=817612296", out)
         mod.close()
 
+    def test_stdlib_os_module(self):
+        """
+        Phase 4: Pure native Black Mamba (.bmb) OS & File System Primitives.
+        Verifies path utilities (join, basename, dirname, ext), get_cwd,
+        file_exists, write_file, file_size, read_file, append_file, and remove_file.
+        """
+        import mamba
+        os_bmb_code = """
+from os import *
+
+def test_os_ops() -> i64:
+    # 1. Path manipulation
+    p = path_join("build", "test_stdlib_os.tmp")
+    base = path_basename(p)
+    dir_name = path_dirname(p)
+    ext = path_ext(p)
+    print(f"p={p}")
+    print(f"base={base}")
+    print(f"dir={dir_name}")
+    print(f"ext={ext}")
+
+    # 2. Working directory
+    cwd = get_cwd()
+    print(f"cwd_len={len(cwd)}")
+
+    # 3. File lifecycle: clean up, write, size, read
+    if file_exists(p):
+        remove_file(p)
+    print(f"exists_before={file_exists(p)}")
+
+    w_bytes = write_file(p, "Black Mamba OS Primitives\\nLine 2\\n")
+    print(f"w_bytes={w_bytes}")
+    print(f"exists_after={file_exists(p)}")
+    print(f"size_after={file_size(p)}")
+    
+    content1 = read_file(p)
+    print(f"content1={content1}")
+
+    # 4. Append
+    app_bytes = append_file(p, "Line 3 Appended\\n")
+    print(f"app_bytes={app_bytes}")
+    print(f"size_appended={file_size(p)}")
+    content2 = read_file(p)
+    print(f"content2={content2}")
+
+    # 5. Remove
+    rm_ok = remove_file(p)
+    print(f"rm_ok={rm_ok}")
+    print(f"exists_final={file_exists(p)}")
+    return 0
+"""
+        mod = mamba.compile(os_bmb_code)
+        res = mod.test_os_ops()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("p=build/test_stdlib_os.tmp", out)
+        self.assertIn("base=test_stdlib_os.tmp", out)
+        self.assertIn("dir=build", out)
+        self.assertIn("ext=.tmp", out)
+        self.assertIn("exists_before=False", out)
+        self.assertIn("exists_after=True", out)
+        self.assertIn("Black Mamba OS Primitives", out)
+        self.assertIn("Line 3 Appended", out)
+        self.assertIn("rm_ok=True", out)
+        self.assertIn("exists_final=False", out)
+        mod.close()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -46,6 +46,11 @@ class PE32PlusExecutableBuilder:
         self.mir_module = mir_module
         self.code_buf = X86_64CodeBuffer()
         self.string_rvas: Dict[int, int] = {}
+        self.iat_rvas: Dict[str, int] = {}
+        self.builtin_rvas: Dict[str, int] = {}
+        self.iat_start_rva: int = 0
+        self.iat_total_size: int = 0
+        self.idt_size: int = 0
 
     def build_bytes(self) -> bytes:
         rdata_raw = self._build_rdata_section()
@@ -114,82 +119,139 @@ class PE32PlusExecutableBuilder:
         return os.path.abspath(output_path)
 
     def _build_rdata_section(self, base_rva: int = RDATA_RVA) -> bytes:
-        delta = base_rva - RDATA_RVA
-        buf = bytearray(0x200)
+        self.iat_rvas = {}
+        self.builtin_rvas = {}
+        self.string_rvas = {}
 
-        # 1. Import Directory Table at +0x000 (3 entries x 20 bytes)
-        # Entry 0: msvcrt.dll
-        struct.pack_into(
-            "<IIIII",
-            buf,
-            0x00,
-            0x2040 + delta,  # OriginalFirstThunk (ILT)
-            0,
-            0,
-            0x2100 + delta,  # Name RVA ("msvcrt.dll")
-            0x2080 + delta,  # FirstThunk (IAT)
-        )
-        # Entry 1: KERNEL32.dll
-        struct.pack_into(
-            "<IIIII",
-            buf,
-            0x14,
-            0x2068 + delta,  # OriginalFirstThunk (ILT)
-            0,
-            0,
-            0x2110 + delta,  # Name RVA ("KERNEL32.dll")
-            0x20A8 + delta,  # FirstThunk (IAT)
-        )
-        # Entry 2: Null entry at 0x28..0x3C (already zeros)
+        imports_spec = [
+            (
+                "msvcrt.dll",
+                [
+                    "printf", "calloc", "pow", "fflush",
+                    "fopen", "fread", "fwrite", "fclose", "fseek", "ftell",
+                    "remove", "_getcwd", "getenv",
+                ],
+            ),
+            (
+                "KERNEL32.dll",
+                [
+                    "ExitProcess",
+                ],
+            ),
+        ]
 
-        # 2. ILT for msvcrt.dll at +0x040
-        msvcrt_hints = [0x2120 + delta, 0x2130 + delta, 0x2140 + delta, 0x2148 + delta, 0]
-        for i, h in enumerate(msvcrt_hints):
-            struct.pack_into("<Q", buf, 0x40 + i * 8, h)
+        idt_size = (len(imports_spec) + 1) * 20
+        self.idt_size = idt_size
+        cur_off = _align(idt_size, 8)
 
-        # 3. ILT for KERNEL32.dll at +0x068
-        kernel_hints = [0x2158 + delta, 0]
-        for i, h in enumerate(kernel_hints):
-            struct.pack_into("<Q", buf, 0x68 + i * 8, h)
+        ilt_offsets = []
+        for dll_name, funcs in imports_spec:
+            ilt_offsets.append(cur_off)
+            cur_off += (len(funcs) + 1) * 8
 
-        # 4. IAT for msvcrt.dll at +0x080
-        for i, h in enumerate(msvcrt_hints):
-            struct.pack_into("<Q", buf, 0x80 + i * 8, h)
+        iat_offsets = []
+        func_iat_offsets = {}
+        for dll_name, funcs in imports_spec:
+            iat_offsets.append(cur_off)
+            for f in funcs:
+                func_iat_offsets[f] = cur_off
+                cur_off += 8
+            cur_off += 8  # null terminator
 
-        # 5. IAT for KERNEL32.dll at +0x0A8
-        for i, h in enumerate(kernel_hints):
-            struct.pack_into("<Q", buf, 0xA8 + i * 8, h)
+        self.iat_start_rva = base_rva + iat_offsets[0]
+        self.iat_total_size = sum((len(funcs) + 1) * 8 for _, funcs in imports_spec)
 
-        # 6. DLL & Import Hint/Name strings
-        def put_bytes(offset: int, data: bytes) -> None:
-            if offset + len(data) > len(buf):
-                buf.extend(b"\x00" * (offset + len(data) - len(buf)))
-            buf[offset : offset + len(data)] = data
+        dll_name_offsets = []
+        for dll_name, _ in imports_spec:
+            cur_off = _align(cur_off, 2)
+            dll_name_offsets.append(cur_off)
+            cur_off += len(dll_name) + 1
 
-        put_bytes(0x100, b"msvcrt.dll\x00")
-        put_bytes(0x110, b"KERNEL32.dll\x00")
-        put_bytes(0x120, b"\x00\x00printf\x00")
-        put_bytes(0x130, b"\x00\x00calloc\x00")
-        put_bytes(0x140, b"\x00\x00pow\x00")
-        put_bytes(0x148, b"\x00\x00fflush\x00")
-        put_bytes(0x158, b"\x00\x00ExitProcess\x00")
+        hint_offsets = {}
+        for _, funcs in imports_spec:
+            for f in funcs:
+                cur_off = _align(cur_off, 2)
+                hint_offsets[f] = cur_off
+                cur_off += 2 + len(f) + 1
 
-        # 7. Builtin format strings
-        put_bytes(0x180, b"%lld\x00")
-        put_bytes(0x188, b"%.6g\x00")
-        put_bytes(0x190, b"True\x00")
-        put_bytes(0x198, b"False\x00")
-        put_bytes(0x1A0, b"%s\x00")
-        put_bytes(0x1A8, b" \x00")
-        put_bytes(0x1B0, b"\n\x00")
+        cur_off = _align(cur_off, 8)
+        builtins_spec = [
+            ("fmt_i64", b"%lld\x00"),
+            ("fmt_f64", b"%.6g\x00"),
+            ("str_true", b"True\x00"),
+            ("str_false", b"False\x00"),
+            ("fmt_str", b"%s\x00"),
+            ("str_space", b" \x00"),
+            ("str_newline", b"\n\x00"),
+            ("str_rb", b"rb\x00"),
+            ("str_wb", b"wb\x00"),
+            ("str_ab", b"ab\x00"),
+            ("str_empty", b"\x00"),
+        ]
+        builtin_offsets = {}
+        for b_name, b_bytes in builtins_spec:
+            cur_off = _align(cur_off, 4)
+            builtin_offsets[b_name] = cur_off
+            cur_off += len(b_bytes)
 
-        # 8. String Pool at +0x200
-        cur_off = 0x200
+        cur_off = _align(cur_off, 8)
+        string_pool_offsets = {}
         for idx, s in enumerate(self.mir_module.string_pool):
-            self.string_rvas[idx] = base_rva + cur_off
-            encoded = s.encode("utf-8") + b"\x00"
-            put_bytes(cur_off, encoded)
-            cur_off = _align(cur_off + len(encoded), 8)
+            cur_off = _align(cur_off, 8)
+            string_pool_offsets[idx] = cur_off
+            cur_off += len(s.encode("utf-8")) + 1
+
+        total_rdata_len = _align(cur_off, 0x200)
+        buf = bytearray(total_rdata_len)
+
+        for f, off in func_iat_offsets.items():
+            self.iat_rvas[f] = base_rva + off
+        for b_name, off in builtin_offsets.items():
+            self.builtin_rvas[b_name] = base_rva + off
+        for idx, off in string_pool_offsets.items():
+            self.string_rvas[idx] = base_rva + off
+
+        for i, (dll_name, funcs) in enumerate(imports_spec):
+            struct.pack_into(
+                "<IIIII",
+                buf,
+                i * 20,
+                base_rva + ilt_offsets[i],
+                0,
+                0,
+                base_rva + dll_name_offsets[i],
+                base_rva + iat_offsets[i],
+            )
+
+        for i, (dll_name, funcs) in enumerate(imports_spec):
+            ilt_cur = ilt_offsets[i]
+            iat_cur = iat_offsets[i]
+            for f in funcs:
+                hint_rva = base_rva + hint_offsets[f]
+                struct.pack_into("<Q", buf, ilt_cur, hint_rva)
+                struct.pack_into("<Q", buf, iat_cur, hint_rva)
+                ilt_cur += 8
+                iat_cur += 8
+
+        for i, (dll_name, _) in enumerate(imports_spec):
+            d_bytes = dll_name.encode("ascii") + b"\x00"
+            off = dll_name_offsets[i]
+            buf[off : off + len(d_bytes)] = d_bytes
+
+        for _, funcs in imports_spec:
+            for f in funcs:
+                off = hint_offsets[f]
+                h_bytes = b"\x00\x00" + f.encode("ascii") + b"\x00"
+                buf[off : off + len(h_bytes)] = h_bytes
+
+        for b_name, b_bytes in builtins_spec:
+            off = builtin_offsets[b_name]
+            buf[off : off + len(b_bytes)] = b_bytes
+
+        for idx, s in enumerate(self.mir_module.string_pool):
+            off = string_pool_offsets[idx]
+            s_bytes = s.encode("utf-8") + b"\x00"
+            buf[off : off + len(s_bytes)] = s_bytes
 
         return bytes(buf)
 
@@ -244,9 +306,9 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x89\xC1", "mov rcx, rax")       # save exit code
         # Flush stdout via fflush(NULL)
         buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
-        self._emit_call_iat(IAT_FFLUSH_RVA + delta, "msvcrt!fflush")
+        self._emit_call_iat(self.iat_rvas["fflush"], "msvcrt!fflush")
         buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
-        self._emit_call_iat(IAT_EXITPROCESS_RVA + delta, "KERNEL32!ExitProcess")
+        self._emit_call_iat(self.iat_rvas["ExitProcess"], "KERNEL32!ExitProcess")
         buf.ret()
 
         # 2. Runtime Helper: __bmb_print(rcx=kind, rdx=raw_val)
@@ -257,8 +319,8 @@ class PE32PlusExecutableBuilder:
         # kind 0: i64
         buf.emit(b"\x48\x83\xF9\x00", "cmp rcx, 0")
         buf.jcc_rel32(0x85, "ne", "rt__print_k1")
-        self._emit_lea_rcx_rva(FMT_I64_RVA + delta, "FMT_I64")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_i64"], "FMT_I64")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
 
         # kind 1: f64
@@ -266,8 +328,8 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x83\xF9\x01", "cmp rcx, 1")
         buf.jcc_rel32(0x85, "ne", "rt__print_k2")
         buf.emit(b"\x66\x48\x0F\x6E\xCA", "movq xmm1, rdx")
-        self._emit_lea_rcx_rva(FMT_F64_RVA + delta, "FMT_F64")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_f64"], "FMT_F64")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
 
         # kind 2: bool
@@ -276,12 +338,12 @@ class PE32PlusExecutableBuilder:
         buf.jcc_rel32(0x85, "ne", "rt__print_k3")
         buf.emit(b"\x48\x85\xD2", "test rdx, rdx")
         buf.jcc_rel32(0x84, "e", "rt__print_false")
-        self._emit_lea_rcx_rva(STR_TRUE_RVA + delta, "STR_TRUE")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["str_true"], "STR_TRUE")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
         buf.mark_label("rt__print_false")
-        self._emit_lea_rcx_rva(STR_FALSE_RVA + delta, "STR_FALSE")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["str_false"], "STR_FALSE")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
 
         # kind 3: string in rdx (either pointer or SSO immediate)
@@ -297,22 +359,22 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
         buf.emit(b"\x48\x8D\x55\xF0", "lea rdx, [rbp - 0x10]")
         buf.mark_label("rt__print_k3_ptr")
-        self._emit_lea_rcx_rva(FMT_STR_RVA + delta, "FMT_STR")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_str"], "FMT_STR")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
 
         # kind 4: space
         buf.mark_label("rt__print_k4")
         buf.emit(b"\x48\x83\xF9\x04", "cmp rcx, 4")
         buf.jcc_rel32(0x85, "ne", "rt__print_k5")
-        self._emit_lea_rcx_rva(STR_SPACE_RVA + delta, "STR_SPACE")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["str_space"], "STR_SPACE")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
 
         # kind 5: newline
         buf.mark_label("rt__print_k5")
-        self._emit_lea_rcx_rva(STR_NEWLINE_RVA + delta, "STR_NEWLINE")
-        self._emit_call_iat(IAT_PRINTF_RVA + delta, "msvcrt!printf")
+        self._emit_lea_rcx_rva(self.builtin_rvas["str_newline"], "STR_NEWLINE")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
 
         buf.mark_label("rt__print_done")
         buf.mov_rsp_rbp()
@@ -328,7 +390,7 @@ class PE32PlusExecutableBuilder:
         buf.store_slot_rdx(-16, "init_bits")
         buf.mov_rax_imm64(8)
         buf.emit(b"\x48\x89\xC2", "mov rdx, rax")  # size = 8 bytes
-        self._emit_call_iat(IAT_CALLOC_RVA + delta, "msvcrt!calloc")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
         buf.store_slot_rax(-24, "ptr")
         # Initialize array if init_bits != 0
         buf.load_rdx_slot(-16, "init_bits")
@@ -357,7 +419,7 @@ class PE32PlusExecutableBuilder:
         buf.sub_rsp_imm32(0x30)
         buf.emit(b"\x66\x48\x0F\x6E\xC1", "movq xmm0, rcx")
         buf.emit(b"\x66\x48\x0F\x6E\xCA", "movq xmm1, rdx")
-        self._emit_call_iat(IAT_POW_RVA + delta, "msvcrt!pow")
+        self._emit_call_iat(self.iat_rvas["pow"], "msvcrt!pow")
         buf.movq_rax_xmm0()
         buf.mov_rsp_rbp()
         buf.pop_rbp()
@@ -405,11 +467,12 @@ class PE32PlusExecutableBuilder:
 
         buf.mark_label("rt__str_ord")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
-        buf.emit(b"\x74\x0C", "jz .heap_ord")
+        buf.jcc_rel32(0x84, "z", "rt__ord_heap")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
         buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
         buf.ret()
+        buf.mark_label("rt__ord_heap")
         buf.emit(b"\x48\x0F\xB6\x01", "movzx rax, byte ptr [rcx]")
         buf.ret()
 
@@ -421,7 +484,7 @@ class PE32PlusExecutableBuilder:
 
         buf.mark_label("rt__str_index")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
-        buf.emit(b"\x74\x20", "jz .heap_idx")
+        buf.jcc_rel32(0x84, "z", "rt__idx_heap")
         buf.emit(b"\x48\x8D\x42\x01", "lea rax, [rdx + 1]")
         buf.emit(b"\x48\xC1\xE0\x03", "shl rax, 3")
         buf.emit(b"\x49\x89\xC8", "mov r8, rcx")
@@ -432,6 +495,7 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x49\x83\xC8\x03", "or r8, 3")
         buf.emit(b"\x4C\x89\xC0", "mov rax, r8")
         buf.ret()
+        buf.mark_label("rt__idx_heap")
         buf.emit(b"\x48\x0F\xB6\x04\x11", "movzx rax, byte ptr [rcx + rdx]")
         buf.emit(b"\x48\xC1\xE0\x08", "shl rax, 8")
         buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
@@ -439,16 +503,159 @@ class PE32PlusExecutableBuilder:
 
         buf.mark_label("rt__str_len")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
-        buf.emit(b"\x74\x0B", "jz .strlen_loop")
+        buf.jcc_rel32(0x84, "z", "rt__strlen_heap")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
         buf.ret()
+        buf.mark_label("rt__strlen_heap")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mark_label("rt__strlen_loop")
         buf.emit(b"\x80\x3C\x01\x00", "cmp byte ptr [rcx + rax], 0")
-        buf.emit(b"\x74\x05", "je .done")
+        buf.jcc_rel32(0x84, "e", "rt__strlen_done")
         buf.emit(b"\x48\xFF\xC0", "inc rax")
-        buf.emit(b"\xEB\xF5", "jmp .loop")
+        buf.jmp_label("rt__strlen_loop")
+        buf.mark_label("rt__strlen_done")
+        buf.ret()
+
+        buf.mark_label("rt__str_slice")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; s")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; start")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; stop")
+
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__slice_s_ptr")
+
+        # SSO:
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
+        buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; len")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax ; sso_buf")
+        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0")
+        buf.emit(b"\x48\x8D\x45\xD0", "lea rax, [rbp - 0x30]")
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; src_ptr")
+        buf.jmp_label("rt__slice_len_ready")
+
+        buf.mark_label("rt__slice_s_ptr")
+        buf.emit(b"\x48\x89\x4D\xD8", "mov [rbp - 0x28], rcx ; src_ptr")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mark_label("rt__slice_len_loop")
+        buf.emit(b"\x80\x3C\x01\x00", "cmp byte ptr [rcx + rax], 0")
+        buf.jcc_rel32(0x84, "e", "rt__slice_len_done")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
+        buf.jmp_label("rt__slice_len_loop")
+        buf.mark_label("rt__slice_len_done")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; len")
+
+        buf.mark_label("rt__slice_len_ready")
+        # Normalize start:
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x8D, "ge", "rt__slice_start_ge0")
+        buf.emit(b"\x48\x03\x45\xE0", "add rax, [rbp - 0x20]")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x8D, "ge", "rt__slice_start_clamp_min")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mark_label("rt__slice_start_clamp_min")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.mark_label("rt__slice_start_ge0")
+
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
+        buf.emit(b"\x48\x3B\x45\xE0", "cmp rax, [rbp - 0x20]")
+        buf.jcc_rel32(0x8E, "le", "rt__slice_start_clamped")
+        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.mark_label("rt__slice_start_clamped")
+
+        # Normalize stop:
+        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x8D, "ge", "rt__slice_stop_ge0")
+        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
+        buf.jmp_label("rt__slice_stop_clamp_len")
+
+        buf.mark_label("rt__slice_stop_ge0")
+        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
+        buf.emit(b"\x48\x3B\x45\xF0", "cmp rax, [rbp - 0x10]")
+        buf.jcc_rel32(0x8D, "ge", "rt__slice_stop_clamp_len")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
+
+        buf.mark_label("rt__slice_stop_clamp_len")
+        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
+        buf.emit(b"\x48\x3B\x45\xE0", "cmp rax, [rbp - 0x20]")
+        buf.jcc_rel32(0x8E, "le", "rt__slice_stop_clamped")
+        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
+        buf.mark_label("rt__slice_stop_clamped")
+
+        # slice_len = stop - start
+        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
+        buf.emit(b"\x48\x2B\x45\xF0", "sub rax, [rbp - 0x10]")
+        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax ; slice_len")
+
+        # If slice_len <= 7 -> SSO
+        buf.emit(b"\x48\x83\xF8\x07", "cmp rax, 7")
+        buf.jcc_rel32(0x8F, "g", "rt__slice_heap")
+
+        # Build SSO:
+        buf.emit(b"\x48\xD1\xE0", "shl rax, 1")
+        buf.emit(b"\x48\x83\xC8\x01", "or rax, 1")
+        buf.emit(b"\x4C\x8B\x45\xD8", "mov r8, [rbp - 0x28]")
+        buf.emit(b"\x4C\x03\x45\xF0", "add r8, [rbp - 0x10]")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9 ; loop counter")
+
+        buf.mark_label("rt__slice_sso_loop")
+        buf.emit(b"\x4C\x3B\x4D\xC8", "cmp r9, [rbp - 0x38]")
+        buf.jcc_rel32(0x8D, "ge", "rt__slice_sso_done")
+        buf.emit(b"\x45\x0F\xB6\x18", "movzx r11d, byte ptr [r8]")
+        buf.emit(b"\x49\xFF\xC0", "inc r8")
+        buf.emit(b"\x49\x8D\x49\x01", "lea rcx, [r9 + 1]")
+        buf.emit(b"\x48\xC1\xE1\x03", "shl rcx, 3")
+        buf.emit(b"\x49\xD3\xE3", "shl r11, cl")
+        buf.emit(b"\x4C\x09\xD8", "or rax, r11")
+        buf.emit(b"\x49\xFF\xC1", "inc r9")
+        buf.jmp_label("rt__slice_sso_loop")
+
+        buf.mark_label("rt__slice_sso_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # Heap path:
+        buf.mark_label("rt__slice_heap")
+        buf.emit(b"\x48\x8B\x4D\xC8", "mov rcx, [rbp - 0x38]")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx ; count = slice_len + 1")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1 ; size = 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax ; dst ptr")
+
+        buf.emit(b"\x4C\x8B\x45\xC0", "mov r8, [rbp - 0x40]")
+        buf.emit(b"\x4C\x8B\x4D\xD8", "mov r9, [rbp - 0x28]")
+        buf.emit(b"\x4C\x03\x4D\xF0", "add r9, [rbp - 0x10]")
+        buf.emit(b"\x4D\x31\xDB", "xor r11, r11")
+
+        buf.mark_label("rt__slice_heap_loop")
+        buf.emit(b"\x4C\x3B\x5D\xC8", "cmp r11, [rbp - 0x38]")
+        buf.jcc_rel32(0x8D, "ge", "rt__slice_heap_done")
+        buf.emit(b"\x43\x8A\x04\x19", "mov al, byte ptr [r9 + r11]")
+        buf.emit(b"\x43\x88\x04\x18", "mov byte ptr [r8 + r11], al")
+        buf.emit(b"\x49\xFF\xC3", "inc r11")
+        buf.jmp_label("rt__slice_heap_loop")
+
+        buf.mark_label("rt__slice_heap_done")
+        buf.emit(b"\x48\x8B\x45\xC8", "mov rax, [rbp - 0x38] ; slice_len")
+        buf.emit(b"\x41\xC6\x04\x00\x00", "mov byte ptr [r8 + rax], 0")
+        buf.emit(b"\x48\x8B\x45\xC0", "mov rax, [rbp - 0x40]")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
         buf.ret()
 
         buf.mark_label("rt__str_cmp_eq")
@@ -569,7 +776,7 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x03\x4D\xE0", "add rcx, [rbp - 0x20]")
         buf.emit(b"\x48\xFF\xC1", "inc rcx ; count = len1 + len2 + 1")
         buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1 ; size = 1")
-        self._emit_call_iat(IAT_CALLOC_RVA + delta, "msvcrt!calloc")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
         buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; dst ptr")
 
         # Copy s1 bytes to dst (r8 = dst, r9 = src_s1, r11 = loop counter)
@@ -660,7 +867,7 @@ class PE32PlusExecutableBuilder:
             "arena_save": "rt__arena_save",
             "arena_restore": "rt__arena_restore",
             "str_concat": "rt__str_concat",
-            "str_slice": "rt__str_stub",
+            "str_slice": "rt__str_slice",
             "str_index": "rt__str_index",
             "str_len": "rt__str_len",
             "str_cmp_eq": "rt__str_cmp_eq",
@@ -680,7 +887,7 @@ class PE32PlusExecutableBuilder:
         }
 
         def emit_const_str(ins, store_from_rax):
-            str_rva = self.string_rvas.get(int(ins.arg1), STR_POOL_START_RVA + delta)
+            str_rva = self.string_rvas.get(int(ins.arg1), self.builtin_rvas["str_empty"])
             off = len(buf.code)
             next_rva = TEXT_RVA + off + 7
             rel32 = str_rva - next_rva
@@ -689,6 +896,265 @@ class PE32PlusExecutableBuilder:
 
         def emit_helper_call(kind):
             buf.call_label(helper_labels[kind])
+
+        # --- Native OS Primitives (MSVCRT / Win32) ---
+
+        # fn____bmb_file_exists(rcx=path) -> rax=bool (1 or 0)
+        buf.mark_label("fn____bmb_file_exists")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fe_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__fe_ptr")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_rb"], "str_rb")
+        self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__fe_no")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
+        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
+        buf.jmp_label("rt__fe_done")
+        buf.mark_label("rt__fe_no")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mark_label("rt__fe_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_file_size(rcx=path) -> rax=i64 (size or -1)
+        buf.mark_label("fn____bmb_file_size")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fs_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__fs_ptr")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_rb"], "str_rb")
+        self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__fs_err")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; FILE*")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
+        buf.emit(b"\x49\xC7\xC0\x02\x00\x00\x00", "mov r8, 2")
+        self._emit_call_iat(self.iat_rvas["fseek"], "msvcrt!fseek")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        self._emit_call_iat(self.iat_rvas["ftell"], "msvcrt!ftell")
+        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax ; size")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
+        buf.emit(b"\x48\x8B\x45\xF8", "mov rax, [rbp - 0x08]")
+        buf.jmp_label("rt__fs_done")
+        buf.mark_label("rt__fs_err")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.mark_label("rt__fs_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_file_read(rcx=path) -> rax=ptr
+        buf.mark_label("fn____bmb_file_read")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fr_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__fr_ptr")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_rb"], "str_rb")
+        self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__fr_err")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; FILE*")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
+        buf.emit(b"\x49\xC7\xC0\x02\x00\x00\x00", "mov r8, 2")
+        self._emit_call_iat(self.iat_rvas["fseek"], "msvcrt!fseek")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        self._emit_call_iat(self.iat_rvas["ftell"], "msvcrt!ftell")
+        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax ; size")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
+        buf.emit(b"\x4D\x31\xC0", "xor r8, r8")
+        self._emit_call_iat(self.iat_rvas["fseek"], "msvcrt!fseek")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; buf ptr")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        buf.emit(b"\x4C\x8B\x45\xF8", "mov r8, [rbp - 0x08]")
+        buf.emit(b"\x4C\x8B\x4D\xF0", "mov r9, [rbp - 0x10]")
+        self._emit_call_iat(self.iat_rvas["fread"], "msvcrt!fread")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
+        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
+        buf.jmp_label("rt__fr_done")
+        buf.mark_label("rt__fr_err")
+        self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
+        buf.mark_label("rt__fr_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_file_write(rcx=path, rdx=content, r8=mode) -> rax=i64 (written or -1)
+        buf.mark_label("fn____bmb_file_write")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x70)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; path")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; content")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; mode")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fw_path_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax")
+        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0")
+        buf.emit(b"\x48\x8D\x4D\xE0", "lea rcx, [rbp - 0x20]")
+        buf.mark_label("rt__fw_path_ptr")
+        buf.emit(b"\x48\x89\x4D\xD0", "mov [rbp - 0x30], rcx ; path ptr")
+        buf.emit(b"\x48\x83\x7D\xE8\x01", "cmp qword ptr [rbp - 0x18], 1")
+        buf.jcc_rel32(0x84, "e", "rt__fw_mode_ab")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_wb"], "str_wb")
+        buf.jmp_label("rt__fw_open")
+        buf.mark_label("rt__fw_mode_ab")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_ab"], "str_ab")
+        buf.mark_label("rt__fw_open")
+        buf.emit(b"\x48\x8B\x4D\xD0", "mov rcx, [rbp - 0x30]")
+        self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__fw_err")
+        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax ; FILE*")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10]")
+        buf.emit(b"\xF6\xC2\x01", "test dl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fw_c_ptr")
+        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+        buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
+        buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax ; content_len")
+        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xB8", "mov [rbp - 0x48], rax")
+        buf.emit(b"\x48\xC7\x45\xB0\x00\x00\x00\x00", "mov qword ptr [rbp - 0x50], 0")
+        buf.emit(b"\x48\x8D\x45\xB8", "lea rax, [rbp - 0x48]")
+        buf.emit(b"\x48\x89\x45\xA8", "mov [rbp - 0x58], rax ; content_ptr")
+        buf.jmp_label("rt__fw_do_write")
+        buf.mark_label("rt__fw_c_ptr")
+        buf.emit(b"\x48\x89\x55\xA8", "mov [rbp - 0x58], rdx ; content_ptr")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mark_label("rt__fw_len_loop")
+        buf.emit(b"\x80\x3C\x02\x00", "cmp byte ptr [rdx + rax], 0")
+        buf.jcc_rel32(0x84, "e", "rt__fw_len_done")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
+        buf.jmp_label("rt__fw_len_loop")
+        buf.mark_label("rt__fw_len_done")
+        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax ; content_len")
+        buf.mark_label("rt__fw_do_write")
+        buf.emit(b"\x48\x8B\x4D\xA8", "mov rcx, [rbp - 0x58]")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        buf.emit(b"\x4C\x8B\x45\xC0", "mov r8, [rbp - 0x40]")
+        buf.emit(b"\x4C\x8B\x4D\xC8", "mov r9, [rbp - 0x38]")
+        self._emit_call_iat(self.iat_rvas["fwrite"], "msvcrt!fwrite")
+        buf.emit(b"\x48\x89\x45\xA0", "mov [rbp - 0x60], rax ; written")
+        buf.emit(b"\x48\x8B\x4D\xC8", "mov rcx, [rbp - 0x38]")
+        self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
+        buf.emit(b"\x48\x8B\x45\xA0", "mov rax, [rbp - 0x60]")
+        buf.jmp_label("rt__fw_done")
+        buf.mark_label("rt__fw_err")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.mark_label("rt__fw_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_file_remove(rcx=path) -> rax=bool (1 or 0)
+        buf.mark_label("fn____bmb_file_remove")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__rm_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__rm_ptr")
+        self._emit_call_iat(self.iat_rvas["remove"], "msvcrt!remove")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__rm_ok")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.jmp_label("rt__rm_done")
+        buf.mark_label("rt__rm_ok")
+        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
+        buf.mark_label("rt__rm_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_get_cwd() -> rax=ptr
+        buf.mark_label("fn____bmb_get_cwd")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\xC7\xC1\x00\x04\x00\x00", "mov rcx, 1024")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; buf")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        buf.emit(b"\x48\xC7\xC2\x00\x04\x00\x00", "mov rdx, 1024")
+        self._emit_call_iat(self.iat_rvas["_getcwd"], "msvcrt!_getcwd")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__gc_err")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
+        buf.jmp_label("rt__gc_done")
+        buf.mark_label("rt__gc_err")
+        self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
+        buf.mark_label("rt__gc_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_get_env(rcx=key) -> rax=ptr
+        buf.mark_label("fn____bmb_get_env")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__ge_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__ge_ptr")
+        self._emit_call_iat(self.iat_rvas["getenv"], "msvcrt!getenv")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__ge_empty")
+        buf.jmp_label("rt__ge_done")
+        buf.mark_label("rt__ge_empty")
+        self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
+        buf.mark_label("rt__ge_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
 
         for fn in self.mir_module.functions:
             buf.compile_mir_function(fn, emit_const_str, emit_helper_call)
@@ -711,6 +1177,22 @@ class PE32PlusExecutableBuilder:
         rel32 = target_rva - next_rva
         raw = b"\x48\x8D\x0D" + struct.pack("<i", rel32)
         self.code_buf.emit(raw, f"lea rcx, [rip + 0x{rel32 & 0xFFFFFFFF:X}] ; {name}")
+
+    def _emit_lea_rdx_rva(self, target_rva: int, name: str) -> None:
+        # 48 8D 15 <rel32> -> lea rdx, [rip + rel32]
+        off = len(self.code_buf.code)
+        next_rva = TEXT_RVA + off + 7
+        rel32 = target_rva - next_rva
+        raw = b"\x48\x8D\x15" + struct.pack("<i", rel32)
+        self.code_buf.emit(raw, f"lea rdx, [rip + 0x{rel32 & 0xFFFFFFFF:X}] ; {name}")
+
+    def _emit_lea_rax_rva(self, target_rva: int, name: str) -> None:
+        # 48 8D 05 <rel32> -> lea rax, [rip + rel32]
+        off = len(self.code_buf.code)
+        next_rva = TEXT_RVA + off + 7
+        rel32 = target_rva - next_rva
+        raw = b"\x48\x8D\x05" + struct.pack("<i", rel32)
+        self.code_buf.emit(raw, f"lea rax, [rip + 0x{rel32 & 0xFFFFFFFF:X}] ; {name}")
 
     def _build_pe_headers(
         self,
@@ -787,12 +1269,12 @@ class PE32PlusExecutableBuilder:
 
         # Data Directories start at opt_off + 112 = 0x108
         dd_off = opt_off + 112
-        # DataDirectory[1] = Import Table (RVA = rdata_rva, Size = 60)
-        struct.pack_into("<II", hdr, dd_off + 1 * 8, rdata_rva, 60)
+        # DataDirectory[1] = Import Table (RVA = rdata_rva, Size = self.idt_size)
+        struct.pack_into("<II", hdr, dd_off + 1 * 8, rdata_rva, self.idt_size)
         # DataDirectory[2] = Resource Table (RVA = rsrc_rva, Size = rsrc_virtual_size)
         struct.pack_into("<II", hdr, dd_off + 2 * 8, rsrc_rva, rsrc_virtual_size)
-        # DataDirectory[12] = IAT (RVA = rdata_rva + 0x80, Size = 0x38)
-        struct.pack_into("<II", hdr, dd_off + 12 * 8, rdata_rva + 0x80, 0x38)
+        # DataDirectory[12] = IAT (RVA = self.iat_start_rva, Size = self.iat_total_size)
+        struct.pack_into("<II", hdr, dd_off + 12 * 8, self.iat_start_rva, self.iat_total_size)
 
         # Section Headers at 0x188 (3 * 40 bytes = 120 bytes)
         sec_off = 0x188

@@ -74,14 +74,15 @@
     - `tensor.bmb`: Pure native 1D vector and 2D matrix operations (SAXPY, reductions, dot product, L2 norm, neural activations, GEMM matmul) with zero-copy NumPy/PyTorch host tensor bridging.
     - `json.bmb`: Pure native Black Mamba JSON parser and serializer with zero CPython dependencies. Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters (`json_get`, `json_get_str`, `json_get_int`, `json_get_float`, `json_get_bool`), array indexing (`json_array_get`, `json_array_len`), and high-speed stringification (`json_dumps`, `json_dumps_int_array`, `json_dumps_float_array`, `json_dumps_str_array`).
     - `hash.bmb`: Cryptographic & fast non-cryptographic hashing with zero CPython dependencies. SHA-256 (NIST FIPS 180-4 standard), HMAC-SHA256 (RFC 2104 authenticated message signatures), MurmurHash3 (32-bit x86 mixer for fast hash tables), FNV-1a (32-bit linear pass), and high-speed hex encoders (`hex_byte`, `hex32`, `hex256`).
+    - `os.bmb`: Native File System & OS Primitives with zero CPython dependencies. File lifecycle (`file_exists`, `file_size`, `read_file`, `write_file`, `append_file`, `remove_file`), working directory and environment access (`get_cwd`, `get_env`), and pure `.bmb` path utilities (`path_join`, `path_basename`, `path_dirname`, `path_ext`) running natively across Win64 JIT, standalone Windows PE32+, static Linux ELF64 (direct Linux syscalls), C11, and WebAssembly.
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
   * **Remaining Limitation**:
-    - High-level I/O and networking modules (`socket`, `os`, `sqlite3`, `http`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
+    - High-level networking and database modules (`socket`, `sqlite3`, `http`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`) for compute, timing, tensors, data exchange, and security hashing.
-  * For raw socket operations or complex OS filesystem calls, call `py_call("socket", ...)` or `py_call("os", ...)` via the CPython Host Bridge.
+  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`) for compute, timing, tensors, data exchange, security hashing, and file I/O.
+  * For raw socket operations or complex database drivers, call `py_call("socket", ...)` or `py_call("sqlite3", ...)` via the CPython Host Bridge.
 * **Planned Future Work (Phase 4)**:
-  * Pure `.bmb` zero-copy file I/O in `os.bmb` and non-blocking networking in `socket.bmb`.
+  * Pure `.bmb` non-blocking networking in `socket.bmb` and contiguous vector collections in `array.bmb`.
 ---
 
 ## 6. Dynamic OOP: No C3 MRO or Dynamic Monkey-Patching

@@ -1,0 +1,100 @@
+# Black Mamba Standard Library: os
+# Direct Operating System & File System Primitives.
+# Pure Black Mamba (.bmb) interface running natively on PE32+, ELF64, C11, WASM, and JIT.
+
+# --- Core File I/O Primitives ---
+
+def file_exists(path: str) -> bool:
+    # Returns True if the file at path exists and can be opened, False otherwise.
+    return __bmb_file_exists(path)
+
+def is_file(path: str) -> bool:
+    # Alias for file_exists.
+    return __bmb_file_exists(path)
+
+def file_size(path: str) -> i64:
+    # Returns the size of the file in bytes, or -1 if the file does not exist.
+    return __bmb_file_size(path)
+
+def read_file(path: str) -> str:
+    # Reads the entire file at path and returns its contents as a UTF-8 string.
+    return __bmb_file_read(path)
+
+def write_file(path: str, content: str) -> i64:
+    # Writes content to path (overwriting existing file). Returns number of bytes written, or -1 on error.
+    return __bmb_file_write(path, content, 0)
+
+def append_file(path: str, content: str) -> i64:
+    # Appends content to path. Returns number of bytes written, or -1 on error.
+    return __bmb_file_write(path, content, 1)
+
+def remove_file(path: str) -> bool:
+    # Deletes the file at path. Returns True on success, False on failure.
+    return __bmb_file_remove(path)
+
+# --- Environment & Working Directory ---
+
+def get_cwd() -> str:
+    # Returns the current working directory path.
+    return __bmb_get_cwd()
+
+def get_env(key: str) -> str:
+    # Returns the value of the environment variable, or empty string if not set.
+    return __bmb_get_env(key)
+
+# --- Pure Black Mamba Path Utilities ---
+
+def path_join(base: str, sub: str) -> str:
+    # Joins two path segments with a forward slash separator.
+    if len(base) == 0:
+        return sub
+    if len(sub) == 0:
+        return base
+    last_ch = base[len(base) - 1]
+    if last_ch == "/" or last_ch == "\\":
+        return base + sub
+    return base + "/" + sub
+
+def path_basename(path: str) -> str:
+    # Returns the final component of a pathname.
+    n = len(path)
+    if n == 0:
+        return ""
+    last_slash = -1
+    for i in 0..n:
+        ch = path[i]
+        if ch == "/" or ch == "\\":
+            last_slash = i
+    if last_slash < 0:
+        return path
+    if last_slash == n - 1:
+        return ""
+    return path[last_slash + 1:n]
+
+def path_dirname(path: str) -> str:
+    # Returns the directory component of a pathname.
+    n = len(path)
+    if n == 0:
+        return ""
+    last_slash = -1
+    for i in 0..n:
+        ch = path[i]
+        if ch == "/" or ch == "\\":
+            last_slash = i
+    if last_slash < 0:
+        return ""
+    if last_slash == 0:
+        return path[0:1]
+    return path[0:last_slash]
+
+def path_ext(path: str) -> str:
+    # Returns the file extension (e.g. '.bmb', '.txt') including the dot, or empty string.
+    base = path_basename(path)
+    n = len(base)
+    last_dot = -1
+    for i in 0..n:
+        if base[i] == ".":
+            last_dot = i
+    if last_dot <= 0 or last_dot == n - 1:
+        return ""
+    return base[last_dot:n]

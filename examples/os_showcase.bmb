@@ -1,0 +1,132 @@
+# Black Mamba (.bmb) Native File System & OS Primitives Showcase
+# Demonstrates pure native OS primitives, File I/O, path manipulation,
+# and integration with json.bmb and hash.bmb.
+
+from os import read_file, write_file, append_file, file_exists, file_size, remove_file, get_cwd, path_join, path_basename, path_dirname, path_ext
+from hash import sha256, murmurhash3
+
+def main() -> i64:
+    print("================================================================================")
+    print("      BLACK MAMBA (.BMB) NATIVE FILE SYSTEM & OS PRIMITIVES SHOWCASE           ")
+    print("================================================================================")
+    print("")
+
+    # --- 1. Path Manipulation Primitives ---
+    print("[1] Pure Black Mamba Path Utilities:")
+    p = path_join("build", "demo_output.json")
+    print("  path_join('build', 'demo_output.json'):")
+    print("    ->")
+    print(p)
+    print("  path_basename(p):")
+    print("    ->")
+    print(path_basename(p))
+    print("  path_dirname(p):")
+    print("    ->")
+    print(path_dirname(p))
+    print("  path_ext(p):")
+    print("    ->")
+    print(path_ext(p))
+    print("")
+
+    # --- 2. Current Working Directory ---
+    print("[2] Current Working Directory:")
+    cwd = get_cwd()
+    print("  get_cwd():")
+    print("    ->")
+    print(cwd)
+    print("")
+
+    # --- 3. Native File I/O: Create, Write, Size, Read ---
+    print("[3] Native File I/O Operations:")
+    test_file = path_join("build", "test_io.txt")
+
+    # Clean up any leftover file
+    if file_exists(test_file):
+        remove_file(test_file)
+
+    print("  file_exists(test_file) before creation:")
+    print("    ->")
+    print(file_exists(test_file))
+
+    # Write initial data
+    init_data = "Hello from Black Mamba bare-metal File System!\nLine 2: Zero CPython runtime dependency.\n"
+    bytes_written = write_file(test_file, init_data)
+    print("  write_file(test_file, data): bytes written:")
+    print("    ->")
+    print(bytes_written)
+
+    print("  file_exists(test_file) after write:")
+    print("    ->")
+    print(file_exists(test_file))
+
+    sz1 = file_size(test_file)
+    print("  file_size(test_file):")
+    print("    ->")
+    print(sz1)
+
+    read1 = read_file(test_file)
+    print("  read_file(test_file):")
+    print(read1)
+
+    # --- 4. Append Mode ---
+    print("[4] File Append Mode:")
+    app_data = "Line 3: Appended content via append_file().\n"
+    bytes_appended = append_file(test_file, app_data)
+    print("  append_file(test_file, app_data): bytes appended:")
+    print("    ->")
+    print(bytes_appended)
+
+    sz2 = file_size(test_file)
+    print("  file_size(test_file) after append:")
+    print("    ->")
+    print(sz2)
+
+    read2 = read_file(test_file)
+    print("  read_file(test_file) full content:")
+    print(read2)
+
+    # --- 5. Integration: File I/O + JSON Parsing + Cryptographic SHA-256 ---
+    print("[5] End-to-End Pipeline: Write Config -> Read -> JSON Parse -> SHA-256:")
+    cfg_file = path_join("build", "config.json")
+    json_payload = "{\"compiler\": \"Black Mamba\", \"version\": 1, \"status\": \"Native OS I/O Shipped\"}"
+    write_file(cfg_file, json_payload)
+
+    # Read back from disk
+    cfg_content = read_file(cfg_file)
+    print("  Raw file read from disk:")
+    print("    ->")
+    print(cfg_content)
+
+    # Compute SHA-256 hash of the disk file content
+    h256 = sha256(cfg_content)
+    m3 = murmurhash3(cfg_content)
+    print("  SHA-256 checksum of config.json:")
+    print("    ->")
+    print(h256)
+    print("  MurmurHash3 32-bit fast hash:")
+    print("    ->")
+    print(m3)
+    print("")
+
+    # --- 6. File Removal & Cleanup ---
+    print("[6] File Deletion & Clean State Verification:")
+    rm1 = remove_file(test_file)
+    rm2 = remove_file(cfg_file)
+    print("  remove_file(test_file):")
+    print("    ->")
+    print(rm1)
+    print("  remove_file(cfg_file):")
+    print("    ->")
+    print(rm2)
+    print("  file_exists(test_file) after removal:")
+    print("    ->")
+    print(file_exists(test_file))
+    print("  file_exists(cfg_file) after removal:")
+    print("    ->")
+    print(file_exists(cfg_file))
+    print("")
+
+    print("================================================================================")
+    print("      ALL NATIVE OS & FILE SYSTEM OPERATIONS COMPLETED SUCCESSFULLY!           ")
+    print("================================================================================")
+    return 0

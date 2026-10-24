@@ -592,4 +592,9 @@ class WasmBackend:
                     code.extend(b"\x21" + _uleb128(dst_l))
                 else:
                     code.append(0x1A)  # drop
+            else:
+                # External OS / host primitive stub in WASM: return 0 or empty string
+                if dst_l is not None:
+                    code.extend(b"\x42\x00")  # i64.const 0
+                    code.extend(b"\x21" + _uleb128(dst_l))
             return

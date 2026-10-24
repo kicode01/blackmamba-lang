@@ -17,6 +17,7 @@ from .ast_nodes import (
     Expr,
     ExprStmt,
     FieldAccess,
+    FieldAssign,
     ForRangeStmt,
     FromImportStmt,
     FuncDef,
@@ -84,12 +85,24 @@ def _rewrite_stmt(stmt: Stmt, imported_mods: Set[str]) -> None:
         stmt.expr = _rewrite_module_calls(stmt.expr, imported_mods)
     elif isinstance(stmt, Assign):
         stmt.value = _rewrite_module_calls(stmt.value, imported_mods)
+    elif isinstance(stmt, FieldAssign):
+        stmt.target = _rewrite_module_calls(stmt.target, imported_mods)
+        stmt.value = _rewrite_module_calls(stmt.value, imported_mods)
+    elif isinstance(stmt, (IndexAssign, IndexAugAssign)):
+        stmt.target = _rewrite_module_calls(stmt.target, imported_mods)
+        stmt.index = _rewrite_module_calls(stmt.index, imported_mods)
+        stmt.value = _rewrite_module_calls(stmt.value, imported_mods)
     elif isinstance(stmt, Return) and stmt.value:
         stmt.value = _rewrite_module_calls(stmt.value, imported_mods)
     elif isinstance(stmt, IfStmt):
         stmt.cond = _rewrite_module_calls(stmt.cond, imported_mods)
         for s in stmt.then_body:
             _rewrite_stmt(s, imported_mods)
+        for idx, (c, body) in enumerate(stmt.elif_branches):
+            rewritten_c = _rewrite_module_calls(c, imported_mods)
+            for s in body:
+                _rewrite_stmt(s, imported_mods)
+            stmt.elif_branches[idx] = (rewritten_c, body)
         for s in stmt.else_body:
             _rewrite_stmt(s, imported_mods)
     elif isinstance(stmt, WhileStmt):
@@ -151,6 +164,9 @@ def _collect_callees(fn: FuncDef) -> Set[str]:
             scan_expr(s.expr)
         elif isinstance(s, Assign):
             scan_expr(s.value)
+        elif isinstance(s, FieldAssign):
+            scan_expr(s.target)
+            scan_expr(s.value)
         elif isinstance(s, (IndexAssign, IndexAugAssign)):
             scan_expr(s.target)
             scan_expr(s.index)
@@ -161,6 +177,10 @@ def _collect_callees(fn: FuncDef) -> Set[str]:
             scan_expr(s.cond)
             for b in s.then_body:
                 scan_stmt(b)
+            for cond, body in s.elif_branches:
+                scan_expr(cond)
+                for b in body:
+                    scan_stmt(b)
             for b in s.else_body:
                 scan_stmt(b)
         elif isinstance(s, WhileStmt):
@@ -231,7 +251,7 @@ def resolve_imports(mod: Module, base_dir: str, loaded_modules: Optional[Set[str
                     for s in imported_ast.statements:
                         if isinstance(s, FuncDef) and s.name in wanted:
                             prepended_stmts.append(s)
-                        elif isinstance(s, StructDef) and s.name in wanted:
+                        elif isinstance(s, StructDef):
                             prepended_stmts.append(s)
                         elif isinstance(s, Assign):
                             prepended_stmts.append(s)

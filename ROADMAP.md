@@ -85,12 +85,11 @@ Reduce reliance on the host Python runtime by providing high-speed, native imple
   - [x] `random.bmb`: Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period, BigCrush validated) with 53-bit uniform double generator (`rng_random_f64`), bounded integer ranges (`rng_randint`), and array sampling (`rng_choice`).
   - [x] `json.bmb`: Pure native Black Mamba JSON parser and serializer with zero CPython dependencies. Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters (`json_get`, `json_get_str`, `json_get_int`, `json_get_float`, `json_get_bool`), array indexing (`json_array_get`, `json_array_len`), and high-speed stringification (`json_dumps`, `json_dumps_int_array`, `json_dumps_float_array`, `json_dumps_str_array`).
   - [x] `hash.bmb`: Cryptographic & fast non-cryptographic hashing with zero CPython dependencies. SHA-256 (NIST FIPS 180-4 standard), HMAC-SHA256 (RFC 2104 authenticated message signatures), MurmurHash3 (32-bit x86 mixer for fast hash tables), FNV-1a (32-bit linear pass), and high-speed hex encoders (`hex_byte`, `hex32`, `hex256`).
+  - [x] `os.bmb`: Native File System & OS Primitives with zero CPython runtime dependencies. File operations (`file_exists`, `file_size`, `read_file`, `write_file`, `append_file`, `remove_file`), working directory and environment access (`get_cwd`, `get_env`), and pure `.bmb` zero-allocation path manipulation (`path_join`, `path_basename`, `path_dirname`, `path_ext`). Verified across Win64 JIT, standalone PE32+ (dynamic MSVCRT IAT calls), static Linux ELF64 (direct raw kernel syscalls `sys_open`, `sys_read`, `sys_write`, `sys_lseek`, `sys_unlink`, `sys_getcwd`), C11, and WebAssembly.
   - [x] `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and module-level constant inlining.
 - [ ] **Next Standard Modules**:
-  - `os`: Native filesystem access, directory traversal, environment variables.
   - `socket`: Non-blocking TCP/UDP networking sockets.
   - `array`: Contiguous fixed-size and dynamic vector buffers.
-  - `path`: Zero-allocation file path manipulation.
   - `test`: Built-in assertions and benchmark harness.
 - [x] **Zero-Copy NumPy / PyTorch Tensor Exchange**:
   - Direct Win64/SystemV ABI pointer passing: pass multi-dimensional `ndarray`, `torch.Tensor`, and Python buffer objects directly into Black Mamba JIT functions with zero memory copy and zero GC overhead.
