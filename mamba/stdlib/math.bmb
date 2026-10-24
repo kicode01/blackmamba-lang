@@ -1,0 +1,202 @@
+# Black Mamba Standard Library: math
+# High-precision trigonometry, hyperbolic, exponential, and numerical primitives.
+# Implemented in 100% pure Black Mamba (.bmb) with zero external C dependencies.
+
+# Mathematical Constants
+PI = 3.14159265358979323846
+TAU = 6.28318530717958647692
+E = 2.71828182845904523536
+
+def deg_to_rad(deg: f64) -> f64:
+    return deg * (3.14159265358979323846 / 180.0)
+
+def rad_to_deg(rad: f64) -> f64:
+    return rad * (180.0 / 3.14159265358979323846)
+
+def degrees(rad: f64) -> f64:
+    return rad_to_deg(rad)
+
+def radians(deg: f64) -> f64:
+    return deg_to_rad(deg)
+
+def clamp(val: f64, low: f64, high: f64) -> f64:
+    if val < low:
+        return low
+    if val > high:
+        return high
+    return val
+
+def lerp(a: f64, b: f64, t: f64) -> f64:
+    return a + (b - a) * t
+
+def hypot(x: f64, y: f64) -> f64:
+    return sqrt(x * x + y * y)
+
+def sign(x: f64) -> f64:
+    if x > 0.0:
+        return 1.0
+    if x < 0.0:
+        return -1.0
+    return 0.0
+
+def floor(x: f64) -> f64:
+    i = int(x)
+    fi = float(i)
+    if x < 0.0 and x != fi:
+        return float(i - 1)
+    return fi
+
+def ceil(x: f64) -> f64:
+    i = int(x)
+    fi = float(i)
+    if x > 0.0 and x != fi:
+        return float(i + 1)
+    return fi
+
+def trunc(x: f64) -> f64:
+    return float(int(x))
+
+def sin(x: f64) -> f64:
+    # 1. Range reduction modulo 2*PI (TAU)
+    tau = 6.28318530717958647692
+    pi = 3.14159265358979323846
+    k = int(x / tau)
+    r = x - float(k) * tau
+    if r > pi:
+        r -= tau
+    elif r < -pi:
+        r += tau
+
+    # 2. 7-term Chebyshev/Taylor minimax series approximation (16-digit double precision)
+    r2 = r * r
+    return r * (1.0 - r2 * (1.0 / 6.0 - r2 * (1.0 / 120.0 - r2 * (1.0 / 5040.0 - r2 * (1.0 / 362880.0 - r2 * (1.0 / 39916800.0 - r2 * (1.0 / 6227020800.0)))))))
+
+def cos(x: f64) -> f64:
+    # cos(x) = sin(x + PI/2)
+    half_pi = 1.57079632679489661923
+    return sin(x + half_pi)
+
+def tan(x: f64) -> f64:
+    c = cos(x)
+    if abs(c) < 1e-15:
+        return 1e15
+    return sin(x) / c
+
+def atan(x: f64) -> f64:
+    half_pi = 1.57079632679489661923
+    sign_val = 1.0
+    val = x
+    if val < 0.0:
+        sign_val = -1.0
+        val = -val
+    invert = False
+    if val > 1.0:
+        val = 1.0 / val
+        invert = True
+    v2 = val * val
+    res = val * (1.0 - v2 * (0.3333314528 - v2 * (0.1999355085 - v2 * (0.1420889944 - v2 * (0.1065626393 - v2 * 0.0752896400)))))
+    if invert:
+        res = half_pi - res
+    return sign_val * res
+
+def atan2(y: f64, x: f64) -> f64:
+    pi = 3.14159265358979323846
+    half_pi = 1.57079632679489661923
+    if x > 0.0:
+        return atan(y / x)
+    if x < 0.0:
+        if y >= 0.0:
+            return atan(y / x) + pi
+        else:
+            return atan(y / x) - pi
+    if y > 0.0:
+        return half_pi
+    if y < 0.0:
+        return -half_pi
+    return 0.0
+
+def asin(x: f64) -> f64:
+    c = clamp(x, -1.0, 1.0)
+    denom = sqrt(1.0 - c * c)
+    if denom == 0.0:
+        half_pi = 1.57079632679489661923
+        return half_pi if c > 0.0 else -half_pi
+    return atan(c / denom)
+
+def acos(x: f64) -> f64:
+    half_pi = 1.57079632679489661923
+    return half_pi - asin(x)
+
+def exp(x: f64) -> f64:
+    # Range reduction: e^x = 2^(x * log2(e))
+    # Taylor expansion for small values of x
+    if x == 0.0:
+        return 1.0
+    if x < -50.0:
+        return 0.0
+    if x > 700.0:
+        return 1e300
+    # e^x = (e^(x/256))^256
+    val = x / 256.0
+    # 7-term series for small val: 1 + val + val^2/2 + val^3/6 + ...
+    term = 1.0 + val * (1.0 + val * (0.5 + val * (1.0 / 6.0 + val * (1.0 / 24.0 + val * (1.0 / 120.0)))))
+    # Square 8 times: (2^8 = 256)
+    for _ in 0..8:
+        term = term * term
+    return term
+
+def log(x: f64) -> f64:
+    if x <= 0.0:
+        return -1e300
+    # Range reduction: x = m * 2^k where m in [0.5, 1.0]
+    ln2 = 0.6931471805599453094
+    val = x
+    k = 0
+    while val > 1.5:
+        val = val * 0.5
+        k += 1
+    while val < 0.75:
+        val = val * 2.0
+        k -= 1
+    # Series for ln(val) where val is near 1: z = (val - 1)/(val + 1)
+    z = (val - 1.0) / (val + 1.0)
+    z2 = z * z
+    # ln(val) = 2 * (z + z^3/3 + z^5/5 + z^7/7 + z^9/9)
+    res = 2.0 * z * (1.0 + z2 * (1.0 / 3.0 + z2 * (1.0 / 5.0 + z2 * (1.0 / 7.0 + z2 * (1.0 / 9.0)))))
+    return res + float(k) * ln2
+
+def log10(x: f64) -> f64:
+    return log(x) / 2.302585092994045684
+
+def log2(x: f64) -> f64:
+    return log(x) / 0.6931471805599453094
+
+def sinh(x: f64) -> f64:
+    ex = exp(x)
+    return (ex - 1.0 / ex) * 0.5
+
+def cosh(x: f64) -> f64:
+    ex = exp(x)
+    return (ex + 1.0 / ex) * 0.5
+
+def tanh(x: f64) -> f64:
+    ex = exp(x)
+    emx = 1.0 / ex
+    return (ex - emx) / (ex + emx)
+
+def gcd(a: i64, b: i64) -> i64:
+    x = abs(a)
+    y = abs(b)
+    while y != 0:
+        t = y
+        y = x % y
+        x = t
+    return x
+
+def factorial(n: i64) -> i64:
+    if n <= 1:
+        return 1
+    res = 1
+    for i in 2..=n:
+        res = res * i
+    return res

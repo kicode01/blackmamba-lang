@@ -1,0 +1,75 @@
+# Black Mamba Standard Library: random
+# High-Performance Xoshiro256++ Pseudo-Random Number Generator.
+# Astronomical period of 2^256 - 1, passes BigCrush statistical tests.
+# Implemented in 100% pure Black Mamba (.bmb) with zero external C dependencies.
+
+struct Xoshiro256:
+    s0: i64
+    s1: i64
+    s2: i64
+    s3: i64
+
+def _splitmix64(x: i64) -> i64:
+    z = x + 0x9E3779B97F4A7C15
+    z = (z ^ (z >> 30)) * 0x4F1BBADC29548E19
+    z = (z ^ (z >> 27)) * 0x2545F4914F6CDD1D
+    return z ^ (z >> 31)
+
+def rng_new(seed_val: i64) -> Xoshiro256:
+    s = seed_val
+    if s == 0:
+        s = clock_ns()
+    s0 = _splitmix64(s)
+    s1 = _splitmix64(s0)
+    s2 = _splitmix64(s1)
+    s3 = _splitmix64(s2)
+    # Ensure not all zeros
+    if s0 == 0 and s1 == 0 and s2 == 0 and s3 == 0:
+        s0 = 123456789
+        s1 = 987654321
+        s2 = 456789123
+        s3 = 321654987
+    return Xoshiro256(s0, s1, s2, s3)
+
+def rng_next(rng: Xoshiro256) -> i64:
+    # Xoshiro256++ algorithm
+    # res = rotl(s0 + s3, 23) + s0
+    sum_val = rng.s0 + rng.s3
+    rot23 = (sum_val << 23) | ((sum_val >> 41) & 0x7FFFFF)
+    result = rot23 + rng.s0
+
+    t = rng.s1 << 17
+    rng.s2 = rng.s2 ^ rng.s0
+    rng.s3 = rng.s3 ^ rng.s1
+    rng.s1 = rng.s1 ^ rng.s2
+    rng.s0 = rng.s0 ^ rng.s3
+    rng.s2 = rng.s2 ^ t
+    # rotl(s3, 45)
+    rng.s3 = (rng.s3 << 45) | ((rng.s3 >> 19) & 0x1FFFFFFFFFFF)
+
+    # Return positive 63-bit integer
+    if result < 0:
+        return -result
+    return result
+
+def rng_random_f64(rng: Xoshiro256) -> f64:
+    # Uniform double in [0.0, 1.0) with 53 bits of precision
+    u = rng_next(rng)
+    # 53-bit mask = 0x1FFFFFFFFFFFFF = 9007199254740991
+    bits53 = u & 0x1FFFFFFFFFFFFF
+    return float(bits53) / 9007199254740992.0
+
+def rng_randint(rng: Xoshiro256, low: i64, high: i64) -> i64:
+    if low >= high:
+        return low
+    span = high - low + 1
+    return low + (rng_next(rng) % span)
+
+def rng_uniform(rng: Xoshiro256, low: f64, high: f64) -> f64:
+    return low + (high - low) * rng_random_f64(rng)
+
+def rng_choice(rng: Xoshiro256, arr: Array[i64], count: i64) -> i64:
+    if count <= 0:
+        return 0
+    idx = rng_randint(rng, 0, count - 1)
+    return arr[idx]

@@ -125,6 +125,18 @@ class TypeInferencer:
         self.global_vars: Dict[str, str] = {}
 
     def run(self) -> Module:
+        # Collect top-level constants first
+        for stmt in self.module.statements:
+            if isinstance(stmt, Assign):
+                if isinstance(stmt.value, FloatLit):
+                    self.global_vars[stmt.target] = "f64"
+                elif isinstance(stmt.value, IntLit):
+                    self.global_vars[stmt.target] = "i64"
+                elif isinstance(stmt.value, BoolLit):
+                    self.global_vars[stmt.target] = "bool"
+                elif isinstance(stmt.value, StringLit):
+                    self.global_vars[stmt.target] = "str"
+
         # 1. Collect structs & functions
         top_stmts: List[Stmt] = []
         for stmt in self.module.statements:

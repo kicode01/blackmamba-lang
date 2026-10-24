@@ -21,8 +21,10 @@ from .ast_nodes import (
     FieldAssign,
     FloatLit,
     ForRangeStmt,
+    FromImportStmt,
     FuncDef,
     IfStmt,
+    ImportStmt,
     IndexAssign,
     IndexAugAssign,
     IndexExpr,
@@ -142,12 +144,30 @@ class Parser:
             self.pos += 1
             self.skip_newlines()
             return PassStmt(line=tok.line, col=tok.col)
-        if tok.type in (TokenType.IMPORT, TokenType.FROM):
-            # Ignore or record imports gracefully
-            while self.current().type not in (TokenType.NEWLINE, TokenType.EOF):
-                self.pos += 1
+        if tok.type == TokenType.IMPORT:
+            self.pos += 1
+            mod_tok = self.expect(TokenType.IDENT, "Expected module name after 'import'")
+            alias = None
+            if self.match(TokenType.AS):
+                alias_tok = self.expect(TokenType.IDENT, "Expected alias name after 'as'")
+                alias = alias_tok.value
             self.skip_newlines()
-            return PassStmt(line=tok.line, col=tok.col)
+            return ImportStmt(line=tok.line, col=tok.col, module_name=mod_tok.value, alias=alias)
+        if tok.type == TokenType.FROM:
+            self.pos += 1
+            mod_tok = self.expect(TokenType.IDENT, "Expected module name after 'from'")
+            self.expect(TokenType.IMPORT, "Expected 'import' after module name in from-import")
+            names = []
+            if self.match(TokenType.STAR):
+                names.append("*")
+            else:
+                while True:
+                    n_tok = self.expect(TokenType.IDENT, "Expected imported name")
+                    names.append(n_tok.value)
+                    if not self.match(TokenType.COMMA):
+                        break
+            self.skip_newlines()
+            return FromImportStmt(line=tok.line, col=tok.col, module_name=mod_tok.value, names=names)
         if tok.type in (TokenType.LET, TokenType.CONST, TokenType.MUT):
             is_const = tok.type == TokenType.CONST
             self.pos += 1

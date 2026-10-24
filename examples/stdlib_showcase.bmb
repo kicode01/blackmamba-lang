@@ -1,0 +1,73 @@
+# Black Mamba (.bmb) Standard Library Showcase
+# Demonstrates pure .bmb implementations of `math`, `time`, and `random`.
+
+from math import *
+from time import *
+from random import *
+
+def test_math():
+    print("--- [1] Testing math.bmb (High-Precision Trigonometry & Math) ---")
+    print(f"PI  = {PI}")
+    print(f"TAU = {TAU}")
+    print(f"E   = {E}")
+
+    # Trigonometry tests
+    angle_90 = PI / 2.0
+    sin_90 = sin(angle_90)
+    cos_90 = cos(angle_90)
+    print(f"sin(pi/2)  = {sin_90}")
+    print(f"cos(pi/2)  = {cos_90}")
+
+    angle_45 = PI / 4.0
+    sin_45 = sin(angle_45)
+    print(f"sin(pi/4)  = {sin_45}")
+
+    # Geometry & utility
+    h = hypot(3.0, 4.0)
+    print(f"hypot(3, 4) = {h}")
+    at2 = atan2(4.0, 3.0)
+    print(f"atan2(4, 3) in degrees = {rad_to_deg(at2)}")
+
+    f_val = floor(3.7)
+    c_val = ceil(3.2)
+    l_val = lerp(10.0, 20.0, 0.75)
+    print(f"floor(3.7) = {f_val}, ceil(3.2) = {c_val}, lerp(10, 20, 0.75) = {l_val}")
+    return 0
+
+def test_time():
+    print("--- [2] Testing time.bmb (Nanosecond Monotonic Timer) ---")
+    t0 = clock_ns()
+    # Micro sleep
+    sleep_ns(500000) # 0.5 ms
+    t1 = clock_ns()
+    elapsed_ns = t1 - t0
+    elapsed_ms = float(elapsed_ns) / 1000000.0
+    print(f"Elapsed Time: {elapsed_ns} ns ({elapsed_ms} ms)")
+    return 0
+
+def test_random():
+    print("--- [3] Testing random.bmb (Hardware Xoshiro256++ PRNG) ---")
+    rng = rng_new(1337)
+    
+    print("Generating 5 uniform random floats in [0.0, 1.0):")
+    for i in 1..=5:
+        rf = rng_random_f64(rng)
+        print(f"  sample #{i}: {rf}")
+
+    print("Generating 5 random dice rolls in [1, 6]:")
+    for i in 1..=5:
+        die = rng_randint(rng, 1, 6)
+        print(f"  die roll #{i}: {die}")
+    return 0
+
+def main():
+    print("==================================================================")
+    print("      BLACK MAMBA (.bmb) NATIVE STANDARD LIBRARY SHOWCASE         ")
+    print("==================================================================")
+    test_math()
+    test_time()
+    test_random()
+    print("==================================================================")
+    print("All standard library modules executed with 0 external dependencies!")
+    print("==================================================================")
+    return 0

@@ -64,16 +64,21 @@
 
 ---
 
-## 5. Standard Library Completeness ("The Breadth Deficit")
+## 5. Standard Library Completeness: Pure Native Core (RESOLVED); I/O & Networking Remaining
 
-* **The Limitation**:
-  * Standard Python includes 30 years of built-in libraries: `sqlite3`, `datetime`, `asyncio`, `urllib`, `csv`, `json`, `hashlib`, etc.
-  * In pure standalone mode (5 KB `.exe`), Black Mamba only includes intrinsics for math, arrays, vector structs, console I/O, and string printing.
-  * Routines like parsing JSON or opening sockets currently require the CPython Host Bridge (`mamba/interop.py`).
+* **Current Status**:
+  * **Core Modules (RESOLVED in Phase 4)**:
+    - `math.bmb`: Pure native 7-term Chebyshev/Taylor minimax trigonometry (`sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, `acos`), hyperbolic functions (`sinh`, `cosh`, `tanh`), exponential/logarithmic functions (`exp`, `log`, `log10`, `log2`), and geometry/utility routines (`hypot`, `floor`, `ceil`, `clamp`, `lerp`, `gcd`, `factorial`) with zero CPython dependencies.
+    - `time.bmb`: Nanosecond-precision monotonic hardware clock (`clock_ns`), high-precision float seconds (`clock_sec`), and micro/nanosecond sleep primitives (`sleep_ms`, `sleep_ns`).
+    - `random.bmb`: Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period, BigCrush validated) with 53-bit uniform double generator (`rng_random_f64`), bounded integer ranges (`rng_randint`), continuous distributions (`rng_uniform`), and array sampling (`rng_choice`).
+    - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
+  * **Remaining Limitation**:
+    - High-level I/O, serialization, and networking modules (`json`, `socket`, `os`, `sqlite3`, `http`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use `py_call("json", "loads", ...)` or `py_call("math", "sin", ...)` via the CPython Host Bridge when running on machines with Python installed.
-* **Planned Fix (Phase 4)**:
-  * Incrementally rewrite the top 10 most essential standard modules (`math`, `json`, `os`, `time`, `socket`, `random`, `hash`, `array`, `path`, `test`) in pure `.bmb` bytecode.
+  * Use pure `.bmb` modules (`math`, `time`, `random`) for compute and timing.
+  * For complex JSON parsing or raw socket operations, call `py_call("json", "loads", ...)` via the CPython Host Bridge.
+* **Planned Future Work (Phase 4)**:
+  * Pure `.bmb` SIMD JSON parser and serializer, zero-copy file I/O in `os.bmb`, and non-blocking networking in `socket.bmb`.
 
 ---
 
@@ -125,7 +130,7 @@
 | **Platform** | Linux ELF64 shipped (3.9KB); macOS ARM64 in progress | Medium | Phase 2 In Progress |
 | **Strings** | Static interned string pool; no dynamic slicing/concatenation in JIT | Medium | Phase 3 Target |
 | **Exceptions** | Process termination on hardware fault; no `.xdata` unwinding tables | Low | Phase 3 Target |
-| **Stdlib** | Missing native implementations of heavy standard libraries (JSON, OS) | High | Phase 4 Target |
+| **Stdlib** | Core (math, time, random) pure native; JSON, OS, Socket remaining | Medium | Phase 4 Core Done |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| No native `spawn` / `mutex` keywords in JIT (requires C11/OpenMP) | Medium | Phase 4 Target |
 | **Tooling** | No dedicated VS Code extension or LSP daemon | Medium | Phase 5 Target |

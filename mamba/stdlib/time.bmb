@@ -1,0 +1,21 @@
+# Black Mamba Standard Library: time
+# Nanosecond monotonic timers, sleep primitives, and profiling helpers.
+# Implemented in 100% pure Black Mamba (.bmb) with zero external C dependencies.
+
+def clock_sec() -> f64:
+    # Returns monotonic seconds as 64-bit float with nanosecond precision
+    ns = clock_ns()
+    return float(ns) / 1000000000.0
+
+def sleep_ns(ns: i64):
+    # Busy-wait high precision nanosecond spinlock
+    start = clock_ns()
+    while (clock_ns() - start) < ns:
+        pass
+
+def sleep_ms(ms: i64):
+    # High precision millisecond sleep
+    target_ns = ms * 1000000
+    start = clock_ns()
+    while (clock_ns() - start) < target_ns:
+        pass

@@ -24,7 +24,8 @@ from .backends.c_emitter import C11Backend, LLVMIRBackend
 
 def compile_source_to_mir(source: str, filename: str = "<input.bmb>") -> MIRModule:
     ast_mod = Parser.from_source(source, filename).parse_module()
-    return MIRBuilder().build(ast_mod)
+    base_dir = os.path.dirname(os.path.abspath(filename)) if filename != "<input.bmb>" and os.path.exists(filename) else os.getcwd()
+    return MIRBuilder().build(ast_mod, base_dir=base_dir)
 
 
 def _safe_write(text: str) -> None:

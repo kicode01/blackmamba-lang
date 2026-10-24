@@ -256,6 +256,12 @@ class ELF64ExecutableBuilder:
         buf.mark_label("rt__arena_restore")
         buf.ret()
 
+        buf.mark_label("rt__clock_ns")
+        buf.emit(b"\x0F\x31", "rdtsc")
+        buf.emit(b"\x48\xC1\xE2\x20", "shl rdx, 32")
+        buf.emit(b"\x48\x09\xD0", "or rax, rdx")
+        buf.ret()
+
         buf.mark_label("rt__str_stub")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.ret()
@@ -297,6 +303,7 @@ class ELF64ExecutableBuilder:
             "str_from_i64": "rt__str_stub",
             "str_from_f64": "rt__str_stub",
             "str_from_bool": "rt__str_stub",
+            "clock_ns": "rt__clock_ns",
         }
 
         def emit_const_str(ins, store_from_rax):

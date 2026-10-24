@@ -252,6 +252,34 @@ def main():
         self.assertIn("EQ=True", out)
         jit.close()
 
+    def test_stdlib_math_time_random_modules(self):
+        code = """
+from math import *
+from time import *
+from random import *
+
+def main():
+    s = sin(PI / 2.0)
+    print(f"STDLIB_SIN={s}")
+    h = hypot(3.0, 4.0)
+    print(f"STDLIB_HYPOT={h}")
+    ns = clock_ns()
+    print(f"STDLIB_CLOCK_OK={ns > 0}")
+    rng = rng_new(42)
+    r = rng_randint(rng, 10, 20)
+    print(f"STDLIB_RNG_OK={r >= 10 and r <= 20}")
+"""
+        mod = Parser.from_source(code).parse_module()
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = jit.get_output()
+        self.assertIn("STDLIB_SIN=1", out)
+        self.assertIn("STDLIB_HYPOT=5.0", out)
+        self.assertIn("STDLIB_CLOCK_OK=True", out)
+        self.assertIn("STDLIB_RNG_OK=True", out)
+        jit.close()
+
 
 if __name__ == "__main__":
     unittest.main()

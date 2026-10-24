@@ -75,21 +75,23 @@ Eliminate memory leaks on cyclic graphs while keeping zero GC pause latency for 
 
 ---
 
-## Phase 4: Native Standard Library & Zero-Copy Tensor Bridge
+## Phase 4: Native Standard Library & Zero-Copy Tensor Bridge ⚡ *(IN PROGRESS)*
 
 Reduce reliance on the host Python runtime by providing high-speed, native implementations of routine modules.
 
-- [ ] **Top 10 Pure `.bmb` Standard Modules**:
-  1. `math`: High-precision trigonometry, hyperbolic, log, and gamma functions.
-  2. `json`: Ultra-fast SIMD JSON parser and serializer.
-  3. `os`: Native filesystem access, directory traversal, environment variables.
-  4. `time`: Nanosecond monotonic clocks and sleep primitives.
-  5. `socket`: Non-blocking TCP/UDP networking sockets.
-  6. `random`: Hardware-seeded Xoshiro256++ pseudo-random number generator.
-  7. `hash`: Native SHA-256 and MurmurHash3 implementations.
-  8. `array`: Contiguous fixed-size and dynamic vector buffers.
-  9. `path`: Zero-allocation file path manipulation.
-  10. `test`: Built-in assertions and benchmark harness.
+- [x] **Top Pure `.bmb` Standard Modules**:
+  - [x] `math.bmb`: High-precision Chebyshev/Taylor minimax trigonometry (`sin`, `cos`, `tan`, `atan`, `atan2`, `asin`, `acos`), constants (`PI`, `TAU`, `E`), hyperbolic (`sinh`, `cosh`, `tanh`), exponential/logarithmic (`exp`, `log`, `log10`, `log2`), and utility functions (`hypot`, `floor`, `ceil`, `clamp`, `lerp`).
+  - [x] `time.bmb`: Nanosecond monotonic hardware clock (`clock_ns`), high-precision float seconds (`clock_sec`), and microsecond/nanosecond sleep primitives (`sleep_ms`, `sleep_ns`).
+  - [x] `random.bmb`: Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period, BigCrush validated) with 53-bit uniform double generator (`rng_random_f64`), bounded integer ranges (`rng_randint`), and array sampling (`rng_choice`).
+  - [x] `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and module-level constant inlining.
+- [ ] **Next Standard Modules**:
+  - `os`: Native filesystem access, directory traversal, environment variables.
+  - `json`: Ultra-fast SIMD JSON parser and serializer.
+  - `socket`: Non-blocking TCP/UDP networking sockets.
+  - `hash`: Native SHA-256 and MurmurHash3 implementations.
+  - `array`: Contiguous fixed-size and dynamic vector buffers.
+  - `path`: Zero-allocation file path manipulation.
+  - `test`: Built-in assertions and benchmark harness.
 - [ ] **Zero-Copy NumPy / PyTorch Tensor Exchange**:
   - Buffer protocol pointer casting: pass multi-dimensional `ndarray` memory directly to Black Mamba SIMD/AVX loops without copying memory.
 - [ ] **True Hardware Multithreading & Concurrency**:
@@ -122,11 +124,11 @@ Give developers world-class editor support and package management.
 For full architectural transparency, every known limitation, missing feature, and trade-off in Black Mamba today is thoroughly documented in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
 
 ### Summary of Current Flaws:
-1. **Dynamic Cyclic Memory**: Value structs are unboxed & zero-GC, but dynamic heap arrays use a bump-allocator without cycle-detecting tracing GC (cyclic graphs leak until process exit).
-2. **Win64 Architecture Lock**: Direct native JIT and PE32+ `.exe` linker target Windows x86-64 only (Linux/macOS currently rely on the C11/WASM emitters).
-3. **Strings**: Interned static string pool; dynamic string slicing (`s[2:5]`) and concatenation are not yet native JIT instructions.
+1. **Dynamic Cyclic Memory**: Ephemeral allocations resolved via compile-time lexical arenas; long-lived cyclic heap graphs leak until process exit.
+2. **Platform Coverage**: Windows PE32+ and Linux ELF64 (3.9 KB) fully native; macOS ARM64 native binary generation in progress.
+3. **Strings**: Small String Optimization (SSO), zero-copy slicing, and dynamic operations resolved; complex Unicode normalization & regex engine in progress.
 4. **Hardware Exceptions**: No `.pdata`/`.xdata` SEH unwinding tables in the PE linker; unhandled CPU faults terminate the process immediately.
-5. **Standard Library**: Pure standalone mode only has intrinsics for math, vectors, and arrays; heavy modules (`json`, `socket`, `os`) require the CPython Host Bridge (`mamba/interop.py`).
+5. **Standard Library**: Core `math`, `time`, and `random` are pure native `.bmb`; I/O and networking (`json`, `socket`, `os`) in development.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
 7. **Concurrency Syntax**: No native `spawn` or `mutex` syntax in JIT mode (multithreading currently requires the C11/OpenMP emitter).
 8. **Developer Tooling**: No dedicated VS Code LSP server daemon or package registry yet.

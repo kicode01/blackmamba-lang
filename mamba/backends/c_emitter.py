@@ -280,6 +280,8 @@ class C11Backend:
                 out.append(f"    {dst} = bmb_str_from_f64({a1});")
             elif op == "STR_FROM_BOOL":
                 out.append(f"    {dst} = bmb_str_from_bool({a1});")
+            elif op == "CLOCK_NS":
+                out.append(f"    {dst} = (int64_t)clock();")
             else:
                 c_ops = {
                     "ADD_I64": "+", "SUB_I64": "-", "MUL_I64": "*", "DIV_I64": "/", "MOD_I64": "%",

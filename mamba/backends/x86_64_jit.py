@@ -12,6 +12,7 @@ Windows x64 Calling Convention (Win64 ABI) with:
 import ctypes
 import math
 import struct
+import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 from ..mir import MIRFunction, MIRInstr, MIRModule
@@ -791,6 +792,9 @@ class X86_64CodeBuffer:
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("str_from_bool")
                 store_from_rax(str(ins.dst))
+            elif op == "CLOCK_NS":
+                emit_helper_call("clock_ns")
+                store_from_rax(str(ins.dst))
             elif op == "PY_EVAL_F64":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("py_eval_f64")
@@ -1083,10 +1087,14 @@ class NativeJITModule:
         def rt_str_from_bool(val: int) -> int:
             return make_sso_immediate(b"True" if val != 0 else b"False")
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_clock_ns() -> int:
+            return time.perf_counter_ns()
+
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
-            rt_str_from_i64, rt_str_from_f64, rt_str_from_bool,
+            rt_str_from_i64, rt_str_from_f64, rt_str_from_bool, rt_clock_ns,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1103,6 +1111,7 @@ class NativeJITModule:
         self.addr_str_from_i64 = ctypes.cast(rt_str_from_i64, ctypes.c_void_p).value
         self.addr_str_from_f64 = ctypes.cast(rt_str_from_f64, ctypes.c_void_p).value
         self.addr_str_from_bool = ctypes.cast(rt_str_from_bool, ctypes.c_void_p).value
+        self.addr_clock_ns = ctypes.cast(rt_clock_ns, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -1153,6 +1162,7 @@ class NativeJITModule:
             "str_from_i64": (self.addr_str_from_i64, "__bmb_str_from_i64"),
             "str_from_f64": (self.addr_str_from_f64, "__bmb_str_from_f64"),
             "str_from_bool": (self.addr_str_from_bool, "__bmb_str_from_bool"),
+            "clock_ns": (self.addr_clock_ns, "__bmb_clock_ns"),
         }
 
         def emit_const_str(ins: MIRInstr, store_from_rax: Callable[[str], None]) -> None:

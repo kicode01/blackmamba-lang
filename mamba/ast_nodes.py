@@ -226,6 +226,18 @@ class Param:
 
 
 @dataclass
+class ImportStmt(Stmt):
+    module_name: str = ""
+    alias: Optional[str] = None
+
+
+@dataclass
+class FromImportStmt(Stmt):
+    module_name: str = ""
+    names: List[str] = field(default_factory=list)
+
+
+@dataclass
 class FuncDef(Stmt):
     name: str = ""
     params: List[Param] = field(default_factory=list)

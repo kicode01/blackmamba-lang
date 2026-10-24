@@ -9,6 +9,7 @@ Lowers typed AST into a 3-address Intermediate Representation (MIR) and runs:
 5. Dead Code Elimination (DCE)
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 from .ast_nodes import (
@@ -152,7 +153,9 @@ class MIRBuilder:
             self.string_pool.append(s)
         return self.string_pool.index(s)
 
-    def build(self, module: Module) -> MIRModule:
+    def build(self, module: Module, base_dir: str = "") -> MIRModule:
+        from .module_loader import resolve_imports
+        module = resolve_imports(module, base_dir or os.getcwd())
         Inferencer = TypeInferencer(module)
         module = Inferencer.run()
         self.structs = Inferencer.structs
@@ -161,8 +164,11 @@ class MIRBuilder:
 
         mir_funcs: List[MIRFunction] = []
         top_stmts: List[Stmt] = []
+        self.constants: Dict[str, Expr] = {}
 
         for stmt in module.statements:
+            if isinstance(stmt, Assign) and isinstance(stmt.value, (FloatLit, IntLit, BoolLit, StringLit)):
+                self.constants[stmt.target] = stmt.value
             if isinstance(stmt, StructDef):
                 continue
             elif isinstance(stmt, FuncDef):
@@ -173,6 +179,10 @@ class MIRBuilder:
         # Synthesize `main` function from top-level statements if any exist, or if `main` wasn't defined
         existing_main = next((f for f in mir_funcs if f.name == "main"), None)
         if top_stmts:
+            body_stmts = list(top_stmts)
+            if existing_main:
+                body_stmts.append(ExprStmt(line=1, col=1, expr=Call(line=1, col=1, func="main", args=[])))
+            body_stmts.append(Return(line=1, col=1, value=IntLit(value=0)))
             main_def = FuncDef(
                 line=1,
                 col=1,
@@ -180,7 +190,7 @@ class MIRBuilder:
                 params=[],
                 return_type="i64",
                 decorators=[],
-                body=top_stmts + [Return(line=1, col=1, value=IntLit(value=0))],
+                body=body_stmts,
             )
             mir_funcs.append(self._lower_function(main_def))
         elif not existing_main:
@@ -463,6 +473,8 @@ class MIRBuilder:
             return dst, "str"
 
         if isinstance(expr, Var):
+            if hasattr(self, "constants") and expr.name in self.constants and expr.name not in local_types:
+                return self._lower_expr(self.constants[expr.name], instrs, local_types)
             vtype = local_types.get(expr.name, expr.inferred_type or "i64")
             return expr.name, vtype
 
@@ -736,6 +748,11 @@ class MIRBuilder:
                 cast_op = "STR_FROM_F64" if at == "f64" else ("STR_FROM_BOOL" if at == "bool" else "STR_FROM_I64")
                 instrs.append(MIRInstr(op=cast_op, dst=dst, arg1=av, val_type="str"))
                 return dst, "str"
+
+            if expr.func == "clock_ns" and len(expr.args) == 0:
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CLOCK_NS", dst=dst, val_type="i64"))
+                return dst, "i64"
 
             # CPython Host Interop Intrinsics
             if expr.func == "py_eval" and len(expr.args) == 1:
