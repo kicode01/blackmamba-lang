@@ -389,22 +389,25 @@ class TypeInferencer:
             if expr.repeat_value is not None and expr.repeat_count is not None:
                 vt = self._infer_expr(expr.repeat_value, env)
                 self._infer_expr(expr.repeat_count, env)
-                elem_t = "f64" if vt == "f64" else "i64"
+                elem_t = vt if (vt in self.structs or vt in ("f64", "str", "bool")) else "i64"
                 expr.inferred_type = f"Array[{elem_t}]"
                 return expr.inferred_type
             elem_t = "i64"
-            for el in expr.elements:
-                et = self._infer_expr(el, env)
-                if et == "f64":
-                    elem_t = "f64"
+            if expr.elements:
+                first_t = self._infer_expr(expr.elements[0], env)
+                if first_t in self.structs or first_t in ("f64", "str", "bool"):
+                    elem_t = first_t
+            for el in expr.elements[1:]:
+                self._infer_expr(el, env)
             expr.inferred_type = f"Array[{elem_t}]"
             return expr.inferred_type
         if isinstance(expr, IndexExpr):
             tt = self._infer_expr(expr.target, env)
             self._infer_expr(expr.index, env)
-            if tt == "Array[f64]" or (tt and tt.endswith("[f64]")):
-                expr.inferred_type = "f64"
-                return "f64"
+            if tt and tt.startswith("Array[") and tt.endswith("]"):
+                inner = tt[6:-1]
+                expr.inferred_type = inner
+                return inner
             if tt == "str":
                 expr.inferred_type = "str"
                 return "str"

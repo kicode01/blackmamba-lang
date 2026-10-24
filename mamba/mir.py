@@ -513,9 +513,17 @@ class MIRBuilder:
                     dst = self.new_temp(local_types, "str")
                     instrs.append(MIRInstr(op="STR_CONCAT", dst=dst, arg1=lv, arg2=rv, val_type="str"))
                     return dst, "str"
-                if expr.op in ("==", "!="):
+                if expr.op in ("==", "!=", "<", "<=", ">", ">="):
                     dst = self.new_temp(local_types, "bool")
-                    op_code = "STR_CMP_EQ" if expr.op == "==" else "STR_CMP_NE"
+                    cmp_map = {
+                        "==": "STR_CMP_EQ",
+                        "!=": "STR_CMP_NE",
+                        "<": "STR_CMP_LT",
+                        "<=": "STR_CMP_LE",
+                        ">": "STR_CMP_GT",
+                        ">=": "STR_CMP_GE",
+                    }
+                    op_code = cmp_map[expr.op]
                     instrs.append(MIRInstr(op=op_code, dst=dst, arg1=lv, arg2=rv, val_type="bool"))
                     return dst, "bool"
 
@@ -617,7 +625,14 @@ class MIRBuilder:
                 dst = self.new_temp(local_types, "str")
                 instrs.append(MIRInstr(op="STR_INDEX", dst=dst, arg1=arr_v, arg2=idx_v, val_type="str"))
                 return dst, "str"
-            elem_t = "f64" if self._is_f64_array(arr_t) else "i64"
+            if arr_t and arr_t.startswith("Array[") and arr_t.endswith("]"):
+                elem_t = arr_t[6:-1]
+            elif expr.inferred_type:
+                elem_t = expr.inferred_type
+            elif self._is_f64_array(arr_t):
+                elem_t = "f64"
+            else:
+                elem_t = "i64"
             dst = self.new_temp(local_types, elem_t)
             instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=arr_v, arg2=idx_v, val_type=elem_t))
             return dst, elem_t
@@ -709,10 +724,18 @@ class MIRBuilder:
                     dst = self.new_temp(local_types, "i64")
                     instrs.append(MIRInstr(op="F64_TO_I64", dst=dst, arg1=av, val_type="i64"))
                     return dst, "i64"
+                if at == "str":
+                    dst = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="STR_TO_I64", dst=dst, arg1=av, val_type="i64"))
+                    return dst, "i64"
                 return av, "i64"
 
             if expr.func in ("float", "f64") and len(expr.args) == 1:
                 av, at = self._lower_expr(expr.args[0], instrs, local_types)
+                if at == "str":
+                    dst = self.new_temp(local_types, "f64")
+                    instrs.append(MIRInstr(op="STR_TO_F64", dst=dst, arg1=av, val_type="f64"))
+                    return dst, "f64"
                 if at != "f64":
                     dst = self.new_temp(local_types, "f64")
                     instrs.append(MIRInstr(op="I64_TO_F64", dst=dst, arg1=av, val_type="f64") )
@@ -745,6 +768,18 @@ class MIRBuilder:
                     instrs.append(MIRInstr(op="CONST_I64", dst=zero_tmp, arg1=0, val_type="i64"))
                     instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=av, arg2=zero_tmp, val_type="i64"))
                 return dst, "i64"
+
+            if expr.func == "ord" and len(expr.args) == 1:
+                av, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="STR_ORD", dst=dst, arg1=av, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func == "chr" and len(expr.args) == 1:
+                av, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="STR_CHR", dst=dst, arg1=av, val_type="str"))
+                return dst, "str"
 
             if expr.func == "str" and len(expr.args) == 1:
                 av, at = self._lower_expr(expr.args[0], instrs, local_types)
@@ -906,16 +941,10 @@ class MIROptimizer:
             if ins.op == "STORE_IDX" and ins.dst in param_names:
                 return  # Escaped via mutation of caller's parameter
 
-        # If return type is a scalar primitive (i64, f64, bool, void),
-        # local heap objects cannot escape via return value!
+        # If return type is not a scalar primitive (i64, f64, bool, void),
+        # the returned object (struct, array, string) is allocated in the arena and escapes to caller!
         if fn.return_type not in ("f64", "i64", "bool", "void"):
-            returning_vars = {ins.arg1 for ins in fn.instructions if ins.op == "RET" and ins.arg1}
-            escaping_vars = set(returning_vars)
-            for ins in reversed(fn.instructions):
-                if ins.op == "MOV" and ins.dst in escaping_vars and isinstance(ins.arg1, str):
-                    escaping_vars.add(ins.arg1)
-            if any(ins.op in ("ALLOC_ARR", "STR_CONCAT", "STR_SLICE") and ins.dst in escaping_vars for ins in fn.instructions):
-                return  # Returned buffer escapes to caller
+            return
 
         # 2. Ephemeral allocations detected: emit ARENA_SAVE at entry and ARENA_RESTORE before RET
         save_var = f"%arena_sp_{fn.name}"
@@ -1135,6 +1164,8 @@ class MIROptimizer:
             return
 
         for ins in fn.instructions:
+            if ins.op == "STORE_IDX" and ins.dst and ins.dst in replacements:
+                ins.dst = replacements[ins.dst]
             if isinstance(ins.arg1, str) and ins.arg1 in replacements and ins.op != "LABEL":
                 ins.arg1 = replacements[ins.arg1]
             if isinstance(ins.arg2, str) and ins.arg2 in replacements and ins.op not in ("JZ", "JNZ"):
@@ -1145,6 +1176,8 @@ class MIROptimizer:
     def _dead_code_elimination(self, fn: MIRFunction) -> None:
         used = set()
         for ins in fn.instructions:
+            if ins.op == "STORE_IDX" and ins.dst:
+                used.add(ins.dst)
             if isinstance(ins.arg1, str) and ins.op not in ("LABEL", "JMP", "CALL"):
                 used.add(ins.arg1)
             if isinstance(ins.arg2, str) and ins.op not in ("JZ", "JNZ"):

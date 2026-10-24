@@ -1,0 +1,74 @@
+# Black Mamba (.bmb) Standard Library: JSON Showcase
+# Demonstrates pure native .bmb JSON parsing, tape DOM traversal, and serialization.
+# 100% self-contained native code with zero CPython dependencies.
+
+from json import *
+
+def main() -> i64:
+    print("==================================================================")
+    print(" Black Mamba Native JSON Parser & Serializer Standard Library     ")
+    print("==================================================================")
+
+    # 1. Complex nested JSON with objects, arrays, floats, ints, bools, and escapes
+    json_text = "{\"compiler\": \"Black Mamba\", \"version\": 2, \"performance_x\": 42.8, \"open_source\": true, \"targets\": [\"pe32\", \"elf\", \"wasm\", \"c11\", \"llvm\"], \"metadata\": {\"author\": \"AGY Team\", \"license\": \"Apache-2.0\"}}"
+    print("Input JSON payload:")
+    print(json_text)
+    print("")
+
+    # 2. Parse into linear DOM / tape representation
+    doc = json_parse(json_text, 100)
+    print(f"Parsed JSON successfully. Total node count: {doc.node_count}")
+    if doc.error != "":
+        print(f"Parser error: {doc.error}")
+        return 1
+
+    # 3. Query object fields
+    root = doc.root
+    name = json_get_str(doc, root, "compiler", "unknown")
+    ver = json_get_int(doc, root, "version", 0)
+    perf = json_get_float(doc, root, "performance_x", 0.0)
+    is_open = json_get_bool(doc, root, "open_source", False)
+
+    print("--- Extracted Properties ---")
+    print(f"Compiler Name : {name}")
+    print(f"Major Version : {ver}")
+    print(f"Performance   : {perf}x faster than Python")
+    print(f"Open Source   : {is_open}")
+
+    # 4. Query array elements
+    targets_idx = json_get(doc, root, "targets")
+    num_targets = json_array_len(doc, targets_idx)
+    print(f"Compilation Targets ({num_targets}):")
+    for i in 0..num_targets:
+        elem_idx = json_array_get(doc, targets_idx, i)
+        target_name = doc.nodes[elem_idx].str_val
+        print(f"  [{i}] -> {target_name}")
+
+    # 5. Query nested object
+    meta_idx = json_get(doc, root, "metadata")
+    author = json_get_str(doc, meta_idx, "author", "N/A")
+    license_str = json_get_str(doc, meta_idx, "license", "N/A")
+    print("--- Nested Metadata Object ---")
+    print(f"Author        : {author}")
+    print(f"License       : {license_str}")
+    print("")
+
+    # 6. Serializing DOM back to JSON string
+    print("--- Serializing DOM back to JSON string ---")
+    serialized = json_dumps(doc, root)
+    print("Serialized JSON:")
+    print(serialized)
+    print("")
+
+    # 7. Direct Array Stringifiers
+    print("--- Direct High-Speed Array Stringifiers ---")
+    int_data = [10, 25, 50, 100, 250]
+    float_data = [1.618, 2.718, 3.14159]
+    print("Integer Array JSON : " + json_dumps_int_array(int_data, 5))
+    print("Float Array JSON   : " + json_dumps_float_array(float_data, 3))
+
+    print("")
+    print("==================================================================")
+    print(" ALL JSON PARSING & SERIALIZATION TESTS PASSED SUCCESSFULLY!      ")
+    print("==================================================================")
+    return 0

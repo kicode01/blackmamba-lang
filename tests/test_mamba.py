@@ -347,6 +347,58 @@ def alloc_signal(n: int) -> Array[f64]:
         self.assertEqual(np_view[0], 777.0)
         mod_exp.close()
 
+    def test_stdlib_json_module(self):
+        """
+        Phase 4: Pure native Black Mamba (.bmb) JSON parser and serializer standard library.
+        Verifies parser DOM construction, type-safe getters, array indexing, and stringifiers.
+        """
+        import mamba
+        json_bmb_code = """
+from json import *
+
+def test_parse_and_serialize() -> i64:
+    json_text = "{\\"compiler\\": \\"Black Mamba\\", \\"version\\": 2, \\"speed\\": 42.5, \\"active\\": true, \\"tags\\": [\\"fast\\", \\"native\\"]}"
+    doc = json_parse(json_text, 50)
+    if doc.error != "":
+        return -1
+    
+    # Query object fields
+    name = json_get_str(doc, doc.root, "compiler", "none")
+    ver = json_get_int(doc, doc.root, "version", 0)
+    spd = json_get_float(doc, doc.root, "speed", 0.0)
+    act = json_get_bool(doc, doc.root, "active", False)
+    
+    print(f"Name={name}")
+    print(f"Version={ver}")
+    print(f"Speed={spd}")
+    print(f"Active={act}")
+    
+    # Query array
+    tags_idx = json_get(doc, doc.root, "tags")
+    t_len = json_array_len(doc, tags_idx)
+    t0_idx = json_array_get(doc, tags_idx, 0)
+    t0_str = doc.nodes[t0_idx].str_val
+    print(f"TagsLen={t_len}")
+    print(f"Tag0={t0_str}")
+    
+    # Serialize back
+    s = json_dumps(doc, doc.root)
+    print(f"Serialized={s}")
+    return doc.node_count
+"""
+        mod = mamba.compile(json_bmb_code)
+        count = mod.test_parse_and_serialize()
+        self.assertGreater(count, 0)
+        out = mod.get_output()
+        self.assertIn("Name=Black Mamba", out)
+        self.assertIn("Version=2", out)
+        self.assertIn("Speed=42.5", out)
+        self.assertIn("Active=True", out)
+        self.assertIn("TagsLen=2", out)
+        self.assertIn("Tag0=fast", out)
+        self.assertIn('Serialized={"compiler": "Black Mamba", "version": 2, "speed": 42.5, "active": true, "tags": ["fast", "native"]}', out)
+        mod.close()
+
 
 if __name__ == "__main__":
     unittest.main()

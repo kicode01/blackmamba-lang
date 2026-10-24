@@ -500,6 +500,28 @@ class WasmBackend:
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
+        if op == "STR_ORD" and dst_l is not None:
+            load_as(str(ins.arg1), WASM_I64)
+            code.extend(b"\x42\x08\x7E")  # i64.const 8; i64.shr_u
+            code.extend(b"\x42\xFF\x01\x71")  # i64.const 255; i64.and
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
+        if op == "STR_CHR" and dst_l is not None:
+            load_as(str(ins.arg1), WASM_I64)
+            code.extend(b"\x42\x08\x74")  # i64.const 8; i64.shl
+            code.extend(b"\x42\x03\x72")  # i64.const 3; i64.or
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
+        if op in ("STR_TO_I64", "STR_TO_F64") and dst_l is not None:
+            if op == "STR_TO_I64":
+                code.extend(b"\x42\x00")  # i64.const 0
+            else:
+                code.extend(b"\x44" + struct.pack("<d", 0.0))  # f64.const 0.0
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
         if op == "CLOCK_NS" and dst_l is not None:
             code.extend(b"\x42\x00")  # i64.const 0
             code.extend(b"\x21" + _uleb128(dst_l))

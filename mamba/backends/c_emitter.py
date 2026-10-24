@@ -274,12 +274,29 @@ class C11Backend:
                 out.append(f"    {dst} = (strcmp({a1}, {a2}) == 0);")
             elif op == "STR_CMP_NE":
                 out.append(f"    {dst} = (strcmp({a1}, {a2}) != 0);")
+            elif op == "STR_CMP_LT":
+                out.append(f"    {dst} = (strcmp({a1}, {a2}) < 0);")
+            elif op == "STR_CMP_LE":
+                out.append(f"    {dst} = (strcmp({a1}, {a2}) <= 0);")
+            elif op == "STR_CMP_GT":
+                out.append(f"    {dst} = (strcmp({a1}, {a2}) > 0);")
+            elif op == "STR_CMP_GE":
+                out.append(f"    {dst} = (strcmp({a1}, {a2}) >= 0);")
             elif op == "STR_FROM_I64":
                 out.append(f"    {dst} = bmb_str_from_i64({a1});")
             elif op == "STR_FROM_F64":
                 out.append(f"    {dst} = bmb_str_from_f64({a1});")
             elif op == "STR_FROM_BOOL":
                 out.append(f"    {dst} = bmb_str_from_bool({a1});")
+            elif op == "STR_ORD":
+                out.append(f"    {dst} = (int64_t)((unsigned char)({a1}[0]));")
+            elif op == "STR_CHR":
+                out.append(f"    char _chr_buf[2] = {{(char){a1}, 0}};")
+                out.append(f"    {dst} = strdup(_chr_buf);")
+            elif op == "STR_TO_I64":
+                out.append(f"    {dst} = atoll({a1});")
+            elif op == "STR_TO_F64":
+                out.append(f"    {dst} = atof({a1});")
             elif op == "CLOCK_NS":
                 out.append(f"    {dst} = (int64_t)clock();")
             else:

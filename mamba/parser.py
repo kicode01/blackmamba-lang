@@ -452,6 +452,14 @@ class Parser:
                 return IndexAugAssign(
                     line=tok.line, col=tok.col, target=expr.target, index=expr.index, op=op, value=val
                 )
+            if isinstance(expr, FieldAccess):
+                return FieldAssign(
+                    line=tok.line,
+                    col=tok.col,
+                    target=expr.target,
+                    field_name=expr.field_name,
+                    value=BinOp(line=tok.line, col=tok.col, left=expr, op=op, right=val),
+                )
             raise ParseError("Invalid augmented assignment target", tok)
 
         self.skip_newlines()

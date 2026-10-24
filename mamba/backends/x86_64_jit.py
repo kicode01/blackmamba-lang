@@ -780,6 +780,11 @@ class X86_64CodeBuffer:
                 load_into("rdx", str(ins.arg2))
                 emit_helper_call("str_cmp_ne")
                 store_from_rax(str(ins.dst))
+            elif op in ("STR_CMP_LT", "STR_CMP_LE", "STR_CMP_GT", "STR_CMP_GE"):
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                emit_helper_call(op.lower())
+                store_from_rax(str(ins.dst))
             elif op == "STR_FROM_I64":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("str_from_i64")
@@ -791,6 +796,22 @@ class X86_64CodeBuffer:
             elif op == "STR_FROM_BOOL":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("str_from_bool")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_ORD":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_ord")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_CHR":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_chr")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_TO_I64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_to_i64")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_TO_F64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_to_f64")
                 store_from_rax(str(ins.dst))
             elif op == "CLOCK_NS":
                 emit_helper_call("clock_ns")
@@ -1058,6 +1079,7 @@ class NativeJITModule:
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_str_index(s: int, idx: int) -> int:
+            # print(f"DEBUG index(s={s}, idx={idx})", flush=True)
             b = get_str_bytes(s)
             if idx < 0:
                 idx += len(b)
@@ -1077,6 +1099,22 @@ class NativeJITModule:
                 return 0
             return 0 if get_str_bytes(s1) == get_str_bytes(s2) else 1
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_cmp_lt(s1: int, s2: int) -> int:
+            return 1 if get_str_bytes(s1) < get_str_bytes(s2) else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_cmp_le(s1: int, s2: int) -> int:
+            return 1 if get_str_bytes(s1) <= get_str_bytes(s2) else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_cmp_gt(s1: int, s2: int) -> int:
+            return 1 if get_str_bytes(s1) > get_str_bytes(s2) else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_cmp_ge(s1: int, s2: int) -> int:
+            return 1 if get_str_bytes(s1) >= get_str_bytes(s2) else 0
+
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
         def rt_str_from_i64(val: int) -> int:
             return make_str_handle(str(val).encode("utf-8"))
@@ -1094,6 +1132,33 @@ class NativeJITModule:
         def rt_str_from_bool(val: int) -> int:
             return make_sso_immediate(b"True" if val != 0 else b"False")
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_ord(val: int) -> int:
+            b = get_str_bytes(val)
+            return b[0] if b else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_chr(code: int) -> int:
+            c = max(0, min(255, int(code)))
+            return make_str_handle(bytes([c]))
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_to_i64(val: int) -> int:
+            s = get_str_bytes(val).decode("utf-8", errors="ignore").strip()
+            try:
+                return int(s)
+            except Exception:
+                return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_to_f64(val: int) -> int:
+            s = get_str_bytes(val).decode("utf-8", errors="ignore").strip()
+            try:
+                res = float(s)
+            except Exception:
+                res = 0.0
+            return struct.unpack("<q", struct.pack("<d", res))[0]
+
         @ctypes.CFUNCTYPE(ctypes.c_int64)
         def rt_clock_ns() -> int:
             return time.perf_counter_ns()
@@ -1101,7 +1166,9 @@ class NativeJITModule:
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
+            rt_str_cmp_lt, rt_str_cmp_le, rt_str_cmp_gt, rt_str_cmp_ge,
             rt_str_from_i64, rt_str_from_f64, rt_str_from_bool, rt_clock_ns,
+            rt_str_ord, rt_str_chr, rt_str_to_i64, rt_str_to_f64,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1115,9 +1182,17 @@ class NativeJITModule:
         self.addr_str_index = ctypes.cast(rt_str_index, ctypes.c_void_p).value
         self.addr_str_cmp_eq = ctypes.cast(rt_str_cmp_eq, ctypes.c_void_p).value
         self.addr_str_cmp_ne = ctypes.cast(rt_str_cmp_ne, ctypes.c_void_p).value
+        self.addr_str_cmp_lt = ctypes.cast(rt_str_cmp_lt, ctypes.c_void_p).value
+        self.addr_str_cmp_le = ctypes.cast(rt_str_cmp_le, ctypes.c_void_p).value
+        self.addr_str_cmp_gt = ctypes.cast(rt_str_cmp_gt, ctypes.c_void_p).value
+        self.addr_str_cmp_ge = ctypes.cast(rt_str_cmp_ge, ctypes.c_void_p).value
         self.addr_str_from_i64 = ctypes.cast(rt_str_from_i64, ctypes.c_void_p).value
         self.addr_str_from_f64 = ctypes.cast(rt_str_from_f64, ctypes.c_void_p).value
         self.addr_str_from_bool = ctypes.cast(rt_str_from_bool, ctypes.c_void_p).value
+        self.addr_str_ord = ctypes.cast(rt_str_ord, ctypes.c_void_p).value
+        self.addr_str_chr = ctypes.cast(rt_str_chr, ctypes.c_void_p).value
+        self.addr_str_to_i64 = ctypes.cast(rt_str_to_i64, ctypes.c_void_p).value
+        self.addr_str_to_f64 = ctypes.cast(rt_str_to_f64, ctypes.c_void_p).value
         self.addr_clock_ns = ctypes.cast(rt_clock_ns, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
@@ -1174,9 +1249,17 @@ class NativeJITModule:
             "str_len": (self.addr_str_len, "__bmb_str_len"),
             "str_cmp_eq": (self.addr_str_cmp_eq, "__bmb_str_cmp_eq"),
             "str_cmp_ne": (self.addr_str_cmp_ne, "__bmb_str_cmp_ne"),
+            "str_cmp_lt": (self.addr_str_cmp_lt, "__bmb_str_cmp_lt"),
+            "str_cmp_le": (self.addr_str_cmp_le, "__bmb_str_cmp_le"),
+            "str_cmp_gt": (self.addr_str_cmp_gt, "__bmb_str_cmp_gt"),
+            "str_cmp_ge": (self.addr_str_cmp_ge, "__bmb_str_cmp_ge"),
             "str_from_i64": (self.addr_str_from_i64, "__bmb_str_from_i64"),
             "str_from_f64": (self.addr_str_from_f64, "__bmb_str_from_f64"),
             "str_from_bool": (self.addr_str_from_bool, "__bmb_str_from_bool"),
+            "str_ord": (self.addr_str_ord, "__bmb_str_ord"),
+            "str_chr": (self.addr_str_chr, "__bmb_str_chr"),
+            "str_to_i64": (self.addr_str_to_i64, "__bmb_str_to_i64"),
+            "str_to_f64": (self.addr_str_to_f64, "__bmb_str_to_f64"),
             "clock_ns": (self.addr_clock_ns, "__bmb_clock_ns"),
         }
 

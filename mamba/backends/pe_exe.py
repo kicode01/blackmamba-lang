@@ -394,10 +394,52 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.ret()
 
+        buf.mark_label("rt__str_ord")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.emit(b"\x74\x0C", "jz .heap_ord")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+        buf.emit(b"\x48\x0F\xB6\x01", "movzx rax, byte ptr [rcx]")
+        buf.ret()
+
+        buf.mark_label("rt__str_chr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE0\x08", "shl rax, 8")
+        buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
+        buf.ret()
+
+        buf.mark_label("rt__str_index")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.emit(b"\x74\x20", "jz .heap_idx")
+        buf.emit(b"\x48\x8D\x42\x01", "lea rax, [rdx + 1]")
+        buf.emit(b"\x48\xC1\xE0\x03", "shl rax, 3")
+        buf.emit(b"\x49\x89\xC8", "mov r8, rcx")
+        buf.emit(b"\x88\xC1", "mov cl, al")
+        buf.emit(b"\x49\xD3\xE8", "shr r8, cl")
+        buf.emit(b"\x45\x0F\xB6\xC0", "movzx r8, r8b")
+        buf.emit(b"\x49\xC1\xE0\x08", "shl r8, 8")
+        buf.emit(b"\x49\x83\xC8\x03", "or r8, 3")
+        buf.emit(b"\x4C\x89\xC0", "mov rax, r8")
+        buf.ret()
+        buf.emit(b"\x48\x0F\xB6\x04\x11", "movzx rax, byte ptr [rcx + rdx]")
+        buf.emit(b"\x48\xC1\xE0\x08", "shl rax, 8")
+        buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
+        buf.ret()
+
         buf.mark_label("rt__str_len")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.emit(b"\x74\x0B", "jz .strlen_loop")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.ret()
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.emit(b"\x80\x3C\x01\x00", "cmp byte ptr [rcx + rax], 0")
+        buf.emit(b"\x74\x05", "je .done")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
+        buf.emit(b"\xEB\xF5", "jmp .loop")
         buf.ret()
 
         buf.mark_label("rt__str_cmp_eq")
@@ -409,6 +451,30 @@ class PE32PlusExecutableBuilder:
         buf.mark_label("rt__str_cmp_ne")
         buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
         buf.emit(b"\x0F\x95\xC0", "setne al")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+
+        buf.mark_label("rt__str_cmp_lt")
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.emit(b"\x0F\x9C\xC0", "setl al")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+
+        buf.mark_label("rt__str_cmp_le")
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.emit(b"\x0F\x9E\xC0", "setle al")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+
+        buf.mark_label("rt__str_cmp_gt")
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.emit(b"\x0F\x9F\xC0", "setg al")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+
+        buf.mark_label("rt__str_cmp_ge")
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.emit(b"\x0F\x9D\xC0", "setge al")
         buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
         buf.ret()
 
@@ -425,13 +491,21 @@ class PE32PlusExecutableBuilder:
             "arena_restore": "rt__arena_restore",
             "str_concat": "rt__str_stub",
             "str_slice": "rt__str_stub",
-            "str_index": "rt__str_stub",
+            "str_index": "rt__str_index",
             "str_len": "rt__str_len",
             "str_cmp_eq": "rt__str_cmp_eq",
             "str_cmp_ne": "rt__str_cmp_ne",
+            "str_cmp_lt": "rt__str_cmp_lt",
+            "str_cmp_le": "rt__str_cmp_le",
+            "str_cmp_gt": "rt__str_cmp_gt",
+            "str_cmp_ge": "rt__str_cmp_ge",
             "str_from_i64": "rt__str_stub",
             "str_from_f64": "rt__str_stub",
             "str_from_bool": "rt__str_stub",
+            "str_ord": "rt__str_ord",
+            "str_chr": "rt__str_chr",
+            "str_to_i64": "rt__str_stub",
+            "str_to_f64": "rt__str_stub",
             "clock_ns": "rt__clock_ns",
         }
 
