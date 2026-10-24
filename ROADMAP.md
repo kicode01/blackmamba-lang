@@ -113,6 +113,22 @@ Give developers world-class editor support and package management.
 
 ---
 
+## ⚠️ Current Limitations & Flaws (What Black Mamba Lacks Today)
+
+For full architectural transparency, every known limitation, missing feature, and trade-off in Black Mamba today is thoroughly documented in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
+
+### Summary of Current Flaws:
+1. **Dynamic Cyclic Memory**: Value structs are unboxed & zero-GC, but dynamic heap arrays use a bump-allocator without cycle-detecting tracing GC (cyclic graphs leak until process exit).
+2. **Win64 Architecture Lock**: Direct native JIT and PE32+ `.exe` linker target Windows x86-64 only (Linux/macOS currently rely on the C11/WASM emitters).
+3. **Strings**: Interned static string pool; dynamic string slicing (`s[2:5]`) and concatenation are not yet native JIT instructions.
+4. **Hardware Exceptions**: No `.pdata`/`.xdata` SEH unwinding tables in the PE linker; unhandled CPU faults terminate the process immediately.
+5. **Standard Library**: Pure standalone mode only has intrinsics for math, vectors, and arrays; heavy modules (`json`, `socket`, `os`) require the CPython Host Bridge (`mamba/interop.py`).
+6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
+7. **Concurrency Syntax**: No native `spawn` or `mutex` syntax in JIT mode (multithreading currently requires the C11/OpenMP emitter).
+8. **Developer Tooling**: No dedicated VS Code LSP server daemon or package registry yet.
+
+---
+
 ## 📈 Release Milestones
 
 | Version | Target Date | Milestone Focus |
