@@ -76,14 +76,15 @@
     - `hash.bmb`: Cryptographic & fast non-cryptographic hashing with zero CPython dependencies. SHA-256 (NIST FIPS 180-4 standard), HMAC-SHA256 (RFC 2104 authenticated message signatures), MurmurHash3 (32-bit x86 mixer for fast hash tables), FNV-1a (32-bit linear pass), and high-speed hex encoders (`hex_byte`, `hex32`, `hex256`).
     - `os.bmb`: Native File System & OS Primitives with zero CPython dependencies. File lifecycle (`file_exists`, `file_size`, `read_file`, `write_file`, `append_file`, `remove_file`), working directory and environment access (`get_cwd`, `get_env`), and pure `.bmb` path utilities (`path_join`, `path_basename`, `path_dirname`, `path_ext`) running natively across Win64 JIT, standalone Windows PE32+, static Linux ELF64 (direct Linux syscalls), C11, and WebAssembly.
     - `socket.bmb`: Pure native TCP/UDP networking sockets with zero CPython dependencies. Complete `Socket` struct (`fd`, `family`, `sock_type`, `is_connected`, `is_bound`, `is_listening`), low-level core primitives (`socket_init`, `socket_cleanup`, `socket_create`, `socket_connect`, `socket_bind`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`), high-level client/server helpers (`tcp_connect`, `tcp_server`, `http_get`), running bare-metal across Win64 JIT, standalone Windows PE32+ (dynamic `ws2_32.dll` IAT imports), static Linux ELF64 (direct raw kernel syscalls `sys_socket`, `sys_connect`, `sys_bind`, `sys_listen`, `sys_accept`, `sys_write`, `sys_read`, `sys_close`), C11, and WebAssembly stubs.
+    - `array.bmb`: High-performance dynamic growable vector collections (`IntVector`, `FloatVector`, `StrVector`) and zero-copy memory slice views (`IntSlice`, `FloatSlice`) with amortized $O(1)$ capacity growth, negative indexing (`-1`), insert, pop, $O(1)$ swap-remove, in-place quicksort, $O(\log N)$ binary search, and contiguous memory copy/fill routines.
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
   * **Remaining Limitation**:
     - High-level asynchronous event loops (`asyncio`) and database drivers (`sqlite3`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`) for compute, timing, tensors, data exchange, security hashing, file I/O, and networking.
+  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`) for compute, timing, tensors, data exchange, security hashing, file I/O, networking, and dynamic vector buffers.
   * For complex database drivers or async event loops, call `py_call("sqlite3", ...)` or `py_call("asyncio", ...)` via the CPython Host Bridge.
 * **Planned Future Work (Phase 4)**:
-  * Contiguous dynamic vector collections in `array.bmb` and built-in benchmark harness in `test.bmb`.
+  * Built-in benchmark harness and assertions in `test.bmb`.
 ---
 
 ## 6. Dynamic OOP: No C3 MRO or Dynamic Monkey-Patching

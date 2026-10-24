@@ -568,6 +568,101 @@ def test_sockets() -> i64:
         self.assertIn("c1=0 c2=0 c3=0 cleanup=0", out)
         mod.close()
 
+    def test_stdlib_array_module(self):
+        """
+        Phase 4: Pure native Black Mamba (.bmb) Dynamic Vector Collections standard library.
+        Verifies IntVector (push, pop, insert, swap_remove, sort, bsearch, min, max, sum),
+        FloatVector (sort, mean), StrVector (join, contains), and IntSlice (zero-copy view).
+        """
+        import mamba
+        array_bmb_code = """
+from array import *
+
+def test_vectors() -> i64:
+    # 1. IntVector
+    iv = int_vec_new(2)
+    int_vec_push(iv, 50)
+    int_vec_push(iv, 20)
+    int_vec_push(iv, 80)
+    int_vec_push(iv, 10)
+    print(f"iv_len={int_vec_len(iv)}")
+    print(f"iv_cap={int_vec_cap(iv)}")
+    
+    int_vec_insert(iv, 1, 999)
+    print(f"after_insert={int_vec_to_str(iv)}")
+    
+    popped = int_vec_pop(iv)
+    print(f"popped={popped}")
+    
+    sr = int_vec_swap_remove(iv, 1)
+    print(f"swap_removed={sr}")
+    
+    int_vec_sort(iv)
+    print(f"sorted={int_vec_to_str(iv)}")
+    
+    bs_50 = int_vec_binary_search(iv, 50)
+    bs_99 = int_vec_binary_search(iv, 99)
+    print(f"bs_50={bs_50}")
+    print(f"bs_99={bs_99}")
+    print(f"min={int_vec_min(iv)}")
+    print(f"max={int_vec_max(iv)}")
+    print(f"sum={int_vec_sum(iv)}")
+
+    # 2. FloatVector
+    fv = float_vec_new(2)
+    float_vec_push(fv, 3.14)
+    float_vec_push(fv, 1.41)
+    float_vec_push(fv, 2.71)
+    float_vec_sort(fv)
+    print(f"fv_sorted={float_vec_to_str(fv)}")
+    print(f"fv_min={float_vec_min(fv)}")
+    print(f"fv_max={float_vec_max(fv)}")
+
+    # 3. StrVector
+    sv = str_vec_new(2)
+    str_vec_push(sv, "antigravity")
+    str_vec_push(sv, "black_mamba")
+    str_vec_push(sv, "bare_metal")
+    print(f"joined={str_vec_join(sv, '::')}")
+    print(f"has_mamba={str_vec_contains(sv, 'black_mamba')}")
+    print(f"has_python={str_vec_contains(sv, 'python')}")
+
+    # 4. Zero-copy slice
+    base = int_vec_new(4)
+    int_vec_push(base, 100)
+    int_vec_push(base, 200)
+    int_vec_push(base, 300)
+    int_vec_push(base, 400)
+    sl = int_slice_from_vec(base, 1, 3)
+    print(f"sl_len={sl.len}")
+    print(f"sl_0={int_slice_get(sl, 0)}")
+    int_slice_set(sl, 0, 8888)
+    print(f"base_1_mutated={int_vec_get(base, 1)}")
+    return 0
+"""
+        mod = mamba.compile(array_bmb_code)
+        res = mod.test_vectors()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("iv_len=4", out)
+        self.assertIn("after_insert=[50, 999, 20, 80, 10]", out)
+        self.assertIn("popped=10", out)
+        self.assertIn("swap_removed=999", out)
+        self.assertIn("sorted=[20, 50, 80]", out)
+        self.assertIn("bs_50=1", out)
+        self.assertIn("bs_99=-1", out)
+        self.assertIn("min=20", out)
+        self.assertIn("max=80", out)
+        self.assertIn("sum=150", out)
+        self.assertIn("fv_sorted=[1.41, 2.71, 3.14]", out)
+        self.assertIn("joined=antigravity::black_mamba::bare_metal", out)
+        self.assertIn("has_mamba=True", out)
+        self.assertIn("has_python=False", out)
+        self.assertIn("sl_len=2", out)
+        self.assertIn("sl_0=200", out)
+        self.assertIn("base_1_mutated=8888", out)
+        mod.close()
+
 
 if __name__ == "__main__":
     unittest.main()

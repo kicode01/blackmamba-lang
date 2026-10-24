@@ -1,0 +1,815 @@
+# Black Mamba Standard Library: array.bmb
+# High-Performance Dynamic Vector Collections & Zero-Copy Slice Views
+# 100% Pure Native Black Mamba (.bmb) with Amortized O(1) Growth, In-Place Sorting, and Binary Search
+
+# ==============================================================================
+# 1. Contiguous Block Memory Movement Primitives
+# ==============================================================================
+
+def array_copy_i64(src: Array[i64], src_idx: i64, dst: Array[i64], dst_idx: i64, count: i64) -> i64:
+    for i in 0..count:
+        dst[dst_idx + i] = src[src_idx + i]
+    return count
+
+def array_copy_f64(src: Array[f64], src_idx: i64, dst: Array[f64], dst_idx: i64, count: i64) -> i64:
+    for i in 0..count:
+        dst[dst_idx + i] = src[src_idx + i]
+    return count
+
+def array_copy_str(src: Array[str], src_idx: i64, dst: Array[str], dst_idx: i64, count: i64) -> i64:
+    for i in 0..count:
+        dst[dst_idx + i] = src[src_idx + i]
+    return count
+
+def array_fill_i64(arr: Array[i64], start: i64, count: i64, val: i64) -> i64:
+    for i in 0..count:
+        arr[start + i] = val
+    return count
+
+def array_fill_f64(arr: Array[f64], start: i64, count: i64, val: f64) -> i64:
+    for i in 0..count:
+        arr[start + i] = val
+    return count
+
+def array_fill_str(arr: Array[str], start: i64, count: i64, val: str) -> i64:
+    for i in 0..count:
+        arr[start + i] = val
+    return count
+
+
+# ==============================================================================
+# 2. IntVector: Dynamic Growable 64-bit Integer Vector
+# ==============================================================================
+
+struct IntVector:
+    data: Array[i64]
+    len: i64
+    capacity: i64
+
+def int_vec_new(initial_cap: i64) -> IntVector:
+    c = initial_cap
+    if c <= 0:
+        c = 8
+    buf = [0] * c
+    return IntVector(buf, 0, c)
+
+def int_vec_len(v: IntVector) -> i64:
+    return v.len
+
+def int_vec_cap(v: IntVector) -> i64:
+    return v.capacity
+
+def int_vec_is_empty(v: IntVector) -> bool:
+    return v.len == 0
+
+def int_vec_reserve(v: IntVector, min_capacity: i64) -> i64:
+    if min_capacity <= v.capacity:
+        return v.capacity
+    new_cap = v.capacity * 2
+    if new_cap < min_capacity:
+        new_cap = min_capacity
+    new_data = [0] * new_cap
+    array_copy_i64(v.data, 0, new_data, 0, v.len)
+    v.data = new_data
+    v.capacity = new_cap
+    return new_cap
+
+def int_vec_push(v: IntVector, val: i64) -> i64:
+    if v.len >= v.capacity:
+        new_cap = v.capacity * 2
+        if new_cap <= 0:
+            new_cap = 8
+        new_data = [0] * new_cap
+        array_copy_i64(v.data, 0, new_data, 0, v.len)
+        v.data = new_data
+        v.capacity = new_cap
+    v.data[v.len] = val
+    v.len += 1
+    return v.len
+
+def int_vec_pop(v: IntVector) -> i64:
+    if v.len <= 0:
+        return 0
+    v.len -= 1
+    return v.data[v.len]
+
+def int_vec_get(v: IntVector, idx: i64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0
+    return v.data[real_idx]
+
+def int_vec_set(v: IntVector, idx: i64, val: i64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0
+    v.data[real_idx] = val
+    return val
+
+def int_vec_clear(v: IntVector) -> i64:
+    v.len = 0
+    return 0
+
+def int_vec_insert(v: IntVector, idx: i64, val: i64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx > v.len:
+        return -1
+    if v.len >= v.capacity:
+        int_vec_reserve(v, v.capacity * 2)
+    i = v.len
+    while i > real_idx:
+        v.data[i] = v.data[i - 1]
+        i -= 1
+    v.data[real_idx] = val
+    v.len += 1
+    return v.len
+
+def int_vec_remove(v: IntVector, idx: i64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0
+    val = v.data[real_idx]
+    last = v.len - 1
+    for i in real_idx..last:
+        v.data[i] = v.data[i + 1]
+    v.len -= 1
+    return val
+
+def int_vec_swap_remove(v: IntVector, idx: i64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0
+    val = v.data[real_idx]
+    last_idx = v.len - 1
+    if real_idx != last_idx:
+        v.data[real_idx] = v.data[last_idx]
+    v.len -= 1
+    return val
+
+def int_vec_extend(dst: IntVector, src: IntVector) -> i64:
+    needed = dst.len + src.len
+    if needed > dst.capacity:
+        int_vec_reserve(dst, needed)
+    array_copy_i64(src.data, 0, dst.data, dst.len, src.len)
+    dst.len += src.len
+    return dst.len
+
+def int_vec_copy(v: IntVector) -> IntVector:
+    c = v.capacity
+    if c <= 0:
+        c = 8
+    buf = [0] * c
+    array_copy_i64(v.data, 0, buf, 0, v.len)
+    return IntVector(buf, v.len, c)
+
+def int_vec_slice(v: IntVector, start: i64, stop: i64) -> IntVector:
+    s = start
+    if s < 0:
+        s = v.len + s
+        if s < 0:
+            s = 0
+    e = stop
+    if e < 0:
+        e = v.len + e
+    if e > v.len:
+        e = v.len
+    if s >= e:
+        return int_vec_new(4)
+    slice_len = e - s
+    res = int_vec_new(slice_len)
+    array_copy_i64(v.data, s, res.data, 0, slice_len)
+    res.len = slice_len
+    return res
+
+def int_vec_contains(v: IntVector, val: i64) -> bool:
+    for i in 0..v.len:
+        if v.data[i] == val:
+            return True
+    return False
+
+def int_vec_index_of(v: IntVector, val: i64) -> i64:
+    for i in 0..v.len:
+        if v.data[i] == val:
+            return i
+    return -1
+
+def int_vec_reverse(v: IntVector) -> i64:
+    i = 0
+    j = v.len - 1
+    while i < j:
+        tmp = v.data[i]
+        v.data[i] = v.data[j]
+        v.data[j] = tmp
+        i += 1
+        j -= 1
+    return 0
+
+def _int_qsort(arr: Array[i64], low: i64, high: i64) -> i64:
+    if low < high:
+        pivot = arr[high]
+        i = low - 1
+        for j in low..high:
+            if arr[j] <= pivot:
+                i += 1
+                tmp = arr[i]
+                arr[i] = arr[j]
+                arr[j] = tmp
+        tmp = arr[i + 1]
+        arr[i + 1] = arr[high]
+        arr[high] = tmp
+        p = i + 1
+        _int_qsort(arr, low, p - 1)
+        _int_qsort(arr, p + 1, high)
+    return 0
+
+def int_vec_sort(v: IntVector) -> i64:
+    if v.len <= 1:
+        return 0
+    _int_qsort(v.data, 0, v.len - 1)
+    return 0
+
+def int_vec_binary_search(v: IntVector, val: i64) -> i64:
+    low = 0
+    high = v.len - 1
+    while low <= high:
+        mid = (low + high) // 2
+        mid_val = v.data[mid]
+        if mid_val == val:
+            return mid
+        if mid_val < val:
+            low = mid + 1
+        else:
+            high = mid - 1
+    return -1
+
+def int_vec_min(v: IntVector) -> i64:
+    if v.len <= 0:
+        return 0
+    m = v.data[0]
+    for i in 1..v.len:
+        val = v.data[i]
+        if val < m:
+            m = val
+    return m
+
+def int_vec_max(v: IntVector) -> i64:
+    if v.len <= 0:
+        return 0
+    m = v.data[0]
+    for i in 1..v.len:
+        val = v.data[i]
+        if val > m:
+            m = val
+    return m
+
+def int_vec_sum(v: IntVector) -> i64:
+    s = 0
+    for i in 0..v.len:
+        s += v.data[i]
+    return s
+
+def int_vec_to_str(v: IntVector) -> str:
+    if v.len == 0:
+        return "[]"
+    res = "[" + str(v.data[0])
+    for i in 1..v.len:
+        res = res + ", " + str(v.data[i])
+    res = res + "]"
+    return res
+
+
+# ==============================================================================
+# 3. FloatVector: Dynamic Growable 64-bit Floating-Point Vector
+# ==============================================================================
+
+struct FloatVector:
+    data: Array[f64]
+    len: i64
+    capacity: i64
+
+def float_vec_new(initial_cap: i64) -> FloatVector:
+    c = initial_cap
+    if c <= 0:
+        c = 8
+    buf = [0.0] * c
+    return FloatVector(buf, 0, c)
+
+def float_vec_len(v: FloatVector) -> i64:
+    return v.len
+
+def float_vec_cap(v: FloatVector) -> i64:
+    return v.capacity
+
+def float_vec_is_empty(v: FloatVector) -> bool:
+    return v.len == 0
+
+def float_vec_reserve(v: FloatVector, min_capacity: i64) -> i64:
+    if min_capacity <= v.capacity:
+        return v.capacity
+    new_cap = v.capacity * 2
+    if new_cap < min_capacity:
+        new_cap = min_capacity
+    new_data = [0.0] * new_cap
+    array_copy_f64(v.data, 0, new_data, 0, v.len)
+    v.data = new_data
+    v.capacity = new_cap
+    return new_cap
+
+def float_vec_push(v: FloatVector, val: f64) -> i64:
+    if v.len >= v.capacity:
+        new_cap = v.capacity * 2
+        if new_cap <= 0:
+            new_cap = 8
+        new_data = [0.0] * new_cap
+        array_copy_f64(v.data, 0, new_data, 0, v.len)
+        v.data = new_data
+        v.capacity = new_cap
+    v.data[v.len] = val
+    v.len += 1
+    return v.len
+
+def float_vec_pop(v: FloatVector) -> f64:
+    if v.len <= 0:
+        return 0.0
+    v.len -= 1
+    return v.data[v.len]
+
+def float_vec_get(v: FloatVector, idx: i64) -> f64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0.0
+    return v.data[real_idx]
+
+def float_vec_set(v: FloatVector, idx: i64, val: f64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0
+    v.data[real_idx] = val
+    return 0
+
+def float_vec_clear(v: FloatVector) -> i64:
+    v.len = 0
+    return 0
+
+def float_vec_insert(v: FloatVector, idx: i64, val: f64) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx > v.len:
+        return -1
+    if v.len >= v.capacity:
+        float_vec_reserve(v, v.capacity * 2)
+    i = v.len
+    while i > real_idx:
+        v.data[i] = v.data[i - 1]
+        i -= 1
+    v.data[real_idx] = val
+    v.len += 1
+    return v.len
+
+def float_vec_remove(v: FloatVector, idx: i64) -> f64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0.0
+    val = v.data[real_idx]
+    last = v.len - 1
+    for i in real_idx..last:
+        v.data[i] = v.data[i + 1]
+    v.len -= 1
+    return val
+
+def float_vec_swap_remove(v: FloatVector, idx: i64) -> f64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0.0
+    val = v.data[real_idx]
+    last_idx = v.len - 1
+    if real_idx != last_idx:
+        v.data[real_idx] = v.data[last_idx]
+    v.len -= 1
+    return val
+
+def float_vec_extend(dst: FloatVector, src: FloatVector) -> i64:
+    needed = dst.len + src.len
+    if needed > dst.capacity:
+        float_vec_reserve(dst, needed)
+    array_copy_f64(src.data, 0, dst.data, dst.len, src.len)
+    dst.len += src.len
+    return dst.len
+
+def float_vec_copy(v: FloatVector) -> FloatVector:
+    c = v.capacity
+    if c <= 0:
+        c = 8
+    buf = [0.0] * c
+    array_copy_f64(v.data, 0, buf, 0, v.len)
+    return FloatVector(buf, v.len, c)
+
+def float_vec_slice(v: FloatVector, start: i64, stop: i64) -> FloatVector:
+    s = start
+    if s < 0:
+        s = v.len + s
+        if s < 0:
+            s = 0
+    e = stop
+    if e < 0:
+        e = v.len + e
+    if e > v.len:
+        e = v.len
+    if s >= e:
+        return float_vec_new(4)
+    slice_len = e - s
+    res = float_vec_new(slice_len)
+    array_copy_f64(v.data, s, res.data, 0, slice_len)
+    res.len = slice_len
+    return res
+
+def float_vec_reverse(v: FloatVector) -> i64:
+    i = 0
+    j = v.len - 1
+    while i < j:
+        tmp = v.data[i]
+        v.data[i] = v.data[j]
+        v.data[j] = tmp
+        i += 1
+        j -= 1
+    return 0
+
+def _float_qsort(arr: Array[f64], low: i64, high: i64) -> i64:
+    if low < high:
+        pivot = arr[high]
+        i = low - 1
+        for j in low..high:
+            if arr[j] <= pivot:
+                i += 1
+                tmp = arr[i]
+                arr[i] = arr[j]
+                arr[j] = tmp
+        tmp = arr[i + 1]
+        arr[i + 1] = arr[high]
+        arr[high] = tmp
+        p = i + 1
+        _float_qsort(arr, low, p - 1)
+        _float_qsort(arr, p + 1, high)
+    return 0
+
+def float_vec_sort(v: FloatVector) -> i64:
+    if v.len <= 1:
+        return 0
+    _float_qsort(v.data, 0, v.len - 1)
+    return 0
+
+def float_vec_min(v: FloatVector) -> f64:
+    if v.len <= 0:
+        return 0.0
+    m = v.data[0]
+    for i in 1..v.len:
+        val = v.data[i]
+        if val < m:
+            m = val
+    return m
+
+def float_vec_max(v: FloatVector) -> f64:
+    if v.len <= 0:
+        return 0.0
+    m = v.data[0]
+    for i in 1..v.len:
+        val = v.data[i]
+        if val > m:
+            m = val
+    return m
+
+def float_vec_sum(v: FloatVector) -> f64:
+    s = 0.0
+    for i in 0..v.len:
+        s += v.data[i]
+    return s
+
+def float_vec_mean(v: FloatVector) -> f64:
+    if v.len <= 0:
+        return 0.0
+    return float_vec_sum(v) / float(v.len)
+
+def float_vec_to_str(v: FloatVector) -> str:
+    if v.len == 0:
+        return "[]"
+    res = "[" + str(v.data[0])
+    for i in 1..v.len:
+        res = res + ", " + str(v.data[i])
+    res = res + "]"
+    return res
+
+
+# ==============================================================================
+# 4. StrVector: Dynamic Growable UTF-8 String Vector
+# ==============================================================================
+
+struct StrVector:
+    data: Array[str]
+    len: i64
+    capacity: i64
+
+def str_vec_new(initial_cap: i64) -> StrVector:
+    c = initial_cap
+    if c <= 0:
+        c = 8
+    buf = [""] * c
+    return StrVector(buf, 0, c)
+
+def str_vec_len(v: StrVector) -> i64:
+    return v.len
+
+def str_vec_cap(v: StrVector) -> i64:
+    return v.capacity
+
+def str_vec_is_empty(v: StrVector) -> bool:
+    return v.len == 0
+
+def str_vec_reserve(v: StrVector, min_capacity: i64) -> i64:
+    if min_capacity <= v.capacity:
+        return v.capacity
+    new_cap = v.capacity * 2
+    if new_cap < min_capacity:
+        new_cap = min_capacity
+    new_data = [""] * new_cap
+    array_copy_str(v.data, 0, new_data, 0, v.len)
+    v.data = new_data
+    v.capacity = new_cap
+    return new_cap
+
+def str_vec_push(v: StrVector, val: str) -> i64:
+    if v.len >= v.capacity:
+        new_cap = v.capacity * 2
+        if new_cap <= 0:
+            new_cap = 8
+        new_data = [""] * new_cap
+        array_copy_str(v.data, 0, new_data, 0, v.len)
+        v.data = new_data
+        v.capacity = new_cap
+    v.data[v.len] = val
+    v.len += 1
+    return v.len
+
+def str_vec_pop(v: StrVector) -> str:
+    if v.len <= 0:
+        return ""
+    v.len -= 1
+    return v.data[v.len]
+
+def str_vec_get(v: StrVector, idx: i64) -> str:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return ""
+    return v.data[real_idx]
+
+def str_vec_set(v: StrVector, idx: i64, val: str) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return 0
+    v.data[real_idx] = val
+    return 0
+
+def str_vec_clear(v: StrVector) -> i64:
+    v.len = 0
+    return 0
+
+def str_vec_insert(v: StrVector, idx: i64, val: str) -> i64:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx > v.len:
+        return -1
+    if v.len >= v.capacity:
+        str_vec_reserve(v, v.capacity * 2)
+    i = v.len
+    while i > real_idx:
+        v.data[i] = v.data[i - 1]
+        i -= 1
+    v.data[real_idx] = val
+    v.len += 1
+    return v.len
+
+def str_vec_remove(v: StrVector, idx: i64) -> str:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return ""
+    val = v.data[real_idx]
+    last = v.len - 1
+    for i in real_idx..last:
+        v.data[i] = v.data[i + 1]
+    v.len -= 1
+    return val
+
+def str_vec_swap_remove(v: StrVector, idx: i64) -> str:
+    real_idx = idx
+    if real_idx < 0:
+        real_idx = v.len + real_idx
+    if real_idx < 0 or real_idx >= v.len:
+        return ""
+    val = v.data[real_idx]
+    last_idx = v.len - 1
+    if real_idx != last_idx:
+        v.data[real_idx] = v.data[last_idx]
+    v.len -= 1
+    return val
+
+def str_vec_extend(dst: StrVector, src: StrVector) -> i64:
+    needed = dst.len + src.len
+    if needed > dst.capacity:
+        str_vec_reserve(dst, needed)
+    array_copy_str(src.data, 0, dst.data, dst.len, src.len)
+    dst.len += src.len
+    return dst.len
+
+def str_vec_copy(v: StrVector) -> StrVector:
+    c = v.capacity
+    if c <= 0:
+        c = 8
+    buf = [""] * c
+    array_copy_str(v.data, 0, buf, 0, v.len)
+    return StrVector(buf, v.len, c)
+
+def str_vec_slice(v: StrVector, start: i64, stop: i64) -> StrVector:
+    s = start
+    if s < 0:
+        s = v.len + s
+        if s < 0:
+            s = 0
+    e = stop
+    if e < 0:
+        e = v.len + e
+    if e > v.len:
+        e = v.len
+    if s >= e:
+        return str_vec_new(4)
+    slice_len = e - s
+    res = str_vec_new(slice_len)
+    array_copy_str(v.data, s, res.data, 0, slice_len)
+    res.len = slice_len
+    return res
+
+def str_vec_contains(v: StrVector, val: str) -> bool:
+    for i in 0..v.len:
+        if v.data[i] == val:
+            return True
+    return False
+
+def str_vec_index_of(v: StrVector, val: str) -> i64:
+    for i in 0..v.len:
+        if v.data[i] == val:
+            return i
+    return -1
+
+def str_vec_join(v: StrVector, sep: str) -> str:
+    if v.len == 0:
+        return ""
+    if v.len == 1:
+        return v.data[0]
+    res = v.data[0]
+    for i in 1..v.len:
+        res = res + sep + v.data[i]
+    return res
+
+def str_vec_reverse(v: StrVector) -> i64:
+    i = 0
+    j = v.len - 1
+    while i < j:
+        tmp = v.data[i]
+        v.data[i] = v.data[j]
+        v.data[j] = tmp
+        i += 1
+        j -= 1
+    return 0
+
+def str_vec_to_str(v: StrVector) -> str:
+    if v.len == 0:
+        return "[]"
+    res = "[\"" + v.data[0] + "\""
+    for i in 1..v.len:
+        res = res + ", \"" + v.data[i] + "\""
+    res = res + "]"
+    return res
+
+
+# ==============================================================================
+# 5. Zero-Copy Slice Views
+# ==============================================================================
+
+struct IntSlice:
+    data: Array[i64]
+    offset: i64
+    len: i64
+
+def int_slice_new(arr: Array[i64], offset: i64, length: i64) -> IntSlice:
+    return IntSlice(arr, offset, length)
+
+def int_slice_from_vec(v: IntVector, start: i64, stop: i64) -> IntSlice:
+    s = start
+    if s < 0:
+        s = v.len + s
+        if s < 0:
+            s = 0
+    e = stop
+    if e < 0:
+        e = v.len + e
+    if e > v.len:
+        e = v.len
+    if s >= e:
+        return IntSlice(v.data, s, 0)
+    return IntSlice(v.data, s, e - s)
+
+def int_slice_get(s: IntSlice, idx: i64) -> i64:
+    real_idx = s.offset + idx
+    return s.data[real_idx]
+
+def int_slice_set(s: IntSlice, idx: i64, val: i64) -> i64:
+    real_idx = s.offset + idx
+    s.data[real_idx] = val
+    return val
+
+def int_slice_subslice(s: IntSlice, start: i64, length: i64) -> IntSlice:
+    new_offset = s.offset + start
+    new_len = length
+    if new_offset + new_len > s.offset + s.len:
+        new_len = (s.offset + s.len) - new_offset
+        if new_len < 0:
+            new_len = 0
+    return IntSlice(s.data, new_offset, new_len)
+
+def int_slice_to_vec(s: IntSlice) -> IntVector:
+    res = int_vec_new(s.len)
+    array_copy_i64(s.data, s.offset, res.data, 0, s.len)
+    res.len = s.len
+    return res
+
+
+struct FloatSlice:
+    data: Array[f64]
+    offset: i64
+    len: i64
+
+def float_slice_new(arr: Array[f64], offset: i64, length: i64) -> FloatSlice:
+    return FloatSlice(arr, offset, length)
+
+def float_slice_from_vec(v: FloatVector, start: i64, stop: i64) -> FloatSlice:
+    s = start
+    if s < 0:
+        s = v.len + s
+        if s < 0:
+            s = 0
+    e = stop
+    if e < 0:
+        e = v.len + e
+    if e > v.len:
+        e = v.len
+    if s >= e:
+        return FloatSlice(v.data, s, 0)
+    return FloatSlice(v.data, s, e - s)
+
+def float_slice_get(s: FloatSlice, idx: i64) -> f64:
+    real_idx = s.offset + idx
+    return s.data[real_idx]
+
+def float_slice_set(s: FloatSlice, idx: i64, val: f64) -> i64:
+    real_idx = s.offset + idx
+    s.data[real_idx] = val
+    return 0
+
+def float_slice_subslice(s: FloatSlice, start: i64, length: i64) -> FloatSlice:
+    new_offset = s.offset + start
+    new_len = length
+    if new_offset + new_len > s.offset + s.len:
+        new_len = (s.offset + s.len) - new_offset
+        if new_len < 0:
+            new_len = 0
+    return FloatSlice(s.data, new_offset, new_len)
+
+def float_slice_to_vec(s: FloatSlice) -> FloatVector:
+    res = float_vec_new(s.len)
+    array_copy_f64(s.data, s.offset, res.data, 0, s.len)
+    res.len = s.len
+    return res

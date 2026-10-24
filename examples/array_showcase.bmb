@@ -1,0 +1,132 @@
+# Black Mamba Flagship Showcase: array_showcase.bmb
+# High-Performance Dynamic Vector Collections & Zero-Copy Slices
+# Demonstrates IntVector, FloatVector, StrVector, and IntSlice across all compiler backends.
+
+from array import *
+
+def main() -> i64:
+    print("================================================================================")
+    print("        BLACK MAMBA (.BMB) DYNAMIC VECTOR COLLECTIONS SHOWCASE                  ")
+    print("================================================================================")
+
+    # --------------------------------------------------------------------------
+    # [1] IntVector: Amortized O(1) Growth, Resizing, and Quicksort
+    # --------------------------------------------------------------------------
+    print("")
+    print("[1] Dynamic IntVector:")
+    iv = int_vec_new(2)
+    print("  Initial capacity: " + str(int_vec_cap(iv)))
+
+    # Push elements causing capacity doubling: 2 -> 4 -> 8 -> 16
+    for i in 0..12:
+        int_vec_push(iv, (i + 1) * 7)
+    print("  Pushed 12 multiples of 7:")
+    print("    -> " + int_vec_to_str(iv))
+    print("  Vector length: " + str(int_vec_len(iv)))
+    print("  Vector capacity: " + str(int_vec_cap(iv)))
+
+    # Random-access get & negative indexing
+    print("  Element at idx 0: " + str(int_vec_get(iv, 0)))
+    print("  Element at idx -1 (last): " + str(int_vec_get(iv, -1)))
+    print("  Element at idx -2: " + str(int_vec_get(iv, -2)))
+
+    # Insert & Pop
+    int_vec_insert(iv, 3, 999)
+    print("  Inserted 999 at index 3:")
+    print("    -> " + int_vec_to_str(iv))
+    p = int_vec_pop(iv)
+    print("  Popped last element: " + str(p))
+
+    # Swap-remove
+    sr = int_vec_swap_remove(iv, 3)
+    print("  Swap-removed index 3 (value=" + str(sr) + "):")
+    print("    -> " + int_vec_to_str(iv))
+
+    # Push unsorted values and sort
+    int_vec_push(iv, 13)
+    int_vec_push(iv, 3)
+    int_vec_push(iv, 105)
+    print("  Unsorted vector before sort:")
+    print("    -> " + int_vec_to_str(iv))
+    int_vec_sort(iv)
+    print("  Quicksorted vector:")
+    print("    -> " + int_vec_to_str(iv))
+
+    # Binary search
+    bs_49 = int_vec_binary_search(iv, 49)
+    bs_100 = int_vec_binary_search(iv, 100)
+    print("  Binary search for 49: found at index " + str(bs_49))
+    print("  Binary search for 100: index " + str(bs_100) + " (not found)")
+
+    # Reductions
+    print("  Vector min: " + str(int_vec_min(iv)))
+    print("  Vector max: " + str(int_vec_max(iv)))
+    print("  Vector sum: " + str(int_vec_sum(iv)))
+
+    # --------------------------------------------------------------------------
+    # [2] FloatVector: Scientific Double-Precision Numbers
+    # --------------------------------------------------------------------------
+    print("")
+    print("[2] Dynamic FloatVector:")
+    fv = float_vec_new(4)
+    float_vec_push(fv, 9.81)
+    float_vec_push(fv, 2.718)
+    float_vec_push(fv, 3.14159)
+    float_vec_push(fv, 1.414)
+    float_vec_push(fv, 1.618)
+    print("  Float vector: " + float_vec_to_str(fv))
+    float_vec_sort(fv)
+    print("  Quicksorted float vector: " + float_vec_to_str(fv))
+    print("  Min float: " + str(float_vec_min(fv)))
+    print("  Max float: " + str(float_vec_max(fv)))
+    print("  Sum float: " + str(float_vec_sum(fv)))
+    print("  Mean float: " + str(float_vec_mean(fv)))
+
+    # Slicing float vector
+    f_slice = float_vec_slice(fv, 1, 4)
+    print("  Sliced FloatVector[1:4]: " + float_vec_to_str(f_slice))
+
+    # --------------------------------------------------------------------------
+    # [3] StrVector: Dynamic String Buffer & Text Processing
+    # --------------------------------------------------------------------------
+    print("")
+    print("[3] Dynamic StrVector:")
+    sv = str_vec_new(2)
+    str_vec_push(sv, "antigravity")
+    str_vec_push(sv, "black_mamba")
+    str_vec_push(sv, "bare_metal")
+    str_vec_push(sv, "zero_copy")
+    str_vec_push(sv, "high_throughput")
+    print("  String vector: " + str_vec_to_str(sv))
+    print("  Joined with ' | ': " + str_vec_join(sv, " | "))
+    print("  Contains 'black_mamba': " + str(str_vec_contains(sv, "black_mamba")))
+    print("  Contains 'cpython': " + str(str_vec_contains(sv, "cpython")))
+    print("  Index of 'zero_copy': " + str(str_vec_index_of(sv, "zero_copy")))
+
+    # --------------------------------------------------------------------------
+    # [4] Zero-Copy Slice Views (IntSlice)
+    # --------------------------------------------------------------------------
+    print("")
+    print("[4] Zero-Copy Memory Slices:")
+    base_v = int_vec_new(6)
+    for i in 0..6:
+        int_vec_push(base_v, (i + 1) * 10)
+    print("  Base vector: " + int_vec_to_str(base_v))
+
+    # Create zero-copy slice of [10, 20, 30, 40, 50, 60] from index 2 to 5
+    sl = int_slice_from_vec(base_v, 2, 5)
+    print("  IntSlice view (offset=" + str(sl.offset) + ", len=" + str(sl.len) + "):")
+    print("    sl[0] = " + str(int_slice_get(sl, 0)))
+    print("    sl[1] = " + str(int_slice_get(sl, 1)))
+    print("    sl[2] = " + str(int_slice_get(sl, 2)))
+
+    # Mutate through slice view
+    int_slice_set(sl, 1, 7777)
+    print("  Mutated sl[1] = 7777 via zero-copy slice view.")
+    print("  Base vector reflectively updated: " + int_vec_to_str(base_v))
+
+    print("")
+    print("================================================================================")
+    print("     ALL DYNAMIC VECTOR & SLICE OPERATIONS COMPLETED SUCCESSFULLY!              ")
+    print("================================================================================")
+    return 0

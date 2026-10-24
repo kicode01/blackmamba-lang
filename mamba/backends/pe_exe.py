@@ -499,6 +499,25 @@ class PE32PlusExecutableBuilder:
         buf.pop_rbp()
         buf.ret()
 
+        buf.mark_label("rt__str_from_f64")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; float bits")
+        buf.emit(b"\x48\xC7\xC1\x20\x00\x00\x00", "mov rcx, 32")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; dst buf")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        self._emit_lea_rdx_rva(self.builtin_rvas["fmt_f64"], "fmt_f64")
+        buf.emit(b"\x4C\x8B\x45\xF8", "mov r8, [rbp - 0x08]")
+        buf.emit(b"\x66\x49\x0F\x6E\xD0", "movq xmm2, r8")
+        self._emit_call_iat(self.iat_rvas["sprintf"], "msvcrt!sprintf")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
         buf.mark_label("rt__str_ord")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__ord_heap")
@@ -911,7 +930,7 @@ class PE32PlusExecutableBuilder:
             "str_cmp_gt": "rt__str_cmp_gt",
             "str_cmp_ge": "rt__str_cmp_ge",
             "str_from_i64": "rt__str_from_i64",
-            "str_from_f64": "rt__str_stub",
+            "str_from_f64": "rt__str_from_f64",
             "str_from_bool": "rt__str_from_bool",
             "str_ord": "rt__str_ord",
             "str_chr": "rt__str_chr",
