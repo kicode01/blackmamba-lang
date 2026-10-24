@@ -507,6 +507,67 @@ def test_os_ops() -> i64:
         self.assertIn("exists_final=False", out)
         mod.close()
 
+    def test_stdlib_socket_module(self):
+        """
+        Phase 4: Pure native Black Mamba (.bmb) Networking & Sockets standard library.
+        Verifies socket_init, tcp_server, tcp_connect, socket_accept, socket_send,
+        socket_recv, socket_close, and socket_cleanup.
+        """
+        import mamba
+        socket_bmb_code = """
+from socket import *
+
+def test_sockets() -> i64:
+    init_res = socket_init()
+    print(f"init_res={init_res}")
+
+    # Start TCP server on loopback port 23456
+    srv = tcp_server("127.0.0.1", 23456, 2)
+    print(f"srv_fd={srv.fd}")
+
+    # Connect client
+    cli = tcp_connect("127.0.0.1", 23456)
+    print(f"cli_fd={cli.fd}")
+
+    # Accept on server
+    conn = socket_accept(srv)
+    print(f"conn_fd={conn.fd}")
+
+    # Client sends ping
+    n1 = socket_send(cli, "PING_MAMBA")
+    print(f"sent_bytes={n1}")
+
+    # Server receives ping
+    req = socket_recv(conn, 128)
+    print(f"req={req}")
+
+    # Server echoes pong
+    n2 = socket_send(conn, "PONG:" + req)
+    print(f"echo_bytes={n2}")
+
+    # Client receives pong
+    resp = socket_recv(cli, 128)
+    print(f"resp={resp}")
+
+    # Clean close
+    c1 = socket_close(conn)
+    c2 = socket_close(cli)
+    c3 = socket_close(srv)
+    cleanup_res = socket_cleanup()
+    print(f"c1={c1} c2={c2} c3={c3} cleanup={cleanup_res}")
+    return 0
+"""
+        mod = mamba.compile(socket_bmb_code)
+        res = mod.test_sockets()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("init_res=0", out)
+        self.assertIn("sent_bytes=10", out)
+        self.assertIn("req=PING_MAMBA", out)
+        self.assertIn("resp=PONG:PING_MAMBA", out)
+        self.assertIn("c1=0 c2=0 c3=0 cleanup=0", out)
+        mod.close()
+
 
 if __name__ == "__main__":
     unittest.main()

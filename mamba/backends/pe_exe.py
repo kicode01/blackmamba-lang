@@ -129,13 +129,20 @@ class PE32PlusExecutableBuilder:
                 [
                     "printf", "calloc", "pow", "fflush",
                     "fopen", "fread", "fwrite", "fclose", "fseek", "ftell",
-                    "remove", "_getcwd", "getenv",
+                    "remove", "_getcwd", "getenv", "sprintf",
                 ],
             ),
             (
                 "KERNEL32.dll",
                 [
                     "ExitProcess",
+                ],
+            ),
+            (
+                "ws2_32.dll",
+                [
+                    "WSAStartup", "WSACleanup", "socket", "connect", "bind",
+                    "listen", "accept", "send", "recv", "closesocket", "htons", "inet_addr",
                 ],
             ),
         ]
@@ -463,6 +470,33 @@ class PE32PlusExecutableBuilder:
         # 5d. String Helpers / Stubs
         buf.mark_label("rt__str_stub")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.ret()
+
+        buf.mark_label("rt__str_from_bool")
+        buf.emit(b"\x48\x85\xC9", "test rcx, rcx")
+        buf.jcc_rel32(0x84, "z", "rt__bool_false")
+        buf.emit(b"\x48\xB8\x09\x54\x72\x75\x65\x00\x00\x00", "mov rax, 0x6575725409 ; SSO 'True'")
+        buf.ret()
+        buf.mark_label("rt__bool_false")
+        buf.emit(b"\x48\xB8\x0B\x46\x61\x6C\x73\x65\x00\x00", "mov rax, 0x65736C61460B ; SSO 'False'")
+        buf.ret()
+
+        buf.mark_label("rt__str_from_i64")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; val")
+        buf.emit(b"\x48\xC7\xC1\x20\x00\x00\x00", "mov rcx, 32")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; dst buf")
+        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        self._emit_lea_rdx_rva(self.builtin_rvas["fmt_i64"], "fmt_i64")
+        buf.emit(b"\x4C\x8B\x45\xF8", "mov r8, [rbp - 0x08]")
+        self._emit_call_iat(self.iat_rvas["sprintf"], "msvcrt!sprintf")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
         buf.ret()
 
         buf.mark_label("rt__str_ord")
@@ -876,9 +910,9 @@ class PE32PlusExecutableBuilder:
             "str_cmp_le": "rt__str_cmp_le",
             "str_cmp_gt": "rt__str_cmp_gt",
             "str_cmp_ge": "rt__str_cmp_ge",
-            "str_from_i64": "rt__str_stub",
+            "str_from_i64": "rt__str_from_i64",
             "str_from_f64": "rt__str_stub",
-            "str_from_bool": "rt__str_stub",
+            "str_from_bool": "rt__str_from_bool",
             "str_ord": "rt__str_ord",
             "str_chr": "rt__str_chr",
             "str_to_i64": "rt__str_stub",
@@ -1152,6 +1186,269 @@ class PE32PlusExecutableBuilder:
         buf.mark_label("rt__ge_empty")
         self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
         buf.mark_label("rt__ge_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # --- Native Socket Primitives (WinSock2 ws2_32.dll) ---
+
+        # fn____bmb_socket_init() -> rax=i64 (0 on success)
+        buf.mark_label("fn____bmb_socket_init")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x1E0)
+        buf.emit(b"\x48\xC7\xC1\x02\x02\x00\x00", "mov rcx, 0x0202 ; MAKEWORD(2,2)")
+        buf.emit(b"\x48\x8D\x95\x70\xFE\xFF\xFF", "lea rdx, [rbp - 0x190] ; lpWSAData")
+        self._emit_call_iat(self.iat_rvas["WSAStartup"], "ws2_32!WSAStartup")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_cleanup() -> rax=i64
+        buf.mark_label("fn____bmb_socket_cleanup")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        self._emit_call_iat(self.iat_rvas["WSACleanup"], "ws2_32!WSACleanup")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_create(rcx=family, rdx=type, r8=proto) -> rax=sockfd
+        buf.mark_label("fn____bmb_socket_create")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        self._emit_call_iat(self.iat_rvas["socket"], "ws2_32!socket")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_connect(rcx=sockfd, rdx=host, r8=port) -> rax=i64
+        buf.mark_label("fn____bmb_socket_connect")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; host")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; port")
+
+        # htons(port)
+        buf.emit(b"\x4C\x89\xC1", "mov rcx, r8")
+        self._emit_call_iat(self.iat_rvas["htons"], "ws2_32!htons")
+        buf.emit(b"\x66\x89\x45\xD2", "mov [rbp - 0x2E], ax ; sin_port")
+
+        # inet_addr(host)
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__conn_host_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax")
+        buf.emit(b"\x48\xC7\x45\xC8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x38], 0")
+        buf.emit(b"\x48\x8D\x4D\xC0", "lea rcx, [rbp - 0x40]")
+        buf.mark_label("rt__conn_host_ptr")
+        self._emit_call_iat(self.iat_rvas["inet_addr"], "ws2_32!inet_addr")
+        buf.emit(b"\x89\x45\xD4", "mov [rbp - 0x2C], eax ; sin_addr")
+
+        buf.emit(b"\x66\xC7\x45\xD0\x02\x00", "mov word ptr [rbp - 0x30], 2 ; AF_INET")
+        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0 ; sin_zero")
+
+        # connect(sockfd, &addr, 16)
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8D\x55\xD0", "lea rdx, [rbp - 0x30]")
+        buf.emit(b"\x49\xC7\xC0\x10\x00\x00\x00", "mov r8, 16")
+        self._emit_call_iat(self.iat_rvas["connect"], "ws2_32!connect")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_bind(rcx=sockfd, rdx=host, r8=port) -> rax=i64
+        buf.mark_label("fn____bmb_socket_bind")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; host")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; port")
+
+        # htons(port)
+        buf.emit(b"\x4C\x89\xC1", "mov rcx, r8")
+        self._emit_call_iat(self.iat_rvas["htons"], "ws2_32!htons")
+        buf.emit(b"\x66\x89\x45\xD2", "mov [rbp - 0x2E], ax ; sin_port")
+
+        # Check for empty string -> INADDR_ANY
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__bind_chk_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
+        buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.jcc_rel32(0x84, "z", "rt__bind_inaddr_any")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax")
+        buf.emit(b"\x48\xC7\x45\xC8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x38], 0")
+        buf.emit(b"\x48\x8D\x4D\xC0", "lea rcx, [rbp - 0x40]")
+        buf.jmp_label("rt__bind_call_inet")
+        buf.mark_label("rt__bind_chk_ptr")
+        buf.emit(b"\x80\x39\x00", "cmp byte ptr [rcx], 0")
+        buf.jcc_rel32(0x84, "e", "rt__bind_inaddr_any")
+        buf.mark_label("rt__bind_call_inet")
+        self._emit_call_iat(self.iat_rvas["inet_addr"], "ws2_32!inet_addr")
+        buf.emit(b"\x89\x45\xD4", "mov [rbp - 0x2C], eax ; sin_addr")
+        buf.jmp_label("rt__bind_addr_ready")
+        buf.mark_label("rt__bind_inaddr_any")
+        buf.emit(b"\xC7\x45\xD4\x00\x00\x00\x00", "mov dword ptr [rbp - 0x2C], 0")
+        buf.mark_label("rt__bind_addr_ready")
+
+        buf.emit(b"\x66\xC7\x45\xD0\x02\x00", "mov word ptr [rbp - 0x30], 2 ; AF_INET")
+        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0 ; sin_zero")
+
+        # bind(sockfd, &addr, 16)
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8D\x55\xD0", "lea rdx, [rbp - 0x30]")
+        buf.emit(b"\x49\xC7\xC0\x10\x00\x00\x00", "mov r8, 16")
+        self._emit_call_iat(self.iat_rvas["bind"], "ws2_32!bind")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_listen(rcx=sockfd, rdx=backlog) -> rax=i64
+        buf.mark_label("fn____bmb_socket_listen")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        self._emit_call_iat(self.iat_rvas["listen"], "ws2_32!listen")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_accept(rcx=sockfd) -> rax=client_sockfd
+        buf.mark_label("fn____bmb_socket_accept")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx ; NULL")
+        buf.emit(b"\x4D\x31\xC0", "xor r8, r8  ; NULL")
+        self._emit_call_iat(self.iat_rvas["accept"], "ws2_32!accept")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_send(rcx=sockfd, rdx=data) -> rax=bytes_sent
+        buf.mark_label("fn____bmb_socket_send")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; data")
+
+        buf.emit(b"\xF6\xC2\x01", "test dl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__sock_send_ptr")
+        # SSO:
+        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+        buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
+        buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; len")
+        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax")
+        buf.emit(b"\x48\x8D\x45\xD8", "lea rax, [rbp - 0x28]")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; src_ptr")
+        buf.jmp_label("rt__sock_send_ready")
+
+        buf.mark_label("rt__sock_send_ptr")
+        buf.emit(b"\x48\x89\x55\xE0", "mov [rbp - 0x20], rdx ; src_ptr")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mark_label("rt__sock_send_len_loop")
+        buf.emit(b"\x80\x3C\x02\x00", "cmp byte ptr [rdx + rax], 0")
+        buf.jcc_rel32(0x84, "e", "rt__sock_send_len_done")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
+        buf.jmp_label("rt__sock_send_len_loop")
+        buf.mark_label("rt__sock_send_len_done")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; len")
+
+        buf.mark_label("rt__sock_send_ready")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8B\x55\xE0", "mov rdx, [rbp - 0x20]")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
+        self._emit_call_iat(self.iat_rvas["send"], "ws2_32!send")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_recv(rcx=sockfd, rdx=max_bytes) -> rax=str
+        buf.mark_label("fn____bmb_socket_recv")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; max_bytes")
+
+        # calloc(max_bytes + 1, 1)
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; buf_ptr")
+
+        # recv(sockfd, buf, max_bytes, 0)
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8B\x55\xE8", "mov rdx, [rbp - 0x18]")
+        buf.emit(b"\x4C\x8B\x45\xF0", "mov r8, [rbp - 0x10]")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
+        self._emit_call_iat(self.iat_rvas["recv"], "ws2_32!recv")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; n_bytes")
+
+        # If rax <= 0 -> return empty string (SSO = 1)
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x8E, "le", "rt__sock_recv_empty")
+
+        # If rax <= 7 -> SSO
+        buf.emit(b"\x48\x83\xF8\x07", "cmp rax, 7")
+        buf.jcc_rel32(0x8F, "g", "rt__sock_recv_heap")
+
+        # SSO pack: rax = (n_bytes << 1) | 1
+        buf.emit(b"\x48\xD1\xE0", "shl rax, 1")
+        buf.emit(b"\x48\x83\xC8\x01", "or rax, 1")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
+
+        buf.mark_label("rt__sock_recv_sso_loop")
+        buf.emit(b"\x4C\x3B\x4D\xE0", "cmp r9, [rbp - 0x20]")
+        buf.jcc_rel32(0x8D, "ge", "rt__sock_recv_done")
+        buf.emit(b"\x45\x0F\xB6\x18", "movzx r11d, byte ptr [r8]")
+        buf.emit(b"\x49\xFF\xC0", "inc r8")
+        buf.emit(b"\x49\x8D\x49\x01", "lea rcx, [r9 + 1]")
+        buf.emit(b"\x48\xC1\xE1\x03", "shl rcx, 3")
+        buf.emit(b"\x49\xD3\xE3", "shl r11, cl")
+        buf.emit(b"\x4C\x09\xD8", "or rax, r11")
+        buf.emit(b"\x49\xFF\xC1", "inc r9")
+        buf.jmp_label("rt__sock_recv_sso_loop")
+
+        buf.mark_label("rt__sock_recv_heap")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
+        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
+        buf.emit(b"\x41\xC6\x04\x00\x00", "mov byte ptr [r8 + rax], 0")
+        buf.emit(b"\x4C\x89\xC0", "mov rax, r8 ; return heap buf")
+        buf.jmp_label("rt__sock_recv_done")
+
+        buf.mark_label("rt__sock_recv_empty")
+        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
+
+        buf.mark_label("rt__sock_recv_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_socket_close(rcx=sockfd) -> rax=i64
+        buf.mark_label("fn____bmb_socket_close")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        self._emit_call_iat(self.iat_rvas["closesocket"], "ws2_32!closesocket")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()

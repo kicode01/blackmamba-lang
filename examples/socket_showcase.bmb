@@ -1,0 +1,133 @@
+# Black Mamba (.bmb) Native Networking Sockets Showcase
+# Demonstrates pure native TCP/UDP client and server sockets,
+# echo communication, and an embedded HTTP/1.1 microserver pipeline.
+# Zero CPython runtime dependency | Bare-metal WinSock2 / Linux Syscalls.
+
+from socket import *
+
+def main() -> i64:
+    print("================================================================================")
+    print("         BLACK MAMBA (.BMB) NATIVE NETWORKING SOCKETS SHOWCASE                  ")
+    print("================================================================================")
+    print("")
+
+    # --- 1. Subsystem Initialization ---
+    print("[1] Initializing Native Socket Subsystem:")
+    init_res = socket_init()
+    print("  socket_init():")
+    print("    ->")
+    print(init_res)
+    print("")
+
+    # --- 2. Low-Level Socket Creation ---
+    print("[2] Low-Level Socket Creation:")
+    s = tcp_socket()
+    print("  tcp_socket() fd:")
+    print("    ->")
+    print(s.fd)
+    print("  socket_close(s):")
+    print("    ->")
+    print(socket_close(s))
+    print("")
+
+    # --- 3. High-Level TCP Echo Server & Client ---
+    print("[3] TCP Client-Server Loopback Communication:")
+    test_port = 17777
+    srv = tcp_server("127.0.0.1", test_port, 5)
+    print("  tcp_server('127.0.0.1', 17777, 5) listening:")
+    print("    -> fd =")
+    print(srv.fd)
+
+    cli = tcp_connect("127.0.0.1", test_port)
+    print("  tcp_connect('127.0.0.1', 17777) connected:")
+    print("    -> fd =")
+    print(cli.fd)
+
+    conn = socket_accept(srv)
+    print("  socket_accept(srv) accepted connection:")
+    print("    -> client conn fd =")
+    print(conn.fd)
+
+    # Client transmits payload
+    payload = "Hello from Black Mamba bare-metal WinSock2 & Linux Syscalls!"
+    bytes_sent = socket_send(cli, payload)
+    print("  Client socket_send() bytes:")
+    print("    ->")
+    print(bytes_sent)
+
+    # Server receives payload
+    received = socket_recv(conn, 1024)
+    print("  Server socket_recv() content:")
+    print("    ->")
+    print(received)
+
+    # Server sends echo response
+    echo_msg = "ACK: " + received
+    echo_sent = socket_send(conn, echo_msg)
+    print("  Server echoed bytes:")
+    print("    ->")
+    print(echo_sent)
+
+    # Client receives echo
+    client_echo = socket_recv(cli, 1024)
+    print("  Client received echo:")
+    print("    ->")
+    print(client_echo)
+
+    # Close echo connection
+    socket_close(conn)
+    socket_close(cli)
+    socket_close(srv)
+    print("  Echo sockets closed cleanly.")
+    print("")
+
+    # --- 4. Micro HTTP/1.1 Server & Client Integration ---
+    print("[4] End-to-End HTTP/1.1 Microserver & Client:")
+    http_port = 18888
+    http_srv = tcp_server("127.0.0.1", http_port, 5)
+    print("  HTTP Microserver listening on port 18888")
+
+    http_cli = tcp_connect("127.0.0.1", http_port)
+    http_conn = socket_accept(http_srv)
+
+    # Client sends HTTP GET
+    http_req = "GET /api/status HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    socket_send(http_cli, http_req)
+
+    # Server reads request
+    req_data = socket_recv(http_conn, 2048)
+    print("  Server received HTTP Request:")
+    print("    ->")
+    print(req_data)
+
+    # Construct JSON response body
+    json_body = "{\"status\": 200, \"engine\": \"Black Mamba Native Sockets\", \"latency_ns\": 0}"
+    body_len = len(json_body)
+
+    # Construct HTTP/1.1 Response
+    http_resp = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " + str(body_len) + "\r\nConnection: close\r\n\r\n" + json_body
+    socket_send(http_conn, http_resp)
+
+    # Client receives HTTP Response
+    full_resp = socket_recv(http_cli, 4096)
+    print("  Client received HTTP/1.1 Response:")
+    print("    ->")
+    print(full_resp)
+
+    socket_close(http_conn)
+    socket_close(http_cli)
+    socket_close(http_srv)
+    print("")
+
+    # --- 5. Subsystem Cleanup ---
+    print("[5] Subsystem Cleanup:")
+    cleanup_res = socket_cleanup()
+    print("  socket_cleanup():")
+    print("    ->")
+    print(cleanup_res)
+    print("")
+
+    print("================================================================================")
+    print("      ALL NATIVE NETWORKING SOCKET OPERATIONS COMPLETED SUCCESSFULLY!           ")
+    print("================================================================================")
+    return 0

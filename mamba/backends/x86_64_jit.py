@@ -12,6 +12,7 @@ Windows x64 Calling Convention (Win64 ABI) with:
 import ctypes
 import math
 import os
+import socket
 import struct
 import time
 from dataclasses import dataclass
@@ -900,6 +901,7 @@ class NativeJITModule:
         self._callbacks = []
         self.code_buf = X86_64CodeBuffer()
         self.func_offsets: Dict[str, int] = {}
+        self._active_sockets: Dict[int, socket.socket] = {}
         self.exec_ptr: Optional[int] = None
         self.exec_size: int = 0
 
@@ -1224,6 +1226,112 @@ class NativeJITModule:
             v = os.environ.get(k, "").encode("utf-8")
             return make_str_handle(v)
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_socket_init() -> int:
+            return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_socket_cleanup() -> int:
+            for s in list(self._active_sockets.values()):
+                try:
+                    s.close()
+                except Exception:
+                    pass
+            self._active_sockets.clear()
+            return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_create(family: int, sock_type: int, proto: int) -> int:
+            try:
+                s = socket.socket(int(family), int(sock_type), int(proto))
+                fd = s.fileno()
+                self._active_sockets[fd] = s
+                return fd
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_connect(sockfd: int, host_val: int, port: int) -> int:
+            s = self._active_sockets.get(sockfd)
+            if not s:
+                return -1
+            try:
+                host = get_str_bytes(host_val).decode("utf-8", errors="replace")
+                s.connect((host, int(port)))
+                return 0
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_bind(sockfd: int, host_val: int, port: int) -> int:
+            s = self._active_sockets.get(sockfd)
+            if not s:
+                return -1
+            try:
+                host = get_str_bytes(host_val).decode("utf-8", errors="replace")
+                if not host or host == "0.0.0.0":
+                    host = ""
+                s.bind((host, int(port)))
+                return 0
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_listen(sockfd: int, backlog: int) -> int:
+            s = self._active_sockets.get(sockfd)
+            if not s:
+                return -1
+            try:
+                s.listen(int(backlog))
+                return 0
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_accept(sockfd: int) -> int:
+            s = self._active_sockets.get(sockfd)
+            if not s:
+                return -1
+            try:
+                conn, _ = s.accept()
+                cfd = conn.fileno()
+                self._active_sockets[cfd] = conn
+                return cfd
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_send(sockfd: int, data_val: int) -> int:
+            s = self._active_sockets.get(sockfd)
+            if not s:
+                return -1
+            try:
+                data = get_str_bytes(data_val)
+                return s.send(data)
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_recv(sockfd: int, max_bytes: int) -> int:
+            s = self._active_sockets.get(sockfd)
+            if not s:
+                return make_str_handle(b"")
+            try:
+                data = s.recv(int(max_bytes))
+                return make_str_handle(data)
+            except Exception:
+                return make_str_handle(b"")
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_socket_close(sockfd: int) -> int:
+            s = self._active_sockets.pop(sockfd, None)
+            if s:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+            return 0
+
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
@@ -1232,6 +1340,10 @@ class NativeJITModule:
             rt_str_ord, rt_str_chr, rt_str_to_i64, rt_str_to_f64,
             rt_bmb_file_exists, rt_bmb_file_size, rt_bmb_file_read, rt_bmb_file_write,
             rt_bmb_file_remove, rt_bmb_get_cwd, rt_bmb_get_env,
+            rt_bmb_socket_init, rt_bmb_socket_cleanup, rt_bmb_socket_create,
+            rt_bmb_socket_connect, rt_bmb_socket_bind, rt_bmb_socket_listen,
+            rt_bmb_socket_accept, rt_bmb_socket_send, rt_bmb_socket_recv,
+            rt_bmb_socket_close,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1264,6 +1376,16 @@ class NativeJITModule:
         self.addr_bmb_file_remove = ctypes.cast(rt_bmb_file_remove, ctypes.c_void_p).value
         self.addr_bmb_get_cwd = ctypes.cast(rt_bmb_get_cwd, ctypes.c_void_p).value
         self.addr_bmb_get_env = ctypes.cast(rt_bmb_get_env, ctypes.c_void_p).value
+        self.addr_bmb_socket_init = ctypes.cast(rt_bmb_socket_init, ctypes.c_void_p).value
+        self.addr_bmb_socket_cleanup = ctypes.cast(rt_bmb_socket_cleanup, ctypes.c_void_p).value
+        self.addr_bmb_socket_create = ctypes.cast(rt_bmb_socket_create, ctypes.c_void_p).value
+        self.addr_bmb_socket_connect = ctypes.cast(rt_bmb_socket_connect, ctypes.c_void_p).value
+        self.addr_bmb_socket_bind = ctypes.cast(rt_bmb_socket_bind, ctypes.c_void_p).value
+        self.addr_bmb_socket_listen = ctypes.cast(rt_bmb_socket_listen, ctypes.c_void_p).value
+        self.addr_bmb_socket_accept = ctypes.cast(rt_bmb_socket_accept, ctypes.c_void_p).value
+        self.addr_bmb_socket_send = ctypes.cast(rt_bmb_socket_send, ctypes.c_void_p).value
+        self.addr_bmb_socket_recv = ctypes.cast(rt_bmb_socket_recv, ctypes.c_void_p).value
+        self.addr_bmb_socket_close = ctypes.cast(rt_bmb_socket_close, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -1358,6 +1480,16 @@ class NativeJITModule:
             ("__bmb_file_remove", self.addr_bmb_file_remove),
             ("__bmb_get_cwd", self.addr_bmb_get_cwd),
             ("__bmb_get_env", self.addr_bmb_get_env),
+            ("__bmb_socket_init", self.addr_bmb_socket_init),
+            ("__bmb_socket_cleanup", self.addr_bmb_socket_cleanup),
+            ("__bmb_socket_create", self.addr_bmb_socket_create),
+            ("__bmb_socket_connect", self.addr_bmb_socket_connect),
+            ("__bmb_socket_bind", self.addr_bmb_socket_bind),
+            ("__bmb_socket_listen", self.addr_bmb_socket_listen),
+            ("__bmb_socket_accept", self.addr_bmb_socket_accept),
+            ("__bmb_socket_send", self.addr_bmb_socket_send),
+            ("__bmb_socket_recv", self.addr_bmb_socket_recv),
+            ("__bmb_socket_close", self.addr_bmb_socket_close),
         ]
         for name, addr in os_trampolines:
             self.code_buf.mark_label(f"fn__{name}")
@@ -1456,6 +1588,12 @@ class NativeJITModule:
         return "\n".join(lines)
 
     def close(self) -> None:
+        for s in list(self._active_sockets.values()):
+            try:
+                s.close()
+            except Exception:
+                pass
+        self._active_sockets.clear()
         if self.exec_ptr:
             kernel32 = ctypes.windll.kernel32
             kernel32.VirtualFree.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_ulong]

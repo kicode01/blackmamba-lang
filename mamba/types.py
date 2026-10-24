@@ -453,7 +453,13 @@ class TypeInferencer:
         if isinstance(expr, Call):
             arg_types = [self._infer_expr(a, env) for a in expr.args]
             # Built-in functions
-            if expr.func in ("int", "i64", "abs", "len", "ord", "min", "max", "clock_ns", "__bmb_file_size", "__bmb_file_write"):
+            if expr.func in (
+                "int", "i64", "abs", "len", "ord", "min", "max", "clock_ns",
+                "__bmb_file_size", "__bmb_file_write",
+                "__bmb_socket_init", "__bmb_socket_create", "__bmb_socket_connect",
+                "__bmb_socket_bind", "__bmb_socket_listen", "__bmb_socket_accept",
+                "__bmb_socket_send", "__bmb_socket_close", "__bmb_socket_cleanup",
+            ):
                 if expr.func in ("abs", "min", "max") and any(t == "f64" for t in arg_types):
                     expr.inferred_type = "f64"
                     return "f64"
@@ -468,7 +474,7 @@ class TypeInferencer:
             if expr.func in ("bool", "__bmb_file_exists", "__bmb_file_remove"):
                 expr.inferred_type = "bool"
                 return "bool"
-            if expr.func in ("str", "chr", "__bmb_file_read", "__bmb_get_cwd", "__bmb_get_env"):
+            if expr.func in ("str", "chr", "__bmb_file_read", "__bmb_get_cwd", "__bmb_get_env", "__bmb_socket_recv"):
                 expr.inferred_type = "str"
                 return "str"
             if expr.func == "print":

@@ -75,14 +75,15 @@
     - `json.bmb`: Pure native Black Mamba JSON parser and serializer with zero CPython dependencies. Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters (`json_get`, `json_get_str`, `json_get_int`, `json_get_float`, `json_get_bool`), array indexing (`json_array_get`, `json_array_len`), and high-speed stringification (`json_dumps`, `json_dumps_int_array`, `json_dumps_float_array`, `json_dumps_str_array`).
     - `hash.bmb`: Cryptographic & fast non-cryptographic hashing with zero CPython dependencies. SHA-256 (NIST FIPS 180-4 standard), HMAC-SHA256 (RFC 2104 authenticated message signatures), MurmurHash3 (32-bit x86 mixer for fast hash tables), FNV-1a (32-bit linear pass), and high-speed hex encoders (`hex_byte`, `hex32`, `hex256`).
     - `os.bmb`: Native File System & OS Primitives with zero CPython dependencies. File lifecycle (`file_exists`, `file_size`, `read_file`, `write_file`, `append_file`, `remove_file`), working directory and environment access (`get_cwd`, `get_env`), and pure `.bmb` path utilities (`path_join`, `path_basename`, `path_dirname`, `path_ext`) running natively across Win64 JIT, standalone Windows PE32+, static Linux ELF64 (direct Linux syscalls), C11, and WebAssembly.
+    - `socket.bmb`: Pure native TCP/UDP networking sockets with zero CPython dependencies. Complete `Socket` struct (`fd`, `family`, `sock_type`, `is_connected`, `is_bound`, `is_listening`), low-level core primitives (`socket_init`, `socket_cleanup`, `socket_create`, `socket_connect`, `socket_bind`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`), high-level client/server helpers (`tcp_connect`, `tcp_server`, `http_get`), running bare-metal across Win64 JIT, standalone Windows PE32+ (dynamic `ws2_32.dll` IAT imports), static Linux ELF64 (direct raw kernel syscalls `sys_socket`, `sys_connect`, `sys_bind`, `sys_listen`, `sys_accept`, `sys_write`, `sys_read`, `sys_close`), C11, and WebAssembly stubs.
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
   * **Remaining Limitation**:
-    - High-level networking and database modules (`socket`, `sqlite3`, `http`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
+    - High-level asynchronous event loops (`asyncio`) and database drivers (`sqlite3`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`) for compute, timing, tensors, data exchange, security hashing, and file I/O.
-  * For raw socket operations or complex database drivers, call `py_call("socket", ...)` or `py_call("sqlite3", ...)` via the CPython Host Bridge.
+  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`) for compute, timing, tensors, data exchange, security hashing, file I/O, and networking.
+  * For complex database drivers or async event loops, call `py_call("sqlite3", ...)` or `py_call("asyncio", ...)` via the CPython Host Bridge.
 * **Planned Future Work (Phase 4)**:
-  * Pure `.bmb` non-blocking networking in `socket.bmb` and contiguous vector collections in `array.bmb`.
+  * Contiguous dynamic vector collections in `array.bmb` and built-in benchmark harness in `test.bmb`.
 ---
 
 ## 6. Dynamic OOP: No C3 MRO or Dynamic Monkey-Patching

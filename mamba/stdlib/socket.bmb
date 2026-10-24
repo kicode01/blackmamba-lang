@@ -1,0 +1,131 @@
+# Black Mamba Standard Library: socket.bmb
+# High-speed native TCP/UDP client and server networking sockets.
+# Zero CPython runtime dependency | Bare-metal WinSock2 / POSIX Linux Syscalls.
+
+# Address Family
+AF_INET = 2
+
+# Socket Types
+SOCK_STREAM = 1
+SOCK_DGRAM = 2
+
+# Protocols
+IPPROTO_IP = 0
+IPPROTO_TCP = 6
+IPPROTO_UDP = 17
+
+# Error sentinels
+INVALID_SOCKET = -1
+SOCKET_ERROR = -1
+
+struct Socket:
+    fd: i64
+    family: i64
+    sock_type: i64
+    is_connected: bool
+    is_bound: bool
+    is_listening: bool
+
+def socket_init() -> i64:
+    return __bmb_socket_init()
+
+def socket_cleanup() -> i64:
+    return __bmb_socket_cleanup()
+
+def socket_create(family: i64, sock_type: i64, proto: i64) -> Socket:
+    socket_init()
+    fd = __bmb_socket_create(family, sock_type, proto)
+    return Socket(fd, family, sock_type, False, False, False)
+
+def tcp_socket() -> Socket:
+    return socket_create(AF_INET, SOCK_STREAM, IPPROTO_TCP)
+
+def udp_socket() -> Socket:
+    return socket_create(AF_INET, SOCK_DGRAM, IPPROTO_UDP)
+
+def socket_connect(sock: Socket, host: str, port: i64) -> i64:
+    res = __bmb_socket_connect(sock.fd, host, port)
+    if res == 0:
+        sock.is_connected = True
+    return res
+
+def socket_bind(sock: Socket, host: str, port: i64) -> i64:
+    res = __bmb_socket_bind(sock.fd, host, port)
+    if res == 0:
+        sock.is_bound = True
+    return res
+
+def socket_listen(sock: Socket, backlog: i64) -> i64:
+    res = __bmb_socket_listen(sock.fd, backlog)
+    if res == 0:
+        sock.is_listening = True
+    return res
+
+def socket_accept(sock: Socket) -> Socket:
+    client_fd = __bmb_socket_accept(sock.fd)
+    if client_fd >= 0:
+        return Socket(client_fd, sock.family, sock.sock_type, True, False, False)
+    return Socket(-1, sock.family, sock.sock_type, False, False, False)
+
+def socket_send(sock: Socket, data: str) -> i64:
+    if sock.fd < 0:
+        return -1
+    return __bmb_socket_send(sock.fd, data)
+
+def socket_recv(sock: Socket, max_bytes: i64) -> str:
+    if sock.fd < 0:
+        return ""
+    return __bmb_socket_recv(sock.fd, max_bytes)
+
+def socket_close(sock: Socket) -> i64:
+    if sock.fd >= 0:
+        res = __bmb_socket_close(sock.fd)
+        sock.fd = -1
+        sock.is_connected = False
+        sock.is_bound = False
+        sock.is_listening = False
+        return res
+    return 0
+
+# --- High-Level Convenience Helpers ---
+
+def tcp_connect(host: str, port: i64) -> Socket:
+    s = tcp_socket()
+    if s.fd >= 0:
+        res = socket_connect(s, host, port)
+        if res != 0:
+            socket_close(s)
+            return Socket(-1, AF_INET, SOCK_STREAM, False, False, False)
+    return s
+
+def tcp_server(host: str, port: i64, backlog: i64) -> Socket:
+    s = tcp_socket()
+    if s.fd >= 0:
+        b_res = socket_bind(s, host, port)
+        if b_res != 0:
+            socket_close(s)
+            return Socket(-1, AF_INET, SOCK_STREAM, False, False, False)
+        l_res = socket_listen(s, backlog)
+        if l_res != 0:
+            socket_close(s)
+            return Socket(-1, AF_INET, SOCK_STREAM, False, False, False)
+    return s
+
+def raw_socket_send(fd: i64, data: str) -> i64:
+    return __bmb_socket_send(fd, data)
+
+def raw_socket_recv(fd: i64, max_bytes: i64) -> str:
+    return __bmb_socket_recv(fd, max_bytes)
+
+def raw_socket_close(fd: i64) -> i64:
+    return __bmb_socket_close(fd)
+
+def http_get(host: str, port: i64, path: str) -> str:
+    s = tcp_connect(host, port)
+    if s.fd < 0:
+        return ""
+    req = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+    socket_send(s, req)
+    resp = socket_recv(s, 65536)
+    socket_close(s)
+    return resp
