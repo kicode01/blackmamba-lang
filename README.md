@@ -136,5 +136,16 @@ Open [`examples/web_game_canvas.html`](examples/web_game_canvas.html) directly i
 
 ---
 
+## 🗺️ Roadmap
+
+See our comprehensive engineering roadmap in [**`ROADMAP.md`**](ROADMAP.md) detailing:
+* **Phase 1 [Complete]**: Core multi-target compiler, x86-64 JIT, 5.5 KB PE32+ linker, 1.7 KB WASM, and CPython Host FFI.
+* **Phase 2 [Current Focus]**: Linux ELF64 and Apple Silicon ARM64 native binary emitters.
+* **Phase 3**: Compile-time lexical arena lifetimes & Small String Optimization (SSO).
+* **Phase 4**: Top 10 pure standard library modules & zero-copy NumPy/PyTorch SIMD buffer exchange.
+* **Phase 5**: VS Code Language Server Protocol (`bmb-lsp`) & decentralized package manager (`bmb pkg`).
+
+---
+
 ## 📄 License
 MIT License.
