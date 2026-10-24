@@ -187,6 +187,35 @@ def main():
         p_type = struct.unpack_from("<I", raw, 64)[0]
         self.assertEqual(p_type, 1)
 
+    def test_lexical_arena_lifetimes_and_escape_analysis(self):
+        code = """
+struct Point:
+    x: f64
+    y: f64
+
+def compute_point(x: f64, y: f64) -> f64:
+    p = Point(x, y)
+    return p.x * p.y
+
+def main():
+    total = 0.0
+    for i in 1..=1000:
+        total += compute_point(2.0, 3.0)
+    print(f"ARENA_TOTAL={total}")
+"""
+        mod = Parser.from_source(code).parse_module()
+        mir = MIRBuilder().build(mod)
+        fn_cp = next(f for f in mir.functions if f.name == "compute_point")
+        ops = [ins.op for ins in fn_cp.instructions]
+        self.assertIn("ARENA_SAVE", ops)
+        self.assertIn("ARENA_RESTORE", ops)
+
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = jit.get_output()
+        self.assertIn("ARENA_TOTAL=6000.0", out)
+        jit.close()
+
 
 if __name__ == "__main__":
     unittest.main()

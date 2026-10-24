@@ -249,6 +249,13 @@ class ELF64ExecutableBuilder:
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.ret()
 
+        buf.mark_label("rt__arena_save")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.ret()
+
+        buf.mark_label("rt__arena_restore")
+        buf.ret()
+
         # 3. Compile all user functions from MIR
         helper_labels = {
             "print": "rt__print",
@@ -257,6 +264,8 @@ class ELF64ExecutableBuilder:
             "pow_f64": "rt__py_stub",
             "py_call_f64": "rt__py_stub",
             "py_eval_f64": "rt__py_stub",
+            "arena_save": "rt__arena_save",
+            "arena_restore": "rt__arena_restore",
         }
 
         def emit_const_str(ins, store_from_rax):

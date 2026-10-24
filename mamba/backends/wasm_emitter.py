@@ -457,6 +457,18 @@ class WasmBackend:
             return
 
         # Linear memory array bump allocation & indexing
+        if op == "ARENA_SAVE" and dst_l is not None:
+            code.extend(b"\x23\x00")  # global.get 0
+            code.append(0xAD)         # i64.extend_i32_u
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
+        if op == "ARENA_RESTORE":
+            load_as(str(ins.arg1), WASM_I64)
+            code.append(0xA7)         # i32.wrap_i64
+            code.extend(b"\x24\x00")  # global.set 0
+            return
+
         if op in ("PY_CALL_F64", "PY_EVAL_F64") and dst_l is not None:
             code.extend(b"\x44" + struct.pack("<d", 0.0))
             code.extend(b"\x21" + _uleb128(dst_l))

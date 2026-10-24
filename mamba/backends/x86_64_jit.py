@@ -742,6 +742,12 @@ class X86_64CodeBuffer:
                 load_into("rdx", str(ins.arg2))
                 emit_helper_call("alloc_arr")
                 store_from_rax(str(ins.dst))
+            elif op == "ARENA_SAVE":
+                emit_helper_call("arena_save")
+                store_from_rax(str(ins.dst))
+            elif op == "ARENA_RESTORE":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("arena_restore")
             elif op == "PY_EVAL_F64":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("py_eval_f64")
@@ -850,15 +856,31 @@ class NativeJITModule:
                 self._write_out("\n")
             return 0
 
+        # Pre-allocated 64 MiB execution arena
+        self.arena_mem = (ctypes.c_uint8 * (64 * 1024 * 1024))()
+        self.arena_offset = 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_arena_save() -> int:
+            return self.arena_offset
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_arena_restore(saved_offset: int) -> int:
+            self.arena_offset = max(0, int(saved_offset))
+            return 0
+
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_alloc_arr(count: int, init_bits: int) -> int:
             n = max(1, int(count))
-            arr = (ctypes.c_int64 * n)()
+            alloc_bytes = (n * 8 + 15) & ~15
+            old_off = self.arena_offset
+            self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
+            addr = ctypes.addressof(self.arena_mem) + old_off
             if init_bits != 0:
+                p_i64 = ctypes.cast(addr, ctypes.POINTER(ctypes.c_int64))
                 for i in range(n):
-                    arr[i] = init_bits
-            self._allocated_arrays.append(arr)
-            return ctypes.addressof(arr)
+                    p_i64[i] = init_bits
+            return addr
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_pow_i64(base: int, exp: int) -> int:
@@ -873,11 +895,13 @@ class NativeJITModule:
             res = math.pow(b, e)
             return struct.unpack("<q", struct.pack("<d", res))[0]
 
-        self._callbacks.extend([rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64])
+        self._callbacks.extend([rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
         self.addr_pow_i64 = ctypes.cast(rt_pow_i64, ctypes.c_void_p).value
         self.addr_pow_f64 = ctypes.cast(rt_pow_f64, ctypes.c_void_p).value
+        self.addr_arena_save = ctypes.cast(rt_arena_save, ctypes.c_void_p).value
+        self.addr_arena_restore = ctypes.cast(rt_arena_restore, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -917,6 +941,8 @@ class NativeJITModule:
             "pow_f64": (self.addr_pow_f64, "__bmb_pow_f64"),
             "py_call_f64": (self.addr_py_call_f64, "__bmb_py_call_f64"),
             "py_eval_f64": (self.addr_py_eval_f64, "__bmb_py_eval_f64"),
+            "arena_save": (self.addr_arena_save, "__bmb_arena_save"),
+            "arena_restore": (self.addr_arena_restore, "__bmb_arena_restore"),
         }
 
         def emit_const_str(ins: MIRInstr, store_from_rax: Callable[[str], None]) -> None:

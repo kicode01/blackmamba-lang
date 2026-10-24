@@ -775,6 +775,61 @@ class MIROptimizer:
             self._constant_fold_and_strength_reduce(fn)
             self._copy_propagation(fn)
             self._dead_code_elimination(fn)
+        self._apply_lexical_arena_lifetimes(fn)
+
+    def _apply_lexical_arena_lifetimes(self, fn: MIRFunction) -> None:
+        """
+        Compile-Time Lexical Arena Lifetimes:
+        Performs escape analysis on function allocations (ALLOC_ARR).
+        If heap allocations do not escape the function via RET or parameter mutation,
+        automatically captures an arena savepoint at function entry and restores it before RET.
+        This reclaims local heap buffers with ZERO garbage collection pause overhead.
+        """
+        has_alloc = any(ins.op == "ALLOC_ARR" for ins in fn.instructions)
+        if not has_alloc:
+            return
+
+        # 1. Escape Analysis:
+        param_names = {p[0] for p in fn.params}
+        for ins in fn.instructions:
+            if ins.op == "STORE_IDX" and ins.dst in param_names:
+                return  # Escaped via mutation of caller's parameter
+
+        # If return type is a scalar primitive (i64, f64, bool, void),
+        # local heap objects cannot escape via return value!
+        if fn.return_type not in ("f64", "i64", "bool", "void"):
+            returning_vars = {ins.arg1 for ins in fn.instructions if ins.op == "RET" and ins.arg1}
+            escaping_vars = set(returning_vars)
+            for ins in reversed(fn.instructions):
+                if ins.op == "MOV" and ins.dst in escaping_vars and isinstance(ins.arg1, str):
+                    escaping_vars.add(ins.arg1)
+            if any(ins.op == "ALLOC_ARR" and ins.dst in escaping_vars for ins in fn.instructions):
+                return  # Returned buffer escapes to caller
+
+        # 2. Ephemeral allocations detected: emit ARENA_SAVE at entry and ARENA_RESTORE before RET
+        save_var = f"%arena_sp_{fn.name}"
+        fn.local_types[save_var] = "i64"
+
+        new_instrs: List[MIRInstr] = []
+        inserted_save = False
+        for ins in fn.instructions:
+            if not inserted_save and ins.op != "LABEL":
+                new_instrs.append(MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint"))
+                inserted_save = True
+
+            if ins.op == "RET":
+                new_instrs.append(MIRInstr(op="ARENA_RESTORE", arg1=save_var, comment="auto-reclaim lexical arena"))
+
+            new_instrs.append(ins)
+
+            if not inserted_save and ins.op == "LABEL" and ins.arg1 == "__tco_entry":
+                new_instrs.append(MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint"))
+                inserted_save = True
+
+        if not inserted_save:
+            new_instrs.insert(0, MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint"))
+
+        fn.instructions = new_instrs
 
     def _apply_tail_call_optimization(self, fn: MIRFunction) -> None:
         """

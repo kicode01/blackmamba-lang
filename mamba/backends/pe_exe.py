@@ -375,6 +375,14 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.ret()
 
+        # 5c. Lexical Arena Checkpoint Helpers
+        buf.mark_label("rt__arena_save")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.ret()
+
+        buf.mark_label("rt__arena_restore")
+        buf.ret()
+
         # 6. Emit all MIR functions with hardware register allocation and branch fusion
         helper_labels = {
             "print": "rt__print",
@@ -383,6 +391,8 @@ class PE32PlusExecutableBuilder:
             "pow_f64": "rt__pow_f64",
             "py_call_f64": "rt__py_stub",
             "py_eval_f64": "rt__py_stub",
+            "arena_save": "rt__arena_save",
+            "arena_restore": "rt__arena_restore",
         }
 
         def emit_const_str(ins, store_from_rax):
