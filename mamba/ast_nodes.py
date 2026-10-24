@@ -84,6 +84,14 @@ class IndexExpr(Expr):
 
 
 @dataclass
+class SliceExpr(Expr):
+    target: Expr = field(default_factory=Expr)
+    start: Optional[Expr] = None
+    stop: Optional[Expr] = None
+    step: Optional[Expr] = None
+
+
+@dataclass
 class FieldAccess(Expr):
     target: Expr = field(default_factory=Expr)
     field_name: str = ""

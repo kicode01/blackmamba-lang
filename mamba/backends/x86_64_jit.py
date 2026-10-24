@@ -748,6 +748,49 @@ class X86_64CodeBuffer:
             elif op == "ARENA_RESTORE":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("arena_restore")
+            elif op == "STR_CONCAT":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                emit_helper_call("str_concat")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_SLICE":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                stop_arg = ins.extra[0] if ins.extra else -1
+                load_into("r8", str(stop_arg))
+                emit_helper_call("str_slice")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_INDEX":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                emit_helper_call("str_index")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_LEN":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_len")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_CMP_EQ":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                emit_helper_call("str_cmp_eq")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_CMP_NE":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                emit_helper_call("str_cmp_ne")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_FROM_I64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_from_i64")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_FROM_F64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_from_f64")
+                store_from_rax(str(ins.dst))
+            elif op == "STR_FROM_BOOL":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("str_from_bool")
+                store_from_rax(str(ins.dst))
             elif op == "PY_EVAL_F64":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("py_eval_f64")
@@ -835,6 +878,69 @@ class NativeJITModule:
         self._allocate_executable_memory()
 
     def _setup_runtime_helpers(self) -> None:
+        # Pre-allocated 64 MiB execution arena
+        self.arena_mem = (ctypes.c_uint8 * (64 * 1024 * 1024))()
+        self.arena_offset = 0
+
+        # Small String Optimization (SSO) & Heap String Helpers
+        def make_sso_immediate(b: bytes) -> int:
+            n = len(b)
+            val = (n << 1) | 1
+            for i in range(n):
+                val |= (b[i] << (8 * (i + 1)))
+            return val
+
+        def decode_sso_immediate(val: int) -> bytes:
+            n = (val >> 1) & 0x7F
+            return bytes((val >> (8 * (i + 1))) & 0xFF for i in range(n))
+
+        def alloc_str_in_arena(n_bytes: int) -> int:
+            alloc_bytes = (n_bytes + 15) & ~15
+            old_off = self.arena_offset
+            self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
+            return ctypes.addressof(self.arena_mem) + old_off
+
+        def make_str_handle(b: bytes) -> int:
+            n = len(b)
+            if n <= 7:
+                return make_sso_immediate(b)
+            total_alloc = 16 + n + 1
+            desc_addr = alloc_str_in_arena(total_alloc)
+            p_desc = ctypes.cast(desc_addr, ctypes.POINTER(ctypes.c_int64))
+            data_addr = desc_addr + 16
+            p_desc[0] = n
+            p_desc[1] = data_addr
+            ctypes.memmove(data_addr, b, n)
+            ctypes.memset(data_addr + n, 0, 1)
+            return desc_addr
+
+        def get_str_bytes(val: int) -> bytes:
+            if val & 1 == 1:
+                return decode_sso_immediate(val)
+            if 0 <= val < len(self.mir_module.string_pool):
+                return self.mir_module.string_pool[val].encode("utf-8")
+            p_desc = ctypes.cast(val, ctypes.POINTER(ctypes.c_int64))
+            n = p_desc[0]
+            data_addr = p_desc[1]
+            if n <= 0 or data_addr == 0:
+                return b""
+            raw = (ctypes.c_char * n).from_address(data_addr)
+            return bytes(raw)
+
+        # Pre-allocate static string descriptors for string pool entries > 7 bytes
+        self.static_str_descs = {}
+        for idx, s in enumerate(self.mir_module.string_pool):
+            b = s.encode("utf-8")
+            if len(b) > 7:
+                buf = (ctypes.c_uint8 * (16 + len(b) + 1))()
+                p_desc = ctypes.cast(ctypes.addressof(buf), ctypes.POINTER(ctypes.c_int64))
+                data_addr = ctypes.addressof(buf) + 16
+                p_desc[0] = len(b)
+                p_desc[1] = data_addr
+                ctypes.memmove(data_addr, b, len(b))
+                ctypes.memset(data_addr + len(b), 0, 1)
+                self.static_str_descs[idx] = (buf, ctypes.addressof(buf))
+
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_print_item(kind: int, raw_val: int) -> int:
             if kind == 0:
@@ -848,17 +954,13 @@ class NativeJITModule:
             elif kind == 2:
                 self._write_out("True" if raw_val != 0 else "False")
             elif kind == 3:
-                if 0 <= raw_val < len(self.mir_module.string_pool):
-                    self._write_out(self.mir_module.string_pool[raw_val])
+                s_bytes = get_str_bytes(raw_val)
+                self._write_out(s_bytes.decode("utf-8", errors="replace"))
             elif kind == 4:
                 self._write_out(" ")
             elif kind == 5:
                 self._write_out("\n")
             return 0
-
-        # Pre-allocated 64 MiB execution arena
-        self.arena_mem = (ctypes.c_uint8 * (64 * 1024 * 1024))()
-        self.arena_offset = 0
 
         @ctypes.CFUNCTYPE(ctypes.c_int64)
         def rt_arena_save() -> int:
@@ -895,13 +997,112 @@ class NativeJITModule:
             res = math.pow(b, e)
             return struct.unpack("<q", struct.pack("<d", res))[0]
 
-        self._callbacks.extend([rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore])
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_len(val: int) -> int:
+            if val & 1 == 1:
+                return (val >> 1) & 0x7F
+            if 0 <= val < len(self.mir_module.string_pool):
+                return len(self.mir_module.string_pool[val].encode("utf-8"))
+            p_desc = ctypes.cast(val, ctypes.POINTER(ctypes.c_int64))
+            return int(p_desc[0])
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_concat(s1: int, s2: int) -> int:
+            b1 = get_str_bytes(s1)
+            b2 = get_str_bytes(s2)
+            return make_str_handle(b1 + b2)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_slice(s: int, start: int, stop: int) -> int:
+            if s & 1 == 0 and s >= len(self.mir_module.string_pool):
+                p_desc = ctypes.cast(s, ctypes.POINTER(ctypes.c_int64))
+                orig_len = p_desc[0]
+                data_addr = p_desc[1]
+                if start < 0:
+                    start = max(0, orig_len + start)
+                if stop < 0:
+                    stop = orig_len
+                start = min(start, orig_len)
+                stop = min(max(stop, start), orig_len)
+                slice_len = stop - start
+                if slice_len <= 7:
+                    raw = (ctypes.c_char * slice_len).from_address(data_addr + start)
+                    return make_sso_immediate(bytes(raw))
+                # Zero-copy fat pointer descriptor pointing into original data buffer
+                desc_addr = alloc_str_in_arena(16)
+                p_slice = ctypes.cast(desc_addr, ctypes.POINTER(ctypes.c_int64))
+                p_slice[0] = slice_len
+                p_slice[1] = data_addr + start
+                return desc_addr
+            else:
+                b = get_str_bytes(s)
+                orig_len = len(b)
+                if start < 0:
+                    start = max(0, orig_len + start)
+                if stop < 0:
+                    stop = orig_len
+                start = min(start, orig_len)
+                stop = min(max(stop, start), orig_len)
+                return make_str_handle(b[start:stop])
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_index(s: int, idx: int) -> int:
+            b = get_str_bytes(s)
+            if idx < 0:
+                idx += len(b)
+            if 0 <= idx < len(b):
+                return make_sso_immediate(bytes([b[idx]]))
+            return make_sso_immediate(b"")
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_cmp_eq(s1: int, s2: int) -> int:
+            if s1 == s2:
+                return 1
+            return 1 if get_str_bytes(s1) == get_str_bytes(s2) else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_str_cmp_ne(s1: int, s2: int) -> int:
+            if s1 == s2:
+                return 0
+            return 0 if get_str_bytes(s1) == get_str_bytes(s2) else 1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_from_i64(val: int) -> int:
+            return make_str_handle(str(val).encode("utf-8"))
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_from_f64(val_bits: int) -> int:
+            flt = struct.unpack("<d", struct.pack("<q", val_bits))[0]
+            if flt == int(flt) and abs(flt) < 1e15:
+                s = f"{flt:.1f}"
+            else:
+                s = f"{flt:.6g}"
+            return make_str_handle(s.encode("utf-8"))
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_str_from_bool(val: int) -> int:
+            return make_sso_immediate(b"True" if val != 0 else b"False")
+
+        self._callbacks.extend([
+            rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
+            rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
+            rt_str_from_i64, rt_str_from_f64, rt_str_from_bool,
+        ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
         self.addr_pow_i64 = ctypes.cast(rt_pow_i64, ctypes.c_void_p).value
         self.addr_pow_f64 = ctypes.cast(rt_pow_f64, ctypes.c_void_p).value
         self.addr_arena_save = ctypes.cast(rt_arena_save, ctypes.c_void_p).value
         self.addr_arena_restore = ctypes.cast(rt_arena_restore, ctypes.c_void_p).value
+        self.addr_str_len = ctypes.cast(rt_str_len, ctypes.c_void_p).value
+        self.addr_str_concat = ctypes.cast(rt_str_concat, ctypes.c_void_p).value
+        self.addr_str_slice = ctypes.cast(rt_str_slice, ctypes.c_void_p).value
+        self.addr_str_index = ctypes.cast(rt_str_index, ctypes.c_void_p).value
+        self.addr_str_cmp_eq = ctypes.cast(rt_str_cmp_eq, ctypes.c_void_p).value
+        self.addr_str_cmp_ne = ctypes.cast(rt_str_cmp_ne, ctypes.c_void_p).value
+        self.addr_str_from_i64 = ctypes.cast(rt_str_from_i64, ctypes.c_void_p).value
+        self.addr_str_from_f64 = ctypes.cast(rt_str_from_f64, ctypes.c_void_p).value
+        self.addr_str_from_bool = ctypes.cast(rt_str_from_bool, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -943,10 +1144,28 @@ class NativeJITModule:
             "py_eval_f64": (self.addr_py_eval_f64, "__bmb_py_eval_f64"),
             "arena_save": (self.addr_arena_save, "__bmb_arena_save"),
             "arena_restore": (self.addr_arena_restore, "__bmb_arena_restore"),
+            "str_concat": (self.addr_str_concat, "__bmb_str_concat"),
+            "str_slice": (self.addr_str_slice, "__bmb_str_slice"),
+            "str_index": (self.addr_str_index, "__bmb_str_index"),
+            "str_len": (self.addr_str_len, "__bmb_str_len"),
+            "str_cmp_eq": (self.addr_str_cmp_eq, "__bmb_str_cmp_eq"),
+            "str_cmp_ne": (self.addr_str_cmp_ne, "__bmb_str_cmp_ne"),
+            "str_from_i64": (self.addr_str_from_i64, "__bmb_str_from_i64"),
+            "str_from_f64": (self.addr_str_from_f64, "__bmb_str_from_f64"),
+            "str_from_bool": (self.addr_str_from_bool, "__bmb_str_from_bool"),
         }
 
         def emit_const_str(ins: MIRInstr, store_from_rax: Callable[[str], None]) -> None:
-            self.code_buf.mov_rax_imm64(int(ins.arg1), f"str#{ins.arg1}")
+            raw_s = self.mir_module.string_pool[int(ins.arg1)]
+            b = raw_s.encode("utf-8")
+            if len(b) <= 7:
+                sso_val = (len(b) << 1) | 1
+                for i, byte in enumerate(b):
+                    sso_val |= (byte << (8 * (i + 1)))
+                self.code_buf.mov_rax_imm64(sso_val, f"sso_str('{raw_s}')")
+            else:
+                desc_addr = self.static_str_descs[int(ins.arg1)][1]
+                self.code_buf.mov_rax_imm64(desc_addr, f"str_desc#{ins.arg1}('{raw_s}')")
             store_from_rax(str(ins.dst))
 
         def emit_helper_call(kind: str) -> None:

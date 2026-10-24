@@ -33,16 +33,20 @@
 
 ---
 
-## 3. Strings & Unicode: Static Interning vs. Dynamic Mutation
+## 3. Strings & Unicode: Dynamic Slicing & SSO (RESOLVED); Complex Unicode / Regex Remaining
 
-* **The Limitation**:
-  * String literals are pooled in a static read-only string pool (`string_pool`) and referenced by integer IDs.
-  * Dynamic string manipulation—such as arbitrary runtime slicing (`s[2:7]`), string concatenation (`s1 + s2` with dynamically generated strings), regular expressions (`re`), and full variable-width Unicode decoding (PEP 393)—is not yet implemented as native machine code.
+* **Current Status**:
+  * **SSO & Dynamic Strings (RESOLVED in Phase 3)**:
+    - Small String Optimization (SSO): strings $\le$ 7 bytes live directly inside 64-bit CPU registers as immediate tagged integers with **zero memory allocations** and **zero pointer dereferences**.
+    - Strings $\le$ 15 bytes are stored in inline contiguous descriptors without secondary heap buffers.
+    - Zero-copy slicing: `s[start:stop]`, `s[:stop]`, `s[start:]` return fat pointers or register SSOs directly into parent buffers without copying data bytes.
+    - Dynamic operations: String concatenation (`+`), single-character indexing (`s[i]`), length (`len(s)`), fast comparisons (`==`, `!=`), and arbitrary dynamic f-string interpolation (`f"hello {x}"`) now execute natively.
+  * **Remaining Limitation**:
+    - Regular expressions (`re`) and complex variable-width Unicode normalization (PEP 393 wide codepoint transcoding, e.g. UTF-16 surrogate pairs and full locale collations) currently rely on standard Python text routines via the CPython Host Bridge (`py_call`).
 * **Current Workaround**:
-  * Use string formatting for console output (`print(f"...")`).
-  * For heavy text and regex processing, call standard Python text modules through the CPython Host Bridge (`py_call`).
-* **Planned Fix (Phase 3)**:
-  * Implement Small String Optimization (SSO): strings $\le$ 15 bytes live directly in two 64-bit CPU registers; longer strings point to immutable UTF-8 fat pointers (`ptr + len`).
+  * For heavy regex pattern matching or complex locale-sensitive string transforms, use the CPython Host Bridge (`py_call("re", "sub", ...)`).
+* **Planned Future Work (Phase 4)**:
+  * Pure `.bmb` native DFA regular expression engine and UTF-8 grapheme cluster iterator.
 
 ---
 

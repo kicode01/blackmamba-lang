@@ -35,6 +35,7 @@ from .ast_nodes import (
     PassStmt,
     RangeExpr,
     Return,
+    SliceExpr,
     Stmt,
     StringLit,
     StructDef,
@@ -606,9 +607,35 @@ class Parser:
                 else:
                     raise ParseError("Expression is not callable", self.current())
             elif self.match(TokenType.LBRACKET):
-                idx = self.parse_expr()
-                self.expect(TokenType.RBRACKET, "Expected ']' after index")
-                expr = IndexExpr(line=expr.line, col=expr.col, target=expr, index=idx)
+                start = None
+                stop = None
+                step = None
+                is_slice = False
+                if self.current().type == TokenType.COLON:
+                    is_slice = True
+                    self.pos += 1
+                    if self.current().type not in (TokenType.RBRACKET, TokenType.COLON):
+                        stop = self.parse_expr()
+                    if self.match(TokenType.COLON):
+                        if self.current().type != TokenType.RBRACKET:
+                            step = self.parse_expr()
+                else:
+                    first_expr = self.parse_expr()
+                    if self.match(TokenType.COLON):
+                        is_slice = True
+                        start = first_expr
+                        if self.current().type not in (TokenType.RBRACKET, TokenType.COLON):
+                            stop = self.parse_expr()
+                        if self.match(TokenType.COLON):
+                            if self.current().type != TokenType.RBRACKET:
+                                step = self.parse_expr()
+                    else:
+                        first_expr = first_expr
+                self.expect(TokenType.RBRACKET, "Expected ']' after index or slice")
+                if is_slice:
+                    expr = SliceExpr(line=expr.line, col=expr.col, target=expr, start=start, stop=stop, step=step)
+                else:
+                    expr = IndexExpr(line=expr.line, col=expr.col, target=expr, index=first_expr)
             elif self.match(TokenType.DOT):
                 field_tok = self.expect(TokenType.IDENT, "Expected field or method name after '.'")
                 expr = FieldAccess(line=expr.line, col=expr.col, target=expr, field_name=field_tok.value)

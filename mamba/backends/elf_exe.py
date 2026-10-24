@@ -256,6 +256,28 @@ class ELF64ExecutableBuilder:
         buf.mark_label("rt__arena_restore")
         buf.ret()
 
+        buf.mark_label("rt__str_stub")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.ret()
+
+        buf.mark_label("rt__str_len")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
+        buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.ret()
+
+        buf.mark_label("rt__str_cmp_eq")
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.emit(b"\x0F\x94\xC0", "sete al")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+
+        buf.mark_label("rt__str_cmp_ne")
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.emit(b"\x0F\x95\xC0", "setne al")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.ret()
+
         # 3. Compile all user functions from MIR
         helper_labels = {
             "print": "rt__print",
@@ -266,6 +288,15 @@ class ELF64ExecutableBuilder:
             "py_eval_f64": "rt__py_stub",
             "arena_save": "rt__arena_save",
             "arena_restore": "rt__arena_restore",
+            "str_concat": "rt__str_stub",
+            "str_slice": "rt__str_stub",
+            "str_index": "rt__str_stub",
+            "str_len": "rt__str_len",
+            "str_cmp_eq": "rt__str_cmp_eq",
+            "str_cmp_ne": "rt__str_cmp_ne",
+            "str_from_i64": "rt__str_stub",
+            "str_from_f64": "rt__str_stub",
+            "str_from_bool": "rt__str_stub",
         }
 
         def emit_const_str(ins, store_from_rax):

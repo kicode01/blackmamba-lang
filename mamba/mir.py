@@ -36,6 +36,7 @@ from .ast_nodes import (
     MethodCall,
     Module,
     Return,
+    SliceExpr,
     Stmt,
     StringLit,
     StructDef,
@@ -80,6 +81,15 @@ class MIRInstr:
             return f"    {self.dst}:{self.val_type} = {self.arg1}[{self.arg2}]"
         if self.op == "ALLOC_ARR":
             return f"    {self.dst}:{self.val_type} = alloc_array({self.arg1}, init={self.arg2})"
+        if self.op == "STR_SLICE":
+            stop_s = self.extra[0] if self.extra else "-1"
+            return f"    {self.dst}:{self.val_type} = str_slice({self.arg1}[{self.arg2}:{stop_s}])"
+        if self.op == "STR_CONCAT":
+            return f"    {self.dst}:{self.val_type} = str_concat({self.arg1}, {self.arg2})"
+        if self.op == "STR_INDEX":
+            return f"    {self.dst}:{self.val_type} = str_index({self.arg1}[{self.arg2}])"
+        if self.op == "STR_LEN":
+            return f"    {self.dst}:{self.val_type} = str_len({self.arg1})"
         if self.dst is not None and self.arg2 is not None:
             return f"    {self.dst}:{self.val_type} = {self.op.lower()} {self.arg1}, {self.arg2}"
         if self.dst is not None:
@@ -422,8 +432,29 @@ class MIRBuilder:
 
         if isinstance(expr, StringLit):
             if expr.value.startswith("f:"):
-                # Handled specially in print, or interned
-                raw = expr.value[2:]
+                parts = self._split_fstring(expr.value[2:], expr.line, expr.col)
+                if not parts:
+                    str_id = self.intern_string("")
+                    dst = self.new_temp(local_types, "str")
+                    instrs.append(MIRInstr(op="CONST_STR", dst=dst, arg1=str_id, comment="", val_type="str"))
+                    return dst, "str"
+                cur_v, cur_t = self._lower_expr(parts[0], instrs, local_types)
+                if cur_t != "str":
+                    str_v = self.new_temp(local_types, "str")
+                    cast_op = "STR_FROM_F64" if cur_t == "f64" else ("STR_FROM_BOOL" if cur_t == "bool" else "STR_FROM_I64")
+                    instrs.append(MIRInstr(op=cast_op, dst=str_v, arg1=cur_v, val_type="str"))
+                    cur_v = str_v
+                for p in parts[1:]:
+                    nxt_v, nxt_t = self._lower_expr(p, instrs, local_types)
+                    if nxt_t != "str":
+                        str_v = self.new_temp(local_types, "str")
+                        cast_op = "STR_FROM_F64" if nxt_t == "f64" else ("STR_FROM_BOOL" if nxt_t == "bool" else "STR_FROM_I64")
+                        instrs.append(MIRInstr(op=cast_op, dst=str_v, arg1=nxt_v, val_type="str"))
+                        nxt_v = str_v
+                    concat_dst = self.new_temp(local_types, "str")
+                    instrs.append(MIRInstr(op="STR_CONCAT", dst=concat_dst, arg1=cur_v, arg2=nxt_v, val_type="str"))
+                    cur_v = concat_dst
+                return cur_v, "str"
             else:
                 raw = expr.value
             str_id = self.intern_string(raw)
@@ -458,6 +489,17 @@ class MIRBuilder:
             # Short-circuit or direct boolean operations, plus power `**`
             lv, lt = self._lower_expr(expr.left, instrs, local_types)
             rv, rt = self._lower_expr(expr.right, instrs, local_types)
+
+            if lt == "str" or rt == "str":
+                if expr.op == "+":
+                    dst = self.new_temp(local_types, "str")
+                    instrs.append(MIRInstr(op="STR_CONCAT", dst=dst, arg1=lv, arg2=rv, val_type="str"))
+                    return dst, "str"
+                if expr.op in ("==", "!="):
+                    dst = self.new_temp(local_types, "bool")
+                    op_code = "STR_CMP_EQ" if expr.op == "==" else "STR_CMP_NE"
+                    instrs.append(MIRInstr(op=op_code, dst=dst, arg1=lv, arg2=rv, val_type="bool"))
+                    return dst, "bool"
 
             is_float_op = (lt == "f64" or rt == "f64" or expr.op == "/")
             if is_float_op and expr.op not in ("//", "%", "&", "|", "^", "<<", ">>"):
@@ -553,10 +595,30 @@ class MIRBuilder:
         if isinstance(expr, IndexExpr):
             arr_v, arr_t = self._lower_expr(expr.target, instrs, local_types)
             idx_v, _ = self._lower_expr(expr.index, instrs, local_types)
+            if arr_t == "str":
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="STR_INDEX", dst=dst, arg1=arr_v, arg2=idx_v, val_type="str"))
+                return dst, "str"
             elem_t = "f64" if arr_t == "Array[f64]" else "i64"
             dst = self.new_temp(local_types, elem_t)
             instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=arr_v, arg2=idx_v, val_type=elem_t))
             return dst, elem_t
+
+        if isinstance(expr, SliceExpr):
+            tgt_v, tgt_t = self._lower_expr(expr.target, instrs, local_types)
+            if expr.start is not None:
+                start_v, _ = self._lower_expr(expr.start, instrs, local_types)
+            else:
+                start_v = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=start_v, arg1=0, val_type="i64"))
+            if expr.stop is not None:
+                stop_v, _ = self._lower_expr(expr.stop, instrs, local_types)
+            else:
+                stop_v = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=stop_v, arg1=-1, val_type="i64"))
+            dst = self.new_temp(local_types, "str")
+            instrs.append(MIRInstr(op="STR_SLICE", dst=dst, arg1=tgt_v, arg2=start_v, extra=[stop_v], val_type="str"))
+            return dst, "str"
 
         if isinstance(expr, FieldAccess):
             obj_v, obj_t = self._lower_expr(expr.target, instrs, local_types)
@@ -654,6 +716,26 @@ class MIRBuilder:
                 dst = self.new_temp(local_types, at)
                 instrs.append(MIRInstr(op="ABS_" + at.upper(), dst=dst, arg1=av, val_type=at))
                 return dst, at
+
+            if expr.func == "len" and len(expr.args) == 1:
+                av, at = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                if at == "str":
+                    instrs.append(MIRInstr(op="STR_LEN", dst=dst, arg1=av, val_type="i64"))
+                else:
+                    zero_tmp = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=zero_tmp, arg1=0, val_type="i64"))
+                    instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=av, arg2=zero_tmp, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func == "str" and len(expr.args) == 1:
+                av, at = self._lower_expr(expr.args[0], instrs, local_types)
+                if at == "str":
+                    return av, "str"
+                dst = self.new_temp(local_types, "str")
+                cast_op = "STR_FROM_F64" if at == "f64" else ("STR_FROM_BOOL" if at == "bool" else "STR_FROM_I64")
+                instrs.append(MIRInstr(op=cast_op, dst=dst, arg1=av, val_type="str"))
+                return dst, "str"
 
             # CPython Host Interop Intrinsics
             if expr.func == "py_eval" and len(expr.args) == 1:
@@ -785,7 +867,7 @@ class MIROptimizer:
         automatically captures an arena savepoint at function entry and restores it before RET.
         This reclaims local heap buffers with ZERO garbage collection pause overhead.
         """
-        has_alloc = any(ins.op == "ALLOC_ARR" for ins in fn.instructions)
+        has_alloc = any(ins.op in ("ALLOC_ARR", "STR_CONCAT", "STR_SLICE") for ins in fn.instructions)
         if not has_alloc:
             return
 
@@ -803,7 +885,7 @@ class MIROptimizer:
             for ins in reversed(fn.instructions):
                 if ins.op == "MOV" and ins.dst in escaping_vars and isinstance(ins.arg1, str):
                     escaping_vars.add(ins.arg1)
-            if any(ins.op == "ALLOC_ARR" and ins.dst in escaping_vars for ins in fn.instructions):
+            if any(ins.op in ("ALLOC_ARR", "STR_CONCAT", "STR_SLICE") and ins.dst in escaping_vars for ins in fn.instructions):
                 return  # Returned buffer escapes to caller
 
         # 2. Ephemeral allocations detected: emit ARENA_SAVE at entry and ARENA_RESTORE before RET

@@ -47,7 +47,62 @@ class C11Backend:
             "#include <stdio.h>",
             "#include <stdlib.h>",
             "#include <stdbool.h>",
+            "#include <string.h>",
             "#include <math.h>",
+            "",
+            "static inline int64_t bmb_str_len(const char* s) {",
+            "    return (int64_t)strlen(s);",
+            "}",
+            "",
+            "static inline const char* bmb_str_concat(const char* s1, const char* s2) {",
+            "    size_t l1 = strlen(s1);",
+            "    size_t l2 = strlen(s2);",
+            "    char* buf = (char*)malloc(l1 + l2 + 1);",
+            "    memcpy(buf, s1, l1);",
+            "    memcpy(buf + l1, s2, l2);",
+            "    buf[l1 + l2] = '\\0';",
+            "    return buf;",
+            "}",
+            "",
+            "static inline const char* bmb_str_slice(const char* s, int64_t start, int64_t stop) {",
+            "    int64_t len = (int64_t)strlen(s);",
+            "    if (start < 0) start = (len + start > 0) ? (len + start) : 0;",
+            "    if (stop < 0) stop = len;",
+            "    if (start > len) start = len;",
+            "    if (stop < start) stop = start;",
+            "    if (stop > len) stop = len;",
+            "    int64_t slice_len = stop - start;",
+            "    char* buf = (char*)malloc((size_t)slice_len + 1);",
+            "    memcpy(buf, s + start, (size_t)slice_len);",
+            "    buf[slice_len] = '\\0';",
+            "    return buf;",
+            "}",
+            "",
+            "static inline const char* bmb_str_index(const char* s, int64_t idx) {",
+            "    int64_t len = (int64_t)strlen(s);",
+            "    if (idx < 0) idx += len;",
+            "    if (idx < 0 || idx >= len) return \"\";",
+            "    char* buf = (char*)malloc(2);",
+            "    buf[0] = s[idx];",
+            "    buf[1] = '\\0';",
+            "    return buf;",
+            "}",
+            "",
+            "static inline const char* bmb_str_from_i64(int64_t v) {",
+            "    char* buf = (char*)malloc(32);",
+            "    snprintf(buf, 32, \"%lld\", (long long)v);",
+            "    return buf;",
+            "}",
+            "",
+            "static inline const char* bmb_str_from_f64(double v) {",
+            "    char* buf = (char*)malloc(32);",
+            "    snprintf(buf, 32, \"%.6g\", v);",
+            "    return buf;",
+            "}",
+            "",
+            "static inline const char* bmb_str_from_bool(int64_t v) {",
+            "    return v ? \"True\" : \"False\";",
+            "}",
             "",
             "static inline int64_t* __bmb_alloc_i64(int64_t n, int64_t init_val) {",
             "    int64_t* p = (int64_t*)calloc((size_t)(n > 0 ? n : 1), sizeof(int64_t));",
@@ -206,6 +261,25 @@ class C11Backend:
                 out.append(f"    {dst} = 0; /* lexical arena checkpoint */")
             elif op == "ARENA_RESTORE":
                 out.append("    /* auto-reclaim lexical arena */")
+            elif op == "STR_CONCAT":
+                out.append(f"    {dst} = bmb_str_concat({a1}, {a2});")
+            elif op == "STR_SLICE":
+                stop_arg = _c_ident(str(ins.extra[0])) if ins.extra else "-1"
+                out.append(f"    {dst} = bmb_str_slice({a1}, {a2}, {stop_arg});")
+            elif op == "STR_INDEX":
+                out.append(f"    {dst} = bmb_str_index({a1}, {a2});")
+            elif op == "STR_LEN":
+                out.append(f"    {dst} = bmb_str_len({a1});")
+            elif op == "STR_CMP_EQ":
+                out.append(f"    {dst} = (strcmp({a1}, {a2}) == 0);")
+            elif op == "STR_CMP_NE":
+                out.append(f"    {dst} = (strcmp({a1}, {a2}) != 0);")
+            elif op == "STR_FROM_I64":
+                out.append(f"    {dst} = bmb_str_from_i64({a1});")
+            elif op == "STR_FROM_F64":
+                out.append(f"    {dst} = bmb_str_from_f64({a1});")
+            elif op == "STR_FROM_BOOL":
+                out.append(f"    {dst} = bmb_str_from_bool({a1});")
             else:
                 c_ops = {
                     "ADD_I64": "+", "SUB_I64": "-", "MUL_I64": "*", "DIV_I64": "/", "MOD_I64": "%",

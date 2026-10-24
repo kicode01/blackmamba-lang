@@ -345,7 +345,15 @@ class WasmBackend:
             return
 
         if op == "CONST_STR" and dst_l is not None:
-            code.extend(b"\x42" + _sleb128(int(ins.arg1)))
+            raw_s = self.mir_module.string_pool[int(ins.arg1)]
+            b = raw_s.encode("utf-8")
+            if len(b) <= 7:
+                sso_val = (len(b) << 1) | 1
+                for i, byte in enumerate(b):
+                    sso_val |= (byte << (8 * (i + 1)))
+                code.extend(b"\x42" + _sleb128(sso_val))
+            else:
+                code.extend(b"\x42" + _sleb128(int(ins.arg1)))
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
@@ -467,6 +475,29 @@ class WasmBackend:
             load_as(str(ins.arg1), WASM_I64)
             code.append(0xA7)         # i32.wrap_i64
             code.extend(b"\x24\x00")  # global.set 0
+            return
+
+        if op == "STR_LEN" and dst_l is not None:
+            load_as(str(ins.arg1), WASM_I64)
+            code.extend(b"\x42\x01\x87")  # i64.const 1; i64.shr_u
+            code.extend(b"\x42\x7F\x83")  # i64.const 0x7F; i64.and
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
+        if op in ("STR_CONCAT", "STR_SLICE", "STR_INDEX", "STR_FROM_I64", "STR_FROM_F64", "STR_FROM_BOOL") and dst_l is not None:
+            if ins.arg1 is not None and str(ins.arg1) in local_wasm_type:
+                load_as(str(ins.arg1), WASM_I64)
+            else:
+                code.extend(b"\x42\x00")
+            code.extend(b"\x21" + _uleb128(dst_l))
+            return
+
+        if op in ("STR_CMP_EQ", "STR_CMP_NE") and dst_l is not None:
+            load_as(str(ins.arg1), WASM_I64)
+            load_as(str(ins.arg2), WASM_I64)
+            code.append(0x51 if op == "STR_CMP_EQ" else 0x52)  # i64.eq / i64.ne
+            code.append(0xAD)  # i64.extend_i32_u
+            code.extend(b"\x21" + _uleb128(dst_l))
             return
 
         if op in ("PY_CALL_F64", "PY_EVAL_F64") and dst_l is not None:

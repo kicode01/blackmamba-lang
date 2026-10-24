@@ -34,6 +34,7 @@ from .ast_nodes import (
     Param,
     RangeExpr,
     Return,
+    SliceExpr,
     Stmt,
     StringLit,
     StructDef,
@@ -91,6 +92,8 @@ def unify_types(t1: Optional[str], t2: Optional[str]) -> str:
         return t1 or "i64"
     if t1 == t2:
         return t1
+    if "str" in (t1, t2):
+        return "str"
     if {t1, t2} <= {"i64", "f64", "bool"}:
         if "f64" in (t1, t2):
             return "f64"
@@ -330,6 +333,9 @@ class TypeInferencer:
             if expr.op in ("==", "!=", "<", "<=", ">", ">=", "and", "or"):
                 expr.inferred_type = "bool"
                 return "bool"
+            if expr.op == "+" and (lt == "str" or rt == "str"):
+                expr.inferred_type = "str"
+                return "str"
             if expr.op == "/":
                 expr.inferred_type = "f64"
                 return "f64"
@@ -366,8 +372,21 @@ class TypeInferencer:
             if tt == "Array[f64]":
                 expr.inferred_type = "f64"
                 return "f64"
+            if tt == "str":
+                expr.inferred_type = "str"
+                return "str"
             expr.inferred_type = "i64"
             return "i64"
+        if isinstance(expr, SliceExpr):
+            tt = self._infer_expr(expr.target, env)
+            if expr.start is not None:
+                self._infer_expr(expr.start, env)
+            if expr.stop is not None:
+                self._infer_expr(expr.stop, env)
+            if expr.step is not None:
+                self._infer_expr(expr.step, env)
+            expr.inferred_type = tt
+            return tt
         if isinstance(expr, FieldAccess):
             tt = self._infer_expr(expr.target, env)
             if tt in self.structs:
@@ -410,6 +429,9 @@ class TypeInferencer:
             if expr.func == "bool":
                 expr.inferred_type = "bool"
                 return "bool"
+            if expr.func in ("str", "chr"):
+                expr.inferred_type = "str"
+                return "str"
             if expr.func == "print":
                 expr.inferred_type = "void"
                 return "void"

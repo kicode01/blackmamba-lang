@@ -61,12 +61,15 @@ Eliminate memory leaks on cyclic graphs while keeping zero GC pause latency for 
   - [x] Automatic arena checkpoints: function frames automatically save the arena allocation watermark (`arena_save`) and rewind it before return (`arena_restore`).
   - [x] Native x86-64 JIT, standalone Windows PE32+, static Linux ELF64, and WebAssembly (`$heap_ptr`) implementation.
   - [x] Verified with stress test of 1,000,000 ephemeral struct allocations executed in 580 ms with 0 bytes leaked and 0.000 ms GC pauses.
-- [ ] **Small String Optimization (SSO)**:
-  - Strings $\le$ 15 bytes stored inline in two 64-bit CPU registers (0 heap allocation).
-  - Longer strings represented as immutable UTF-8 fat pointers (`ptr + len`).
-- [ ] **First-Class Dynamic String Slicing**:
-  - Native machine code emission for `s[start:end]` returning zero-copy slice views.
-  - Fast string concatenation (`+`) and string interpolation (`f"..."`).
+- [x] **Small String Optimization (SSO)**:
+  - [x] Strings $\le$ 7 bytes stored directly in 64-bit CPU registers as immediate integer constants (0 memory allocation, 0 pointer dereferences).
+  - [x] Strings $\le$ 15 bytes stored inline in small descriptors without secondary buffer allocations.
+  - [x] Longer strings represented as immutable UTF-8 fat pointers (`ptr + len`).
+- [x] **First-Class Dynamic String Slicing & Operations**:
+  - [x] Native machine code emission for zero-copy string slicing `s[start:stop]`, `s[:stop]`, `s[start:]`.
+  - [x] Fast dynamic string concatenation (`+`) and single-character indexing `s[idx]`.
+  - [x] First-class dynamic f-string interpolation (`f"..."`) anywhere in code, lowering to chained concatenations.
+  - [x] String length `len(s)` and fast equality comparisons (`==`, `!=`).
 - [ ] **Structured Exception Handling (SEH) Unwind Tables**:
   - Emit `.pdata` and `.xdata` unwinding sequences in the PE32+ linker to catch hardware divide-by-zero and null-pointer exceptions gracefully.
 

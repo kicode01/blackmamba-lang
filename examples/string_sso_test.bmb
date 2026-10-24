@@ -1,0 +1,47 @@
+# Black Mamba (.bmb) Small String Optimization (SSO) & Zero-Copy Slicing Test
+
+def test_sso_and_slicing():
+    # 1. String literal <= 7 bytes -> In-Register SSO immediate (0 allocations)
+    s1 = "Black"
+    s2 = " "
+    s3 = "Mamba"
+    
+    # 2. Dynamic string concatenation (+)
+    full = s1 + s2 + s3
+    print(f"Concatenated: '{full}'")
+    print(f"Length of '{full}': {len(full)}")
+    
+    # 3. String slicing (zero-copy / SSO)
+    sub1 = full[0:5]
+    sub2 = full[6:11]
+    sub_tail = full[6:]
+    sub_head = full[:5]
+    print(f"Slice [0:5]:  '{sub1}' (len={len(sub1)})")
+    print(f"Slice [6:11]: '{sub2}' (len={len(sub2)})")
+    print(f"Slice [6:]:   '{sub_tail}'")
+    print(f"Slice [:5]:   '{sub_head}'")
+
+    # 4. String indexing
+    ch0 = full[0]
+    ch6 = full[6]
+    print(f"Index [0]: '{ch0}', Index [6]: '{ch6}'")
+
+    # 5. String comparisons (==, !=)
+    is_match1 = (sub1 == "Black")
+    is_match2 = (sub2 == "Python")
+    print(f"sub1 == 'Black':  {is_match1}")
+    print(f"sub2 == 'Python': {is_match2}")
+
+    # 6. Dynamic f-string interpolation
+    speedup = 27.5
+    status = f"Black Mamba v3 speedup: {speedup}x!"
+    print(status)
+    return 0
+
+def main():
+    print("==================================================================")
+    print("      BLACK MAMBA (.bmb) SMALL STRING OPTIMIZATION & SLICING      ")
+    print("==================================================================")
+    test_sso_and_slicing()
+    print("==================================================================")
+    return 0

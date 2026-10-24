@@ -216,6 +216,42 @@ def main():
         self.assertIn("ARENA_TOTAL=6000.0", out)
         jit.close()
 
+    def test_sso_string_slicing_and_concatenation(self):
+        code = """
+def process_strings(prefix: str, suffix: str) -> str:
+    full = prefix + " " + suffix
+    sub = full[0:5]
+    return sub
+
+def main():
+    s = process_strings("Black", "Mamba")
+    print(f"RES_STR={s}")
+    full = "Black Mamba"
+    sub2 = full[6:11]
+    print(f"SUB2={sub2}")
+    ch0 = full[0]
+    print(f"CH0={ch0}")
+    print(f"LEN={len(full)}")
+    eq_test = (sub2 == "Mamba")
+    print(f"EQ={eq_test}")
+"""
+        mod = Parser.from_source(code).parse_module()
+        mir = MIRBuilder().build(mod)
+        fn_ps = next(f for f in mir.functions if f.name == "process_strings")
+        ops = [ins.op for ins in fn_ps.instructions]
+        self.assertIn("STR_CONCAT", ops)
+        self.assertIn("STR_SLICE", ops)
+
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = jit.get_output()
+        self.assertIn("RES_STR=Black", out)
+        self.assertIn("SUB2=Mamba", out)
+        self.assertIn("CH0=B", out)
+        self.assertIn("LEN=11", out)
+        self.assertIn("EQ=True", out)
+        jit.close()
+
 
 if __name__ == "__main__":
     unittest.main()
