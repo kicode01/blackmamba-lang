@@ -1,0 +1,143 @@
+# Black Mamba Standard Library: cluster.bmb
+# v1.0.0 Ecosystem Milestone: Distributed Actor Cluster & Authenticated TCP RPC
+# Zero CPython Runtime Dependencies | HMAC-SHA256 Wire Integrity | Native Sockets
+
+from socket import Socket, tcp_server, tcp_connect, socket_accept, socket_send, socket_recv, socket_close, AF_INET, SOCK_STREAM
+from hash import hmac_sha256
+
+struct ClusterNode:
+    node_id: str
+    host: str
+    port: i64
+    secret: str
+    server: Socket
+    seq: i64
+
+struct ClusterMsg:
+    valid: bool
+    sender: str
+    actor: str
+    seq: i64
+    payload: str
+    mac: str
+
+def _const_time_eq(a: str, b: str) -> bool:
+    let na: i64 = len(a)
+    let nb: i64 = len(b)
+    if na != nb:
+        return False
+    let diff: i64 = 0
+    for i in 0..na:
+        diff = diff | (ord(a[i]) ^ ord(b[i]))
+    return diff == 0
+
+def _parse_u64(s: str) -> i64:
+    let n: i64 = len(s)
+    if n == 0:
+        return 0
+    let acc: i64 = 0
+    for i in 0..n:
+        let c: i64 = ord(s[i])
+        if c >= 48 and c <= 57:
+            acc = acc * 10 + (c - 48)
+    return acc
+
+def cluster_node_new(node_id: str, host: str, port: i64, secret: str) -> ClusterNode:
+    let dummy_sock: Socket = Socket(-1, AF_INET, SOCK_STREAM, False, False, False)
+    return ClusterNode(node_id, host, port, secret, dummy_sock, 0)
+
+def cluster_listen(node: ClusterNode, backlog: i64) -> bool:
+    let srv: Socket = tcp_server(node.host, node.port, backlog)
+    node.server = srv
+    return srv.is_listening
+
+def cluster_close(node: ClusterNode) -> i64:
+    return socket_close(node.server)
+
+def cluster_sign_frame(secret: str, sender: str, actor: str, seq: i64, payload: str) -> str:
+    let canonical: str = "BMB1:" + sender + ":" + actor + ":" + str(seq) + ":" + payload
+    return hmac_sha256(secret, canonical)
+
+def cluster_encode_frame(secret: str, sender: str, actor: str, seq: i64, payload: str) -> str:
+    let mac: str = cluster_sign_frame(secret, sender, actor, seq, payload)
+    return "BMB1|" + sender + "|" + actor + "|" + str(seq) + "|" + payload + "|" + mac
+
+def cluster_decode_frame(secret: str, raw: str) -> ClusterMsg:
+    let n: i64 = len(raw)
+    # Trim trailing CR/LF if present
+    while n > 0 and (ord(raw[n - 1]) == 10 or ord(raw[n - 1]) == 13):
+        n -= 1
+    if n < 10:
+        return ClusterMsg(False, "", "", 0, "", "")
+
+    # Locate the 5 '|' delimiters: BMB1 | sender | actor | seq | payload | mac
+    # Note: scan first 4 '|' from left and last '|' from right so payload can contain '|' safely!
+    let p1: i64 = -1
+    let p2: i64 = -1
+    let p3: i64 = -1
+    let p4: i64 = -1
+    let count: i64 = 0
+    for i in 0..n:
+        if ord(raw[i]) == 124:
+            count += 1
+            if count == 1:
+                p1 = i
+            elif count == 2:
+                p2 = i
+            elif count == 3:
+                p3 = i
+            elif count == 4:
+                p4 = i
+                break
+
+    let p5: i64 = -1
+    let idx: i64 = n - 1
+    while idx > p4:
+        if ord(raw[idx]) == 124:
+            p5 = idx
+            break
+        idx -= 1
+
+    if p1 != 4 or p2 < 0 or p3 < 0 or p4 < 0 or p5 <= p4:
+        return ClusterMsg(False, "", "", 0, "", "")
+
+    let magic: str = raw[0:p1]
+    if magic != "BMB1":
+        return ClusterMsg(False, "", "", 0, "", "")
+
+    let sender: str = raw[p1 + 1:p2]
+    let actor: str = raw[p2 + 1:p3]
+    let seq_s: str = raw[p3 + 1:p4]
+    let payload: str = raw[p4 + 1:p5]
+    let mac: str = raw[p5 + 1:n]
+    let seq_num: i64 = _parse_u64(seq_s)
+
+    let expected_mac: str = cluster_sign_frame(secret, sender, actor, seq_num, payload)
+    let ok: bool = _const_time_eq(mac, expected_mac)
+    return ClusterMsg(ok, sender, actor, seq_num, payload, mac)
+
+def cluster_send_rpc(node: ClusterNode, target_host: str, target_port: i64, actor: str, payload: str) -> ClusterMsg:
+    node.seq += 1
+    let frame: str = cluster_encode_frame(node.secret, node.node_id, actor, node.seq, payload)
+    let cli: Socket = tcp_connect(target_host, target_port)
+    if cli.fd < 0 or not cli.is_connected:
+        return ClusterMsg(False, "", "", 0, "", "")
+    socket_send(cli, frame)
+    let reply_raw: str = socket_recv(cli, 4096)
+    socket_close(cli)
+    return cluster_decode_frame(node.secret, reply_raw)
+
+def cluster_accept_rpc(node: ClusterNode, reply_actor: str, reply_prefix: str) -> ClusterMsg:
+    let conn: Socket = socket_accept(node.server)
+    if conn.fd < 0:
+        return ClusterMsg(False, "", "", 0, "", "")
+    let raw: str = socket_recv(conn, 4096)
+    let msg: ClusterMsg = cluster_decode_frame(node.secret, raw)
+    if msg.valid:
+        let ack_frame: str = cluster_encode_frame(node.secret, node.node_id, reply_actor, msg.seq, reply_prefix + msg.payload)
+        socket_send(conn, ack_frame)
+    else:
+        let err_frame: str = cluster_encode_frame(node.secret, node.node_id, reply_actor, 0, "ERR_AUTH")
+        socket_send(conn, err_frame)
+    socket_close(conn)
+    return msg

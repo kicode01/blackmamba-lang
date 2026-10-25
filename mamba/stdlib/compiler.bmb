@@ -917,6 +917,10 @@ def get_infix_bp(type_id: i64) -> i64:
         return PREC_PIPE
     if type_id == TOK_ASSIGN:
         return PREC_ASSIGN
+    if type_id == TOK_OR:
+        return PREC_OR
+    if type_id == TOK_AND:
+        return PREC_AND
     if type_id == TOK_EQ or type_id == TOK_NE:
         return PREC_EQUALITY
     if type_id == TOK_LT or type_id == TOK_LE or type_id == TOK_GT or type_id == TOK_GE:
@@ -952,7 +956,7 @@ def parse_expr(p: Parser, min_bp: i64) -> ASTNode:
         left = node_new(AST_FLOAT_LIT, "", t.int_val, t.float_val, "", "", t.line)
     elif t.type_id == TOK_STRING:
         left = node_new(AST_STR_LIT, "", 0, 0.0, t.value, "", t.line)
-    elif t.type_id == TOK_BOOL:
+    elif t.type_id == TOK_BOOL or t.type_id == TOK_TRUE or t.type_id == TOK_FALSE:
         left = node_new(AST_BOOL_LIT, "", t.int_val, 0.0, "", "", t.line)
     elif t.type_id == TOK_IDENT:
         left = node_new(AST_IDENT, t.value, 0, 0.0, "", "", t.line)
@@ -1102,7 +1106,7 @@ def parse_struct_def(p: Parser) -> ASTNode:
     return s_node
 
 def parse_if(p: Parser) -> ASTNode:
-    let if_tok = advance_tok(p) # if
+    let if_tok = advance_tok(p) # if or elif
     let cond = parse_expr(p, PREC_NONE)
     expect_tok(p, TOK_COLON)
     skip_newlines(p)
@@ -1111,7 +1115,10 @@ def parse_if(p: Parser) -> ASTNode:
     node_add_child(if_node, cond)
     node_add_child(if_node, then_body)
     skip_newlines(p)
-    if match_tok(p, TOK_ELSE):
+    if cur_tok(p).type_id == TOK_ELIF:
+        let else_if = parse_if(p)
+        node_add_child(if_node, else_if)
+    elif match_tok(p, TOK_ELSE):
         if cur_tok(p).type_id == TOK_IF:
             let else_if = parse_if(p)
             node_add_child(if_node, else_if)
@@ -1192,9 +1199,18 @@ def parse_stmt(p: Parser) -> ASTNode:
         node_add_child(assign_node, val)
         return assign_node
 
-    # Simple variable assignment or augmented assignment
+    # Simple variable assignment, type-annotated assignment, or augmented assignment
     if t.type_id == TOK_IDENT:
         let next_t = peek_tok(p)
+        if next_t.type_id == TOK_COLON:
+            let name_tok = advance_tok(p)
+            advance_tok(p) # :
+            let type_ann = expect_tok(p, TOK_IDENT).value
+            expect_tok(p, TOK_ASSIGN)
+            let val = parse_expr(p, PREC_NONE)
+            let assign_node = node_new(AST_ASSIGN, name_tok.value, 0, 0.0, type_ann, "=", name_tok.line)
+            node_add_child(assign_node, val)
+            return assign_node
         if next_t.type_id == TOK_ASSIGN or next_t.type_id == TOK_PLUS_EQ or next_t.type_id == TOK_MINUS_EQ or next_t.type_id == TOK_STAR_EQ or next_t.type_id == TOK_SLASH_EQ:
             let name_tok = advance_tok(p)
             let op_tok = advance_tok(p)

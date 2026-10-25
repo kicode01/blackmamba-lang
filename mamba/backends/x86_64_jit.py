@@ -64,6 +64,8 @@ class X86_64CodeBuffer:
         self.asm_lines: List[AsmLine] = []
         self.labels: Dict[str, int] = {}
         self.rel32_fixups: List[Tuple[int, str]] = []
+        self.line_map: List[Tuple[int, str, int]] = []
+        self.func_ranges: List[Tuple[int, int, str, int]] = []
 
     def mark_label(self, name: str) -> None:
         self.labels[name] = len(self.code)
@@ -429,6 +431,9 @@ class X86_64CodeBuffer:
         """
         Compiles a MIRFunction into register-allocated, branch-fused x86-64 machine code.
         """
+        fn_code_start = len(self.code)
+        last_recorded_line = fn.start_line or 1
+        self.line_map.append((fn_code_start, fn.name, last_recorded_line))
         self.mark_label(f"fn__{fn.name}")
 
         # 1. Analyze single-definition constant temporaries for immediate folding
@@ -569,6 +574,9 @@ class X86_64CodeBuffer:
         while i < n:
             ins = instrs[i]
             op = ins.op
+            if getattr(ins, "line", 0) > 0 and ins.line != last_recorded_line:
+                last_recorded_line = ins.line
+                self.line_map.append((len(self.code), fn.name, last_recorded_line))
 
             # Skip standalone CONST_I64 if folded into immediate operands and never read via slot
             if op == "CONST_I64" and ins.dst in imm_i64:
@@ -915,6 +923,7 @@ class X86_64CodeBuffer:
 
             i += 1
 
+        self.func_ranges.append((fn_code_start, len(self.code), fn.name, fn.start_line or 1))
         return frame_size
 
 
@@ -1251,6 +1260,32 @@ class NativeJITModule:
             except Exception:
                 return -1
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_write_bytes(path_val: int, buf_ptr: int, length: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            n_bytes = max(0, int(length))
+            try:
+                raw_data = ctypes.string_at(buf_ptr, n_bytes) if (buf_ptr and n_bytes > 0) else b""
+                os.makedirs(os.path.dirname(os.path.abspath(p)), exist_ok=True)
+                with open(p, "wb") as f:
+                    f.write(raw_data)
+                return len(raw_data)
+            except Exception:
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_file_read_bytes(path_val: int, buf_ptr: int, max_len: int) -> int:
+            p = get_str_bytes(path_val).decode("utf-8", errors="replace")
+            n_max = max(0, int(max_len))
+            try:
+                with open(p, "rb") as f:
+                    raw_data = f.read(n_max)
+                if buf_ptr and raw_data:
+                    ctypes.memmove(buf_ptr, raw_data, len(raw_data))
+                return len(raw_data)
+            except Exception:
+                return -1
+
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
         def rt_bmb_file_remove(path_val: int) -> int:
             p = get_str_bytes(path_val).decode("utf-8", errors="replace")
@@ -1505,6 +1540,7 @@ class NativeJITModule:
             rt_str_from_i64, rt_str_from_f64, rt_str_from_bool, rt_clock_ns,
             rt_str_ord, rt_str_chr, rt_str_to_i64, rt_str_to_f64,
             rt_bmb_file_exists, rt_bmb_file_size, rt_bmb_file_read, rt_bmb_file_write,
+            rt_bmb_file_write_bytes, rt_bmb_file_read_bytes,
             rt_bmb_file_remove, rt_bmb_get_cwd, rt_bmb_get_env,
             rt_bmb_socket_init, rt_bmb_socket_cleanup, rt_bmb_socket_create,
             rt_bmb_socket_connect, rt_bmb_socket_bind, rt_bmb_socket_listen,
@@ -1544,6 +1580,8 @@ class NativeJITModule:
         self.addr_bmb_file_size = ctypes.cast(rt_bmb_file_size, ctypes.c_void_p).value
         self.addr_bmb_file_read = ctypes.cast(rt_bmb_file_read, ctypes.c_void_p).value
         self.addr_bmb_file_write = ctypes.cast(rt_bmb_file_write, ctypes.c_void_p).value
+        self.addr_bmb_file_write_bytes = ctypes.cast(rt_bmb_file_write_bytes, ctypes.c_void_p).value
+        self.addr_bmb_file_read_bytes = ctypes.cast(rt_bmb_file_read_bytes, ctypes.c_void_p).value
         self.addr_bmb_file_remove = ctypes.cast(rt_bmb_file_remove, ctypes.c_void_p).value
         self.addr_bmb_get_cwd = ctypes.cast(rt_bmb_get_cwd, ctypes.c_void_p).value
         self.addr_bmb_get_env = ctypes.cast(rt_bmb_get_env, ctypes.c_void_p).value
@@ -1598,10 +1636,18 @@ class NativeJITModule:
             ptr, _, _ = bridge.eval_tensor(expr_s)
             return ptr
 
-        self._callbacks.extend([rt_py_call_f64, rt_py_eval_f64, rt_py_eval_tensor])
+        self._exit_code_override: Optional[int] = None
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_exit(code: int) -> int:
+            self._exit_code_override = int(code)
+            return int(code)
+
+        self._callbacks.extend([rt_py_call_f64, rt_py_eval_f64, rt_py_eval_tensor, rt_bmb_exit])
         self.addr_py_call_f64 = ctypes.cast(rt_py_call_f64, ctypes.c_void_p).value
         self.addr_py_eval_f64 = ctypes.cast(rt_py_eval_f64, ctypes.c_void_p).value
         self.addr_py_eval_tensor = ctypes.cast(rt_py_eval_tensor, ctypes.c_void_p).value
+        self.addr_bmb_exit = ctypes.cast(rt_bmb_exit, ctypes.c_void_p).value
 
     def _write_out(self, text: str) -> None:
         self.printed_lines.append(text)
@@ -1664,6 +1710,8 @@ class NativeJITModule:
             ("__bmb_file_size", self.addr_bmb_file_size),
             ("__bmb_file_read", self.addr_bmb_file_read),
             ("__bmb_file_write", self.addr_bmb_file_write),
+            ("__bmb_file_write_bytes", self.addr_bmb_file_write_bytes),
+            ("__bmb_file_read_bytes", self.addr_bmb_file_read_bytes),
             ("__bmb_file_remove", self.addr_bmb_file_remove),
             ("__bmb_get_cwd", self.addr_bmb_get_cwd),
             ("__bmb_get_env", self.addr_bmb_get_env),
@@ -1680,19 +1728,11 @@ class NativeJITModule:
             ("__bmb_thread_concurrency", self.addr_bmb_thread_concurrency),
             ("__bmb_thread_spawn", self.addr_bmb_thread_spawn),
             ("__bmb_thread_join", self.addr_bmb_thread_join),
-            ("__bmb_thread_id", self.addr_bmb_thread_id),
             ("__bmb_thread_yield", self.addr_bmb_thread_yield),
             ("__bmb_thread_sleep", self.addr_bmb_thread_sleep),
             ("__bmb_mem_alloc", self.addr_bmb_mem_alloc),
             ("__bmb_mem_free", self.addr_bmb_mem_free),
-            ("__bmb_mem_read", self.addr_bmb_mem_read),
-            ("__bmb_mem_write", self.addr_bmb_mem_write),
-            ("__bmb_mem_read32", self.addr_bmb_mem_read32),
-            ("__bmb_mem_write32", self.addr_bmb_mem_write32),
-            ("__bmb_mem_read8", self.addr_bmb_mem_read8),
-            ("__bmb_mem_write8", self.addr_bmb_mem_write8),
-            ("__bmb_alloc_root_get", self.addr_bmb_alloc_root_get),
-            ("__bmb_alloc_root_set", self.addr_bmb_alloc_root_set),
+            ("__bmb_exit", self.addr_bmb_exit),
         ]
         for name, addr in os_trampolines:
             self.code_buf.mark_label(f"fn__{name}")
@@ -1700,6 +1740,37 @@ class NativeJITModule:
             self.code_buf.call_abs_addr(addr, name)
             self.code_buf.emit(b"\x48\x83\xC4\x28", "add rsp, 0x28")
             self.code_buf.ret()
+
+        # Zero-GIL Native Hardware Memory & Thread-ID Trampolines
+        self._alloc_root_cell = ctypes.c_int64(0)
+        alloc_root_addr = ctypes.addressof(self._alloc_root_cell)
+
+        self.code_buf.mark_label("fn____bmb_thread_id")
+        self.code_buf.emit(b"\x65\x8B\x04\x25\x48\x00\x00\x00\xC3", "mov eax, dword ptr gs:[0x48]; ret")
+
+        self.code_buf.mark_label("fn____bmb_mem_read")
+        self.code_buf.emit(b"\x48\x8B\x04\xD1\xC3", "mov rax, [rcx + rdx*8]; ret")
+
+        self.code_buf.mark_label("fn____bmb_mem_write")
+        self.code_buf.emit(b"\x4C\x89\x04\xD1\x48\x31\xC0\xC3", "mov [rcx + rdx*8], r8; xor rax, rax; ret")
+
+        self.code_buf.mark_label("fn____bmb_mem_read32")
+        self.code_buf.emit(b"\x8B\x04\x91\xC3", "mov eax, [rcx + rdx*4]; ret")
+
+        self.code_buf.mark_label("fn____bmb_mem_write32")
+        self.code_buf.emit(b"\x44\x89\x04\x91\x48\x31\xC0\xC3", "mov [rcx + rdx*4], r8d; xor rax, rax; ret")
+
+        self.code_buf.mark_label("fn____bmb_mem_read8")
+        self.code_buf.emit(b"\x0F\xB6\x04\x11\xC3", "movzx eax, byte ptr [rcx + rdx]; ret")
+
+        self.code_buf.mark_label("fn____bmb_mem_write8")
+        self.code_buf.emit(b"\x44\x88\x04\x11\x48\x31\xC0\xC3", "mov [rcx + rdx], r8b; xor rax, rax; ret")
+
+        self.code_buf.mark_label("fn____bmb_alloc_root_get")
+        self.code_buf.emit(b"\x48\xB8" + struct.pack("<Q", alloc_root_addr) + b"\x48\x8B\x00\xC3", "movabs rax, alloc_root; mov rax, [rax]; ret")
+
+        self.code_buf.mark_label("fn____bmb_alloc_root_set")
+        self.code_buf.emit(b"\x48\xB8" + struct.pack("<Q", alloc_root_addr) + b"\x48\x89\x08\x48\x89\xC8\xC3", "movabs rax, alloc_root; mov [rax], rcx; mov rax, rcx; ret")
 
         # Native Hardware Atomic Trampolines
         self.code_buf.mark_label("fn____bmb_atomic_load")
@@ -1731,6 +1802,8 @@ class NativeJITModule:
             "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+            "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32",
+            "__bmb_mem_read8", "__bmb_mem_write8", "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 
         for fn in self.mir_module.functions:
@@ -1803,11 +1876,14 @@ class NativeJITModule:
         return int(raw_ret)
 
     def run_main(self) -> int:
+        self._exit_code_override = None
         if "__bmb_main__" in self.func_offsets:
-            return int(self.call_function("__bmb_main__"))
+            res = int(self.call_function("__bmb_main__"))
+            return self._exit_code_override if self._exit_code_override is not None else res
         if "main" in self.func_offsets:
-            return int(self.call_function("main"))
-        return 0
+            res = int(self.call_function("main"))
+            return self._exit_code_override if self._exit_code_override is not None else res
+        return self._exit_code_override if self._exit_code_override is not None else 0
 
     def format_disassembly(self) -> str:
         lines = [

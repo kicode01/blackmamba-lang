@@ -1,0 +1,66 @@
+# Black Mamba Flagship Showcase: self_host_pe_compiler.bmb
+# Vector 6 (Phase B): Complete Self-Hosting Native x86-64 PE32+ (.exe) Compiler
+# 100% Pure Native Black Mamba (.bmb) — Zero CPython Runtime Dependencies.
+#
+# Can be compiled to `bmbc_self.exe` and driven via:
+#   BMB_SELF_IN=app.bmb BMB_SELF_OUT=app.exe ./bmbc_self.exe
+# Or run directly to benchmark & verify pure-.bmb PE32+ executable generation.
+
+from codegen import compile_bmb_to_exe, compile_file_to_exe
+from os import get_env, file_exists, file_size, read_bytes, remove_file
+from time import clock_ns
+
+def run_self_host_showcase() -> i64:
+    let in_env: str = get_env("BMB_SELF_IN")
+    let out_env: str = get_env("BMB_SELF_OUT")
+
+    if len(in_env) > 0 and len(out_env) > 0:
+        let t0: i64 = clock_ns()
+        let nbytes: i64 = compile_file_to_exe(in_env, out_env)
+        let dt_us: i64 = (clock_ns() - t0) // 1000
+        print("[bmbc-self] Compiled " + in_env + " -> " + out_env + " (" + str(nbytes) + " bytes in " + str(dt_us) + " us)")
+        if nbytes <= 0:
+            return 1
+        return 0
+
+    print("=== Black Mamba v1.0.0: Pure .bmb Self-Hosting PE32+ Compiler ===")
+    let sample_program: str = "def fib(n: i64) -> i64:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ndef sum_squares(limit: i64) -> i64:\n    let acc: i64 = 0\n    for i in 1..=limit:\n        acc += i * i\n    return acc\n\ndef greet(tag: str, val: i64) -> str:\n    return tag + \": \" + str(val)\n\ndef main() -> i64:\n    let f12: i64 = fib(12)\n    let sq10: i64 = sum_squares(10)\n    print(greet(\"fib(12)\", f12))\n    print(greet(\"sum_sq(10)\", sq10))\n    print(\"self_host_ok:\", f12 == 144 and sq10 == 385)\n    return 0\n"
+
+    let out_exe: str = "_self_host_demo_v100.exe"
+    if len(out_env) > 0:
+        out_exe = out_env
+
+    let t0: i64 = clock_ns()
+    let written: i64 = compile_bmb_to_exe(sample_program, out_exe)
+    let dt_us: i64 = (clock_ns() - t0) // 1000
+
+    print("  -> Emitted PE32+ executable: " + out_exe + " (" + str(written) + " bytes in " + str(dt_us) + " us)")
+    if not file_exists(out_exe) or file_size(out_exe) != written:
+        print("ERROR: PE32+ output verification failed!")
+        return 1
+
+    # Verify DOS 'MZ' and PE 'PE\0\0' signatures directly from binary bytes
+    let hdr_buf: i64 = __bmb_mem_alloc(256)
+    let rlen: i64 = read_bytes(out_exe, hdr_buf, 256)
+    let mz0: i64 = __bmb_mem_read8(hdr_buf, 0)
+    let mz1: i64 = __bmb_mem_read8(hdr_buf, 1)
+    let pe0: i64 = __bmb_mem_read8(hdr_buf, 128)
+    let pe1: i64 = __bmb_mem_read8(hdr_buf, 129)
+    let mach_lo: i64 = __bmb_mem_read8(hdr_buf, 132)
+    let mach_hi: i64 = __bmb_mem_read8(hdr_buf, 133)
+    __bmb_mem_free(hdr_buf)
+
+    if rlen < 200 or mz0 != 77 or mz1 != 90 or pe0 != 80 or pe1 != 69 or mach_lo != 100 or mach_hi != 134:
+        print("ERROR: Invalid PE32+ AMD64 header bytes!")
+        return 1
+
+    print("  -> Verified MZ + PE\\0\\0 + AMD64 (0x8664) native binary headers: PASS")
+
+    if len(out_env) == 0:
+        remove_file(out_exe)
+
+    print("Status: Vector 6 Phase B Complete (Zero-Python Self-Hosting PE32+ Compiler)")
+    return 0
+
+if __name__ == "__main__":
+    exit(run_self_host_showcase())

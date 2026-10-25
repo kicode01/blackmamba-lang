@@ -272,7 +272,7 @@ class WasmBackend:
                         # Coerce if return local type differs from function return type
                         ret_wt = WASM_F64 if fn.return_type == "f64" else WASM_I64
                         if local_wasm_type[str(ins.arg1)] != ret_wt:
-                            code.extend(b"\xB7" if ret_wt == WASM_F64 else b"\xAA")
+                            code.extend(b"\xB9" if ret_wt == WASM_F64 else b"\xAA")
                     else:
                         if fn.return_type == "f64":
                             code.extend(b"\x44" + struct.pack("<d", 0.0))
@@ -524,15 +524,15 @@ class WasmBackend:
 
         if op == "STR_ORD" and dst_l is not None:
             load_as(str(ins.arg1), WASM_I64)
-            code.extend(b"\x42\x08\x7E")  # i64.const 8; i64.shr_u
-            code.extend(b"\x42\xFF\x01\x71")  # i64.const 255; i64.and
+            code.extend(b"\x42\x08\x88")      # i64.const 8; i64.shr_u
+            code.extend(b"\x42\xFF\x01\x83")  # i64.const 255; i64.and
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
         if op == "STR_CHR" and dst_l is not None:
             load_as(str(ins.arg1), WASM_I64)
-            code.extend(b"\x42\x08\x74")  # i64.const 8; i64.shl
-            code.extend(b"\x42\x03\x72")  # i64.const 3; i64.or
+            code.extend(b"\x42\x08\x86")  # i64.const 8; i64.shl
+            code.extend(b"\x42\x03\x84")  # i64.const 3; i64.or
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
@@ -608,8 +608,53 @@ class WasmBackend:
                 else:
                     code.append(0x1A)  # drop
             else:
-                # External OS / host primitive stub in WASM: return 0 or empty string
+                # Native linear-memory lowering for __bmb_mem_* built-ins in WASM
+                if callee_name == "__bmb_mem_alloc" and ins.extra and dst_l is not None:
+                    code.extend(b"\x23\x00\xAD")  # global.get 0; i64.extend_i32_u
+                    code.extend(b"\x21" + _uleb128(dst_l))
+                    code.extend(b"\x23\x00")
+                    load_as(ins.extra[0], WASM_I64)
+                    code.extend(b"\xA7\x41\x0F\x6A\x41\x70\x71\x6A\x24\x00")  # align 16 & bump global 0
+                    return
+                if callee_name == "__bmb_mem_read" and len(ins.extra) >= 2 and dst_l is not None:
+                    load_as(ins.extra[0], WASM_I64)
+                    code.append(0xA7)
+                    load_as(ins.extra[1], WASM_I64)
+                    code.extend(b"\xA7\x41\x08\x6C\x6A\x29\x03\x00")  # i64.load
+                    code.extend(b"\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_mem_write" and len(ins.extra) >= 3:
+                    load_as(ins.extra[0], WASM_I64)
+                    code.append(0xA7)
+                    load_as(ins.extra[1], WASM_I64)
+                    code.extend(b"\xA7\x41\x08\x6C\x6A")
+                    load_as(ins.extra[2], WASM_I64)
+                    code.extend(b"\x37\x03\x00")  # i64.store
+                    if dst_l is not None:
+                        code.extend(b"\x42\x00\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_mem_read8" and len(ins.extra) >= 2 and dst_l is not None:
+                    load_as(ins.extra[0], WASM_I64)
+                    code.append(0xA7)
+                    load_as(ins.extra[1], WASM_I64)
+                    code.extend(b"\xA7\x6A\x2D\x00\x00")  # i64.load8_u
+                    code.extend(b"\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_mem_write8" and len(ins.extra) >= 3:
+                    load_as(ins.extra[0], WASM_I64)
+                    code.append(0xA7)
+                    load_as(ins.extra[1], WASM_I64)
+                    code.extend(b"\xA7\x6A")
+                    load_as(ins.extra[2], WASM_I64)
+                    code.extend(b"\x3A\x00\x00")  # i64.store8
+                    if dst_l is not None:
+                        code.extend(b"\x42\x00\x21" + _uleb128(dst_l))
+                    return
+                # External OS / host primitive stub in WASM: return 0 / 0.0
                 if dst_l is not None:
-                    code.extend(b"\x42\x00")  # i64.const 0
+                    if local_wasm_type[str(ins.dst)] == WASM_F64:
+                        code.extend(b"\x44" + struct.pack("<d", 0.0))
+                    else:
+                        code.extend(b"\x42\x00")  # i64.const 0
                     code.extend(b"\x21" + _uleb128(dst_l))
             return

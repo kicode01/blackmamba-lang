@@ -50,8 +50,10 @@ def _safe_print(text: str = "", end: str = "\n") -> None:
 
 def print_banner() -> None:
     """Displays the Black Mamba REPL welcome banner."""
+    from .. import __version__
+    ver_label = f"Black Mamba (.bmb) Native JIT REPL v{__version__}".ljust(68)
     banner = f"""{COLOR_GREEN}+------------------------------------------------------------------------+
-|  {COLOR_BOLD}Black Mamba (.bmb) Native JIT REPL v0.5.0{COLOR_RESET}{COLOR_GREEN}                             |
+|  {COLOR_BOLD}{ver_label}{COLOR_RESET}{COLOR_GREEN}  |
 |  Bare-Metal x86-64 Execution * Zero GC Pauses * Real-Time JIT          |
 |  Type {COLOR_CYAN}:help{COLOR_RESET}{COLOR_GREEN} for commands, {COLOR_CYAN}:vars{COLOR_RESET}{COLOR_GREEN} for variables, {COLOR_CYAN}:exit{COLOR_RESET}{COLOR_GREEN} or Ctrl+D to quit |
 +------------------------------------------------------------------------+{COLOR_RESET}"""

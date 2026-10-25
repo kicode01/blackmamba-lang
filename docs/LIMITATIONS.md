@@ -136,42 +136,31 @@
     - Adaptive spin-pause backoff with OS thread yield/sleep transitions for ultra-low contention latency and zero CPU starvation.
     - Verified under heavy multi-threaded producer-consumer pipelines with zero deadlocks and zero memory leaks.
 * **Remaining Limitation**:
-  * Distributed network actor clusters and unbounded dynamic channels will be introduced in subsequent concurrency runtime enhancements.
+  * Unbounded dynamic cross-WAN gossip membership protocols can be layered atop `cluster.bmb`; core multi-node authenticated TCP actor RPC (`cluster.bmb`) is now shipped in `v1.0.0`.
 * **Current Workaround**:
-  * Use bounded lock-free ring channels (`from chan import *`), Go-style `Select` multiplexers, `Actor` event loops, or `AtomicInt`, `Mutex`, `SpinLock`, `par_for` in `from thread import *`.
+  * Use `from cluster import *` for authenticated TCP actor clusters, or bounded lock-free ring channels (`from chan import *`), Go-style `Select` multiplexers, `Actor` event loops, and `par_for` in `from thread import *`.
 
 ---
 
-## 8. Tooling: LSP, REPL, Package Manager & Doc Generator Shipped; Central Web Registry in Progress
+## 8. Tooling, Self-Hosting & Native Debugging: Full Production Toolchain Shipped in `v1.0.0`
 
-* **Current Status (RESOLVED in Phase 5 for LSP, REPL, PKG & Docs)**:
+* **Current Status (RESOLVED in `v1.0.0`)**:
+  * **Self-Hosting Native Compiler (`compiler.bmb` + `codegen.bmb`)**:
+    - Compiles `.bmb` source directly into standalone runnable Windows x86-64 PE32+ `.exe` binaries in **1.63 ms** with **zero Python runtime involvement**.
+  * **Native Debug Symbols & Diagnostics (`--debug` / `-g`, `debug.bmb`)**:
+    - Windows PE32+ emits CodeView `RSDS` (`IMAGE_DIRECTORY_ENTRY_DEBUG`), COFF Symbol Tables, and ASLR-safe symbolic SEH crash diagnostics reporting exact `<function>` and `<file.bmb>:<line>`.
+    - Linux ELF64 emits `.symtab`/`.strtab` and DWARF v4 `.debug_abbrev`, `.debug_info`, and `.debug_line` tables for `gdb`/`lldb`/`addr2line`.
+    - Portable C11 emits `#line` source directives.
   * **VS Code Extension & LSP Daemon (`bmb-lsp`)**:
     - Full Language Server Protocol (LSP 3.17) daemon running over JSON-RPC 2.0 via stdio (`bmb lsp --stdio`) or TCP socket (`bmb lsp --tcp <port>`).
-    - Real-time syntax diagnostics and error squiggles with exact line and character positions for lexer and parser errors.
-    - Type hover hints powered by `mamba/types.py` showing Markdown signatures, struct layouts, and builtin documentation.
-    - Dot-triggered struct field autocompletion (`p.x`, `p.y`) resilient under typing and syntax disruption.
-    - Go to Definition (`F12`), Document Symbol Outline (breadcrumbs), and canonical 4-space code formatting (`Shift+Alt+F`).
-    - Dedicated VS Code extension bundled in `editors/vscode/` (`package.json`, `extension.js`, `syntaxes/bmb.tmLanguage.json`).
+    - Real-time syntax diagnostics, type hover cards, dot-triggered struct field autocompletion, Go to Definition (`F12`), Document Symbol Outline, and canonical 4-space code formatting.
   * **Interactive Native JIT REPL (`bmb repl` / `mamba.repl`)**:
-    - Immediate expression evaluation and statement execution in terminal via instant x86-64 native JIT (< 1 ms latency).
-    - Live variable state persistence across turns with automatic type deduction (`30 (i64)`, `6.28 (f64)`, `True (bool)`, `'hello' (str)`).
-    - Compiler inspection meta-commands: `:help`, `:vars` (active variables and live values), `:funcs`, `:structs`, `:mir` (SSA IR dump), `:asm` (native machine code disassembly), `:reset`, `:exit`.
-    - Support for multi-line blocks (`bmb >>> ` vs `bmb ... `), structs, functions, and standard library imports (`from math import sin, PI`).
-  * **Decentralized Package Manager CLI (`bmb pkg` / `mamba.pkg`)**:
-    - Project manifest (`mamba.toml`) with metadata, build targets, and dependencies.
-    - Cryptographic reproducibility lockfile (`mamba.lock`) with SHA-256 integrity verification.
-    - Support for Git repositories (`--git`, `--tag`, `--branch`, `--rev`) and local filesystem paths (`--path`) vendored into `.mamba/packages/`.
-    - Integrated with `mamba/module_loader.py` for zero-configuration `import <pkg>`.
-    - CLI commands: `init`, `add`, `remove`, `install`, `update`, `list`, `build`, `run`.
+    - Immediate expression evaluation and statement execution in terminal via instant x86-64 native JIT (< 1 ms latency) with `:vars`, `:funcs`, `:structs`, `:mir`, `:asm`.
+  * **Decentralized & Registry Package Manager (`bmb pkg` / `mamba.pkg`)**:
+    - Project manifest (`mamba.toml`) and deterministic SHA-256 lockfile (`mamba.lock`).
+    - Supports Git repositories (`--git`), local paths (`--path`), and federated JSON Registry Indexes (`--registry` / `MAMBA_REGISTRY`) with mandatory SHA-256 archive/package verification.
   * **Static HTML API Documentation Generator (`bmb doc` / `mamba.doc`)**:
-    - Automatic extraction of docstrings, type annotations, and module structures into static HTML API references.
-    - Self-contained responsive HTML/CSS/JS with client-side live search and `/` keyboard shortcut.
-* **Remaining Limitation**:
-  * There is no central web package registry (like crates.io / PyPI) yet; dependencies are resolved decentrally via Git repositories and local filesystem paths.
-* **Current Workaround**:
-  * Publish and distribute Black Mamba libraries as Git repositories (GitHub, GitLab, self-hosted) or vendor paths.
-* **Planned Future Work**:
-  * Implement an optional federated package registry with binary caching.
+    - Self-contained responsive HTML/CSS/JS API docs with client-side live search.
 
 ---
 
@@ -198,10 +187,10 @@
 | **Memory** | Ephemeral arenas + `gc.bmb` generational regions & cycle collector | Low | Resolved |
 | **Platform** | Windows PE32+, Linux ELF64, macOS ARM64, WASM 1.0 shipped | Low | Complete |
 | **Strings** | SSO, zero-copy slicing, `regex.bmb`, and pure native `unicode.bmb` engine | Low | Complete |
-| **Exceptions** | Hardware SEH unwinding tables (.pdata / .xdata) & VEH shipped | Low | Complete |
-| **Stdlib** | Core 16 modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`) pure native | Low | Complete |
+| **Exceptions & Debug** | Hardware SEH (`.pdata`/`.xdata`), CodeView `RSDS`/COFF & DWARF v4 (`--debug`) | Low | Complete |
+| **Stdlib** | 26 pure native `.bmb` modules (`codegen`, `compiler`, `series`, `alloc`, `embedded`, `cluster`, `debug`, `http`, `simd`, `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`) | Low | Complete |
 | **Storage** | Embedded log-structured Key-Value engine (`kv.bmb`) with WAL & compaction | Low | Complete |
 | **Async** | Cooperative reactor & scheduler (`async.bmb`) with monotonic timers | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
-| **Concurrency**| Atomics, threads, par_for, lock-free MPMC channels, Select multiplexer & Actors | Low | Complete |
-| **Tooling** | VS Code extension, LSP daemon, REPL, package manager (`bmb pkg`), doc generator & standalone `bmb.exe` | Low | Complete |
+| **Concurrency**| Atomics, threads, `par_for`, lock-free MPMC channels, `Select`, `Actor` & `cluster.bmb` TCP RPC | Low | Complete |
+| **Tooling** | Self-hosting `.bmb -> .exe` compiler, VS Code LSP, REPL, `bmb pkg --registry`, `bmb doc` & `bmb.exe` | Low | Complete |

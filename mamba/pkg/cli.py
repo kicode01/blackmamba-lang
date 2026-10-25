@@ -36,6 +36,7 @@ def cmd_pkg_add(args: argparse.Namespace) -> int:
             rev=args.rev,
             path=args.path,
             version=args.version,
+            registry=getattr(args, "registry", None),
         )
         print(f"[bmb pkg] Added dependency '{locked.name}' ({locked.source}: {locked.version})")
         print(f"          Integrity: {locked.integrity}")
@@ -134,6 +135,8 @@ def cmd_pkg_build(args: argparse.Namespace) -> int:
         file=entry_path,
         target=args.target or manifest.build_target,
         output=args.output,
+        debug=getattr(args, "debug", False),
+        base_addr="0x08000000",
     )
     return cmd_build(build_args)
 
@@ -181,6 +184,7 @@ def register_pkg_subparsers(subparsers) -> None:
     p_add.add_argument("--rev", help="Git commit revision")
     p_add.add_argument("--path", help="Local directory path")
     p_add.add_argument("--version", help="Version requirement constraint")
+    p_add.add_argument("--registry", help="JSON package registry index URL or file path")
 
     # remove
     p_rm = pkg_sub.add_parser("remove", help="Remove a dependency from mamba.toml and mamba.lock")
@@ -201,6 +205,7 @@ def register_pkg_subparsers(subparsers) -> None:
     p_bld = pkg_sub.add_parser("build", help="Build package binary from mamba.toml entry point")
     p_bld.add_argument("--target", "-t", help="Target output format (exe, elf, wasm, etc.)")
     p_bld.add_argument("--output", "-o", help="Output file path")
+    p_bld.add_argument("--debug", "-g", action="store_true", help="Emit native debug symbols")
 
     # run
     p_rn = pkg_sub.add_parser("run", help="Run package binary from mamba.toml entry point")

@@ -1,0 +1,58 @@
+# Black Mamba Flagship Showcase: cluster_showcase.bmb
+# v1.0.0 Ecosystem Milestone: Distributed Actor Cluster & HMAC-SHA256 Wire RPC
+# Demonstrates authenticated TCP actor messaging and tamper rejection.
+
+from cluster import (
+    ClusterNode, ClusterMsg,
+    cluster_node_new, cluster_listen, cluster_close,
+    cluster_encode_frame, cluster_decode_frame, cluster_accept_rpc
+)
+from socket import Socket, tcp_connect, socket_send, socket_recv, socket_close
+
+def run_cluster_demo() -> i64:
+    print("=== Black Mamba v1.0.0: Distributed Actor Cluster (HMAC-SHA256 RPC) ===")
+    let secret: str = "mamba-v1-cluster-key-9f8e7d6c"
+
+    # 1. Cryptographic frame verification & tamper resistance
+    let good_frame: str = cluster_encode_frame(secret, "node-west", "ledger", 7, "transfer:500")
+    let parsed_good: ClusterMsg = cluster_decode_frame(secret, good_frame)
+    let forged_frame: str = "BMB1|mallory|ledger|7|transfer:999999|" + parsed_good.mac
+    let parsed_bad: ClusterMsg = cluster_decode_frame(secret, forged_frame)
+
+    print("  [1/2] Valid HMAC frame verified :", parsed_good.valid, "| payload:", parsed_good.payload)
+    print("  [1/2] Forged frame rejected     :", not parsed_bad.valid)
+    if not parsed_good.valid or parsed_bad.valid:
+        return 1
+
+    # 2. Live Loopback TCP Cluster Node RPC
+    let port: i64 = 49182
+    let alpha: ClusterNode = cluster_node_new("node-alpha", "127.0.0.1", port, secret)
+    while not cluster_listen(alpha, 8) and port < 49220:
+        port += 1
+        alpha = cluster_node_new("node-alpha", "127.0.0.1", port, secret)
+
+    if not alpha.server.is_listening:
+        print("ERROR: Failed to bind loopback cluster port")
+        return 1
+
+    let cli: Socket = tcp_connect("127.0.0.1", port)
+    let req_frame: str = cluster_encode_frame(secret, "node-beta", "worker_pool", 42, "job:matmul_64x64")
+    socket_send(cli, req_frame)
+
+    let inbound: ClusterMsg = cluster_accept_rpc(alpha, "worker_pool", "completed:")
+    let raw_reply: str = socket_recv(cli, 4096)
+    socket_close(cli)
+    cluster_close(alpha)
+
+    let outbound: ClusterMsg = cluster_decode_frame(secret, raw_reply)
+    print("  [2/2] Inbound RPC from", inbound.sender, "-> actor:", inbound.actor, "| seq:", inbound.seq)
+    print("  [2/2] Authenticated reply from", outbound.sender, "->", outbound.payload)
+
+    if not inbound.valid or not outbound.valid or outbound.payload != "completed:job:matmul_64x64":
+        return 1
+
+    print("Status: Distributed Actor Cluster & HMAC-SHA256 Wire Protocol VERIFIED")
+    return 0
+
+if __name__ == "__main__":
+    exit(run_cluster_demo())

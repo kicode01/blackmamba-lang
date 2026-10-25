@@ -701,7 +701,7 @@ class C11ExtensionEmitter:
                     lines.append(f"    if (PyErr_Occurred()) return NULL;")
                 call_args.append(v_name)
 
-            call_str = f"fn__{fn.name}({', '.join(call_args)})"
+            call_str = f"bmb_{fn.name}({', '.join(call_args)})"
             if fn.return_type == "f64":
                 lines.append(f"    double _res = {call_str};")
                 lines.append("    return PyFloat_FromDouble(_res);")

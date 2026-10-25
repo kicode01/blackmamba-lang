@@ -2832,6 +2832,312 @@ def main() -> i64:
                 if os.path.exists(exe_path):
                     os.remove(exe_path)
 
+    def test_v100_language_and_compiler_edge_cases(self):
+        """Tests v1.0.0 critical language & backend edge cases across JIT and standalone PE32+."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            helper_path = os.path.join(tmpdir, "mod_guard_helper.bmb")
+            with open(helper_path, "w", encoding="utf-8") as hf:
+                hf.write(
+                    '"""Module docstring ignored cleanly."""\n'
+                    "def helper_mod_name() -> str:\n"
+                    "    return __name__\n\n"
+                    "def scale_six(a: i64, b: i64, c: i64, d: i64, e: i64, f: i64) -> i64:\n"
+                    "    return a + b * 2 + c * 3 + d * 4 + e * 5 + f * 6\n\n"
+                    'if __name__ == "__main__":\n'
+                    '    print("SHOULD_NOT_RUN_ON_IMPORT")\n'
+                )
+
+            main_src = '''"""Top-level docstring."""
+from mod_guard_helper import helper_mod_name, scale_six
+from os import write_file, remove_file, get_env
+
+def classify_tag(tag: str) -> i64:
+    match tag:
+        case "alpha":
+            return 10
+        case "beta" | "gamma":
+            return 25
+        case _:
+            return 99
+
+def tco_arena_loop(n: i64, acc: i64) -> i64:
+    if n <= 0:
+        return acc
+    let tmp = [n, n + 1, n + 2, n + 3]
+    return tco_arena_loop(n - 1, acc + tmp[0])
+
+def main() -> i64:
+    # 1. __name__ in main vs imported module
+    if __name__ != "__main__":
+        return 11
+    if helper_mod_name() != "mod_guard_helper":
+        return 12
+
+    # 2. Triple-quoted strings & \\xNN escapes
+    let multi: str = """line1
+line2"""
+    let hex_s: str = "\\x41\\x42\\x43"
+    if len(multi) != 11 or hex_s != "ABC":
+        return 13
+
+    # 3. Genuine short-circuit and/or (zero-division & bounds safety)
+    let zero: i64 = 0
+    if zero != 0 and (100 // zero) > 1:
+        return 14
+    let arr = [10, 20, 30]
+    let bad_idx: i64 = 99
+    if bad_idx < len(arr) and arr[bad_idx] == 10:
+        return 15
+    let good_or: bool = (bad_idx >= len(arr)) or (arr[bad_idx] == 999)
+    if not good_or:
+        return 16
+
+    # 4. String match, bool/min/max, 6-arg Win64 ABI
+    if classify_tag("alpha") != 10 or classify_tag("gamma") != 25 or classify_tag("z") != 99:
+        return 17
+    if not bool("nonempty") or bool("") or min(42, 17) != 17 or max(42, 17) != 42:
+        return 18
+    if scale_six(1, 2, 3, 4, 5, 6) != 91:
+        return 19
+
+    # 5. TCO + Arena save stability over 20,000 frames
+    if tco_arena_loop(20000, 0) != 200010000:
+        return 20
+
+    # 6. Exact byte count from os.write_file & odd-aligned os.get_env
+    let tmp_f: str = "''' + os.path.join(tmpdir, "exact_bytes.txt").replace("\\", "/") + '''"
+    let wb: i64 = write_file(tmp_f, "Hello Mamba!\\n")
+    remove_file(tmp_f)
+    if wb != 13:
+        return 21
+
+    let ev: str = get_env("BMB_ODD_ENV_CHECK")
+    print("EDGE_OK env=" + ev)
+    return 7
+'''
+            os.environ["BMB_ODD_ENV_CHECK"] = "aligned_value_123"
+            try:
+                ast_mod = Parser.from_source(main_src, os.path.join(tmpdir, "main_edge.bmb")).parse_module()
+                mir = MIRBuilder().build(ast_mod, base_dir=tmpdir, filename="main_edge.bmb")
+
+                jit_mod = NativeJITModule(mir)
+                rc_jit = jit_mod.run_main()
+                out_jit = jit_mod.get_output()
+                jit_mod.close()
+                self.assertEqual(rc_jit, 7)
+                self.assertIn("EDGE_OK env=aligned_value_123", out_jit)
+                self.assertNotIn("SHOULD_NOT_RUN_ON_IMPORT", out_jit)
+
+                if sys.platform == "win32":
+                    exe_path = os.path.join(tmpdir, "main_edge.exe")
+                    PE32PlusExecutableBuilder(mir).write_executable(exe_path)
+                    proc = subprocess.run([exe_path], capture_output=True, text=True)
+                    self.assertEqual(proc.returncode, 7)
+                    self.assertIn("EDGE_OK env=aligned_value_123", proc.stdout)
+                    self.assertNotIn("SHOULD_NOT_RUN_ON_IMPORT", proc.stdout)
+            finally:
+                os.environ.pop("BMB_ODD_ENV_CHECK", None)
+
+    def test_v100_binary_io_and_native_debug_symbols(self):
+        """Tests binary file I/O (null-byte safe) and Vector 8 debug symbols (RSDS, COFF, DWARF v4, #line, SEH)."""
+        import struct
+        import tempfile
+        from mamba.backends.elf_exe import ELF64ExecutableBuilder
+        from mamba.backends.c_emitter import C11Backend
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            bin_file = os.path.join(tmpdir, "raw.bin").replace("\\", "/")
+            src = f'''from os import write_bytes, read_bytes, file_size
+from debug import debug_location, debug_assert
+
+def verify_binary_io() -> i64:
+    let buf: i64 = __bmb_mem_alloc(8)
+    __bmb_mem_write8(buf, 0, 77)
+    __bmb_mem_write8(buf, 1, 90)
+    __bmb_mem_write8(buf, 2, 0)
+    __bmb_mem_write8(buf, 3, 255)
+    __bmb_mem_write8(buf, 4, 134)
+    __bmb_mem_write8(buf, 5, 100)
+    let w: i64 = write_bytes("{bin_file}", buf, 6)
+    let rbuf: i64 = __bmb_mem_alloc(8)
+    let r: i64 = read_bytes("{bin_file}", rbuf, 8)
+    let ok: bool = (w == 6 and r == 6 and file_size("{bin_file}") == 6 and __bmb_mem_read8(rbuf, 2) == 0 and __bmb_mem_read8(rbuf, 3) == 255)
+    __bmb_mem_free(buf)
+    __bmb_mem_free(rbuf)
+    debug_assert(ok, "binary roundtrip", "bin_debug.bmb", 16)
+    print(debug_location("bin_debug.bmb", 17, "verify_binary_io"))
+    if ok:
+        return 0
+    return 1
+
+def main() -> i64:
+    return verify_binary_io()
+'''
+            ast_mod = Parser.from_source(src, "bin_debug.bmb").parse_module()
+            mir = MIRBuilder().build(ast_mod, filename="bin_debug.bmb")
+
+            # 1. C11 #line directives
+            c_code = C11Backend(mir, debug=True).emit_c()
+            self.assertIn('#line ', c_code)
+            self.assertIn('"bin_debug.bmb"', c_code)
+
+            # 2. ELF64 DWARF v4 (.debug_line, .debug_info, .symtab)
+            elf_bytes = ELF64ExecutableBuilder(mir, debug=True).build_bytes()
+            self.assertTrue(elf_bytes.startswith(b"\x7fELF\x02\x01\x01"))
+            self.assertIn(b".debug_line\x00", elf_bytes)
+            self.assertIn(b".debug_info\x00", elf_bytes)
+            self.assertIn(b".symtab\x00", elf_bytes)
+            self.assertIn(b"bin_debug.bmb\x00", elf_bytes)
+
+            # 3. PE32+ RSDS CodeView + COFF Symbol Table + execution
+            if sys.platform == "win32":
+                exe_path = os.path.join(tmpdir, "bin_debug.exe")
+                PE32PlusExecutableBuilder(mir, debug=True).write_executable(exe_path)
+                with open(exe_path, "rb") as f:
+                    pe_data = f.read()
+                self.assertIn(b"RSDS", pe_data)
+                self.assertIn(b"bin_debug.pdb\x00", pe_data)
+                ptr_symtab, num_syms = struct.unpack_from("<II", pe_data, 0x80 + 12)
+                self.assertGreater(ptr_symtab, 0)
+                self.assertGreater(num_syms, 0)
+                # DataDirectory[6] (Debug Directory) at 0x98 + 112 + 6*8 = 0x138
+                dbg_rva, dbg_sz = struct.unpack_from("<II", pe_data, 0x138)
+                self.assertGreater(dbg_rva, 0)
+                self.assertEqual(dbg_sz, 28)
+
+                proc = subprocess.run([exe_path], capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 0)
+                self.assertIn("bin_debug.bmb:17 in verify_binary_io()", proc.stdout)
+
+                # 4. Symbolic ASLR-safe SEH crash source-line diagnostics
+                crash_src = (
+                    "def crash_target_fn(x: i64) -> i64:\n"
+                    "    let denom: i64 = x - x\n"
+                    "    return 100 // denom\n\n"
+                    "def main() -> i64:\n"
+                    "    return crash_target_fn(42)\n"
+                )
+                c_ast = Parser.from_source(crash_src, "seh_diag.bmb").parse_module()
+                c_mir = MIRBuilder().build(c_ast, filename="seh_diag.bmb")
+                crash_exe = os.path.join(tmpdir, "seh_diag.exe")
+                PE32PlusExecutableBuilder(c_mir, debug=True).write_executable(crash_exe)
+                c_proc = subprocess.run([crash_exe], capture_output=True, text=True)
+                self.assertNotEqual(c_proc.returncode, 0)
+                self.assertIn("Integer Divide By Zero", c_proc.stdout)
+                self.assertIn("in function 'crash_target_fn' (seh_diag.bmb:3)", c_proc.stdout)
+
+    def test_v100_pure_bmb_self_hosting_pe_compiler(self):
+        """Tests Vector 6 Phase B: compiling a .bmb program to a standalone .exe via a pure-native .bmb compiler (zero Python)."""
+        if sys.platform != "win32":
+            return
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Stage 1: Compile self_host_pe_compiler.bmb into native bmbc_self.exe
+            compiler_entry = os.path.abspath("examples/self_host_pe_compiler.bmb")
+            with open(compiler_entry, "r", encoding="utf-8") as cf:
+                comp_src = cf.read()
+            comp_ast = Parser.from_source(comp_src, compiler_entry).parse_module()
+            comp_mir = MIRBuilder().build(
+                comp_ast,
+                base_dir=os.path.dirname(compiler_entry),
+                filename=compiler_entry,
+            )
+            bmbc_exe = os.path.join(tmpdir, "bmbc_self.exe")
+            PE32PlusExecutableBuilder(comp_mir).write_executable(bmbc_exe)
+
+            # Stage 2: Write a guest .bmb program and compile it using ONLY bmbc_self.exe (0% Python!)
+            guest_bmb = os.path.join(tmpdir, "guest_app.bmb")
+            guest_exe = os.path.join(tmpdir, "guest_app.exe")
+            with open(guest_bmb, "w", encoding="utf-8") as gf:
+                gf.write(
+                    "def fact(n: i64) -> i64:\n"
+                    "    if n <= 1:\n"
+                    "        return 1\n"
+                    "    return n * fact(n - 1)\n\n"
+                    "def double_it(x: i64) -> i64:\n"
+                    "    return x * 2\n\n"
+                    "def main() -> i64:\n"
+                    "    let v: i64 = 5 |> fact |> double_it\n"
+                    "    let nums = [3, 6, 9, 12]\n"
+                    "    let s: i64 = 0\n"
+                    "    for i in 0..len(nums):\n"
+                    "        s += nums[i]\n"
+                    '    print("SELF_HOST_EXE:", v, s, "ok=" + str(v == 240 and s == 30))\n'
+                    "    return 0\n"
+                )
+
+            env = os.environ.copy()
+            env["BMB_SELF_IN"] = guest_bmb
+            env["BMB_SELF_OUT"] = guest_exe
+            s2 = subprocess.run([bmbc_exe], capture_output=True, text=True, env=env)
+            self.assertEqual(s2.returncode, 0, msg=f"bmbc_self.exe failed: {s2.stdout}\n{s2.stderr}")
+            self.assertTrue(os.path.exists(guest_exe))
+
+            # Stage 3: Execute the pure-.bmb-emitted Windows PE32+ executable!
+            s3 = subprocess.run([guest_exe], capture_output=True, text=True)
+            self.assertEqual(s3.returncode, 0)
+            self.assertIn("SELF_HOST_EXE: 240 30 ok=True", s3.stdout)
+
+    def test_v100_distributed_cluster_and_pkg_registry(self):
+        """Tests cluster.bmb HMAC-SHA256 TCP RPC and mamba.pkg JSON Registry Index with SHA-256 verification."""
+        import json
+        import tempfile
+        from mamba.pkg.fetcher import compute_integrity
+        from mamba.pkg.manager import PackageManager
+
+        # 1. Distributed Actor Cluster showcase (JIT + PE32+ .exe)
+        cluster_file = os.path.abspath("examples/cluster_showcase.bmb")
+        with open(cluster_file, "r", encoding="utf-8") as cf:
+            c_src = cf.read()
+        c_ast = Parser.from_source(c_src, cluster_file).parse_module()
+        c_mir = MIRBuilder().build(c_ast, base_dir=os.path.dirname(cluster_file), filename=cluster_file)
+        jit_c = NativeJITModule(c_mir)
+        rc_c = jit_c.run_main()
+        out_c = jit_c.get_output()
+        jit_c.close()
+        self.assertEqual(rc_c, 0)
+        self.assertIn("completed:job:matmul_64x64", out_c)
+
+        # 2. Package Registry Index resolution + cryptographic tamper detection
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reg_pkg_dir = os.path.join(tmpdir, "reg_repo", "math_ext_100")
+            os.makedirs(os.path.join(reg_pkg_dir, "src"), exist_ok=True)
+            with open(os.path.join(reg_pkg_dir, "mamba.toml"), "w", encoding="utf-8") as mf:
+                mf.write('[package]\nname = "math_ext"\nversion = "1.2.0"\nentry = "src/lib.bmb"\n')
+            with open(os.path.join(reg_pkg_dir, "src", "lib.bmb"), "w", encoding="utf-8") as lf:
+                lf.write("def triple(x: i64) -> i64:\n    return x * 3\n")
+
+            real_hash = compute_integrity(reg_pkg_dir)
+            reg_index_path = os.path.join(tmpdir, "registry.json")
+            index_payload = {
+                "packages": {
+                    "math_ext": {
+                        "1.0.0": {"path": reg_pkg_dir, "integrity": real_hash},
+                        "1.2.0": {"path": reg_pkg_dir, "integrity": real_hash},
+                    },
+                    "tampered_pkg": {
+                        "1.0.0": {"path": reg_pkg_dir, "integrity": "sha256-0000000000000000"},
+                    },
+                }
+            }
+            with open(reg_index_path, "w", encoding="utf-8") as rf:
+                json.dump(index_payload, rf)
+
+            app_dir = os.path.join(tmpdir, "consumer_app")
+            mgr = PackageManager(app_dir)
+            mgr.init_project(app_dir, name="consumer_app")
+            locked = mgr.add_dependency("math_ext", registry=reg_index_path)
+            self.assertEqual(locked.version, "1.2.0")
+            self.assertEqual(locked.source, "registry")
+            self.assertEqual(locked.integrity, real_hash)
+            self.assertTrue(os.path.exists(os.path.join(app_dir, ".mamba", "packages", "math_ext", "src", "lib.bmb")))
+
+            with self.assertRaises(RuntimeError):
+                mgr.add_dependency("tampered_pkg", registry=reg_index_path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -127,8 +127,9 @@ class EmbeddedBareMetalBuilder:
         buf.emit(b"\x48\xBC" + struct.pack("<Q", self.stack_ptr), "mov rsp, stack_ptr")
         buf.emit(b"\x48\x31\xED", "xor rbp, rbp")
 
-        # Call main function
-        buf.call_label("fn__main")
+        # Call entry function
+        entry_fn = "__bmb_main__" if any(f.name == "__bmb_main__" for f in self.mir_module.functions) else "main"
+        buf.call_label(f"fn__{entry_fn}")
 
         # Post-main low power halt loop (cli; hlt; jmp $-2)
         buf.mark_label("lbl__halt_loop")
@@ -203,6 +204,15 @@ class EmbeddedBareMetalBuilder:
 
         buf.mark_label("fn____bmb_cpu_pause")
         buf.emit(b"\xF3\x90\x48\x31\xC0\xC3", "pause; xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_alloc_root_get")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_alloc_root_set")
+        buf.emit(b"\x48\x89\xC8\xC3", "mov rax, rcx; ret")
+
+        buf.mark_label("fn____bmb_exit")
+        buf.emit(b"\x48\x89\xC8\xF4\xC3", "mov rax, rcx; hlt; ret")
 
         # Mathematical Integer Power
         buf.mark_label("rt__pow_i64")
@@ -300,6 +310,7 @@ class EmbeddedBareMetalBuilder:
             "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
             "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
             "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
         ])
 
         # Compile all MIR functions

@@ -34,8 +34,9 @@ def _c_type(bmb_type: str) -> str:
 class C11Backend:
     """Compiles a MIRModule into portable, auto-vectorizable C11 source code."""
 
-    def __init__(self, mir_module: MIRModule):
+    def __init__(self, mir_module: MIRModule, debug: bool = False):
         self.mir_module = mir_module
+        self.debug = debug
 
     def emit_c(self) -> str:
         lines = [
@@ -98,6 +99,22 @@ class C11Backend:
             "    size_t nw = fwrite(content, 1, len, f);",
             "    fclose(f);",
             "    return (int64_t)nw;",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_file_write_bytes(const char* path, int64_t buf_ptr, int64_t length) {",
+            "    FILE* f = fopen(path, \"wb\");",
+            "    if (!f) return -1;",
+            "    size_t nw = (buf_ptr && length > 0) ? fwrite((const void*)(uintptr_t)buf_ptr, 1, (size_t)length, f) : 0;",
+            "    fclose(f);",
+            "    return (int64_t)nw;",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_file_read_bytes(const char* path, int64_t buf_ptr, int64_t max_len) {",
+            "    FILE* f = fopen(path, \"rb\");",
+            "    if (!f) return -1;",
+            "    size_t nr = (buf_ptr && max_len > 0) ? fread((void*)(uintptr_t)buf_ptr, 1, (size_t)max_len, f) : 0;",
+            "    fclose(f);",
+            "    return (int64_t)nr;",
             "}",
             "",
             "static inline int64_t bmb___bmb_file_remove(const char* path) {",
@@ -454,6 +471,11 @@ class C11Backend:
             "    bmb___bmb_alloc_root = val;",
             "    return val;",
             "}",
+            "static inline int64_t bmb___bmb_exit(int64_t code) {",
+            "    fflush(NULL);",
+            "    exit((int)code);",
+            "    return code;",
+            "}",
             "",
         ]
 
@@ -466,9 +488,11 @@ class C11Backend:
             lines.append("};")
             lines.append("")
 
+        entry_fn = "__bmb_main__" if any(f.name == "__bmb_main__" for f in self.mir_module.functions) else "main"
+
         # Forward declarations
         for fn in self.mir_module.functions:
-            if fn.name in ("main", "__bmb_main__"):
+            if fn.name == entry_fn:
                 continue
             ret_c = _c_type(fn.return_type)
             params_c = ", ".join(f"{_c_type(pt)} {_c_ident(pn)}" for pn, pt in fn.params) or "void"
@@ -478,6 +502,7 @@ class C11Backend:
 
         fn_names = {f.name for f in self.mir_module.functions} | {
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_write_bytes", "__bmb_file_read_bytes",
             "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
@@ -488,12 +513,12 @@ class C11Backend:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
         }
 
         # Function bodies
         for fn in self.mir_module.functions:
-            lines.append(self._emit_function(fn, fn_names))
+            lines.append(self._emit_function(fn, fn_names, entry_fn))
             lines.append("")
 
         return "\n".join(lines)
@@ -505,8 +530,8 @@ class C11Backend:
             f.write(c_src)
         return os.path.abspath(output_path)
 
-    def _emit_function(self, fn: MIRFunction, fn_names: set) -> str:
-        is_main = fn.name in ("main", "__bmb_main__")
+    def _emit_function(self, fn: MIRFunction, fn_names: set, entry_fn: str = "main") -> str:
+        is_main = fn.name == entry_fn
         c_name = "main" if is_main else f"bmb_{fn.name}"
         ret_c = "int" if is_main else _c_type(fn.return_type)
         params_c = "int argc, char** argv" if is_main else (
@@ -531,7 +556,13 @@ class C11Backend:
                 declared.add(ins.dst)
                 out.append(f"    {_c_type(ins.val_type)} {_c_ident(ins.dst)} = 0;")
 
+        last_dbg_line = 0
+        dbg_file = (self.mir_module.filename or "<input.bmb>").replace("\\", "/")
+
         for ins in fn.instructions:
+            if self.debug and getattr(ins, "line", 0) > 0 and ins.line != last_dbg_line:
+                last_dbg_line = ins.line
+                out.append(f'#line {last_dbg_line} "{dbg_file}"')
             op = ins.op
             dst = _c_ident(ins.dst) if ins.dst else ""
             a1 = _c_ident(str(ins.arg1)) if isinstance(ins.arg1, str) else ins.arg1
@@ -736,8 +767,6 @@ class LLVMIRBackend:
             llt = self._llvm_type(pt)
             out.append(f"  store {llt} %{pn}.arg, ptr %{pn}.slot, align 8")
 
-        out.append("  br label %__tco_entry")
-
         ssa_id = 0
 
         def next_ssa() -> str:
@@ -749,7 +778,9 @@ class LLVMIRBackend:
             op = ins.op
             if op == "LABEL":
                 lbl = str(ins.arg1).lstrip(".")
-                out.append(f"  br label %{lbl}")
+                prev = out[-1].strip() if out else ""
+                if not prev.startswith("br ") and not prev.startswith("ret "):
+                    out.append(f"  br label %{lbl}")
                 out.append(f"{lbl}:")
                 continue
             if op == "JMP":

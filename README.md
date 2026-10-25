@@ -7,25 +7,26 @@
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
 
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](file:///c:/Users/PC/Desktop/mamba/tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-30%2F30%20(100%25)-success?style=for-the-badge)](file:///c:/Users/PC/Desktop/mamba/tests/test_mamba.py)
-[![Speedup](https://img.shields.io/badge/speedup-12x%20--%2027.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](file:///c:/Users/PC/Desktop/mamba/README.md#-performance-black-mamba-vs-cpython-314)
-[![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](file:///c:/Users/PC/Desktop/mamba/README.md#-binary-footprint-the-lightweight-revolution)
-[![Targets](https://img.shields.io/badge/targets-Win64%20%7C%20Linux%20ELF64%20%7C%20macOS%20ARM64%20%7C%20WASM%201.0-blueviolet?style=for-the-badge)](file:///c:/Users/PC/Desktop/mamba/README.md#-multi-target-compilation-pipeline)
-[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](file:///c:/Users/PC/Desktop/mamba/LICENSE)
+[![Release](https://img.shields.io/badge/release-v1.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v1.0.0)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
+[![Test Suite](https://img.shields.io/badge/tests-44%2F44%20(100%25)-success?style=for-the-badge)](tests/test_mamba.py)
+[![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
+[![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
+[![Targets](https://img.shields.io/badge/targets-Win64%20%7C%20Linux%20ELF64%20%7C%20macOS%20ARM64%20%7C%20WASM%20%7C%20Bare--Metal-blueviolet?style=for-the-badge)](#-visual-architecture-cpython-vs-black-mamba)
+[![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 
 ---
 
-**Black Mamba** is an ultra-fast, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity.
+**Black Mamba (`v1.0.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity.
 
-Unlike **Mojo** (which forces Rust-like borrow checkers and bifurcates `def` vs `fn`) or **Nim** (which departs from Python syntax), Black Mamba preserves true Python syntax while compiling directly down to **bare-metal machine code**, **5.5 KB standalone Windows executables**, **3.9 KB static Linux binaries**, and **1.7 KB WebAssembly modules** with **zero external C compiler dependencies**.
+Unlike **Mojo** (which forces Rust-like borrow checkers and bifurcates `def` vs `fn`) or **Nim** (which departs from Python syntax), Black Mamba preserves true Python syntax while compiling directly down to **bare-metal machine code**, **5.5 KB standalone Windows executables**, **3.9 KB static Linux binaries**, **freestanding microcontroller firmware**, **drop-in `.pyd` Python C-extensions**, and **1.7 KB WebAssembly modules** with **zero external C compiler dependencies**.
 
 [⚡ Benchmarks](#-performance-black-mamba-vs-cpython-314) • 
 [🔬 Traditional Python vs Black Mamba](#-traditional-python-vs-black-mamba-side-by-side) • 
 [📐 Architecture](#-visual-architecture-cpython-vs-black-mamba) • 
 [💻 Flagship Code](#-language-showcase-examplesblack_mamba_flagshipbmb) • 
 [🎮 Web Demo](#-interactive-webassembly-canvas-demo) • 
-[📦 Standard Library](#-pure-native-standard-library-14-modules) • 
+[📦 Standard Library](#-pure-native-standard-library-26-modules) • 
 [🛠️ Quickstart](#️-quickstart--cli-guide)
 
 </div>
@@ -308,12 +309,19 @@ Try it yourself: open [`examples/web_game_canvas.html`](examples/web_game_canvas
 
 ---
 
-## 📦 Pure Native Standard Library (19 Modules)
+## 📦 Pure Native Standard Library (26 Modules)
 
-Black Mamba includes a comprehensive standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**:
+Black Mamba includes a comprehensive 26-module standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**:
 
 | Module | Description | Key Capabilities |
 | :--- | :--- | :--- |
+| [`codegen.bmb`](mamba/stdlib/codegen.bmb) | Self-Hosting PE32+ `.exe` Compiler | Pure `.bmb` Win64 x86-64 instruction encoder, AST codegen, and standalone PE32+ `.exe` linker (1.6 ms zero-Python compilation). |
+| [`compiler.bmb`](mamba/stdlib/compiler.bmb) | Native Lexer & Pratt Parser | Indentation-aware lexer (3.56M tokens/s), Top-Down Operator Precedence parser, and unified `ASTNode` engine. |
+| [`series.bmb`](mamba/stdlib/series.bmb) | Columnar Data & Analytics Engine | Apache Arrow contiguous layout (`SeriesInt`, `SeriesFloat`, `SeriesStr`, `DataFrame`), 79.2M rows/s scans, GroupBy, Hash Join. |
+| [`alloc.bmb`](mamba/stdlib/alloc.bmb) | Thread-Local Slab Allocator | Mimalloc-inspired thread-isolated slab bins (16B–4KB), `ObjectPool`, `Arena`, zero lock contention across CPU cores. |
+| [`embedded.bmb`](mamba/stdlib/embedded.bmb) | Bare-Metal & Microcontroller HAL | Volatile 32/8-bit MMIO registers, `GpioPort`, `UartDevice`, `SysTimer`, `PIDController` (65.7M ticks/s), `RingBuffer`. |
+| [`cluster.bmb`](mamba/stdlib/cluster.bmb) | Distributed Actor Cluster & RPC | Multi-node TCP actor message framing with RFC 2104 `HMAC-SHA256` signature authentication and RPC dispatch. |
+| [`debug.bmb`](mamba/stdlib/debug.bmb) | Native Symbolic Diagnostics | Source-line trace helpers, hardware fault triggers, and assertions paired with `--debug` (`RSDS` / COFF / DWARF v4). |
 | [`simd.bmb`](mamba/stdlib/simd.bmb) | Hardware SIMD & AVX2 Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), `Vec4i`, FMA, 8-way unrolled bulk array kernels, GEMM tiling, audio DSP. |
 | [`http.bmb`](mamba/stdlib/http.bmb) | High-Throughput HTTP & WebSockets | Complete HTTP/1.1 parser, query parameters, response builders, router dispatch, RFC 6455 WebSocket handshake & framing (8.2M req/s). |
 | [`math.bmb`](mamba/stdlib/math.bmb) | High-Precision Minimax Math | 7-term Chebyshev/Taylor trig (`sin`, `cos`, `tan`, `atan2`), hyperbolic, exp/log, `hypot`, `clamp`, `lerp`. |
@@ -322,7 +330,7 @@ Black Mamba includes a comprehensive standard library written in pure `.bmb` tha
 | [`tensor.bmb`](mamba/stdlib/tensor.bmb) | Native Linear Algebra & Tensors | 1D vector reductions (sum, dot, norm), neural activations (ReLU, Sigmoid), 2D matrix multiplication (`GEMM`). |
 | [`json.bmb`](mamba/stdlib/json.bmb) | Native JSON Parser & Serializer | Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters, fast stringification (`json_dumps`). |
 | [`hash.bmb`](mamba/stdlib/hash.bmb) | Cryptographic & Fast Hashers | SHA-256 (NIST FIPS 180-4), HMAC-SHA256, MurmurHash3 (32-bit x86 mixer), FNV-1a, high-speed hex encoders. |
-| [`os.bmb`](mamba/stdlib/os.bmb) | File System & OS Primitives | File operations (`read_file`, `write_file`, `file_size`), environment access, zero-allocation path manipulation. |
+| [`os.bmb`](mamba/stdlib/os.bmb) | File System, Binary I/O & OS | Text & binary file I/O (`read_file`, `write_file`, `read_bytes`, `write_bytes`), env/cwd access, process exit, path manipulation. |
 | [`socket.bmb`](mamba/stdlib/socket.bmb) | Native TCP/UDP Sockets | Full socket API (`socket_create`, `connect`, `bind`, `listen`, `accept`, `send`, `recv`), HTTP client helpers. |
 | [`array.bmb`](mamba/stdlib/array.bmb) | Growable Vectors & Slices | Dynamic vectors (`IntVector`, `FloatVector`, `StrVector`), negative indexing, in-place quicksort, binary search. |
 | [`thread.bmb`](mamba/stdlib/thread.bmb) | Hardware Multithreading | Multi-core thread spawning, atomic memory operations (`atomic_cas`, `atomic_add`), `SpinLock`, `Mutex`, `par_for`. |
@@ -384,7 +392,7 @@ Launch an instant terminal REPL running on bare-metal x86-64 machine code with c
 
 ```
 $ python bmb.py repl
-Black Mamba (.bmb) v0.1.0 Interactive Native JIT REPL
+Black Mamba (.bmb) v1.0.0 Interactive Native JIT REPL
 Type :help for compiler inspection commands, :exit to quit.
 
 bmb >>> x = 40 + 2
@@ -408,12 +416,13 @@ Full Language Server Protocol (LSP 3.17) daemon providing:
 * Go to Definition (`F12`) and Document Symbol Outline (`Shift+Ctrl+O`).
 * Canonical 4-space code formatter (`Shift+Alt+F`).
 
-### 3. Decentralized Package Manager (`bmb pkg`)
-Manage dependencies with reproducible cryptographic lockfiles (`mamba.lock`) and SHA-256 integrity checks:
+### 3. Decentralized & Registry Package Manager (`bmb pkg`)
+Manage dependencies via Git, local paths, or federated JSON registry indexes (`--registry` / `MAMBA_REGISTRY`) with reproducible cryptographic lockfiles (`mamba.lock`) and SHA-256 integrity checks:
 ```bash
 python bmb.py pkg init my_app --bin
-python bmb.py pkg add https://github.com/user/neural-net.git --tag v1.0.0
-python bmb.py pkg install
+python bmb.py pkg add neural_net --registry https://registry.example.com/index.json
+python bmb.py pkg add https://github.com/user/fast-dsp.git --tag v1.0.0
+python bmb.py pkg install --frozen
 python bmb.py pkg run
 ```
 
@@ -432,8 +441,8 @@ python bmb.py doc mamba/stdlib -o docs/api --open
 git clone https://github.com/kicode01/blackmamba-lang.git
 cd blackmamba-lang
 
-# Run test suite (30/30 tests pass in < 3 seconds)
-python -m unittest discover tests
+# Run full test suite (44/44 unit & integration tests pass)
+python -m unittest discover -s tests -v
 ```
 
 ### 2. Run Instantly via JIT
@@ -441,18 +450,19 @@ python -m unittest discover tests
 python bmb.py run examples/black_mamba_flagship.bmb --stats
 ```
 
-### 3. Build Standalone Binaries Across All Targets
+### 3. Build Standalone Binaries & Debug Symbols Across All Targets
 ```bash
-python bmb.py build examples/black_mamba_flagship.bmb --target all
+python bmb.py build examples/black_mamba_flagship.bmb --target all --debug
 ```
 * Generates:
-  * `build/black_mamba_flagship.exe` (Standalone Windows x86-64 executable with SEH unwind tables)
-  * `build/black_mamba_flagship.elf` (Static Linux x86-64 binary using direct kernel syscalls)
+  * `build/black_mamba_flagship.exe` (Standalone Windows x86-64 executable with SEH unwind tables, CodeView `RSDS`, COFF symbols, and symbolic line-mapped crash reports)
+  * `build/black_mamba_flagship.elf` (Static Linux x86-64 binary with `.symtab` and DWARF v4 `.debug_line` tables)
   * `build/black_mamba_flagship.macho` (Standalone macOS Apple Silicon ARM64 binary)
   * `build/black_mamba_flagship.wasm` (WebAssembly 1.0 binary module for browser / node)
   * `build/black_mamba_flagship.wat` (Human-readable WebAssembly text format)
-  * `build/black_mamba_flagship.c` (Portable ANSI C11 + OpenMP SIMD source)
+  * `build/black_mamba_flagship.c` (Portable ANSI C11 + `#line` source mappings + OpenMP SIMD)
   * `build/black_mamba_flagship.ll` (Standard LLVM IR)
+  * Also supports `--target ext` / `--target pyd` (zero-compiler Python C-extension) and `--target embedded` / `bin` / `hex` (freestanding microcontroller firmware).
 
 ### 4. Run Benchmarks
 ```bash

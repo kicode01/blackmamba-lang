@@ -7,9 +7,10 @@ Directly emits a zero-dependency 64-bit Windows PE32+ executable (.exe) containi
 - .rsrc   (RVA 0x3000): Standard PE32+ Resource Directory (RT_VERSION + RT_MANIFEST) verifiable via REA
 """
 
+import hashlib
 import os
 import struct
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from ..mir import MIRFunction, MIRModule
 from .x86_64_jit import X86_64CodeBuffer
 
@@ -42,8 +43,9 @@ def _align(val: int, alignment: int) -> int:
 class PE32PlusExecutableBuilder:
     """Compiles a MIRModule directly into a standalone Windows x86-64 PE32+ (.exe) binary."""
 
-    def __init__(self, mir_module: MIRModule):
+    def __init__(self, mir_module: MIRModule, debug: bool = False):
         self.mir_module = mir_module
+        self.debug = debug
         self.code_buf = X86_64CodeBuffer()
         self.string_rvas: Dict[int, int] = {}
         self.iat_rvas: Dict[str, int] = {}
@@ -53,6 +55,8 @@ class PE32PlusExecutableBuilder:
         self.idt_size: int = 0
         self.func_entries: List[Tuple[int, int, str, int]] = []
         self.pdata_table_size: int = 0
+        self.debug_dir_rva: int = 0
+        self.debug_dir_size: int = 0
 
     def _encode_unwind_info(self, kind: str, frame_size: int) -> bytes:
         if kind == "leaf":
@@ -130,24 +134,77 @@ class PE32PlusExecutableBuilder:
 
         return bytes(pdata_buf)
 
+    def _extract_line_spans(self) -> List[Tuple[int, int, int, str]]:
+        """Builds contiguous (begin_rva, end_rva, line_no, func_name) spans from X86_64CodeBuffer."""
+        spans: List[Tuple[int, int, int, str]] = []
+        for f_start, f_end, fn_name, start_line in self.code_buf.func_ranges:
+            pts = sorted(
+                [(off, ln) for (off, fn_n, ln) in self.code_buf.line_map if fn_n == fn_name and f_start <= off < f_end],
+                key=lambda x: x[0],
+            )
+            if not pts or pts[0][0] > f_start:
+                pts.insert(0, (f_start, start_line))
+            # Deduplicate identical offsets (keep last line update at same offset)
+            dedup: List[Tuple[int, int]] = []
+            for off, ln in pts:
+                if dedup and dedup[-1][0] == off:
+                    dedup[-1] = (off, ln)
+                else:
+                    dedup.append((off, ln))
+            for idx, (off, ln) in enumerate(dedup):
+                end_off = dedup[idx + 1][0] if idx + 1 < len(dedup) else f_end
+                if end_off > off:
+                    spans.append((TEXT_RVA + off, TEXT_RVA + end_off, ln, fn_name))
+        return spans
+
+    def _build_coff_symbol_table(self) -> Tuple[bytes, int]:
+        """Builds COFF Symbol Table (18-byte IMAGE_SYMBOL entries) + COFF String Table."""
+        symbols: List[Tuple[str, int]] = [("_start", self.code_buf.labels.get("_start", 0))]
+        for f_start, _f_end, fn_name, _start_line in self.code_buf.func_ranges:
+            symbols.append((fn_name, f_start))
+
+        sym_buf = bytearray()
+        str_table = bytearray(b"\x00\x00\x00\x00")  # placeholder for 4-byte total size
+
+        for name, val_off in symbols:
+            raw_name = name.encode("utf-8")
+            if len(raw_name) <= 8:
+                name_field = raw_name.ljust(8, b"\x00")
+            else:
+                str_off = len(str_table)
+                str_table.extend(raw_name + b"\x00")
+                name_field = struct.pack("<II", 0, str_off)
+            # IMAGE_SYMBOL: 8s Name, uint32 Value, int16 SectionNumber (1 = .text), uint16 Type (0x20 = function), uint8 StorageClass (2 = external), uint8 NumberOfAuxSymbols (0)
+            sym_buf.extend(struct.pack("<8sIHHBB", name_field, val_off, 1, 0x0020, 2, 0))
+
+        struct.pack_into("<I", str_table, 0, len(str_table))
+        return bytes(sym_buf) + bytes(str_table), len(symbols)
+
     def build_bytes(self) -> bytes:
-        rdata_raw = self._build_rdata_section()
-        text_raw = self._build_text_section()
+        # Pass 1: discover exact .text size, function ranges, and source line spans
+        self._build_rdata_section(base_rva=RDATA_RVA, rdata_file_offset=0, line_spans=None)
+        text_raw = self._build_text_section(rdata_base_rva=RDATA_RVA)
+        line_spans = self._extract_line_spans()
 
         text_virtual_size = len(text_raw)
         text_file_size = _align(text_virtual_size, 0x200)
         text_pages = _align(max(text_virtual_size, 1), 0x1000)
-
         rdata_rva = TEXT_RVA + text_pages
-        # Because TEXT_RVA is 0x1000, if .text <= 4096 bytes, rdata_rva == 0x2000.
-        # If .text > 4096 bytes, rebuild with adjusted rdata_rva.
-        if rdata_rva != RDATA_RVA:
-            rdata_raw = self._build_rdata_section(base_rva=rdata_rva)
-            text_raw = self._build_text_section(rdata_base_rva=rdata_rva)
-            text_virtual_size = len(text_raw)
-            text_file_size = _align(text_virtual_size, 0x200)
-            text_pages = _align(max(text_virtual_size, 1), 0x1000)
-            rdata_rva = TEXT_RVA + text_pages
+
+        size_of_headers = 0x400
+        text_file_offset = size_of_headers
+        rdata_file_offset = text_file_offset + text_file_size
+
+        # Pass 2: build .rdata with exact rdata_rva, rdata_file_offset, line_spans, and optional CodeView RSDS
+        rdata_raw = self._build_rdata_section(
+            base_rva=rdata_rva,
+            rdata_file_offset=rdata_file_offset,
+            line_spans=line_spans,
+        )
+        text_raw = self._build_text_section(rdata_base_rva=rdata_rva)
+        text_virtual_size = len(text_raw)
+        text_file_size = _align(text_virtual_size, 0x200)
+        text_pages = _align(max(text_virtual_size, 1), 0x1000)
 
         rdata_virtual_size = len(rdata_raw)
         rdata_file_size = _align(rdata_virtual_size, 0x200)
@@ -166,12 +223,16 @@ class PE32PlusExecutableBuilder:
         rsrc_pages = _align(max(rsrc_virtual_size, 1), 0x1000)
 
         size_of_image = rsrc_rva + rsrc_pages
-        size_of_headers = 0x400
 
-        text_file_offset = 0x400
-        rdata_file_offset = text_file_offset + text_file_size
         pdata_file_offset = rdata_file_offset + rdata_file_size
         rsrc_file_offset = pdata_file_offset + pdata_file_size
+
+        coff_tail = b""
+        ptr_to_symtab = 0
+        num_symbols = 0
+        if self.debug:
+            ptr_to_symtab = rsrc_file_offset + rsrc_file_size
+            coff_tail, num_symbols = self._build_coff_symbol_table()
 
         headers = self._build_pe_headers(
             text_virtual_size=text_virtual_size,
@@ -191,6 +252,8 @@ class PE32PlusExecutableBuilder:
             rsrc_file_offset=rsrc_file_offset,
             size_of_image=size_of_image,
             size_of_headers=size_of_headers,
+            ptr_to_symtab=ptr_to_symtab,
+            num_symbols=num_symbols,
         )
 
         out = bytearray()
@@ -199,6 +262,8 @@ class PE32PlusExecutableBuilder:
         out.extend(rdata_raw.ljust(rdata_file_size, b"\x00"))
         out.extend(pdata_raw.ljust(pdata_file_size, b"\x00"))
         out.extend(rsrc_raw.ljust(rsrc_file_size, b"\x00"))
+        if coff_tail:
+            out.extend(coff_tail)
         return bytes(out)
 
     def write_executable(self, output_path: str) -> str:
@@ -208,10 +273,17 @@ class PE32PlusExecutableBuilder:
             f.write(pe_bytes)
         return os.path.abspath(output_path)
 
-    def _build_rdata_section(self, base_rva: int = RDATA_RVA) -> bytes:
+    def _build_rdata_section(
+        self,
+        base_rva: int = RDATA_RVA,
+        rdata_file_offset: int = 0,
+        line_spans: Optional[List[Tuple[int, int, int, str]]] = None,
+    ) -> bytes:
         self.iat_rvas = {}
         self.builtin_rvas = {}
         self.string_rvas = {}
+        self.debug_dir_rva = 0
+        self.debug_dir_size = 0
 
         imports_spec = [
             (
@@ -297,6 +369,8 @@ class PE32PlusExecutableBuilder:
             ("fmt_seh_access", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Access Violation (0xC0000005) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
             ("fmt_seh_stack", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Stack Overflow (0xC00000FD) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
             ("fmt_seh_generic", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Exception 0x%08X at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
+            ("fmt_seh_loc", b"  -> in function '%s' (%s:%u)\n\x00"),
+            ("sym_file", os.path.basename(self.mir_module.filename or "<input.bmb>").encode("utf-8") + b"\x00"),
         ]
         builtin_offsets = {}
         for b_name, b_bytes in builtins_spec:
@@ -310,6 +384,38 @@ class PE32PlusExecutableBuilder:
             cur_off = _align(cur_off, 8)
             string_pool_offsets[idx] = cur_off
             cur_off += len(s.encode("utf-8")) + 1
+
+        # Embedded Symbolic Line Table for SEH Hardware Fault Diagnostics
+        spans = line_spans or []
+        fn_name_offsets: Dict[str, int] = {}
+        for _b_rva, _e_rva, _ln, fn_n in spans:
+            if fn_n not in fn_name_offsets:
+                cur_off = _align(cur_off, 2)
+                fn_name_offsets[fn_n] = cur_off
+                cur_off += len(fn_n.encode("utf-8")) + 1
+
+        cur_off = _align(cur_off, 8)
+        sym_table_off = cur_off
+        builtin_offsets["sym_table"] = sym_table_off
+        cur_off += (len(spans) + 1) * 16
+
+        # Optional PE32+ IMAGE_DEBUG_DIRECTORY + CodeView RSDS Debug Info
+        debug_dir_off = 0
+        cv_off = 0
+        cv_record = b""
+        if self.debug:
+            src_base = os.path.splitext(os.path.basename(self.mir_module.filename or "mamba"))[0]
+            pdb_bytes = f"{src_base}.pdb".encode("utf-8") + b"\x00"
+            guid_bytes = hashlib.sha256(src_base.encode("utf-8")).digest()[:16]
+            cv_record = b"RSDS" + guid_bytes + struct.pack("<I", 1) + pdb_bytes
+            cur_off = _align(cur_off, 8)
+            debug_dir_off = cur_off
+            cur_off += 28  # sizeof(IMAGE_DEBUG_DIRECTORY)
+            cur_off = _align(cur_off, 4)
+            cv_off = cur_off
+            cur_off += len(cv_record)
+            self.debug_dir_rva = base_rva + debug_dir_off
+            self.debug_dir_size = 28
 
         total_rdata_len = _align(cur_off, 0x200)
         buf = bytearray(total_rdata_len)
@@ -362,6 +468,31 @@ class PE32PlusExecutableBuilder:
             off = string_pool_offsets[idx]
             s_bytes = s.encode("utf-8") + b"\x00"
             buf[off : off + len(s_bytes)] = s_bytes
+
+        for fn_n, off in fn_name_offsets.items():
+            nb = fn_n.encode("utf-8") + b"\x00"
+            buf[off : off + len(nb)] = nb
+
+        for s_idx, (b_rva, e_rva, ln, fn_n) in enumerate(spans):
+            name_rva = base_rva + fn_name_offsets[fn_n]
+            struct.pack_into("<IIII", buf, sym_table_off + s_idx * 16, b_rva, e_rva, ln, name_rva)
+
+        if self.debug:
+            # IMAGE_DEBUG_DIRECTORY: Characteristics=0, TimeDateStamp=0, Major=0, Minor=0, Type=2 (CODEVIEW), SizeOfData, AddressOfRawData, PointerToRawData
+            struct.pack_into(
+                "<IIHHIIII",
+                buf,
+                debug_dir_off,
+                0,
+                0,
+                0,
+                0,
+                2,
+                len(cv_record),
+                base_rva + cv_off,
+                rdata_file_offset + cv_off,
+            )
+            buf[cv_off : cv_off + len(cv_record)] = cv_record
 
         return bytes(buf)
 
@@ -420,11 +551,11 @@ class PE32PlusExecutableBuilder:
         self._emit_call_iat(self.iat_rvas["AddVectoredExceptionHandler"], "KERNEL32!AddVectoredExceptionHandler")
 
         buf.call_label(f"fn__{entry_fn}")
-        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")       # save exit code
+        buf.emit(b"\x48\x89\xC3", "mov rbx, rax ; save exit code across fflush")
         # Flush stdout via fflush(NULL)
         buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
         self._emit_call_iat(self.iat_rvas["fflush"], "msvcrt!fflush")
-        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        buf.emit(b"\x48\x89\xD9", "mov rcx, rbx ; restore exit code")
         self._emit_call_iat(self.iat_rvas["ExitProcess"], "KERNEL32!ExitProcess")
         buf.ret()
         self.func_entries.append((f_start, len(buf.code), "start", 0x28))
@@ -490,6 +621,43 @@ class PE32PlusExecutableBuilder:
         buf.jmp_label("rt__seh_exit")
 
         buf.mark_label("rt__seh_exit")
+        # Symbolic ASLR-aware source line resolution via embedded .rdata sym_table
+        img_off = len(buf.code)
+        img_next_rva = TEXT_RVA + img_off + 7
+        buf.emit(b"\x4C\x8D\x15" + struct.pack("<i", -img_next_rva), "lea r10, [rip - next_rva] ; runtime ImageBase")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10] ; ExceptionAddress")
+        buf.emit(b"\x4C\x29\xD0", "sub rax, r10 ; fault_rva")
+
+        sym_off = len(buf.code)
+        sym_rel32 = self.builtin_rvas["sym_table"] - (TEXT_RVA + sym_off + 7)
+        buf.emit(b"\x4C\x8D\x1D" + struct.pack("<i", sym_rel32), "lea r11, [rip + sym_table]")
+
+        buf.mark_label("rt__seh_sym_loop")
+        buf.emit(b"\x41\x8B\x0B", "mov ecx, dword ptr [r11] ; begin_rva")
+        buf.emit(b"\x41\x8B\x53\x04", "mov edx, dword ptr [r11 + 4] ; end_rva")
+        buf.emit(b"\x85\xD2", "test edx, edx")
+        buf.jcc_rel32(0x84, "z", "rt__seh_flush")
+        buf.emit(b"\x48\x39\xC8", "cmp rax, rcx")
+        buf.jcc_rel32(0x82, "b", "rt__seh_sym_next")
+        buf.emit(b"\x48\x39\xD0", "cmp rax, rdx")
+        buf.jcc_rel32(0x83, "ae", "rt__seh_sym_next")
+
+        # Match found: printf(fmt_seh_loc, fn_name, sym_file, line_no)
+        buf.emit(b"\x45\x8B\x4B\x08", "mov r9d, dword ptr [r11 + 8] ; line_no")
+        buf.emit(b"\x41\x8B\x53\x0C", "mov edx, dword ptr [r11 + 12] ; name_rva")
+        buf.emit(b"\x4C\x01\xD2", "add rdx, r10 ; fn_name ptr")
+        file_off = len(buf.code)
+        file_rel32 = self.builtin_rvas["sym_file"] - (TEXT_RVA + file_off + 7)
+        buf.emit(b"\x4C\x8D\x05" + struct.pack("<i", file_rel32), "lea r8, [rip + sym_file]")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_seh_loc"], "fmt_seh_loc")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
+        buf.jmp_label("rt__seh_flush")
+
+        buf.mark_label("rt__seh_sym_next")
+        buf.emit(b"\x49\x83\xC3\x10", "add r11, 16")
+        buf.jmp_label("rt__seh_sym_loop")
+
+        buf.mark_label("rt__seh_flush")
         buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
         self._emit_call_iat(self.iat_rvas["fflush"], "msvcrt!fflush")
         buf.emit(b"\x8B\x4D\xF8", "mov ecx, [rbp - 0x08]")
@@ -1455,13 +1623,92 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
         buf.emit(b"\x4C\x8B\x4D\xE8", "mov r9, [rbp - 0x18]")
         self._emit_call_iat(self.iat_rvas["fwrite"], "msvcrt!fwrite")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; written")
         buf.emit(b"\x48\x8B\x4D\xE8", "mov rcx, [rbp - 0x18]")
         self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
-        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
         buf.jmp_label("rt__fw_done")
         buf.mark_label("rt__fw_err")
-        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
         buf.mark_label("rt__fw_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x60))
+
+        # fn____bmb_file_write_bytes(rcx=path, rdx=buf_ptr, r8=length) -> rax=written
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_file_write_bytes")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x60)
+        buf.emit(b"\x48\x89\x55\xE8", "mov [rbp - 0x18], rdx ; buf_ptr")
+        buf.emit(b"\x4C\x89\x45\xE0", "mov [rbp - 0x20], r8  ; length")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fwb_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__fwb_ptr")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_wb"], "str_wb")
+        self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__fwb_err")
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; FILE*")
+        buf.emit(b"\x48\x8B\x4D\xE8", "mov rcx, [rbp - 0x18] ; buf_ptr")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1 ; elem_size")
+        buf.emit(b"\x4C\x8B\x45\xE0", "mov r8, [rbp - 0x20] ; length")
+        buf.emit(b"\x4C\x8B\x4D\xD8", "mov r9, [rbp - 0x28] ; FILE*")
+        self._emit_call_iat(self.iat_rvas["fwrite"], "msvcrt!fwrite")
+        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax ; written")
+        buf.emit(b"\x48\x8B\x4D\xD8", "mov rcx, [rbp - 0x28] ; FILE*")
+        self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
+        buf.emit(b"\x48\x8B\x45\xD0", "mov rax, [rbp - 0x30]")
+        buf.jmp_label("rt__fwb_done")
+        buf.mark_label("rt__fwb_err")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.mark_label("rt__fwb_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x60))
+
+        # fn____bmb_file_read_bytes(rcx=path, rdx=buf_ptr, r8=max_len) -> rax=read_count
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_file_read_bytes")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x60)
+        buf.emit(b"\x48\x89\x55\xE8", "mov [rbp - 0x18], rdx ; buf_ptr")
+        buf.emit(b"\x4C\x89\x45\xE0", "mov [rbp - 0x20], r8  ; max_len")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__frb_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__frb_ptr")
+        self._emit_lea_rdx_rva(self.builtin_rvas["str_rb"], "str_rb")
+        self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x84, "z", "rt__frb_err")
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; FILE*")
+        buf.emit(b"\x48\x8B\x4D\xE8", "mov rcx, [rbp - 0x18] ; buf_ptr")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1 ; elem_size")
+        buf.emit(b"\x4C\x8B\x45\xE0", "mov r8, [rbp - 0x20] ; max_len")
+        buf.emit(b"\x4C\x8B\x4D\xD8", "mov r9, [rbp - 0x28] ; FILE*")
+        self._emit_call_iat(self.iat_rvas["fread"], "msvcrt!fread")
+        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax ; read_count")
+        buf.emit(b"\x48\x8B\x4D\xD8", "mov rcx, [rbp - 0x28] ; FILE*")
+        self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
+        buf.emit(b"\x48\x8B\x45\xD0", "mov rax, [rbp - 0x30]")
+        buf.jmp_label("rt__frb_done")
+        buf.mark_label("rt__frb_err")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.mark_label("rt__frb_done")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
@@ -1528,7 +1775,29 @@ class PE32PlusExecutableBuilder:
         self._emit_call_iat(self.iat_rvas["getenv"], "msvcrt!getenv")
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x84, "z", "rt__ge_empty")
-        buf.jmp_label("rt__ge_done")
+        # Copy into 16-byte heap-aligned buffer so low bit is guaranteed 0 (never collides with SSO tag)
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
+        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        buf.mark_label("rt__ge_len_loop")
+        buf.emit(b"\x80\x3C\x08\x00", "cmp byte ptr [rax + rcx], 0")
+        buf.jcc_rel32(0x84, "z", "rt__ge_len_done")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.jmp_label("rt__ge_len_loop")
+        buf.mark_label("rt__ge_len_done")
+        buf.emit(b"\x48\x89\x4D\xE0", "mov [rbp - 0x20], rcx")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
+        buf.emit(b"\x48\x8B\x4D\xE0", "mov rcx, [rbp - 0x20]")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
+        buf.mark_label("rt__ge_cpy_loop")
+        buf.emit(b"\x49\x39\xC9", "cmp r9, rcx")
+        buf.jcc_rel32(0x8D, "ge", "rt__ge_done")
+        buf.emit(b"\x43\x8A\x14\x08", "mov dl, [r8 + r9]")
+        buf.emit(b"\x42\x88\x14\x08", "mov [rax + r9], dl")
+        buf.emit(b"\x49\xFF\xC1", "inc r9")
+        buf.jmp_label("rt__ge_cpy_loop")
         buf.mark_label("rt__ge_empty")
         self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
         buf.mark_label("rt__ge_done")
@@ -1536,6 +1805,21 @@ class PE32PlusExecutableBuilder:
         buf.pop_rbp()
         buf.ret()
         self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_exit")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx")
+        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        self._emit_call_iat(self.iat_rvas["fflush"], "msvcrt!fflush")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        self._emit_call_iat(self.iat_rvas["ExitProcess"], "KERNEL32!ExitProcess")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
         # Socket primitives
         f_start = len(buf.code)
@@ -1601,6 +1885,7 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x8D\x55\xD0", "lea rdx, [rbp - 0x30]")
         buf.emit(b"\x49\xC7\xC0\x10\x00\x00\x00", "mov r8, 16")
         self._emit_call_iat(self.iat_rvas["connect"], "ws2_32!connect")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
@@ -1646,6 +1931,7 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x8D\x55\xD0", "lea rdx, [rbp - 0x30]")
         buf.emit(b"\x49\xC7\xC0\x10\x00\x00\x00", "mov r8, 16")
         self._emit_call_iat(self.iat_rvas["bind"], "ws2_32!bind")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
@@ -1657,6 +1943,7 @@ class PE32PlusExecutableBuilder:
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x30)
         self._emit_call_iat(self.iat_rvas["listen"], "ws2_32!listen")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
@@ -1667,6 +1954,8 @@ class PE32PlusExecutableBuilder:
         buf.push_rbp()
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx ; addr = NULL")
+        buf.emit(b"\x4D\x31\xC0", "xor r8, r8   ; addrlen = NULL")
         self._emit_call_iat(self.iat_rvas["accept"], "ws2_32!accept")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
@@ -1707,6 +1996,7 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
         buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
         self._emit_call_iat(self.iat_rvas["send"], "ws2_32!send")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
@@ -1729,6 +2019,7 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x4C\x8B\x45\xF0", "mov r8, [rbp - 0x10]")
         buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
         self._emit_call_iat(self.iat_rvas["recv"], "ws2_32!recv")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
         buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; n_bytes")
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x8E, "le", "rt__sock_recv_empty")
@@ -1988,6 +2279,7 @@ class PE32PlusExecutableBuilder:
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_write_bytes", "__bmb_file_read_bytes",
             "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
@@ -1998,7 +2290,7 @@ class PE32PlusExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
         ])
 
         # Compile MIR functions
@@ -2061,6 +2353,8 @@ class PE32PlusExecutableBuilder:
         rsrc_file_offset: int,
         size_of_image: int,
         size_of_headers: int,
+        ptr_to_symtab: int = 0,
+        num_symbols: int = 0,
     ) -> bytes:
         hdr = bytearray(size_of_headers)
         # DOS Header
@@ -2073,13 +2367,13 @@ class PE32PlusExecutableBuilder:
             "<HHIIIHH",
             hdr,
             0x84,
-            0x8664,  # Machine: IMAGE_FILE_MACHINE_AMD64
-            4,       # NumberOfSections: .text, .rdata, .pdata, .rsrc
-            0,       # TimeDateStamp
-            0,       # PointerToSymbolTable
-            0,       # NumberOfSymbols
-            0xF0,    # SizeOfOptionalHeader (240 bytes for PE32+)
-            0x0022,  # Characteristics: EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE
+            0x8664,         # Machine: IMAGE_FILE_MACHINE_AMD64
+            4,              # NumberOfSections: .text, .rdata, .pdata, .rsrc
+            0,              # TimeDateStamp
+            ptr_to_symtab,  # PointerToSymbolTable
+            num_symbols,    # NumberOfSymbols
+            0xF0,           # SizeOfOptionalHeader (240 bytes for PE32+)
+            0x0022,         # Characteristics: EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE
         )
 
         # Optional Header PE32+ at 0x98 (240 bytes -> ends at 0x188)
@@ -2127,6 +2421,9 @@ class PE32PlusExecutableBuilder:
         struct.pack_into("<II", hdr, dd_off + 2 * 8, rsrc_rva, rsrc_virtual_size)
         # DataDirectory[3] = Exception Table (.pdata) (RVA = pdata_rva, Size = self.pdata_table_size)
         struct.pack_into("<II", hdr, dd_off + 3 * 8, pdata_rva, self.pdata_table_size)
+        # DataDirectory[6] = Debug Directory (IMAGE_DIRECTORY_ENTRY_DEBUG) when --debug / -g is enabled
+        if self.debug and self.debug_dir_rva:
+            struct.pack_into("<II", hdr, dd_off + 6 * 8, self.debug_dir_rva, self.debug_dir_size)
         # DataDirectory[12] = IAT (RVA = self.iat_start_rva, Size = self.iat_total_size)
         struct.pack_into("<II", hdr, dd_off + 12 * 8, self.iat_start_rva, self.iat_total_size)
 

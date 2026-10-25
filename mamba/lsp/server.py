@@ -43,6 +43,7 @@ class LanguageServer:
 
         # 1. Lifecycle: initialize
         if method == "initialize":
+            from .. import __version__
             res = {
                 "capabilities": {
                     "textDocumentSync": 1,  # 1 = Full sync
@@ -57,7 +58,7 @@ class LanguageServer:
                 },
                 "serverInfo": {
                     "name": "bmb-lsp",
-                    "version": "0.1.0",
+                    "version": __version__,
                 },
             }
             write_message(self.out_stream, make_response(msg_id, res))

@@ -350,6 +350,9 @@ class TypeInferencer:
             expr.inferred_type = "str"
             return "str"
         if isinstance(expr, Var):
+            if expr.name in ("__name__", "__file__"):
+                expr.inferred_type = "str"
+                return "str"
             t = env.get(expr.name) or self.global_vars.get(expr.name, "i64")
             expr.inferred_type = t
             return t
@@ -454,8 +457,8 @@ class TypeInferencer:
             arg_types = [self._infer_expr(a, env) for a in expr.args]
             # Built-in functions
             if expr.func in (
-                "int", "i64", "abs", "len", "ord", "min", "max", "clock_ns",
-                "__bmb_file_size", "__bmb_file_write",
+                "int", "i64", "abs", "len", "ord", "min", "max", "clock_ns", "exit", "__bmb_exit",
+                "__bmb_file_size", "__bmb_file_write", "__bmb_file_write_bytes", "__bmb_file_read_bytes",
                 "__bmb_socket_init", "__bmb_socket_create", "__bmb_socket_connect",
                 "__bmb_socket_bind", "__bmb_socket_listen", "__bmb_socket_accept",
                 "__bmb_socket_send", "__bmb_socket_close", "__bmb_socket_cleanup",
@@ -464,6 +467,7 @@ class TypeInferencer:
                 "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
                 "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
                 "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+                "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
                 "__bmb_alloc_root_get", "__bmb_alloc_root_set",
             ):
                 if expr.func in ("abs", "min", "max") and any(t == "f64" for t in arg_types):

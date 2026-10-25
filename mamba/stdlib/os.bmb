@@ -28,6 +28,16 @@ def append_file(path: str, content: str) -> i64:
     # Appends content to path. Returns number of bytes written, or -1 on error.
     return __bmb_file_write(path, content, 1)
 
+def write_bytes(path: str, buf_ptr: i64, length: i64) -> i64:
+    # Writes exactly length raw bytes from memory address buf_ptr to path (binary mode).
+    # Returns number of bytes written, or -1 on error.
+    return __bmb_file_write_bytes(path, buf_ptr, length)
+
+def read_bytes(path: str, buf_ptr: i64, max_len: i64) -> i64:
+    # Reads up to max_len raw bytes from path into memory address buf_ptr (binary mode).
+    # Returns number of bytes read, or -1 on error.
+    return __bmb_file_read_bytes(path, buf_ptr, max_len)
+
 def remove_file(path: str) -> bool:
     # Deletes the file at path. Returns True on success, False on failure.
     return __bmb_file_remove(path)
@@ -41,6 +51,10 @@ def get_cwd() -> str:
 def get_env(key: str) -> str:
     # Returns the value of the environment variable, or empty string if not set.
     return __bmb_get_env(key)
+
+def exit_process(code: i64) -> i64:
+    # Terminates execution with the specified exit status code.
+    return __bmb_exit(code)
 
 # --- Pure Black Mamba Path Utilities ---
 

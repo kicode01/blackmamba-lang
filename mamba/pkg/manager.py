@@ -8,7 +8,12 @@ import os
 import shutil
 from typing import Dict, List, Optional
 
-from .fetcher import compute_integrity, fetch_git_dependency, fetch_path_dependency
+from .fetcher import (
+    compute_integrity,
+    fetch_git_dependency,
+    fetch_path_dependency,
+    fetch_registry_dependency,
+)
 from .lock import LockedPackage, PackageLock
 from .manifest import Dependency, PackageManifest
 
@@ -84,6 +89,7 @@ class PackageManager:
         rev: Optional[str] = None,
         path: Optional[str] = None,
         version: Optional[str] = None,
+        registry: Optional[str] = None,
     ) -> LockedPackage:
         """Adds a dependency to mamba.toml and resolves it into mamba.lock."""
         manifest = PackageManifest.load(self.manifest_path)
@@ -95,19 +101,23 @@ class PackageManager:
             rev=rev,
             path=path,
             version=version,
+            registry=registry,
         )
-        manifest.dependencies[name] = dep
-        manifest.save(self.manifest_path)
 
-        # Fetch dependency into vendor
+        # Fetch dependency into vendor first (atomic — don't pollute mamba.toml on integrity error)
         os.makedirs(self.vendor_dir, exist_ok=True)
         if dep.path:
             locked = fetch_path_dependency(dep, self.project_dir, self.vendor_dir)
         elif dep.git:
             locked = fetch_git_dependency(dep, self.vendor_dir)
+        elif dep.registry or os.environ.get("MAMBA_REGISTRY"):
+            locked = fetch_registry_dependency(dep, self.project_dir, self.vendor_dir)
         else:
             # Simple local reference or path
             locked = LockedPackage(name=name, version=version or "0.1.0", source="local")
+
+        manifest.dependencies[name] = dep
+        manifest.save(self.manifest_path)
 
         # Update lockfile
         lock = PackageLock.load(self.lock_path)
@@ -171,6 +181,8 @@ class PackageManager:
                 locked = fetch_path_dependency(dep, self.project_dir, self.vendor_dir)
             elif dep.git:
                 locked = fetch_git_dependency(dep, self.vendor_dir)
+            elif dep.registry or os.environ.get("MAMBA_REGISTRY"):
+                locked = fetch_registry_dependency(dep, self.project_dir, self.vendor_dir)
             else:
                 locked = LockedPackage(name=dep_name, version=dep.version or "0.1.0", source="local")
 
@@ -206,6 +218,8 @@ class PackageManager:
                 locked = fetch_path_dependency(dep, self.project_dir, self.vendor_dir)
             elif dep.git:
                 locked = fetch_git_dependency(dep, self.vendor_dir)
+            elif dep.registry or os.environ.get("MAMBA_REGISTRY"):
+                locked = fetch_registry_dependency(dep, self.project_dir, self.vendor_dir)
             else:
                 locked = LockedPackage(name=dep_name, version=dep.version or "0.1.0", source="local")
             lock.packages[dep_name] = locked

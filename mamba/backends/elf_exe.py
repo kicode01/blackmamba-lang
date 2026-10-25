@@ -29,11 +29,39 @@ def _align(val: int, alignment: int) -> int:
     return (val + alignment - 1) & ~(alignment - 1)
 
 
+def _uleb128(val: int) -> bytes:
+    out = bytearray()
+    while True:
+        b = val & 0x7F
+        val >>= 7
+        if val != 0:
+            b |= 0x80
+        out.append(b)
+        if val == 0:
+            break
+    return bytes(out)
+
+
+def _sleb128(val: int) -> bytes:
+    out = bytearray()
+    more = True
+    while more:
+        b = val & 0x7F
+        val >>= 7
+        if (val == 0 and (b & 0x40) == 0) or (val == -1 and (b & 0x40) != 0):
+            more = False
+        else:
+            b |= 0x80
+        out.append(b)
+    return bytes(out)
+
+
 class ELF64ExecutableBuilder:
     """Compiles a MIRModule directly into a static Linux x86-64 ELF executable."""
 
-    def __init__(self, mir_module: MIRModule):
+    def __init__(self, mir_module: MIRModule, debug: bool = False):
         self.mir_module = mir_module
+        self.debug = debug
         self.code_buf = X86_64CodeBuffer()
         self.string_offsets: Dict[int, int] = {}
 
@@ -76,13 +104,17 @@ class ELF64ExecutableBuilder:
         buf.code.clear()
         buf.labels.clear()
         buf.rel32_fixups.clear()
+        buf.line_map.clear()
+        buf.func_ranges.clear()
+
+        entry_fn = "__bmb_main__" if any(f.name == "__bmb_main__" for f in self.mir_module.functions) else "main"
 
         # Entry point: _start per System V ABI
         buf.mark_label("_start")
         # System V ABI: rbp should be 0 at entry
         buf.emit(b"\x48\x31\xED", "xor rbp, rbp")
         # Call Black Mamba main
-        buf.call_label("fn__main")
+        buf.call_label(f"fn__{entry_fn}")
         # Exit with return value in rdi
         buf.emit(b"\x48\x89\xC7", "mov rdi, rax ; exit code")
         buf.emit(b"\x48\xC7\xC0\x3C\x00\x00\x00", "mov rax, 60 ; sys_exit")
@@ -1167,6 +1199,92 @@ class ELF64ExecutableBuilder:
         buf.pop_rbp()
         buf.ret()
 
+        # fn____bmb_file_write_bytes(rcx=path, rdx=buf_ptr, r8=length) -> rax=written
+        buf.mark_label("fn____bmb_file_write_bytes")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; buf_ptr")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; length")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__fwb_path_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax")
+        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0")
+        buf.emit(b"\x48\x8D\x7D\xE0", "lea rdi, [rbp - 0x20]")
+        buf.jmp_label("rt__fwb_open")
+        buf.mark_label("rt__fwb_path_ptr")
+        buf.emit(b"\x48\x89\xCF", "mov rdi, rcx")
+        buf.mark_label("rt__fwb_open")
+        buf.emit(b"\x48\xC7\xC6\x41\x02\x00\x00", "mov rsi, 0x241 ; O_WRONLY|O_CREAT|O_TRUNC")
+        buf.emit(b"\x48\xC7\xC2\xA4\x01\x00\x00", "mov rdx, 420 ; 0644")
+        buf.emit(b"\x48\xC7\xC0\x02\x00\x00\x00", "mov rax, 2 ; sys_open")
+        buf.emit(b"\x0F\x05", "syscall")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x88, "s", "rt__fwb_err")
+        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax ; fd")
+        buf.emit(b"\x48\x89\xC7", "mov rdi, rax")
+        buf.emit(b"\x48\x8B\x75\xF0", "mov rsi, [rbp - 0x10] ; buf_ptr")
+        buf.emit(b"\x48\x8B\x55\xE8", "mov rdx, [rbp - 0x18] ; length")
+        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1 ; sys_write")
+        buf.emit(b"\x0F\x05", "syscall")
+        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax ; written")
+        buf.emit(b"\x48\x8B\x7D\xD0", "mov rdi, [rbp - 0x30]")
+        buf.emit(b"\x48\xC7\xC0\x03\x00\x00\x00", "mov rax, 3 ; sys_close")
+        buf.emit(b"\x0F\x05", "syscall")
+        buf.emit(b"\x48\x8B\x45\xC8", "mov rax, [rbp - 0x38]")
+        buf.jmp_label("rt__fwb_done")
+        buf.mark_label("rt__fwb_err")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.mark_label("rt__fwb_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        # fn____bmb_file_read_bytes(rcx=path, rdx=buf_ptr, r8=max_len) -> rax=read_count
+        buf.mark_label("fn____bmb_file_read_bytes")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; buf_ptr")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; max_len")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__frb_path_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax")
+        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0")
+        buf.emit(b"\x48\x8D\x7D\xE0", "lea rdi, [rbp - 0x20]")
+        buf.jmp_label("rt__frb_open")
+        buf.mark_label("rt__frb_path_ptr")
+        buf.emit(b"\x48\x89\xCF", "mov rdi, rcx")
+        buf.mark_label("rt__frb_open")
+        buf.emit(b"\x48\x31\xF6", "xor rsi, rsi ; O_RDONLY")
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
+        buf.emit(b"\x48\xC7\xC0\x02\x00\x00\x00", "mov rax, 2 ; sys_open")
+        buf.emit(b"\x0F\x05", "syscall")
+        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.jcc_rel32(0x88, "s", "rt__frb_err")
+        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax ; fd")
+        buf.emit(b"\x48\x89\xC7", "mov rdi, rax")
+        buf.emit(b"\x48\x8B\x75\xF0", "mov rsi, [rbp - 0x10] ; buf_ptr")
+        buf.emit(b"\x48\x8B\x55\xE8", "mov rdx, [rbp - 0x18] ; max_len")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax ; sys_read")
+        buf.emit(b"\x0F\x05", "syscall")
+        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax ; read_count")
+        buf.emit(b"\x48\x8B\x7D\xD0", "mov rdi, [rbp - 0x30]")
+        buf.emit(b"\x48\xC7\xC0\x03\x00\x00\x00", "mov rax, 3 ; sys_close")
+        buf.emit(b"\x0F\x05", "syscall")
+        buf.emit(b"\x48\x8B\x45\xC8", "mov rax, [rbp - 0x38]")
+        buf.jmp_label("rt__frb_done")
+        buf.mark_label("rt__frb_err")
+        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.mark_label("rt__frb_done")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
         # fn____bmb_file_remove(rcx=path) -> rax=bool (1 or 0)
         buf.mark_label("fn____bmb_file_remove")
         buf.push_rbp()
@@ -1602,6 +1720,9 @@ class ELF64ExecutableBuilder:
         buf.rel32_fixups.append((len(buf.code) - 4, "rt__bmb_alloc_root"))
         buf.emit(b"\x48\x89\xC8\xC3", "mov rax, rcx; ret")
 
+        buf.mark_label("fn____bmb_exit")
+        buf.emit(b"\x48\x89\xCF\xB8\x3C\x00\x00\x00\x0F\x05\xC3", "mov rdi, rcx; mov eax, 60; syscall; ret")
+
         # Native Threading & Concurrency Functions
         buf.mark_label("fn____bmb_thread_concurrency")
         buf.emit(b"\x48\xC7\xC0\x04\x00\x00\x00\xC3", "mov rax, 4; ret")
@@ -1633,6 +1754,7 @@ class ELF64ExecutableBuilder:
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_write_bytes", "__bmb_file_read_bytes",
             "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
@@ -1643,7 +1765,7 @@ class ELF64ExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
         ])
 
         for fn in self.mir_module.functions:
@@ -1672,12 +1794,88 @@ class ELF64ExecutableBuilder:
 
         code_and_rodata = bytes(buf.code) + bytes(rodata_buf)
 
-        # 5. Build ELF64 Header and Program Header
+        # 5. Build ELF64 Header, Program Header, Symbol Table, DWARF v4 Debug Sections & Section Headers
         payload_offset = 0x100
         entry_point = IMAGE_BASE + payload_offset + buf.labels["_start"]
-        total_file_size = payload_offset + len(code_and_rodata)
+        load_file_size = payload_offset + len(code_and_rodata)
         # Pre-allocate 1MB heap memory in memory size
-        mem_size = _align(total_file_size + 0x100000, 0x1000)
+        mem_size = _align(load_file_size + 0x100000, 0x1000)
+
+        # Build .strtab and .symtab (Elf64_Sym = 24 bytes: <IBBHQQ)
+        strtab = bytearray(b"\x00")
+        symtab = bytearray(24)  # STN_UNDEF
+
+        def add_sym(name: str, vaddr: int, size: int) -> None:
+            name_off = len(strtab)
+            strtab.extend(name.encode("utf-8") + b"\x00")
+            # STB_GLOBAL (1) << 4 | STT_FUNC (2) = 0x12, shndx = 1 (.text)
+            symtab.extend(struct.pack("<IBBHQQ", name_off, 0x12, 0, 1, vaddr, size))
+
+        add_sym("_start", entry_point, 16)
+        for f_start, f_end, fn_name, _start_line in buf.func_ranges:
+            add_sym(fn_name, text_vaddr_start + f_start, max(1, f_end - f_start))
+
+        debug_abbrev, debug_info, debug_line = b"", b"", b""
+        if self.debug:
+            debug_abbrev, debug_info, debug_line = self._build_dwarf_sections(text_vaddr_start, text_bytes_len)
+
+        # Assemble trailing non-loaded metadata sections + Section Header Table
+        extra_blob = bytearray()
+        cur_file_off = load_file_size
+
+        def place_blob(data: bytes, align: int = 8) -> int:
+            nonlocal cur_file_off
+            while cur_file_off % align != 0:
+                extra_blob.append(0)
+                cur_file_off += 1
+            off = cur_file_off
+            extra_blob.extend(data)
+            cur_file_off += len(data)
+            return off
+
+        symtab_off = place_blob(bytes(symtab), 8)
+        strtab_off = place_blob(bytes(strtab), 1)
+
+        dbg_abbrev_off = dbg_info_off = dbg_line_off = 0
+        if self.debug:
+            dbg_abbrev_off = place_blob(debug_abbrev, 1)
+            dbg_info_off = place_blob(debug_info, 1)
+            dbg_line_off = place_blob(debug_line, 1)
+
+        shstrtab = bytearray(b"\x00")
+        def add_sh_name(s: str) -> int:
+            off = len(shstrtab)
+            shstrtab.extend(s.encode("ascii") + b"\x00")
+            return off
+
+        sh_specs = [
+            # (name, sh_type, sh_flags, sh_addr, sh_offset, sh_size, sh_link, sh_info, sh_addralign, sh_entsize)
+            ("", 0, 0, 0, 0, 0, 0, 0, 0, 0),
+            (".text", 1, 0x6, text_vaddr_start, payload_offset, text_bytes_len, 0, 0, 16, 0),
+            (".rodata", 1, 0x2, text_vaddr_start + text_bytes_len, payload_offset + text_bytes_len, len(rodata_buf), 0, 0, 8, 0),
+            (".symtab", 2, 0, 0, symtab_off, len(symtab), 4, 1, 8, 24),
+            (".strtab", 3, 0, 0, strtab_off, len(strtab), 0, 0, 1, 0),
+        ]
+        if self.debug:
+            sh_specs.extend([
+                (".debug_abbrev", 1, 0, 0, dbg_abbrev_off, len(debug_abbrev), 0, 0, 1, 0),
+                (".debug_info", 1, 0, 0, dbg_info_off, len(debug_info), 0, 0, 1, 0),
+                (".debug_line", 1, 0, 0, dbg_line_off, len(debug_line), 0, 0, 1, 0),
+            ])
+
+        name_offsets = [0 if nm == "" else add_sh_name(nm) for (nm, *_rest) in sh_specs]
+        shstr_name_off = add_sh_name(".shstrtab")
+        shstrtab_off = place_blob(bytes(shstrtab), 1)
+        sh_specs.append((".shstrtab", 3, 0, 0, shstrtab_off, len(shstrtab), 0, 0, 1, 0))
+        name_offsets.append(shstr_name_off)
+
+        shdr_buf = bytearray()
+        for nm_off, (_nm, stype, sflags, saddr, soff, ssize, slink, sinfo, salign, sentsz) in zip(name_offsets, sh_specs):
+            shdr_buf.extend(struct.pack("<IIQQQQIIQQ", nm_off, stype, sflags, saddr, soff, ssize, slink, sinfo, salign, sentsz))
+
+        shoff = place_blob(bytes(shdr_buf), 8)
+        shnum = len(sh_specs)
+        shstrndx = shnum - 1
 
         # ELF64 Header (64 bytes)
         elf_header = bytearray(64)
@@ -1687,22 +1885,21 @@ class ELF64ExecutableBuilder:
         elf_header[6] = 1       # Original ELF version
         elf_header[7] = 0       # System V ABI
         elf_header[8] = 0       # ABI version
-        struct.pack_into("<H", elf_header, 16, 2)         # e_type: ET_EXEC (Executable)
-        struct.pack_into("<H", elf_header, 18, 0x3E)      # e_machine: EM_X86_64 (62)
-        struct.pack_into("<I", elf_header, 20, 1)         # e_version: 1
+        struct.pack_into("<H", elf_header, 16, 2)           # e_type: ET_EXEC (Executable)
+        struct.pack_into("<H", elf_header, 18, 0x3E)        # e_machine: EM_X86_64 (62)
+        struct.pack_into("<I", elf_header, 20, 1)           # e_version: 1
         struct.pack_into("<Q", elf_header, 24, entry_point) # e_entry: Virtual address of _start
-        struct.pack_into("<Q", elf_header, 32, 64)        # e_phoff: Program header offset (64)
-        struct.pack_into("<Q", elf_header, 40, 0)         # e_shoff: Section header offset (0 for now)
-        struct.pack_into("<I", elf_header, 48, 0)         # e_flags: 0
-        struct.pack_into("<H", elf_header, 52, 64)        # e_ehsize: 64
-        struct.pack_into("<H", elf_header, 54, 56)        # e_phentsize: 56
-        struct.pack_into("<H", elf_header, 56, 1)         # e_phnum: 1 PT_LOAD segment
-        struct.pack_into("<H", elf_header, 58, 64)        # e_shentsize: 64
-        struct.pack_into("<H", elf_header, 60, 0)         # e_shnum: 0
-        struct.pack_into("<H", elf_header, 62, 0)         # e_shstrndx: 0
+        struct.pack_into("<Q", elf_header, 32, 64)          # e_phoff: Program header offset (64)
+        struct.pack_into("<Q", elf_header, 40, shoff)       # e_shoff: Section header offset
+        struct.pack_into("<I", elf_header, 48, 0)           # e_flags: 0
+        struct.pack_into("<H", elf_header, 52, 64)          # e_ehsize: 64
+        struct.pack_into("<H", elf_header, 54, 56)          # e_phentsize: 56
+        struct.pack_into("<H", elf_header, 56, 1)           # e_phnum: 1 PT_LOAD segment
+        struct.pack_into("<H", elf_header, 58, 64)          # e_shentsize: 64
+        struct.pack_into("<H", elf_header, 60, shnum)       # e_shnum
+        struct.pack_into("<H", elf_header, 62, shstrndx)    # e_shstrndx
 
         # Program Header: PT_LOAD (56 bytes)
-        # Type=1 (PT_LOAD), Flags=7 (R | W | X), Offset=0, VAddr=0x400000, PAddr=0x400000
         prog_header = struct.pack(
             "<IIQQQQQQ",
             1,                  # p_type: PT_LOAD
@@ -1710,7 +1907,7 @@ class ELF64ExecutableBuilder:
             0,                  # p_offset: 0
             IMAGE_BASE,         # p_vaddr: 0x400000
             IMAGE_BASE,         # p_paddr: 0x400000
-            total_file_size,    # p_filesz
+            load_file_size,     # p_filesz
             mem_size,           # p_memsz (includes heap space)
             0x1000,             # p_align: 4096 bytes
         )
@@ -1718,8 +1915,75 @@ class ELF64ExecutableBuilder:
         pad_size = payload_offset - (HEADER_SIZE + PH_SIZE)
         padding = b"\x90" * pad_size  # NOP padding to 0x100
 
-        full_binary = bytes(elf_header) + prog_header + padding + code_and_rodata
+        full_binary = bytes(elf_header) + prog_header + padding + code_and_rodata + bytes(extra_blob)
         return full_binary
+
+    def _build_dwarf_sections(self, text_vaddr_start: int, text_bytes_len: int) -> Tuple[bytes, bytes, bytes]:
+        """Emits DWARF v4 .debug_abbrev, .debug_info, and .debug_line sections."""
+        src_name = os.path.basename(self.mir_module.filename or "<input.bmb>").encode("utf-8")
+
+        # 1. .debug_abbrev: Abbrev 1 = DW_TAG_compile_unit (0x11), DW_CHILDREN_no (0x00)
+        debug_abbrev = bytes([
+            0x01, 0x11, 0x00,
+            0x03, 0x08,  # DW_AT_name, DW_FORM_string
+            0x10, 0x17,  # DW_AT_stmt_list, DW_FORM_sec_offset
+            0x11, 0x01,  # DW_AT_low_pc, DW_FORM_addr
+            0x12, 0x01,  # DW_AT_high_pc, DW_FORM_addr
+            0x00, 0x00,  # end attrs
+            0x00,        # end abbrevs
+        ])
+
+        # 2. .debug_info: DWARF v4 Compilation Unit Header + CU DIE
+        cu_die = (
+            b"\x01"
+            + src_name + b"\x00"
+            + struct.pack("<I", 0)
+            + struct.pack("<Q", text_vaddr_start)
+            + struct.pack("<Q", text_vaddr_start + max(1, text_bytes_len))
+        )
+        cu_body = struct.pack("<HIB", 4, 0, 8) + cu_die
+        debug_info = struct.pack("<I", len(cu_body)) + cu_body
+
+        # 3. .debug_line: DWARF v4 Line Number Program
+        std_op_lens = bytes([0, 1, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1])
+        file_entry = src_name + b"\x00\x00\x00\x00"  # file_name\0, dir_idx=0, mtime=0, size=0
+        hdr_body = (
+            struct.pack("<BBBbBB", 1, 1, 1, -5, 14, 13)
+            + std_op_lens
+            + b"\x00"               # include_directories end
+            + file_entry + b"\x00"  # file_names + end
+        )
+
+        prog = bytearray()
+        pts = sorted(self.code_buf.line_map, key=lambda x: x[0])
+        base_off = pts[0][0] if pts else 0
+        cur_pc = text_vaddr_start + base_off
+        cur_line = 1
+
+        # Extended opcode DW_LNE_set_address (0x02): 0x00, len=9, 0x02, <uint64 addr>
+        prog.extend(b"\x00\x09\x02" + struct.pack("<Q", cur_pc))
+
+        for off, _fn_n, ln in pts:
+            target_pc = text_vaddr_start + off
+            if target_pc > cur_pc:
+                prog.append(0x02)  # DW_LNS_advance_pc
+                prog.extend(_uleb128(target_pc - cur_pc))
+                cur_pc = target_pc
+            if ln != cur_line:
+                prog.append(0x03)  # DW_LNS_advance_line
+                prog.extend(_sleb128(ln - cur_line))
+                cur_line = ln
+            prog.append(0x01)      # DW_LNS_copy
+
+        end_pc = text_vaddr_start + max(1, text_bytes_len)
+        if end_pc > cur_pc:
+            prog.append(0x02)
+            prog.extend(_uleb128(end_pc - cur_pc))
+        prog.extend(b"\x00\x01\x01")  # DW_LNE_end_sequence
+
+        line_unit_body = struct.pack("<HI", 4, len(hdr_body)) + hdr_body + bytes(prog)
+        debug_line = struct.pack("<I", len(line_unit_body)) + line_unit_body
+        return debug_abbrev, debug_info, debug_line
 
     def write_executable(self, output_path: str) -> str:
         """Writes the standalone Linux ELF64 binary to disk."""

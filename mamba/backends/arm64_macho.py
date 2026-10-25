@@ -361,10 +361,11 @@ class MachOARM64ExecutableBuilder:
         buf.fixups.clear()
 
         # 2. Build Entry Point (_start / main)
+        entry_fn = "__bmb_main__" if any(f.name == "__bmb_main__" for f in self.mir_module.functions) else "main"
         buf.mark_label("_start")
         buf.stp_fp_lr()
         buf.mov_fp_sp()
-        buf.bl_label("fn__main")
+        buf.bl_label(f"fn__{entry_fn}")
         # x0 contains exit code
         # Darwin sys_exit: x16 = 0x2000001, svc #0x80
         buf.mov_reg_imm64(16, 0x2000001)
@@ -424,7 +425,6 @@ class MachOARM64ExecutableBuilder:
         buf.ldrb_reg_reg(3, 1, 2)
         buf.cmp_imm(3, 0)
         buf.b_eq_label("rt__p_i64_write")
-        buf.add_reg(2, 2, 0) # inc x2
         buf.mov_reg_imm64(4, 1)
         buf.add_reg(2, 2, 4)
         buf.b_label("rt__p_i64_len")
@@ -1017,6 +1017,32 @@ class MachOARM64ExecutableBuilder:
         buf.mov_reg_imm64(0, 0)
         buf.ret()
 
+        buf.mark_label("fn____bmb_mem_read32")
+        buf.emit32(0xB8617800, "ldr w0, [x0, x1, lsl #2]")
+        buf.ret()
+
+        buf.mark_label("fn____bmb_mem_write32")
+        buf.emit32(0xB8217802, "str w2, [x0, x1, lsl #2]")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_mem_read8")
+        buf.ldrb_reg_reg(0, 0, 1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_mem_write8")
+        buf.emit32(0x38216802, "strb w2, [x0, x1]")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_file_write_bytes")
+        buf.mov_reg_reg(0, 2)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_file_read_bytes")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
         buf.mark_label("fn____bmb_alloc_root_get")
         buf.mov_reg_imm64(0, 0)
         buf.ret()
@@ -1024,10 +1050,16 @@ class MachOARM64ExecutableBuilder:
         buf.mark_label("fn____bmb_alloc_root_set")
         buf.ret()
 
+        buf.mark_label("fn____bmb_exit")
+        buf.mov_reg_imm64(16, 0x2000001)
+        buf.svc(0x80)
+        buf.ret()
+
         # 4. Compile all MIR user functions
         self.known_fn_names = {f.name for f in self.mir_module.functions}
         self.known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_write_bytes", "__bmb_file_read_bytes",
             "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
@@ -1038,7 +1070,8 @@ class MachOARM64ExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
+            "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
         ])
 
         helper_labels = {
@@ -1245,7 +1278,7 @@ class MachOARM64ExecutableBuilder:
                 str_idx = int(ins.arg1)
                 buf.adr_label(9, f"lbl__str_{str_idx}")
                 store_val(9, str(ins.dst))
-            elif op == "MOVE":
+            elif op in ("MOV", "MOVE"):
                 load_val(9, str(ins.arg1))
                 store_val(9, str(ins.dst))
             elif op == "ADD_I64":
@@ -1340,14 +1373,18 @@ class MachOARM64ExecutableBuilder:
                 if ins.dst and ins.dst != "%void":
                     store_val(0, str(ins.dst))
             elif op == "PRINT":
-                # ins.arg1 = kind, ins.arg2 = val
-                kind_map = {"NL": 0, "SP": 1, "I64": 2, "F64": 3, "STR": 4, "BOOL": 5}
-                k = kind_map.get(str(ins.arg1), 2)
-                buf.mov_reg_imm64(0, k)
-                if ins.arg2:
-                    load_val(1, str(ins.arg2))
-                else:
-                    buf.mov_reg_imm64(1, 0)
+                types = [t for t in (ins.comment or "").split(",") if t]
+                kind_map = {"i64": 2, "f64": 3, "str": 4, "bool": 5}
+                for idx, (arg_v, arg_t) in enumerate(zip(ins.extra, types)):
+                    if idx > 0 and (types[idx - 1] != "str" and arg_t != "str"):
+                        buf.mov_reg_imm64(0, 1)  # SP
+                        buf.mov_reg_imm64(1, 0)
+                        buf.bl_label("rt__print")
+                    buf.mov_reg_imm64(0, kind_map.get(arg_t, 2))
+                    load_val(1, str(arg_v))
+                    buf.bl_label("rt__print")
+                buf.mov_reg_imm64(0, 0)  # NL
+                buf.mov_reg_imm64(1, 0)
                 buf.bl_label("rt__print")
             elif op == "STR_CONCAT":
                 load_val(0, str(ins.arg1))
@@ -1371,11 +1408,16 @@ class MachOARM64ExecutableBuilder:
                 load_val(1, str(ins.arg2)) # size
                 buf.bl_label("rt__alloc_arr")
                 store_val(0, str(ins.dst))
-            elif op == "LOAD_ARR":
+            elif op in ("LOAD_IDX", "LOAD_ARR"):
                 load_val(9, str(ins.arg1))  # arr
                 load_val(10, str(ins.arg2)) # idx
                 buf.ldr_reg_reg(11, 9, 10, shift=3)
                 store_val(11, str(ins.dst))
+            elif op == "STORE_IDX":
+                load_val(9, str(ins.dst))   # arr
+                load_val(10, str(ins.arg1)) # idx
+                load_val(11, str(ins.arg2)) # val
+                buf.str_reg_reg(11, 9, 10, shift=3)
             elif op == "STORE_ARR":
                 load_val(9, str(ins.arg1))  # arr
                 load_val(10, str(ins.arg2)) # idx

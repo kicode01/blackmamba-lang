@@ -28,7 +28,7 @@ from .backends.embedded import EmbeddedBareMetalBuilder, DEFAULT_BASE_ADDR
 def compile_source_to_mir(source: str, filename: str = "<input.bmb>", base_dir: str = "") -> MIRModule:
     ast_mod = Parser.from_source(source, filename).parse_module()
     resolved_base = base_dir or (os.path.dirname(os.path.abspath(filename)) if filename != "<input.bmb>" and os.path.exists(filename) else os.getcwd())
-    return MIRBuilder().build(ast_mod, base_dir=resolved_base)
+    return MIRBuilder().build(ast_mod, base_dir=resolved_base, filename=filename)
 
 
 def _safe_write(text: str) -> None:
@@ -78,16 +78,19 @@ def cmd_build(args: argparse.Namespace) -> int:
     out_dir = os.path.dirname(os.path.abspath(args.output)) if args.output else os.path.join(os.getcwd(), "build")
     os.makedirs(out_dir, exist_ok=True)
 
+    dbg = bool(getattr(args, "debug", False))
     targets = ["exe", "elf", "macho", "wasm", "wat", "c", "llvm"] if args.target == "all" else [args.target]
     for tgt in targets:
         if tgt == "exe":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.exe")
-            path = PE32PlusExecutableBuilder(mir).write_executable(out_path)
-            print(f"[Black Mamba] Built standalone Windows x86-64 PE32+ executable -> {path} ({os.path.getsize(path)} bytes)")
+            path = PE32PlusExecutableBuilder(mir, debug=dbg).write_executable(out_path)
+            dbg_tag = " [Debug: RSDS + COFF Symbols]" if dbg else ""
+            print(f"[Black Mamba] Built standalone Windows x86-64 PE32+ executable -> {path} ({os.path.getsize(path)} bytes){dbg_tag}")
         elif tgt in ("elf", "linux"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.elf")
-            path = ELF64ExecutableBuilder(mir).write_executable(out_path)
-            print(f"[Black Mamba] Built standalone Linux x86-64 ELF64 binary      -> {path} ({os.path.getsize(path)} bytes)")
+            path = ELF64ExecutableBuilder(mir, debug=dbg).write_executable(out_path)
+            dbg_tag = " [Debug: DWARF v4 + .symtab]" if dbg else ""
+            print(f"[Black Mamba] Built standalone Linux x86-64 ELF64 binary      -> {path} ({os.path.getsize(path)} bytes){dbg_tag}")
         elif tgt in ("macho", "arm64", "macos"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.macho")
             path = MachOARM64ExecutableBuilder(mir).write_executable(out_path)
@@ -104,7 +107,7 @@ def cmd_build(args: argparse.Namespace) -> int:
             print(f"[Black Mamba] Built WebAssembly text (.wat)                    -> {os.path.abspath(out_path)}")
         elif tgt == "c":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.c")
-            path = C11Backend(mir).write_c(out_path)
+            path = C11Backend(mir, debug=dbg).write_c(out_path)
             print(f"[Black Mamba] Built portable C11 + OpenMP/SIMD source          -> {path}")
         elif tgt == "llvm":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.ll")
@@ -359,6 +362,12 @@ def main(argv: Optional[list] = None) -> int:
         help="Target output format (default: exe)",
     )
     p_build.add_argument("--output", "-o", help="Output file path")
+    p_build.add_argument(
+        "--debug",
+        "-g",
+        action="store_true",
+        help="Emit native debug symbols (PE32+ CodeView RSDS + COFF symbols, ELF64 DWARF v4 .debug_line, C11 #line)",
+    )
     p_build.add_argument(
         "--base-addr",
         default="0x08000000",

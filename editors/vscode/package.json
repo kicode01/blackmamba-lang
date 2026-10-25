@@ -2,7 +2,7 @@
   "name": "vscode-black-mamba",
   "displayName": "Black Mamba Language Support",
   "description": "Rich language support and Language Server Protocol client for the Black Mamba (.bmb) programming language",
-  "version": "0.5.0",
+  "version": "1.0.0",
   "publisher": "black-mamba",
   "icon": "icon.png",
   "engines": {

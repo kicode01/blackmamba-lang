@@ -180,14 +180,14 @@ class Lexer:
         self.paren_depth = 0
 
     def tokenize(self) -> List[Token]:
-        lines = self.source.split("\n")
-        line_idx = 0
-        num_lines = len(lines)
+        self._lines = self.source.split("\n")
+        self._line_idx = 0
+        num_lines = len(self._lines)
 
-        while line_idx < num_lines:
-            raw_line = lines[line_idx]
-            line_num = line_idx + 1
-            line_idx += 1
+        while self._line_idx < num_lines:
+            raw_line = self._lines[self._line_idx]
+            line_num = self._line_idx + 1
+            self._line_idx += 1
 
             # Handle indentation only when not inside parentheses/brackets/braces
             if self.paren_depth == 0:
@@ -226,9 +226,9 @@ class Lexer:
 
         while len(self.indent_stack) > 1:
             self.indent_stack.pop()
-            self.tokens.append(Token(TokenType.DEDENT, 0, len(lines) + 1, 1))
+            self.tokens.append(Token(TokenType.DEDENT, 0, len(self._lines) + 1, 1))
 
-        self.tokens.append(Token(TokenType.EOF, None, len(lines) + 1, 1))
+        self.tokens.append(Token(TokenType.EOF, None, len(self._lines) + 1, 1))
         return self.tokens
 
     def _tokenize_line(self, line: str, line_num: int) -> None:
@@ -297,6 +297,45 @@ class Lexer:
                 i += 2
                 continue
 
+            # Triple-quoted string literals ("""...""" or '''...''')
+            if ch in ('"', "'") and line[i : i + 3] == ch * 3:
+                delim = ch * 3
+                start_line = line_num
+                start_col = col
+                i += 3
+                chars = []
+                closed = False
+                while True:
+                    while i < n:
+                        if line[i : i + 3] == delim:
+                            i += 3
+                            closed = True
+                            break
+                        if line[i] == "\\" and i + 1 < n:
+                            esc = line[i + 1]
+                            if esc == "x" and i + 3 < n and all(c in "0123456789abcdefABCDEF" for c in line[i + 2 : i + 4]):
+                                chars.append(chr(int(line[i + 2 : i + 4], 16)))
+                                i += 4
+                                continue
+                            esc_map = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "'": "'", "0": "\0"}
+                            chars.append(esc_map.get(esc, esc))
+                            i += 2
+                        else:
+                            chars.append(line[i])
+                            i += 1
+                    if closed:
+                        break
+                    if not hasattr(self, "_lines") or self._line_idx >= len(self._lines):
+                        raise LexerError("Unterminated triple-quoted string literal", start_line, start_col)
+                    chars.append("\n")
+                    line = self._lines[self._line_idx]
+                    line_num = self._line_idx + 1
+                    self._line_idx += 1
+                    i = 0
+                    n = len(line)
+                self.tokens.append(Token(TokenType.STRING, "".join(chars), start_line, start_col))
+                continue
+
             # String literals
             if ch in ('"', "'"):
                 quote = ch
@@ -305,6 +344,10 @@ class Lexer:
                 while i < n and line[i] != quote:
                     if line[i] == "\\" and i + 1 < n:
                         esc = line[i + 1]
+                        if esc == "x" and i + 3 < n and all(c in "0123456789abcdefABCDEF" for c in line[i + 2 : i + 4]):
+                            chars.append(chr(int(line[i + 2 : i + 4], 16)))
+                            i += 4
+                            continue
                         esc_map = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"', "'": "'", "0": "\0"}
                         chars.append(esc_map.get(esc, esc))
                         i += 2

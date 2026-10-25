@@ -58,6 +58,7 @@ class MIRInstr:
     extra: List[str] = field(default_factory=list)
     val_type: str = "i64"
     comment: str = ""
+    line: int = 0
 
     def format(self) -> str:
         if self.op == "LABEL":
@@ -107,6 +108,7 @@ class MIRFunction:
     local_types: Dict[str, str] = field(default_factory=dict)
     decorators: List[str] = field(default_factory=list)
     is_tco: bool = False
+    start_line: int = 1
 
     def format(self) -> str:
         params_s = ", ".join(f"{n}: {t}" for n, t in self.params)
@@ -124,6 +126,7 @@ class MIRModule:
     functions: List[MIRFunction] = field(default_factory=list)
     structs: Dict[str, StructDef] = field(default_factory=dict)
     string_pool: List[str] = field(default_factory=list)
+    filename: str = "<input.bmb>"
 
     def format(self) -> str:
         return "\n\n".join(fn.format() for fn in self.functions)
@@ -159,8 +162,9 @@ class MIRBuilder:
         t = normalize_type(arr_t)
         return t == "Array[f64]" or (t is not None and (t.endswith("[f64]") or t.endswith("[float]")))
 
-    def build(self, module: Module, base_dir: str = "") -> MIRModule:
+    def build(self, module: Module, base_dir: str = "", filename: str = "<input.bmb>") -> MIRModule:
         from .module_loader import resolve_imports
+        self.filename = filename
         module = resolve_imports(module, base_dir or os.getcwd())
         Inferencer = TypeInferencer(module)
         module = Inferencer.run()
@@ -179,6 +183,9 @@ class MIRBuilder:
                 continue
             elif isinstance(stmt, FuncDef):
                 mir_funcs.append(self._lower_function(stmt))
+            elif isinstance(stmt, ExprStmt) and isinstance(stmt.expr, StringLit) and not stmt.expr.value.startswith("f:"):
+                # Pure module-level docstring: no runtime effect
+                continue
             else:
                 top_stmts.append(stmt)
 
@@ -211,7 +218,7 @@ class MIRBuilder:
             )
             mir_funcs.append(self._lower_function(main_def))
 
-        mir_mod = MIRModule(functions=mir_funcs, structs=self.structs, string_pool=self.string_pool)
+        mir_mod = MIRModule(functions=mir_funcs, structs=self.structs, string_pool=self.string_pool, filename=filename)
         MIROptimizer().optimize_module(mir_mod)
         return mir_mod
 
@@ -219,7 +226,7 @@ class MIRBuilder:
         self.temp_counter = 0
         params = [(p.name, p.type_ann or "i64") for p in fn.params]
         local_types: Dict[str, str] = {name: ptype for name, ptype in params}
-        instrs: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry")]
+        instrs: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry", line=fn.line or 1)]
 
         self._lower_block(fn.body, instrs, local_types)
 
@@ -228,8 +235,8 @@ class MIRBuilder:
             default_ret = 0.0 if fn.return_type == "f64" else 0
             tmp = self.new_temp(local_types, fn.return_type or "i64")
             const_op = "CONST_F64" if fn.return_type == "f64" else "CONST_I64"
-            instrs.append(MIRInstr(op=const_op, dst=tmp, arg1=default_ret, val_type=fn.return_type or "i64"))
-            instrs.append(MIRInstr(op="RET", arg1=tmp, val_type=fn.return_type or "i64"))
+            instrs.append(MIRInstr(op=const_op, dst=tmp, arg1=default_ret, val_type=fn.return_type or "i64", line=fn.line or 1))
+            instrs.append(MIRInstr(op="RET", arg1=tmp, val_type=fn.return_type or "i64", line=fn.line or 1))
 
         return MIRFunction(
             name=fn.name,
@@ -238,11 +245,18 @@ class MIRBuilder:
             instructions=instrs,
             local_types=local_types,
             decorators=fn.decorators,
+            start_line=fn.line or 1,
         )
 
     def _lower_block(self, stmts: List[Stmt], instrs: List[MIRInstr], local_types: Dict[str, str]) -> None:
         for stmt in stmts:
+            start_idx = len(instrs)
             self._lower_stmt(stmt, instrs, local_types)
+            stmt_line = getattr(stmt, "line", 0) or 0
+            if stmt_line > 0:
+                for k in range(start_idx, len(instrs)):
+                    if instrs[k].line == 0:
+                        instrs[k].line = stmt_line
 
     def _lower_stmt(self, stmt: Stmt, instrs: List[MIRInstr], local_types: Dict[str, str]) -> None:
         if isinstance(stmt, Assign):
@@ -411,16 +425,34 @@ class MIRBuilder:
             return
 
         if isinstance(stmt, MatchStmt):
+            def _flatten_match_alts(pat_expr: Expr) -> List[Expr]:
+                if isinstance(pat_expr, BinOp) and pat_expr.op == "|":
+                    return _flatten_match_alts(pat_expr.left) + _flatten_match_alts(pat_expr.right)
+                return [pat_expr]
+
             subj_v, subj_t = self._lower_expr(stmt.subject, instrs, local_types)
             end_lbl = self.new_label("match_end")
             for idx, case in enumerate(stmt.cases):
                 next_case = self.new_label(f"match_case_{idx}")
                 if case.pattern is not None:
-                    pat_v, _ = self._lower_expr(case.pattern, instrs, local_types)
-                    cmp_t = self.new_temp(local_types, "bool")
-                    cmp_op = "CMP_EQ_F64" if subj_t == "f64" else "CMP_EQ_I64"
-                    instrs.append(MIRInstr(op=cmp_op, dst=cmp_t, arg1=subj_v, arg2=pat_v, val_type="bool"))
-                    instrs.append(MIRInstr(op="JZ", arg1=cmp_t, arg2=next_case))
+                    alts = _flatten_match_alts(case.pattern)
+                    cmp_op = "STR_CMP_EQ" if subj_t == "str" else ("CMP_EQ_F64" if subj_t == "f64" else "CMP_EQ_I64")
+                    if len(alts) == 1:
+                        pat_v, _ = self._lower_expr(alts[0], instrs, local_types)
+                        cmp_t = self.new_temp(local_types, "bool")
+                        instrs.append(MIRInstr(op=cmp_op, dst=cmp_t, arg1=subj_v, arg2=pat_v, val_type="bool"))
+                        instrs.append(MIRInstr(op="JZ", arg1=cmp_t, arg2=next_case))
+                    else:
+                        body_lbl = self.new_label(f"match_body_{idx}")
+                        for a_idx, alt in enumerate(alts):
+                            pat_v, _ = self._lower_expr(alt, instrs, local_types)
+                            cmp_t = self.new_temp(local_types, "bool")
+                            instrs.append(MIRInstr(op=cmp_op, dst=cmp_t, arg1=subj_v, arg2=pat_v, val_type="bool"))
+                            if a_idx < len(alts) - 1:
+                                instrs.append(MIRInstr(op="JNZ", arg1=cmp_t, arg2=body_lbl))
+                            else:
+                                instrs.append(MIRInstr(op="JZ", arg1=cmp_t, arg2=next_case))
+                        instrs.append(MIRInstr(op="LABEL", arg1=body_lbl))
                 self._lower_block(case.body, instrs, local_types)
                 instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
                 instrs.append(MIRInstr(op="LABEL", arg1=next_case))
@@ -479,6 +511,17 @@ class MIRBuilder:
             return dst, "str"
 
         if isinstance(expr, Var):
+            if expr.name == "__name__" and "__name__" not in local_types:
+                str_id = self.intern_string("__main__")
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="CONST_STR", dst=dst, arg1=str_id, comment="__main__", val_type="str"))
+                return dst, "str"
+            if expr.name == "__file__" and "__file__" not in local_types:
+                fname = getattr(self, "filename", "<input.bmb>")
+                str_id = self.intern_string(fname)
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="CONST_STR", dst=dst, arg1=str_id, comment=fname, val_type="str"))
+                return dst, "str"
             if hasattr(self, "constants") and expr.name in self.constants and expr.name not in local_types:
                 return self._lower_expr(self.constants[expr.name], instrs, local_types)
             vtype = local_types.get(expr.name, expr.inferred_type or "i64")
@@ -497,14 +540,59 @@ class MIRBuilder:
                 return dst, "i64"
             if expr.op == "not":
                 dst = self.new_temp(local_types, "bool")
-                zero = self.new_temp(local_types, "i64")
-                instrs.append(MIRInstr(op="CONST_I64", dst=zero, arg1=0, val_type="i64"))
-                instrs.append(MIRInstr(op="CMP_EQ_I64", dst=dst, arg1=op_v, arg2=zero, val_type="bool"))
+                if op_t == "str":
+                    slen = self.new_temp(local_types, "i64")
+                    zero = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="STR_LEN", dst=slen, arg1=op_v, val_type="i64"))
+                    instrs.append(MIRInstr(op="CONST_I64", dst=zero, arg1=0, val_type="i64"))
+                    instrs.append(MIRInstr(op="CMP_EQ_I64", dst=dst, arg1=slen, arg2=zero, val_type="bool"))
+                elif op_t == "f64":
+                    zflt = self.new_temp(local_types, "f64")
+                    instrs.append(MIRInstr(op="CONST_F64", dst=zflt, arg1=0.0, val_type="f64"))
+                    instrs.append(MIRInstr(op="CMP_EQ_F64", dst=dst, arg1=op_v, arg2=zflt, val_type="bool"))
+                else:
+                    zero = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=zero, arg1=0, val_type="i64"))
+                    instrs.append(MIRInstr(op="CMP_EQ_I64", dst=dst, arg1=op_v, arg2=zero, val_type="bool"))
                 return dst, "bool"
             return op_v, op_t
 
         if isinstance(expr, BinOp):
-            # Short-circuit or direct boolean operations, plus power `**`
+            # Genuine short-circuit logical `and` / `or`
+            if expr.op == "and":
+                dst = self.new_temp(local_types, "bool")
+                false_lbl = self.new_label("and_false")
+                end_lbl = self.new_label("and_end")
+                lv, lt = self._lower_expr(expr.left, instrs, local_types)
+                lv_cond = self._coerce_to_cond(lv, lt, instrs, local_types)
+                instrs.append(MIRInstr(op="JZ", arg1=lv_cond, arg2=false_lbl))
+                rv, rt = self._lower_expr(expr.right, instrs, local_types)
+                rv_cond = self._coerce_to_cond(rv, rt, instrs, local_types)
+                instrs.append(MIRInstr(op="JZ", arg1=rv_cond, arg2=false_lbl))
+                instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=1, val_type="bool"))
+                instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
+                instrs.append(MIRInstr(op="LABEL", arg1=false_lbl))
+                instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=0, val_type="bool"))
+                instrs.append(MIRInstr(op="LABEL", arg1=end_lbl))
+                return dst, "bool"
+
+            if expr.op == "or":
+                dst = self.new_temp(local_types, "bool")
+                true_lbl = self.new_label("or_true")
+                end_lbl = self.new_label("or_end")
+                lv, lt = self._lower_expr(expr.left, instrs, local_types)
+                lv_cond = self._coerce_to_cond(lv, lt, instrs, local_types)
+                instrs.append(MIRInstr(op="JNZ", arg1=lv_cond, arg2=true_lbl))
+                rv, rt = self._lower_expr(expr.right, instrs, local_types)
+                rv_cond = self._coerce_to_cond(rv, rt, instrs, local_types)
+                instrs.append(MIRInstr(op="JNZ", arg1=rv_cond, arg2=true_lbl))
+                instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=0, val_type="bool"))
+                instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
+                instrs.append(MIRInstr(op="LABEL", arg1=true_lbl))
+                instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=1, val_type="bool"))
+                instrs.append(MIRInstr(op="LABEL", arg1=end_lbl))
+                return dst, "bool"
+
             lv, lt = self._lower_expr(expr.left, instrs, local_types)
             rv, rt = self._lower_expr(expr.right, instrs, local_types)
 
@@ -570,16 +658,19 @@ class MIRBuilder:
             dst = self.new_temp(local_types, res_t)
             else_lbl = self.new_label("tern_else")
             end_lbl = self.new_label("tern_end")
-            cv, _ = self._lower_expr(expr.cond, instrs, local_types)
-            instrs.append(MIRInstr(op="JZ", arg1=cv, arg2=else_lbl))
-            tv, _ = self._lower_expr(expr.then_expr, instrs, local_types)
-            instrs.append(MIRInstr(op="MOV", dst=dst, arg1=tv, val_type=res_t))
+            cv, ct = self._lower_expr(expr.cond, instrs, local_types)
+            cv_cond = self._coerce_to_cond(cv, ct, instrs, local_types)
+            instrs.append(MIRInstr(op="JZ", arg1=cv_cond, arg2=else_lbl))
+            tv, tt = self._lower_expr(expr.then_expr, instrs, local_types)
+            instrs.append(MIRInstr(op="MOV", dst=dst, arg1=tv, val_type=tt))
             instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
             instrs.append(MIRInstr(op="LABEL", arg1=else_lbl))
-            ev, _ = self._lower_expr(expr.else_expr, instrs, local_types)
-            instrs.append(MIRInstr(op="MOV", dst=dst, arg1=ev, val_type=res_t))
+            ev, et = self._lower_expr(expr.else_expr, instrs, local_types)
+            final_t = expr.inferred_type or unify_types(tt, et)
+            local_types[dst] = final_t
+            instrs.append(MIRInstr(op="MOV", dst=dst, arg1=ev, val_type=final_t))
             instrs.append(MIRInstr(op="LABEL", arg1=end_lbl))
-            return dst, res_t
+            return dst, final_t
 
         if isinstance(expr, ArrayLit):
             arr_t = expr.inferred_type or "Array[i64]"
@@ -790,6 +881,56 @@ class MIRBuilder:
                 instrs.append(MIRInstr(op=cast_op, dst=dst, arg1=av, val_type="str"))
                 return dst, "str"
 
+            if expr.func == "bool" and len(expr.args) == 1 and "bool" not in self.func_return_types:
+                av, at = self._lower_expr(expr.args[0], instrs, local_types)
+                cond_v = self._coerce_to_cond(av, at, instrs, local_types)
+                dst = self.new_temp(local_types, "bool")
+                zero = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=zero, arg1=0, val_type="i64"))
+                instrs.append(MIRInstr(op="CMP_NE_I64", dst=dst, arg1=cond_v, arg2=zero, val_type="bool"))
+                return dst, "bool"
+
+            if expr.func == "exit" and len(expr.args) <= 1 and "exit" not in self.func_return_types:
+                if expr.args:
+                    code_v, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                else:
+                    code_v = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=code_v, arg1=0, val_type="i64"))
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1="__bmb_exit", extra=[code_v], val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("min", "max") and len(expr.args) == 2 and expr.func not in self.func_return_types:
+                lv, lt = self._lower_expr(expr.args[0], instrs, local_types)
+                rv, rt = self._lower_expr(expr.args[1], instrs, local_types)
+                is_flt = (lt == "f64" or rt == "f64")
+                if is_flt:
+                    if lt != "f64":
+                        cl = self.new_temp(local_types, "f64")
+                        instrs.append(MIRInstr(op="I64_TO_F64", dst=cl, arg1=lv, val_type="f64"))
+                        lv = cl
+                    if rt != "f64":
+                        cr = self.new_temp(local_types, "f64")
+                        instrs.append(MIRInstr(op="I64_TO_F64", dst=cr, arg1=rv, val_type="f64"))
+                        rv = cr
+                    res_t = "f64"
+                    cmp_op = "CMP_LT_F64" if expr.func == "min" else "CMP_GT_F64"
+                else:
+                    res_t = "i64"
+                    cmp_op = "CMP_LT_I64" if expr.func == "min" else "CMP_GT_I64"
+                dst = self.new_temp(local_types, res_t)
+                cmp_v = self.new_temp(local_types, "bool")
+                else_lbl = self.new_label(f"{expr.func}_else")
+                end_lbl = self.new_label(f"{expr.func}_end")
+                instrs.append(MIRInstr(op=cmp_op, dst=cmp_v, arg1=lv, arg2=rv, val_type="bool"))
+                instrs.append(MIRInstr(op="JZ", arg1=cmp_v, arg2=else_lbl))
+                instrs.append(MIRInstr(op="MOV", dst=dst, arg1=lv, val_type=res_t))
+                instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
+                instrs.append(MIRInstr(op="LABEL", arg1=else_lbl))
+                instrs.append(MIRInstr(op="MOV", dst=dst, arg1=rv, val_type=res_t))
+                instrs.append(MIRInstr(op="LABEL", arg1=end_lbl))
+                return dst, res_t
+
             if expr.func == "clock_ns" and len(expr.args) == 0:
                 dst = self.new_temp(local_types, "i64")
                 instrs.append(MIRInstr(op="CLOCK_NS", dst=dst, val_type="i64"))
@@ -832,6 +973,20 @@ class MIRBuilder:
         dst = self.new_temp(local_types, "i64")
         instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=0, val_type="i64"))
         return dst, "i64"
+
+    def _coerce_to_cond(self, val: str, vtype: str, instrs: List[MIRInstr], local_types: Dict[str, str]) -> str:
+        """Convert non-integer values (str, f64) into an i64 truthiness flag for JZ/JNZ."""
+        if vtype == "str":
+            slen = self.new_temp(local_types, "i64")
+            instrs.append(MIRInstr(op="STR_LEN", dst=slen, arg1=val, val_type="i64"))
+            return slen
+        if vtype == "f64":
+            zflt = self.new_temp(local_types, "f64")
+            cmp_t = self.new_temp(local_types, "bool")
+            instrs.append(MIRInstr(op="CONST_F64", dst=zflt, arg1=0.0, val_type="f64"))
+            instrs.append(MIRInstr(op="CMP_NE_F64", dst=cmp_t, arg1=val, arg2=zflt, val_type="bool"))
+            return cmp_t
+        return val
 
     def _split_fstring(self, raw: str, line: int, col: int) -> List[Expr]:
         from .parser import Parser
@@ -935,39 +1090,39 @@ class MIROptimizer:
         if not has_alloc:
             return
 
-        # 1. Escape Analysis:
-        param_names = {p[0] for p in fn.params}
-        for ins in fn.instructions:
-            if ins.op == "STORE_IDX" and ins.dst in param_names:
-                return  # Escaped via mutation of caller's parameter
-
+        # 1. Sound Escape Analysis:
         # If return type is not a scalar primitive (i64, f64, bool, void),
         # the returned object (struct, array, string) is allocated in the arena and escapes to caller!
         if fn.return_type not in ("f64", "i64", "bool", "void"):
             return
 
-        # 2. Ephemeral allocations detected: emit ARENA_SAVE at entry and ARENA_RESTORE before RET
+        param_derived = {p[0] for p in fn.params}
+        for _ in range(2):
+            for ins in fn.instructions:
+                if ins.op == "MOV" and ins.dst and isinstance(ins.arg1, str) and ins.arg1 in param_derived:
+                    param_derived.add(ins.dst)
+                elif ins.op == "LOAD_IDX" and ins.dst and isinstance(ins.arg1, str) and ins.arg1 in param_derived:
+                    param_derived.add(ins.dst)
+
+        for ins in fn.instructions:
+            if ins.op == "RET" and ins.val_type not in ("f64", "i64", "bool", "void"):
+                return
+            if ins.op == "CALL" and ins.arg1 == "__bmb_alloc_root_set":
+                return
+            if ins.op == "STORE_IDX" and ins.dst in param_derived:
+                return  # Escaped via mutation of caller's parameter or nested struct/array
+
+        # 2. Ephemeral allocations detected: emit ARENA_SAVE before __tco_entry and ARENA_RESTORE before RET
         save_var = f"%arena_sp_{fn.name}"
         fn.local_types[save_var] = "i64"
 
-        new_instrs: List[MIRInstr] = []
-        inserted_save = False
+        new_instrs: List[MIRInstr] = [
+            MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint", line=fn.start_line)
+        ]
         for ins in fn.instructions:
-            if not inserted_save and ins.op != "LABEL":
-                new_instrs.append(MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint"))
-                inserted_save = True
-
             if ins.op == "RET":
-                new_instrs.append(MIRInstr(op="ARENA_RESTORE", arg1=save_var, comment="auto-reclaim lexical arena"))
-
+                new_instrs.append(MIRInstr(op="ARENA_RESTORE", arg1=save_var, comment="auto-reclaim lexical arena", line=ins.line))
             new_instrs.append(ins)
-
-            if not inserted_save and ins.op == "LABEL" and ins.arg1 == "__tco_entry":
-                new_instrs.append(MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint"))
-                inserted_save = True
-
-        if not inserted_save:
-            new_instrs.insert(0, MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint"))
 
         fn.instructions = new_instrs
 

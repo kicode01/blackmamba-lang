@@ -23,10 +23,11 @@ class Dependency:
     tag: Optional[str] = None
     branch: Optional[str] = None
     rev: Optional[str] = None
+    registry: Optional[str] = None
 
     def to_dict(self) -> Any:
         # If it's just a simple version string, return string
-        if self.version and not (self.path or self.git or self.tag or self.branch or self.rev):
+        if self.version and not (self.path or self.git or self.tag or self.branch or self.rev or self.registry):
             return self.version
         d: Dict[str, Any] = {}
         if self.version:
@@ -41,6 +42,8 @@ class Dependency:
             d["branch"] = self.branch
         if self.rev:
             d["rev"] = self.rev
+        if self.registry:
+            d["registry"] = self.registry
         return d
 
     @classmethod
@@ -56,6 +59,7 @@ class Dependency:
                 tag=val.get("tag"),
                 branch=val.get("branch"),
                 rev=val.get("rev"),
+                registry=val.get("registry"),
             )
         return cls(name=name)
 
@@ -106,34 +110,38 @@ class PackageManifest:
 
     def to_toml(self) -> str:
         """Serializes manifest to clean TOML text."""
+        def _q(val: Any) -> str:
+            s = str(val).replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+            return f'"{s}"'
+
         lines = []
         lines.append("[package]")
-        lines.append(f'name = "{self.name}"')
-        lines.append(f'version = "{self.version}"')
+        lines.append(f"name = {_q(self.name)}")
+        lines.append(f"version = {_q(self.version)}")
         if self.description:
-            lines.append(f'description = "{self.description}"')
+            lines.append(f"description = {_q(self.description)}")
         if self.authors:
-            authors_str = ", ".join(f'"{a}"' for a in self.authors)
+            authors_str = ", ".join(_q(a) for a in self.authors)
             lines.append(f"authors = [{authors_str}]")
-        lines.append(f'license = "{self.license}"')
-        lines.append(f'entry = "{self.entry}"')
+        lines.append(f"license = {_q(self.license)}")
+        lines.append(f"entry = {_q(self.entry)}")
         lines.append("")
 
         lines.append("[dependencies]")
         for dname, dep in sorted(self.dependencies.items()):
             val = dep.to_dict()
             if isinstance(val, str):
-                lines.append(f'{dname} = "{val}"')
+                lines.append(f"{dname} = {_q(val)}")
             elif isinstance(val, dict):
                 parts = []
                 for k, v in val.items():
-                    parts.append(f'{k} = "{v}"')
+                    parts.append(f"{k} = {_q(v)}")
                 lines.append(f"{dname} = {{ {', '.join(parts)} }}")
         lines.append("")
 
         lines.append("[build]")
-        lines.append(f'target = "{self.build_target}"')
-        lines.append(f'opt-level = "{self.opt_level}"')
+        lines.append(f"target = {_q(self.build_target)}")
+        lines.append(f"opt-level = {_q(self.opt_level)}")
         lines.append("")
 
         return "\n".join(lines)
