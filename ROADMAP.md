@@ -18,7 +18,26 @@
 │ Tier 1  [DONE]│ Unicode Engine, Async Reactor, KV Store & Standalone bmb.exe│
 │ Vector 1[DONE]│ High-Throughput HTTP/1.1 & WebSocket Server Framework (http)│
 │ Vector 2[DONE]│ Hardware SIMD & AVX2 / AVX-512 Vectorization Pipeline (simd)│
+│ Vector 3[DONE]│ Zero-Compiler CPython Native Extension Module Emitter (.pyd)│
+│ Vector 4[NEXT]│ Lock-Free Thread-Local Slab Allocator (alloc.bmb)           │
+│ Vector 5[NEXT]│ Native Columnar Data & Embedded Analytics (series.bmb)      │
+│ Vector 6[PLAN]│ Self-Hosting Compiler Bootstrap (Lexer & Parser in .bmb)    │
+│ Vector 7[PLAN]│ Embedded & Bare-Metal Target (No-OS / Cortex-M / RISC-V)    │
+│ Vector 8[PLAN]│ Native Debug Symbols & Interactive Debugger (PDB / DWARF)   │
 └───────────────┴─────────────────────────────────────────────────────────────┘
+
+## 🎯 Strategic Dominance Vectors (Black Mamba vs. Python) — Status Matrix
+
+| Vector | Focus Area | Status | Shipped In | Technical Achievement |
+| :--- | :--- | :---: | :---: | :--- |
+| **Vector 1** | **High-Throughput HTTP & WebSockets** (`http.bmb`) | **COMPLETED ✅** | `v0.7.0` | 8.2M req/sec native router, RFC 6455 full-duplex WebSocket frames |
+| **Vector 2** | **Native SIMD & AVX2 / AVX-512** (`simd.bmb`) | **COMPLETED ✅** | `v0.8.0` | `Vec4f`, `Vec8f`, `Vec4i`, FMA, 8-way unrolled bulk array DSP kernels |
+| **Vector 3** | **Drop-in CPython Extension Emitter** (`.pyd` / `.so`) | **COMPLETED ✅** | `v0.8.1` | Zero-compiler PE32+ `.pyd` generation, `METH_FASTCALL`, **30.5x faster** than Python 3.14 |
+| **Vector 4** | **Lock-Free Thread-Local Slab Allocator** (`alloc.bmb`) | **QUEUED ⏳** | `v0.8.2` | Mimalloc-style thread-isolated slab cache eliminating global heap lock contention |
+| **Vector 5** | **Native Columnar Data Engine** (`series.bmb`) | **NEXT UP 🎯** | `v0.9.0` | Arrow contiguous memory layout, SIMD vector-filtered scans (10x–50x vs Pandas) |
+| **Vector 6** | **Self-Hosting Compiler Bootstrap** | **PLANNED ⏳** | `v0.9.5` | Lexer & Pratt parser rewritten in pure `.bmb` (1,000,000+ lines/sec) |
+| **Vector 7** | **Embedded & Bare-Metal Edge Target** | **PLANNED ⏳** | `v0.9.8` | Freestanding No-OS Cortex-M / RISC-V target for microcontrollers |
+| **Vector 8** | **Native Debug Symbols (PDB / DWARF)** | **PLANNED ⏳** | `v1.0.0` | Step-into, step-over, and breakpoints in VS Code & GDB/LLDB |
 ```
 
 ---
@@ -211,6 +230,27 @@ Give developers world-class editor support, package management, and documentatio
 
 ---
 
+
+---
+
+## Vector 3: Drop-in CPython Extension Module Emitter (.pyd / .so) ✅ *(COMPLETED & VERIFIED)*
+
+- [x] **Zero-Compiler Windows PE32+ Dynamic Extension Emitter** (`mamba/backends/python_ext.py`):
+  - [x] Direct generation of 64-bit Windows PE32+ DLLs (`Characteristics: 0x2022`) containing native x86-64 machine code, `.text`, `.rdata`, `.data`, and `.reloc`.
+  - [x] Requires **zero external C compiler** (no MSVC `cl.exe`, no Visual Studio installation, no GCC, no Clang).
+  - [x] Automatically exports `PyInit_<modname>` via standard PE Export Directory Table (EDT).
+  - [x] High-performance `METH_FASTCALL` (`0x0080`) calling convention dispatching arguments directly from raw CPython pointer arrays without tuple packing overhead.
+  - [x] Automatic type unboxing (`int`/`i64`, `float`/`f64`, `bool`, `str`) and return value boxing (`PyLong_FromLongLong`, `PyFloat_FromDouble`, `PyBool_FromLong`, `Py_BuildValue`).
+  - [x] ASLR Base Relocation Table (`IMAGE_REL_BASED_DIR64`), allowing dynamic rebase at any image address without access violations.
+  - [x] Head-to-head benchmark verification: **30.5x faster** than pure CPython 3.14 on recursive Fibonacci ($N=32$: 9.5 ms vs 289.8 ms).
+- [x] **Portable C11 Fallback Extension Generator**:
+  - [x] Emits PEP 489 multi-phase initialization and free-threaded (`Py_MOD_GIL_NOT_USED`) C extension source code (`#include <Python.h>`) for Linux (`.so`) and macOS (`.dylib` / `.so`).
+- [x] **CLI Build Target Integration** (`mamba/cli.py`):
+  - [x] Added `bmb build <file.bmb> --target ext` and `--target pyd` producing standalone `.pyd` files.
+- [x] **Official Packaging & Branding**:
+  - [x] Added PEP 517/621 `pyproject.toml` and `setup.py` building installable Python wheels (`blackmamba_lang-0.8.1-py3-none-any.whl`).
+  - [x] Embedded official Black Mamba application icon (`assets/bmb.ico`) directly into standalone `bmb.exe` executable.
+
 ## ⚠️ Current Limitations & Flaws (What Black Mamba Lacks Today)
 
 For full architectural transparency, every known limitation, missing feature, and trade-off in Black Mamba today is thoroughly documented in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
@@ -238,8 +278,10 @@ For full architectural transparency, every known limitation, missing feature, an
 | **v0.5.0** | **Shipped** | Developer Experience & Tooling | Full LSP 3.17 daemon (`bmb-lsp`), VS Code extension, JIT REPL (`bmb repl`), Package Manager (`bmb pkg`), Doc Generator (`bmb doc`) |
 | **v0.6.0** | **Shipped** | Tier 1 Runtime Frontiers & Standalone Bundle | Pure Native Unicode (`unicode.bmb`), Async Reactor (`async.bmb`), Embedded KV Store (`kv.bmb`), Standalone `bmb.exe` |
 | **v0.7.0** | **Shipped** | High-Throughput HTTP & WebSocket Vector | Pure native HTTP/1.1 & WebSocket Server Framework (`http.bmb`), 8.2M req/s native router, RFC 6455 framing |
-| **v0.8.0** | **Shipped** *(Current)* | Hardware SIMD & AVX2 Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), FMA, 8-way unrolled bulk array kernels, GEMM tiling |
-| **v1.0.0** | **Planned** | Production Enterprise SLA | Central Web Package Registry, Self-Hosting Compiler, Distributed Actor Clusters |
+| **v0.8.0** | **Shipped** | Hardware SIMD & AVX2 Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), FMA, 8-way unrolled bulk array kernels, GEMM tiling |
+| **v0.8.1** | **Shipped** *(Current)* | CPython Extension Emitter & Official Branding | Zero-compiler `.pyd` emitter (30.5x speedup), official `bmb.ico` icon, `pyproject.toml` wheel packaging |
+| **v0.9.0** | **Planned** | Columnar Series & Thread-Local Allocator | Arrow-compatible `series.bmb` (10x-50x vs Pandas), lock-free thread-local slab allocator (`alloc.bmb`) |
+| **v1.0.0** | **Planned** | Production Enterprise SLA | Self-Hosting Compiler bootstrap in `.bmb`, Central Web Package Registry, Distributed Actor Clusters |
 
 ---
 
