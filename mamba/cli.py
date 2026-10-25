@@ -21,6 +21,7 @@ from .backends.elf_exe import ELF64ExecutableBuilder
 from .backends.arm64_macho import MachOARM64ExecutableBuilder
 from .backends.wasm_emitter import WasmBackend
 from .backends.c_emitter import C11Backend, LLVMIRBackend
+from .backends.python_ext import PE32PlusExtensionBuilder, C11ExtensionEmitter
 
 
 def compile_source_to_mir(source: str, filename: str = "<input.bmb>", base_dir: str = "") -> MIRModule:
@@ -108,6 +109,15 @@ def cmd_build(args: argparse.Namespace) -> int:
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.ll")
             path = LLVMIRBackend(mir).write_llvm(out_path)
             print(f"[Black Mamba] Built LLVM IR (.ll)                              -> {path}")
+        elif tgt in ("ext", "pyd"):
+            if sys.platform == "win32":
+                out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.pyd")
+                path = PE32PlusExtensionBuilder(mir, mod_name=base_name).write_pyd(out_path)
+                print(f"[Black Mamba] Built standalone Windows CPython Extension (.pyd) -> {path} ({os.path.getsize(path)} bytes)")
+            else:
+                out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.c")
+                path = C11ExtensionEmitter(mir, mod_name=base_name).write_c_extension(out_path)
+                print(f"[Black Mamba] Built portable CPython Extension C source (.c)  -> {path}")
     return 0
 
 
@@ -320,7 +330,7 @@ def main(argv: Optional[list] = None) -> int:
     p_build.add_argument(
         "--target",
         "-t",
-        choices=["exe", "elf", "linux", "macho", "arm64", "macos", "wasm", "wat", "c", "llvm", "all"],
+        choices=["exe", "elf", "linux", "macho", "arm64", "macos", "wasm", "wat", "c", "llvm", "ext", "pyd", "all"],
         default="exe",
         help="Target output format (default: exe)",
     )

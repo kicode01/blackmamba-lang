@@ -1,0 +1,20 @@
+def add(a: int, b: int) -> int:
+    return a + b
+
+def fib(n: int) -> int:
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+def is_prime(n: int) -> bool:
+    if n <= 1:
+        return False
+    d = 2
+    while d * d <= n:
+        if n % d == 0:
+            return False
+        d += 1
+    return True
+
+def mult_f64(x: float, y: float) -> float:
+    return x * y

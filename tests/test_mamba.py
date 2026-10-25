@@ -2284,5 +2284,68 @@ def main() -> i64:
             os.remove(pe_exe_path)
 
 
+    def test_cpython_extension_emission(self):
+        """Vector 3: Test direct standalone CPython extension module emission (.pyd / .so)."""
+        import sys
+        from mamba.backends.python_ext import PE32PlusExtensionBuilder, C11ExtensionEmitter
+
+        ext_src = """
+def ext_add(a: int, b: int) -> int:
+    return a + b
+
+def ext_fib(n: int) -> int:
+    if n <= 1:
+        return n
+    return ext_fib(n - 1) + ext_fib(n - 2)
+
+def ext_is_even(n: int) -> bool:
+    if n % 2 == 0:
+        return True
+    return False
+
+def ext_mult(x: float, y: float) -> float:
+    return x * y
+"""
+        mod = Parser.from_source(ext_src).parse_module()
+        mir = MIRBuilder().build(mod)
+
+        # 1. Test C11 Extension Emitter
+        c_emitter = C11ExtensionEmitter(mir, mod_name="test_c11_mod")
+        c_code = c_emitter.emit_c_extension()
+        self.assertIn("PyInit_test_c11_mod", c_code)
+        self.assertIn("py_wrap_ext_add", c_code)
+        self.assertIn("py_wrap_ext_fib", c_code)
+        self.assertIn("METH_FASTCALL", c_code)
+
+        # 2. Test Standalone PE32+ .pyd generation (Windows)
+        if sys.platform == "win32":
+            mod_name = "test_unit_ext"
+            pyd_path = os.path.abspath(f"{mod_name}.pyd")
+            builder = PE32PlusExtensionBuilder(mir, mod_name=mod_name)
+            out = builder.write_pyd(pyd_path)
+            self.assertTrue(os.path.exists(out))
+            self.assertGreater(os.path.getsize(out), 0)
+
+            # Test importing in a fresh Python process
+            py_code = f"""
+import sys, os
+sys.path.insert(0, os.getcwd())
+import {mod_name}
+
+assert {mod_name}.ext_add(40, 2) == 42
+assert {mod_name}.ext_fib(20) == 6765
+assert {mod_name}.ext_is_even(88) is True
+assert {mod_name}.ext_is_even(89) is False
+assert abs({mod_name}.ext_mult(3.5, 4.0) - 14.0) < 1e-9
+print("PYD_UNIT_TEST_OK")
+"""
+            res = subprocess.run([sys.executable, "-c", py_code], capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, f"Extension execution failed: {res.stderr}")
+            self.assertIn("PYD_UNIT_TEST_OK", res.stdout)
+
+            if os.path.exists(pyd_path):
+                os.remove(pyd_path)
+
+
 if __name__ == "__main__":
     unittest.main()
