@@ -174,13 +174,13 @@
 
 ### Summary Checklist of All Flaws
 
-| Category | Flaw | Severity | Status |
+| Category | Flaw / Capability | Severity | Status |
 | :--- | :--- | :--- | :--- |
-| **Memory** | Linear arena leaks on cyclic heap graphs | Medium | Phase 3 Target |
-| **Platform** | Windows PE32+, Linux ELF64, macOS ARM64 shipped | Low | Complete |
-| **Strings** | Small String Optimization (SSO) & zero-copy slicing shipped | Low | Complete |
-| **Exceptions** | Hardware SEH unwinding tables (.pdata / .xdata) shipped | Low | Complete |
-| **Stdlib** | Core (math, time, random, tensor, json, hash, os, socket, array, test) pure native | Low | Complete |
+| **Memory** | Ephemeral arenas + `gc.bmb` generational regions & cycle collector | Low | Resolved |
+| **Platform** | Windows PE32+, Linux ELF64, macOS ARM64, WASM 1.0 shipped | Low | Complete |
+| **Strings** | SSO, zero-copy slicing, and Thompson NFA `regex.bmb` engine shipped | Low | Complete |
+| **Exceptions** | Hardware SEH unwinding tables (.pdata / .xdata) & VEH shipped | Low | Complete |
+| **Stdlib** | Core 13 modules (math, time, random, tensor, json, hash, os, socket, array, thread, chan, regex, gc, test) pure native | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
-| **Concurrency**| Hardware atomics, Mutex, threads & par_for shipped in thread.bmb | Low | Complete |
-| **Tooling** | VS Code extension, LSP, REPL, package manager & doc generator shipped | Low | Complete (LSP, REPL, PKG, DOC) |
+| **Concurrency**| Atomics, threads, par_for, lock-free MPMC channels, Select multiplexer & Actors | Low | Complete |
+| **Tooling** | VS Code extension, LSP daemon, REPL, package manager (`bmb pkg`) & doc generator shipped | Low | Complete |
