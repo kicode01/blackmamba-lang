@@ -72,8 +72,11 @@ Eliminate memory leaks on cyclic graphs while keeping zero GC pause latency for 
   - [x] Fast dynamic string concatenation (`+`) and single-character indexing `s[idx]`.
   - [x] First-class dynamic f-string interpolation (`f"..."`) anywhere in code, lowering to chained concatenations.
   - [x] String length `len(s)` and fast equality comparisons (`==`, `!=`).
-- [ ] **Structured Exception Handling (SEH) Unwind Tables**:
-  - Emit `.pdata` and `.xdata` unwinding sequences in the PE32+ linker to catch hardware divide-by-zero and null-pointer exceptions gracefully.
+- [x] **Structured Exception Handling (SEH) Unwind Tables**:
+  - [x] Emit `.pdata` (Section 4) and `.xdata` unwinding tables in the PE32+ linker to catch hardware divide-by-zero (`0xC0000094`), null-pointer access violations (`0xC0000005`), and stack overflows (`0xC00000FD`) gracefully.
+  - [x] Populate `DataDirectory[3]` (`IMAGE_DIRECTORY_ENTRY_EXCEPTION`) in the PE32+ Optional Header.
+  - [x] Strictly ascending `IMAGE_RUNTIME_FUNCTION_ENTRY` table with binary search compatibility for Windows kernel `RtlLookupFunctionEntry`.
+  - [x] Register native Vectored Exception Handler (`AddVectoredExceptionHandler`) in `_start` to format and print human-readable diagnostic reports with proper call-stack unwinding before clean exit.
 
 ---
 

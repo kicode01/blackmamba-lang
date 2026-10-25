@@ -49,17 +49,20 @@
 
 ---
 
-## 4. Exception Handling: Lack of Zero-Cost Unwind Tables
+## 4. Exception Handling: Hardware Structured Exception Handling (SEH) & Unwind Tables (RESOLVED in Phase 3)
 
-* **The Limitation**:
-  * Errors are currently handled via structured control-flow jumps (`JZ`/`JNZ`) and return status codes.
-  * The direct PE32+ binary linker does not yet generate full Windows Structured Exception Handling (SEH) `.pdata` and `.xdata` unwinding tables.
-  * If a native executable encounters a hardware trap (e.g. division by zero or invalid memory access), the operating system terminates the process immediately rather than raising a catchable Python `ZeroDivisionError`.
+* **Current Status (RESOLVED in Phase 3)**:
+  * **Zero-Cost Hardware SEH Tables**:
+    - The direct PE32+ standalone binary linker now generates full Windows Structured Exception Handling (SEH) `.pdata` and `.xdata` unwinding tables in Section 4.
+    - Wired to `DataDirectory[3]` (`IMAGE_DIRECTORY_ENTRY_EXCEPTION`) in the PE32+ Optional Header.
+    - Emits strictly ascending `IMAGE_RUNTIME_FUNCTION_ENTRY` records (12 bytes each) describing every function, runtime helper, and entry point in `.text`, fully compatible with Windows kernel binary search `RtlLookupFunctionEntry` and `RtlVirtualUnwind`.
+    - Emits deduplicated `UNWIND_INFO` records (`.xdata`) describing exact prologues (`push rbp`, `mov rbp, rsp`, callee-saved registers `r12..r15, rbx, rsi, rdi`, and small/large stack frame allocations).
+    - Imports `AddVectoredExceptionHandler` from `KERNEL32.dll` and registers a native VEH handler in `_start`.
+    - Intercepts hardware divide-by-zero (`0xC0000094`), memory access violations (`0xC0000005`), and stack overflows (`0xC00000FD`), formats and prints human-readable diagnostic reports with fault address (RIP), flushes stdout, and exits cleanly instead of silent OS crashes.
+* **Remaining Limitation**:
+  * User-level try/except language constructs (`try: ... except Exception: ...`) are currently lowered to control-flow status checks; user-level exception class hierarchies will be expanded in future runtime enhancements.
 * **Current Workaround**:
-  * Validate inputs explicitly before division or array indexing.
-  * Use the C11 backend (`--target c`) which leverages standard C error handling.
-* **Planned Fix (Phase 3)**:
-  * Emit native `.pdata` and `.xdata` unwind bytecode sequences directly into the PE32+ header.
+  * Use status return values or input validation for routine business logic errors; hardware exceptions (division by zero, null pointer dereferences) are now caught cleanly and reported by the native SEH engine.
 
 ---
 

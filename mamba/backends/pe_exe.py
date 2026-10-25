@@ -51,6 +51,84 @@ class PE32PlusExecutableBuilder:
         self.iat_start_rva: int = 0
         self.iat_total_size: int = 0
         self.idt_size: int = 0
+        self.func_entries: List[Tuple[int, int, str, int]] = []
+        self.pdata_table_size: int = 0
+
+    def _encode_unwind_info(self, kind: str, frame_size: int) -> bytes:
+        if kind == "leaf":
+            return struct.pack("<BBBB", 1, 0, 0, 0)
+        elif kind == "start":
+            alloc_code = (4 << 12) | (2 << 8) | 4
+            return struct.pack("<BBBBHH", 1, 4, 1, 0, alloc_code, 0)
+        elif kind == "rbp_noalloc":
+            return struct.pack("<BBBBHH", 1, 4, 2, 5, 0x0304, 0x5001)
+        elif kind == "rbp_frame":
+            if frame_size <= 128:
+                op_info = (frame_size - 8) // 8
+                alloc_code = (op_info << 12) | (2 << 8) | 8
+                return struct.pack("<BBBBHHHH", 1, 8, 3, 5, alloc_code, 0x0304, 0x5001, 0)
+            else:
+                alloc_code = (0 << 12) | (1 << 8) | 11
+                scale = frame_size // 8
+                return struct.pack("<BBBBHHHH", 1, 11, 4, 5, alloc_code, scale, 0x0304, 0x5001)
+        elif kind == "mir":
+            if frame_size <= 128:
+                alloc_code = (((frame_size - 8) // 8) << 12) | (2 << 8) | 19
+                codes = [
+                    alloc_code,
+                    (15 << 12) | (0 << 8) | 15,
+                    (14 << 12) | (0 << 8) | 13,
+                    (13 << 12) | (0 << 8) | 11,
+                    (12 << 12) | (0 << 8) | 9,
+                    (7 << 12) | (0 << 8) | 7,
+                    (6 << 12) | (0 << 8) | 6,
+                    (3 << 12) | (0 << 8) | 5,
+                    (0 << 12) | (3 << 8) | 4,
+                    (5 << 12) | (0 << 8) | 1,
+                ]
+                return struct.pack("<BBBB" + "H" * len(codes), 1, 19, len(codes), 5, *codes)
+            else:
+                codes = [
+                    (0 << 12) | (1 << 8) | 22,
+                    frame_size // 8,
+                    (15 << 12) | (0 << 8) | 15,
+                    (14 << 12) | (0 << 8) | 13,
+                    (13 << 12) | (0 << 8) | 11,
+                    (12 << 12) | (0 << 8) | 9,
+                    (7 << 12) | (0 << 8) | 7,
+                    (6 << 12) | (0 << 8) | 6,
+                    (3 << 12) | (0 << 8) | 5,
+                    (0 << 12) | (3 << 8) | 4,
+                    (5 << 12) | (0 << 8) | 1,
+                    0x0000,
+                ]
+                return struct.pack("<BBBB" + "H" * len(codes), 1, 22, 11, 5, *codes)
+        return struct.pack("<BBBB", 1, 0, 0, 0)
+
+    def _build_pdata_section(self, pdata_rva: int) -> bytes:
+        sorted_entries = sorted(self.func_entries, key=lambda e: e[0])
+        n = len(sorted_entries)
+        table_size = n * 12
+        self.pdata_table_size = table_size
+
+        uinfo_base = _align(table_size, 4)
+        pdata_buf = bytearray(uinfo_base)
+        uinfo_map: Dict[bytes, int] = {}
+
+        for i, (start_off, end_off, kind, frame_size) in enumerate(sorted_entries):
+            begin_rva = TEXT_RVA + start_off
+            end_rva = TEXT_RVA + end_off
+            uinfo_bytes = self._encode_unwind_info(kind, frame_size)
+            if uinfo_bytes not in uinfo_map:
+                u_off = len(pdata_buf)
+                pdata_buf.extend(uinfo_bytes)
+                while len(pdata_buf) % 4 != 0:
+                    pdata_buf.append(0)
+                uinfo_map[uinfo_bytes] = u_off
+            uinfo_rva = pdata_rva + uinfo_map[uinfo_bytes]
+            struct.pack_into("<III", pdata_buf, i * 12, begin_rva, end_rva, uinfo_rva)
+
+        return bytes(pdata_buf)
 
     def build_bytes(self) -> bytes:
         rdata_raw = self._build_rdata_section()
@@ -75,18 +153,25 @@ class PE32PlusExecutableBuilder:
         rdata_file_size = _align(rdata_virtual_size, 0x200)
         rdata_pages = _align(max(rdata_virtual_size, 1), 0x1000)
 
-        rsrc_rva = rdata_rva + rdata_pages
+        pdata_rva = rdata_rva + rdata_pages
+        pdata_raw = self._build_pdata_section(pdata_rva)
+        pdata_virtual_size = len(pdata_raw)
+        pdata_file_size = _align(pdata_virtual_size, 0x200)
+        pdata_pages = _align(max(pdata_virtual_size, 1), 0x1000)
+
+        rsrc_rva = pdata_rva + pdata_pages
         rsrc_raw = self._build_rsrc_section(rsrc_rva)
         rsrc_virtual_size = len(rsrc_raw)
         rsrc_file_size = _align(rsrc_virtual_size, 0x200)
         rsrc_pages = _align(max(rsrc_virtual_size, 1), 0x1000)
 
         size_of_image = rsrc_rva + rsrc_pages
-        size_of_headers = 0x200
+        size_of_headers = 0x400
 
-        text_file_offset = 0x200
+        text_file_offset = 0x400
         rdata_file_offset = text_file_offset + text_file_size
-        rsrc_file_offset = rdata_file_offset + rdata_file_size
+        pdata_file_offset = rdata_file_offset + rdata_file_size
+        rsrc_file_offset = pdata_file_offset + pdata_file_size
 
         headers = self._build_pe_headers(
             text_virtual_size=text_virtual_size,
@@ -96,6 +181,10 @@ class PE32PlusExecutableBuilder:
             rdata_virtual_size=rdata_virtual_size,
             rdata_file_size=rdata_file_size,
             rdata_file_offset=rdata_file_offset,
+            pdata_rva=pdata_rva,
+            pdata_virtual_size=pdata_virtual_size,
+            pdata_file_size=pdata_file_size,
+            pdata_file_offset=pdata_file_offset,
             rsrc_rva=rsrc_rva,
             rsrc_virtual_size=rsrc_virtual_size,
             rsrc_file_size=rsrc_file_size,
@@ -108,6 +197,7 @@ class PE32PlusExecutableBuilder:
         out.extend(headers.ljust(size_of_headers, b"\x00"))
         out.extend(text_raw.ljust(text_file_size, b"\x00"))
         out.extend(rdata_raw.ljust(rdata_file_size, b"\x00"))
+        out.extend(pdata_raw.ljust(pdata_file_size, b"\x00"))
         out.extend(rsrc_raw.ljust(rsrc_file_size, b"\x00"))
         return bytes(out)
 
@@ -136,6 +226,7 @@ class PE32PlusExecutableBuilder:
                 "KERNEL32.dll",
                 [
                     "ExitProcess",
+                    "AddVectoredExceptionHandler",
                 ],
             ),
             (
@@ -194,6 +285,10 @@ class PE32PlusExecutableBuilder:
             ("str_wb", b"wb\x00"),
             ("str_ab", b"ab\x00"),
             ("str_empty", b"\x00"),
+            ("fmt_seh_div0", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Integer Divide By Zero (0xC0000094) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
+            ("fmt_seh_access", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Access Violation (0xC0000005) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
+            ("fmt_seh_stack", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Stack Overflow (0xC00000FD) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
+            ("fmt_seh_generic", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Exception 0x%08X at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
         ]
         builtin_offsets = {}
         for b_name, b_bytes in builtins_spec:
@@ -300,15 +395,22 @@ class PE32PlusExecutableBuilder:
         return bytes(rsrc)
 
     def _build_text_section(self, rdata_base_rva: int = RDATA_RVA) -> bytes:
-        delta = rdata_base_rva - RDATA_RVA
         self.code_buf = X86_64CodeBuffer()
         buf = self.code_buf
+        self.func_entries = []
 
         entry_fn = "__bmb_main__" if any(f.name == "__bmb_main__" for f in self.mir_module.functions) else "main"
 
         # 1. _start Entry Point at RVA 0x1000 (offset 0)
+        f_start = len(buf.code)
         buf.mark_label("_start")
         buf.emit(b"\x48\x83\xEC\x28", "sub rsp, 0x28")  # 32B shadow + 8B alignment
+
+        # Register Vectored Exception Handler: AddVectoredExceptionHandler(1, &rt__exception_handler)
+        buf.emit(b"\x48\xC7\xC1\x01\x00\x00\x00", "mov rcx, 1")  # First = 1
+        buf.lea_rdx_label("rt__exception_handler")
+        self._emit_call_iat(self.iat_rvas["AddVectoredExceptionHandler"], "KERNEL32!AddVectoredExceptionHandler")
+
         buf.call_label(f"fn__{entry_fn}")
         buf.emit(b"\x48\x89\xC1", "mov rcx, rax")       # save exit code
         # Flush stdout via fflush(NULL)
@@ -317,8 +419,83 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
         self._emit_call_iat(self.iat_rvas["ExitProcess"], "KERNEL32!ExitProcess")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "start", 0x28))
 
-        # 2. Runtime Helper: __bmb_print(rcx=kind, rdx=raw_val)
+        # 1b. Native SEH Exception Handler: rt__exception_handler(rcx = PEXCEPTION_POINTERS)
+        f_start = len(buf.code)
+        buf.mark_label("rt__exception_handler")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+
+        # rcx = PEXCEPTION_POINTERS -> rax = PEXCEPTION_RECORD
+        buf.emit(b"\x48\x8B\x01", "mov rax, [rcx] ; ExceptionRecord")
+        buf.emit(b"\x44\x8B\x00", "mov r8d, dword ptr [rax] ; ExceptionCode")
+        buf.emit(b"\x4C\x8B\x48\x10", "mov r9, qword ptr [rax + 16] ; ExceptionAddress")
+        buf.emit(b"\x44\x89\x45\xF8", "mov [rbp - 0x08], r8d ; save code")
+        buf.emit(b"\x4C\x89\x4D\xF0", "mov [rbp - 0x10], r9 ; save address")
+
+        # Pass through non-fatal/notifications (ExceptionCode < 0xC0000000)
+        buf.emit(b"\xB8\x00\x00\x00\xC0", "mov eax, 0xC0000000")
+        buf.emit(b"\x41\x39\xC0", "cmp r8d, eax")
+        buf.jcc_rel32(0x82, "b", "rt__seh_continue")
+
+        # Check for Divide By Zero (0xC0000094)
+        buf.emit(b"\xB8\x94\x00\x00\xC0", "mov eax, 0xC0000094")
+        buf.emit(b"\x41\x39\xC0", "cmp r8d, eax")
+        buf.jcc_rel32(0x84, "e", "rt__seh_div0")
+
+        # Check for Access Violation (0xC0000005)
+        buf.emit(b"\xB8\x05\x00\x00\xC0", "mov eax, 0xC0000005")
+        buf.emit(b"\x41\x39\xC0", "cmp r8d, eax")
+        buf.jcc_rel32(0x84, "e", "rt__seh_access")
+
+        # Check for Stack Overflow (0xC00000FD)
+        buf.emit(b"\xB8\xFD\x00\x00\xC0", "mov eax, 0xC00000FD")
+        buf.emit(b"\x41\x39\xC0", "cmp r8d, eax")
+        buf.jcc_rel32(0x84, "e", "rt__seh_stack")
+
+        # Generic Hardware Fault
+        buf.mark_label("rt__seh_generic")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_seh_generic"], "fmt_seh_generic")
+        buf.emit(b"\x8B\x55\xF8", "mov edx, [rbp - 0x08] ; ExceptionCode")
+        buf.emit(b"\x4C\x8B\x45\xF0", "mov r8, [rbp - 0x10] ; ExceptionAddress")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
+        buf.jmp_label("rt__seh_exit")
+
+        buf.mark_label("rt__seh_div0")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_seh_div0"], "fmt_seh_div0")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10] ; ExceptionAddress")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
+        buf.jmp_label("rt__seh_exit")
+
+        buf.mark_label("rt__seh_access")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_seh_access"], "fmt_seh_access")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10] ; ExceptionAddress")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
+        buf.jmp_label("rt__seh_exit")
+
+        buf.mark_label("rt__seh_stack")
+        self._emit_lea_rcx_rva(self.builtin_rvas["fmt_seh_stack"], "fmt_seh_stack")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10] ; ExceptionAddress")
+        self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
+        buf.jmp_label("rt__seh_exit")
+
+        buf.mark_label("rt__seh_exit")
+        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        self._emit_call_iat(self.iat_rvas["fflush"], "msvcrt!fflush")
+        buf.emit(b"\x8B\x4D\xF8", "mov ecx, [rbp - 0x08]")
+        self._emit_call_iat(self.iat_rvas["ExitProcess"], "KERNEL32!ExitProcess")
+
+        buf.mark_label("rt__seh_continue")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax ; EXCEPTION_CONTINUE_SEARCH")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
+
+        # Runtime Helper: rt__print
+        f_start = len(buf.code)
         buf.mark_label("rt__print")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -353,13 +530,12 @@ class PE32PlusExecutableBuilder:
         self._emit_call_iat(self.iat_rvas["printf"], "msvcrt!printf")
         buf.jmp_label("rt__print_done")
 
-        # kind 3: string in rdx (either pointer or SSO immediate)
+        # kind 3: string
         buf.mark_label("rt__print_k3")
         buf.emit(b"\x48\x83\xF9\x03", "cmp rcx, 3")
         buf.jcc_rel32(0x85, "ne", "rt__print_k4")
         buf.emit(b"\xF6\xC2\x01", "test dl, 1")
         buf.jcc_rel32(0x84, "z", "rt__print_k3_ptr")
-        # SSO immediate: unpack rdx >> 8 into stack buffer [rbp - 0x10]
         buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
         buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
         buf.emit(b"\x48\x89\x45\xF0", "mov qword ptr [rbp - 0x10], rax")
@@ -387,8 +563,10 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # 3. Runtime Helper: __bmb_alloc_arr(rcx=count, rdx=init_bits) -> rax=ptr
+        # Runtime Helper: rt__alloc_arr
+        f_start = len(buf.code)
         buf.mark_label("rt__alloc_arr")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -396,30 +574,35 @@ class PE32PlusExecutableBuilder:
         buf.store_slot_rcx(-8, "count")
         buf.store_slot_rdx(-16, "init_bits")
         buf.mov_rax_imm64(8)
-        buf.emit(b"\x48\x89\xC2", "mov rdx, rax")  # size = 8 bytes
+        buf.emit(b"\x48\x89\xC2", "mov rdx, rax")
         self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
-        buf.store_slot_rax(-24, "ptr")
-        # Initialize array if init_bits != 0
-        buf.load_rdx_slot(-16, "init_bits")
-        buf.emit(b"\x48\x85\xD2", "test rdx, rdx")
-        buf.jcc_rel32(0x84, "e", "rt__alloc_done")
-        buf.mov_rcx_imm64(0)
+        buf.store_slot_rax(-24, "arr_ptr")
+        buf.load_rdx_slot(-8, "count")
+        buf.emit(b"\x48\x89\x10", "mov [rax], rdx")
+        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        buf.store_slot_rcx(-32, "idx")
         buf.mark_label("rt__alloc_loop")
-        buf.load_rax_slot(-8, "count")
-        buf.emit(b"\x48\x39\xC1", "cmp rcx, rax")
+        buf.load_rax_slot(-32, "idx")
+        buf.load_rdx_slot(-8, "count")
+        buf.emit(b"\x48\x39\xD0", "cmp rax, rdx")
         buf.jcc_rel32(0x8D, "ge", "rt__alloc_done")
-        buf.load_rax_slot(-24, "ptr")
+        buf.load_rax_slot(-24, "arr_ptr")
+        buf.load_rcx_slot(-32, "idx")
         buf.load_rdx_slot(-16, "init_bits")
-        buf.store_idx_rax_rcx_rdx()
-        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x48\x89\x54\xC8\x08", "mov [rax + rcx*8 + 8], rdx")
+        buf.load_rax_slot(-32, "idx")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
+        buf.store_slot_rax(-32, "idx")
         buf.jmp_label("rt__alloc_loop")
         buf.mark_label("rt__alloc_done")
-        buf.load_rax_slot(-24, "ptr")
+        buf.load_rax_slot(-24, "arr_ptr")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
 
-        # 4. Runtime Helper: __bmb_pow_f64(rcx=base_bits, rdx=exp_bits) -> rax=res_bits
+        # Runtime Helper: rt__pow_f64
+        f_start = len(buf.code)
         buf.mark_label("rt__pow_f64")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -431,8 +614,10 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # 5. Runtime Helper: __bmb_pow_i64(rcx=base, rdx=exp) -> rax=res
+        # Runtime Helper: rt__pow_i64
+        f_start = len(buf.code)
         buf.mark_label("rt__pow_i64")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -447,31 +632,46 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_noalloc", 0))
 
-        # 5b. Host Python Interop Fallback Stub
+        # rt__py_stub
+        f_start = len(buf.code)
         buf.mark_label("rt__py_stub")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
-        # 5c. Lexical Arena Checkpoint Helpers
+        # rt__arena_save
+        f_start = len(buf.code)
         buf.mark_label("rt__arena_save")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__arena_restore
+        f_start = len(buf.code)
         buf.mark_label("rt__arena_restore")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__clock_ns
+        f_start = len(buf.code)
         buf.mark_label("rt__clock_ns")
         buf.emit(b"\x0F\x31", "rdtsc")
         buf.emit(b"\x48\xC1\xE2\x20", "shl rdx, 32")
         buf.emit(b"\x48\x09\xD0", "or rax, rdx")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
-        # 5d. String Helpers / Stubs
+        # rt__str_stub
+        f_start = len(buf.code)
         buf.mark_label("rt__str_stub")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__str_from_bool
+        f_start = len(buf.code)
         buf.mark_label("rt__str_from_bool")
         buf.emit(b"\x48\x85\xC9", "test rcx, rcx")
         buf.jcc_rel32(0x84, "z", "rt__bool_false")
@@ -480,7 +680,10 @@ class PE32PlusExecutableBuilder:
         buf.mark_label("rt__bool_false")
         buf.emit(b"\x48\xB8\x0B\x46\x61\x6C\x73\x65\x00\x00", "mov rax, 0x65736C61460B ; SSO 'False'")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__str_from_i64
+        f_start = len(buf.code)
         buf.mark_label("rt__str_from_i64")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -498,7 +701,10 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
 
+        # rt__str_from_f64
+        f_start = len(buf.code)
         buf.mark_label("rt__str_from_f64")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -517,7 +723,10 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
 
+        # rt__str_ord
+        f_start = len(buf.code)
         buf.mark_label("rt__str_ord")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__ord_heap")
@@ -528,32 +737,39 @@ class PE32PlusExecutableBuilder:
         buf.mark_label("rt__ord_heap")
         buf.emit(b"\x48\x0F\xB6\x01", "movzx rax, byte ptr [rcx]")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__str_chr
+        f_start = len(buf.code)
         buf.mark_label("rt__str_chr")
-        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\x0F\xB6\xC1", "movzx rax, cl")
         buf.emit(b"\x48\xC1\xE0\x08", "shl rax, 8")
         buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__str_index
+        f_start = len(buf.code)
         buf.mark_label("rt__str_index")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__idx_heap")
-        buf.emit(b"\x48\x8D\x42\x01", "lea rax, [rdx + 1]")
-        buf.emit(b"\x48\xC1\xE0\x03", "shl rax, 3")
-        buf.emit(b"\x49\x89\xC8", "mov r8, rcx")
-        buf.emit(b"\x88\xC1", "mov cl, al")
-        buf.emit(b"\x49\xD3\xE8", "shr r8, cl")
-        buf.emit(b"\x45\x0F\xB6\xC0", "movzx r8, r8b")
-        buf.emit(b"\x49\xC1\xE0\x08", "shl r8, 8")
-        buf.emit(b"\x49\x83\xC8\x03", "or r8, 3")
-        buf.emit(b"\x4C\x89\xC0", "mov rax, r8")
+        buf.emit(b"\x48\x8D\x4A\x01", "lea rcx, [rdx + 1]")
+        buf.emit(b"\x48\xC1\xE1\x03", "shl rcx, 3")
+        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+        buf.emit(b"\x48\xD3\xE8", "shr rax, cl")
+        buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
+        buf.emit(b"\x48\xC1\xE0\x08", "shl rax, 8")
+        buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
         buf.ret()
         buf.mark_label("rt__idx_heap")
         buf.emit(b"\x48\x0F\xB6\x04\x11", "movzx rax, byte ptr [rcx + rdx]")
         buf.emit(b"\x48\xC1\xE0\x08", "shl rax, 8")
         buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__str_len
+        f_start = len(buf.code)
         buf.mark_label("rt__str_len")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__strlen_heap")
@@ -570,33 +786,25 @@ class PE32PlusExecutableBuilder:
         buf.jmp_label("rt__strlen_loop")
         buf.mark_label("rt__strlen_done")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        # rt__str_slice
+        f_start = len(buf.code)
         buf.mark_label("rt__str_slice")
         buf.push_rbp()
         buf.mov_rbp_rsp()
-        buf.sub_rsp_imm32(0x50)
+        buf.sub_rsp_imm32(0x40)
         buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; s")
         buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; start")
         buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; stop")
-
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__slice_s_ptr")
-
-        # SSO:
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
         buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; len")
-        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
-        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax ; sso_buf")
-        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0")
-        buf.emit(b"\x48\x8D\x45\xD0", "lea rax, [rbp - 0x30]")
-        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; src_ptr")
         buf.jmp_label("rt__slice_len_ready")
-
         buf.mark_label("rt__slice_s_ptr")
-        buf.emit(b"\x48\x89\x4D\xD8", "mov [rbp - 0x28], rcx ; src_ptr")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.mark_label("rt__slice_len_loop")
         buf.emit(b"\x80\x3C\x01\x00", "cmp byte ptr [rcx + rax], 0")
@@ -605,196 +813,192 @@ class PE32PlusExecutableBuilder:
         buf.jmp_label("rt__slice_len_loop")
         buf.mark_label("rt__slice_len_done")
         buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; len")
-
         buf.mark_label("rt__slice_len_ready")
-        # Normalize start:
-        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
-        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10] ; start")
+        buf.emit(b"\x48\x85\xD2", "test rdx, rdx")
         buf.jcc_rel32(0x8D, "ge", "rt__slice_start_ge0")
-        buf.emit(b"\x48\x03\x45\xE0", "add rax, [rbp - 0x20]")
-        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.emit(b"\x48\x03\x55\xE0", "add rdx, [rbp - 0x20]")
+        buf.emit(b"\x48\x85\xD2", "test rdx, rdx")
         buf.jcc_rel32(0x8D, "ge", "rt__slice_start_clamp_min")
-        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
         buf.mark_label("rt__slice_start_clamp_min")
-        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.jmp_label("rt__slice_start_clamped")
         buf.mark_label("rt__slice_start_ge0")
-
-        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
-        buf.emit(b"\x48\x3B\x45\xE0", "cmp rax, [rbp - 0x20]")
+        buf.emit(b"\x48\x3B\x55\xE0", "cmp rdx, [rbp - 0x20]")
         buf.jcc_rel32(0x8E, "le", "rt__slice_start_clamped")
-        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
-        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\x8B\x55\xE0", "mov rdx, [rbp - 0x20]")
         buf.mark_label("rt__slice_start_clamped")
-
-        # Normalize stop:
-        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
-        buf.emit(b"\x48\x85\xC0", "test rax, rax")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18] ; stop")
+        buf.emit(b"\x4D\x85\xC0", "test r8, r8")
         buf.jcc_rel32(0x8D, "ge", "rt__slice_stop_ge0")
-        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
-        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
-        buf.jmp_label("rt__slice_stop_clamp_len")
-
-        buf.mark_label("rt__slice_stop_ge0")
-        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
-        buf.emit(b"\x48\x3B\x45\xF0", "cmp rax, [rbp - 0x10]")
+        buf.emit(b"\x49\x03\x45\xE0", "add r8, [rbp - 0x20]")
+        buf.emit(b"\x4D\x85\xC0", "test r8, r8")
         buf.jcc_rel32(0x8D, "ge", "rt__slice_stop_clamp_len")
-        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
-        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
-
-        buf.mark_label("rt__slice_stop_clamp_len")
-        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
-        buf.emit(b"\x48\x3B\x45\xE0", "cmp rax, [rbp - 0x20]")
+        buf.emit(b"\x4D\x31\xC0", "xor r8, r8")
+        buf.jmp_label("rt__slice_stop_clamped")
+        buf.mark_label("rt__slice_stop_ge0")
+        buf.emit(b"\x4C\x3B\x45\xE0", "cmp r8, [rbp - 0x20]")
         buf.jcc_rel32(0x8E, "le", "rt__slice_stop_clamped")
-        buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
-        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
+        buf.mark_label("rt__slice_stop_clamp_len")
+        buf.emit(b"\x4C\x8B\x45\xE0", "mov r8, [rbp - 0x20]")
         buf.mark_label("rt__slice_stop_clamped")
-
-        # slice_len = stop - start
-        buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
-        buf.emit(b"\x48\x2B\x45\xF0", "sub rax, [rbp - 0x10]")
-        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax ; slice_len")
-
-        # If slice_len <= 7 -> SSO
-        buf.emit(b"\x48\x83\xF8\x07", "cmp rax, 7")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8")
+        buf.emit(b"\x4C\x29\xD0", "sub r8, rdx ; slice_len = stop - start")
+        buf.emit(b"\x4D\x85\xC0", "test r8, r8")
+        buf.jcc_rel32(0x8F, "g", "rt__slice_sso_loop")
+        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1 ; empty string SSO")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        buf.mark_label("rt__slice_sso_loop")
+        buf.emit(b"\x49\x83\xF8\x07", "cmp r8, 7")
         buf.jcc_rel32(0x8F, "g", "rt__slice_heap")
-
-        # Build SSO:
+        buf.emit(b"\x49\x89\xC0", "mov rax, r8")
         buf.emit(b"\x48\xD1\xE0", "shl rax, 1")
         buf.emit(b"\x48\x83\xC8\x01", "or rax, 1")
-        buf.emit(b"\x4C\x8B\x45\xD8", "mov r8, [rbp - 0x28]")
-        buf.emit(b"\x4C\x03\x45\xF0", "add r8, [rbp - 0x10]")
-        buf.emit(b"\x4D\x31\xC9", "xor r9, r9 ; loop counter")
-
-        buf.mark_label("rt__slice_sso_loop")
-        buf.emit(b"\x4C\x3B\x4D\xC8", "cmp r9, [rbp - 0x38]")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9 ; i = 0")
+        buf.mark_label("rt__slice_sso_copy")
+        buf.emit(b"\x4D\x39\xC1", "cmp r9, r8")
         buf.jcc_rel32(0x8D, "ge", "rt__slice_sso_done")
-        buf.emit(b"\x45\x0F\xB6\x18", "movzx r11d, byte ptr [r8]")
-        buf.emit(b"\x49\xFF\xC0", "inc r8")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__slice_sso_src_ptr")
+        buf.emit(b"\x4C\x8D\x54\x0A\x01", "lea r10, [rdx + r9 + 1]")
+        buf.emit(b"\x49\xC1\xE2\x03", "shl r10, 3")
+        buf.emit(b"\x4C\x89\xD1", "mov rcx, r10")
+        buf.emit(b"\x48\x8B\x5D\xF8", "mov rbx, [rbp - 0x08]")
+        buf.emit(b"\x48\xD3\xEB", "shr rbx, cl")
+        buf.emit(b"\x48\x0F\xB6\xD3", "movzx rdx, bl")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10]")
+        buf.jmp_label("rt__slice_sso_pack_byte")
+        buf.mark_label("rt__slice_sso_src_ptr")
+        buf.emit(b"\x4C\x8D\x14\x0A", "lea r10, [rdx + r9]")
+        buf.emit(b"\x46\x0F\xB6\x14\x11", "movzx r10d, byte ptr [rcx + r10]")
+        buf.emit(b"\x4D\x89\xD3", "mov r11, r10")
+        buf.mark_label("rt__slice_sso_pack_byte")
         buf.emit(b"\x49\x8D\x49\x01", "lea rcx, [r9 + 1]")
         buf.emit(b"\x48\xC1\xE1\x03", "shl rcx, 3")
         buf.emit(b"\x49\xD3\xE3", "shl r11, cl")
         buf.emit(b"\x4C\x09\xD8", "or rax, r11")
         buf.emit(b"\x49\xFF\xC1", "inc r9")
-        buf.jmp_label("rt__slice_sso_loop")
-
+        buf.jmp_label("rt__slice_sso_copy")
         buf.mark_label("rt__slice_sso_done")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
-
-        # Heap path:
         buf.mark_label("rt__slice_heap")
-        buf.emit(b"\x48\x8B\x4D\xC8", "mov rcx, [rbp - 0x38]")
-        buf.emit(b"\x48\xFF\xC1", "inc rcx ; count = slice_len + 1")
-        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1 ; size = 1")
+        buf.emit(b"\x49\x89\xC1", "mov rcx, r8")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
         self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
-        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax ; dst ptr")
-
-        buf.emit(b"\x4C\x8B\x45\xC0", "mov r8, [rbp - 0x40]")
-        buf.emit(b"\x4C\x8B\x4D\xD8", "mov r9, [rbp - 0x28]")
-        buf.emit(b"\x4C\x03\x4D\xF0", "add r9, [rbp - 0x10]")
-        buf.emit(b"\x4D\x31\xDB", "xor r11, r11")
-
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; dst")
+        buf.emit(b"\x4D\x31\xC9", "xor r9, r9 ; i = 0")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10]")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
+        buf.emit(b"\x4C\x29\xD0", "sub r8, rdx")
         buf.mark_label("rt__slice_heap_loop")
-        buf.emit(b"\x4C\x3B\x5D\xC8", "cmp r11, [rbp - 0x38]")
+        buf.emit(b"\x4D\x39\xC1", "cmp r9, r8")
         buf.jcc_rel32(0x8D, "ge", "rt__slice_heap_done")
-        buf.emit(b"\x43\x8A\x04\x19", "mov al, byte ptr [r9 + r11]")
-        buf.emit(b"\x43\x88\x04\x18", "mov byte ptr [r8 + r11], al")
-        buf.emit(b"\x49\xFF\xC3", "inc r11")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x4C\x8D\x14\x0A", "lea r10, [rdx + r9]")
+        buf.emit(b"\x46\x0F\xB6\x14\x11", "movzx r10d, byte ptr [rcx + r10]")
+        buf.emit(b"\x48\x8B\x45\xD8", "mov rax, [rbp - 0x28]")
+        buf.emit(b"\x46\x88\x14\x08", "mov [rax + r9], r10b")
+        buf.emit(b"\x49\xFF\xC1", "inc r9")
         buf.jmp_label("rt__slice_heap_loop")
-
         buf.mark_label("rt__slice_heap_done")
-        buf.emit(b"\x48\x8B\x45\xC8", "mov rax, [rbp - 0x38] ; slice_len")
-        buf.emit(b"\x41\xC6\x04\x00\x00", "mov byte ptr [r8 + rax], 0")
-        buf.emit(b"\x48\x8B\x45\xC0", "mov rax, [rbp - 0x40]")
+        buf.emit(b"\x48\x8B\x45\xD8", "mov rax, [rbp - 0x28]")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
 
+        # rt__str_cmp_eq
+        f_start = len(buf.code)
         buf.mark_label("rt__str_cmp_eq")
-        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
-        buf.jcc_rel32(0x84, "e", "rt__str_cmp_true")
-        buf.emit(b"\x88\xC8", "mov al, cl")
-        buf.emit(b"\x20\xD0", "and al, dl")
-        buf.emit(b"\xA8\x01", "test al, 1")
-        buf.jcc_rel32(0x85, "ne", "rt__str_cmp_false")
-
-        # One or both are pointer strings in memory
         buf.push_rbp()
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x30)
-
-        # s1 pointer -> r8
+        buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
+        buf.jcc_rel32(0x84, "e", "rt__str_cmp_true")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__cmp_s1_ptr")
-        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
-        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xF0", "mov qword ptr [rbp - 0x10], rax")
-        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
-        buf.emit(b"\x4C\x8D\x45\xF0", "lea r8, [rbp - 0x10]")
+        buf.emit(b"\x48\x8D\x45\xF0", "lea rax, [rbp - 0x10]")
+        buf.emit(b"\x48\x89\xCA", "mov rdx, rcx")
+        buf.emit(b"\x48\xC1\xEA\x08", "shr rdx, 8")
+        buf.emit(b"\x48\x89\x50\x00", "mov [rax], rdx")
+        buf.emit(b"\xC6\x40\x07\x00", "mov byte ptr [rax + 7], 0")
+        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax")
         buf.jmp_label("rt__cmp_s1_ready")
         buf.mark_label("rt__cmp_s1_ptr")
-        buf.emit(b"\x49\x89\xC8", "mov r8, rcx")
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx")
         buf.mark_label("rt__cmp_s1_ready")
-
-        # s2 pointer -> r9
         buf.emit(b"\xF6\xC2\x01", "test dl, 1")
         buf.jcc_rel32(0x84, "z", "rt__cmp_s2_ptr")
-        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
-        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xE0", "mov qword ptr [rbp - 0x20], rax")
-        buf.emit(b"\x48\xC7\x45\xE8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x18], 0")
-        buf.emit(b"\x4C\x8D\x4D\xE0", "lea r9, [rbp - 0x20]")
+        buf.emit(b"\x48\x8D\x45\xE0", "lea rax, [rbp - 0x20]")
+        buf.emit(b"\x48\x89\xD1", "mov rcx, rdx")
+        buf.emit(b"\x48\xC1\xE9\x08", "shr rcx, 8")
+        buf.emit(b"\x48\x89\x48\x00", "mov [rax], rcx")
+        buf.emit(b"\xC6\x40\x07\x00", "mov byte ptr [rax + 7], 0")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
         buf.jmp_label("rt__cmp_s2_ready")
         buf.mark_label("rt__cmp_s2_ptr")
-        buf.emit(b"\x49\x89\xD1", "mov r9, rdx")
+        buf.emit(b"\x48\x89\x55\xE8", "mov [rbp - 0x18], rdx")
         buf.mark_label("rt__cmp_s2_ready")
-
-        # Compare loop
-        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8B\x55\xE8", "mov rdx, [rbp - 0x18]")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.mark_label("rt__cmp_loop")
-        buf.emit(b"\x41\x8A\x04\x08", "mov al, byte ptr [r8 + rcx]")
-        buf.emit(b"\x41\x8A\x14\x09", "mov dl, byte ptr [r9 + rcx]")
-        buf.emit(b"\x38\xD0", "cmp al, dl")
+        buf.emit(b"\x8A\x1C\x01", "mov bl, [rcx + rax]")
+        buf.emit(b"\x8A\x34\x02", "mov dh, [rdx + rax]")
+        buf.emit(b"\x38\xF3", "cmp bl, dh")
         buf.jcc_rel32(0x85, "ne", "rt__cmp_diff")
-        buf.emit(b"\x84\xC0", "test al, al")
-        buf.jcc_rel32(0x84, "e", "rt__cmp_same")
-        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x84\xDB", "test bl, bl")
+        buf.jcc_rel32(0x84, "z", "rt__cmp_same")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
         buf.jmp_label("rt__cmp_loop")
-
         buf.mark_label("rt__cmp_same")
-        buf.mov_rsp_rbp()
-        buf.pop_rbp()
         buf.mark_label("rt__str_cmp_true")
         buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
-        buf.ret()
-
-        buf.mark_label("rt__cmp_diff")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
+        buf.ret()
+        buf.mark_label("rt__cmp_diff")
         buf.mark_label("rt__str_cmp_false")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
+        # rt__str_cmp_ne
+        f_start = len(buf.code)
         buf.mark_label("rt__str_cmp_ne")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x20)
         buf.call_label("rt__str_cmp_eq")
         buf.emit(b"\x48\x83\xF0\x01", "xor rax, 1")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # Dynamic string concatenation
+        # rt__str_concat
+        f_start = len(buf.code)
         buf.mark_label("rt__str_concat")
         buf.push_rbp()
         buf.mov_rbp_rsp()
-        buf.sub_rsp_imm32(0x50)
+        buf.sub_rsp_imm32(0x40)
         buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; s1")
         buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; s2")
-
-        # Calculate len1
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__concat_s1_ptr")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; len1")
         buf.jmp_label("rt__concat_s1_len_done")
         buf.mark_label("rt__concat_s1_ptr")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
@@ -805,14 +1009,13 @@ class PE32PlusExecutableBuilder:
         buf.jmp_label("rt__concat_s1_loop")
         buf.mark_label("rt__concat_s1_len_done")
         buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; len1")
-
-        # Calculate len2
-        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10] ; s2")
+        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10]")
         buf.emit(b"\xF6\xC2\x01", "test dl, 1")
         buf.jcc_rel32(0x84, "z", "rt__concat_s2_ptr")
         buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; len2")
         buf.jmp_label("rt__concat_s2_len_done")
         buf.mark_label("rt__concat_s2_ptr")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
@@ -823,92 +1026,92 @@ class PE32PlusExecutableBuilder:
         buf.jmp_label("rt__concat_s2_loop")
         buf.mark_label("rt__concat_s2_len_done")
         buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; len2")
-
-        # Heap allocate via calloc(count, 1)
         buf.emit(b"\x48\x8B\x4D\xE8", "mov rcx, [rbp - 0x18]")
         buf.emit(b"\x48\x03\x4D\xE0", "add rcx, [rbp - 0x20]")
-        buf.emit(b"\x48\xFF\xC1", "inc rcx ; count = len1 + len2 + 1")
-        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1 ; size = 1")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
         self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
-        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; dst ptr")
-
-        # Copy s1 bytes to dst (r8 = dst, r9 = src_s1, r11 = loop counter)
-        buf.emit(b"\x4C\x8B\x45\xD8", "mov r8, [rbp - 0x28]")
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax ; dst")
         buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__concat_s1_copy_ptr")
-        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
-        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xD0", "mov [rbp - 0x30], rax")
-        buf.emit(b"\x4C\x8D\x4D\xD0", "lea r9, [rbp - 0x30]")
-        buf.jmp_label("rt__concat_s1_do_copy")
+        buf.emit(b"\x48\x89\xCA", "mov rdx, rcx")
+        buf.emit(b"\x48\xC1\xEA\x08", "shr rdx, 8")
+        buf.emit(b"\x48\x89\x55\xC8", "mov [rbp - 0x38], rdx")
+        buf.emit(b"\xC6\x45\xCF\x00", "mov byte ptr [rbp - 0x31], 0")
+        buf.emit(b"\x48\x8D\x4D\xC8", "lea rcx, [rbp - 0x38]")
         buf.mark_label("rt__concat_s1_copy_ptr")
-        buf.emit(b"\x49\x89\xC9", "mov r9, rcx")
         buf.mark_label("rt__concat_s1_do_copy")
-        buf.emit(b"\x4D\x31\xDB", "xor r11, r11")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.mark_label("rt__concat_s1_copy_loop")
-        buf.emit(b"\x4C\x3B\x5D\xE8", "cmp r11, [rbp - 0x18]")
+        buf.emit(b"\x48\x3B\x45\xE8", "cmp rax, [rbp - 0x18]")
         buf.jcc_rel32(0x8D, "ge", "rt__concat_s1_copy_done")
-        buf.emit(b"\x43\x8A\x04\x19", "mov al, byte ptr [r9 + r11]")
-        buf.emit(b"\x43\x88\x04\x18", "mov byte ptr [r8 + r11], al")
-        buf.emit(b"\x49\xFF\xC3", "inc r11")
+        buf.emit(b"\x8A\x14\x01", "mov dl, [rcx + rax]")
+        buf.emit(b"\x4C\x8B\x5D\xD8", "mov r11, [rbp - 0x28]")
+        buf.emit(b"\x41\x88\x14\x03", "mov [r11 + rax], dl")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
         buf.jmp_label("rt__concat_s1_copy_loop")
         buf.mark_label("rt__concat_s1_copy_done")
-
-        # Copy s2 bytes to dst + len1
-        buf.emit(b"\x4C\x8B\x45\xD8", "mov r8, [rbp - 0x28]")
-        buf.emit(b"\x4C\x03\x45\xE8", "add r8, [rbp - 0x18] ; dst + len1")
-        buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10]")
-        buf.emit(b"\xF6\xC2\x01", "test dl, 1")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__concat_s2_copy_ptr")
-        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
-        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax")
-        buf.emit(b"\x4C\x8D\x4D\xC8", "lea r9, [rbp - 0x38]")
-        buf.jmp_label("rt__concat_s2_do_copy")
+        buf.emit(b"\x48\x89\xCA", "mov rdx, rcx")
+        buf.emit(b"\x48\xC1\xEA\x08", "shr rdx, 8")
+        buf.emit(b"\x48\x89\x55\xC0", "mov [rbp - 0x40], rdx")
+        buf.emit(b"\xC6\x45\xC7\x00", "mov byte ptr [rbp - 0x39], 0")
+        buf.emit(b"\x48\x8D\x4D\xC0", "lea rcx, [rbp - 0x40]")
         buf.mark_label("rt__concat_s2_copy_ptr")
-        buf.emit(b"\x49\x89\xD1", "mov r9, rdx")
         buf.mark_label("rt__concat_s2_do_copy")
-        buf.emit(b"\x4D\x31\xDB", "xor r11, r11")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.mark_label("rt__concat_s2_copy_loop")
-        buf.emit(b"\x4C\x3B\x5D\xE0", "cmp r11, [rbp - 0x20]")
+        buf.emit(b"\x48\x3B\x45\xE0", "cmp rax, [rbp - 0x20]")
         buf.jcc_rel32(0x8D, "ge", "rt__concat_s2_copy_done")
-        buf.emit(b"\x43\x8A\x04\x19", "mov al, byte ptr [r9 + r11]")
-        buf.emit(b"\x43\x88\x04\x18", "mov byte ptr [r8 + r11], al")
-        buf.emit(b"\x49\xFF\xC3", "inc r11")
+        buf.emit(b"\x8A\x14\x01", "mov dl, [rcx + rax]")
+        buf.emit(b"\x4C\x8B\x5D\xD8", "mov r11, [rbp - 0x28]")
+        buf.emit(b"\x4C\x03\x5D\xE8", "add r11, [rbp - 0x18]")
+        buf.emit(b"\x41\x88\x14\x03", "mov [r11 + rax], dl")
+        buf.emit(b"\x48\xFF\xC0", "inc rax")
         buf.jmp_label("rt__concat_s2_copy_loop")
         buf.mark_label("rt__concat_s2_copy_done")
-
-        buf.emit(b"\x48\x8B\x45\xD8", "mov rax, [rbp - 0x28] ; return dst ptr")
+        buf.emit(b"\x48\x8B\x45\xD8", "mov rax, [rbp - 0x28]")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
 
+        # Comparison stubs
+        f_start = len(buf.code)
         buf.mark_label("rt__str_cmp_lt")
         buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
         buf.emit(b"\x0F\x9C\xC0", "setl al")
         buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        f_start = len(buf.code)
         buf.mark_label("rt__str_cmp_le")
         buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
         buf.emit(b"\x0F\x9E\xC0", "setle al")
         buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        f_start = len(buf.code)
         buf.mark_label("rt__str_cmp_gt")
         buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
         buf.emit(b"\x0F\x9F\xC0", "setg al")
         buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        f_start = len(buf.code)
         buf.mark_label("rt__str_cmp_ge")
         buf.emit(b"\x48\x39\xD1", "cmp rcx, rdx")
         buf.emit(b"\x0F\x9D\xC0", "setge al")
         buf.emit(b"\x48\x0F\xB6\xC0", "movzx rax, al")
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
-        # 6. Emit all MIR functions with hardware register allocation and branch fusion
         helper_labels = {
             "print": "rt__print",
             "alloc_arr": "rt__alloc_arr",
@@ -950,9 +1153,8 @@ class PE32PlusExecutableBuilder:
         def emit_helper_call(kind):
             buf.call_label(helper_labels[kind])
 
-        # --- Native OS Primitives (MSVCRT / Win32) ---
-
-        # fn____bmb_file_exists(rcx=path) -> rax=bool (1 or 0)
+        # OS primitives
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_file_exists")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -979,8 +1181,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_file_size(rcx=path) -> rax=i64 (size or -1)
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_file_size")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -997,17 +1200,17 @@ class PE32PlusExecutableBuilder:
         self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x84, "z", "rt__fs_err")
-        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; FILE*")
+        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax")
         buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
         buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
         buf.emit(b"\x49\xC7\xC0\x02\x00\x00\x00", "mov r8, 2")
         self._emit_call_iat(self.iat_rvas["fseek"], "msvcrt!fseek")
-        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         self._emit_call_iat(self.iat_rvas["ftell"], "msvcrt!ftell")
-        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax ; size")
-        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
-        buf.emit(b"\x48\x8B\x45\xF8", "mov rax, [rbp - 0x08]")
+        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
         buf.jmp_label("rt__fs_done")
         buf.mark_label("rt__fs_err")
         buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
@@ -1015,12 +1218,13 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_file_read(rcx=path) -> rax=ptr
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_file_read")
         buf.push_rbp()
         buf.mov_rbp_rsp()
-        buf.sub_rsp_imm32(0x40)
+        buf.sub_rsp_imm32(0x30)
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__fr_ptr")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
@@ -1033,29 +1237,29 @@ class PE32PlusExecutableBuilder:
         self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x84, "z", "rt__fr_err")
-        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; FILE*")
+        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax")
         buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
         buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
         buf.emit(b"\x49\xC7\xC0\x02\x00\x00\x00", "mov r8, 2")
         self._emit_call_iat(self.iat_rvas["fseek"], "msvcrt!fseek")
-        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         self._emit_call_iat(self.iat_rvas["ftell"], "msvcrt!ftell")
-        buf.emit(b"\x48\x89\x45\xF8", "mov [rbp - 0x08], rax ; size")
-        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
         buf.emit(b"\x4D\x31\xC0", "xor r8, r8")
         self._emit_call_iat(self.iat_rvas["fseek"], "msvcrt!fseek")
-        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
         buf.emit(b"\x48\xFF\xC1", "inc rcx")
         buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
         self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
-        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; buf ptr")
+        buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax")
         buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
         buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
-        buf.emit(b"\x4C\x8B\x45\xF8", "mov r8, [rbp - 0x08]")
-        buf.emit(b"\x4C\x8B\x4D\xF0", "mov r9, [rbp - 0x10]")
+        buf.emit(b"\x4C\x8B\x45\xF0", "mov r8, [rbp - 0x10]")
+        buf.emit(b"\x4C\x8B\x4D\xF8", "mov r9, [rbp - 0x08]")
         self._emit_call_iat(self.iat_rvas["fread"], "msvcrt!fread")
-        buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
         buf.emit(b"\x48\x8B\x45\xE8", "mov rax, [rbp - 0x18]")
         buf.jmp_label("rt__fr_done")
@@ -1065,79 +1269,75 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_file_write(rcx=path, rdx=content, r8=mode) -> rax=i64 (written or -1)
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_file_write")
         buf.push_rbp()
         buf.mov_rbp_rsp()
-        buf.sub_rsp_imm32(0x70)
-        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; path")
-        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; content")
-        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; mode")
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx")
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx")
+        buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__fw_path_ptr")
         buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
         buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
         buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax")
-        buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0")
+        buf.emit(b"\x48\xC7\x45\xE8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x18], 0")
         buf.emit(b"\x48\x8D\x4D\xE0", "lea rcx, [rbp - 0x20]")
         buf.mark_label("rt__fw_path_ptr")
-        buf.emit(b"\x48\x89\x4D\xD0", "mov [rbp - 0x30], rcx ; path ptr")
-        buf.emit(b"\x48\x83\x7D\xE8\x01", "cmp qword ptr [rbp - 0x18], 1")
-        buf.jcc_rel32(0x84, "e", "rt__fw_mode_ab")
+        buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
+        buf.emit(b"\x4D\x85\xC0", "test r8, r8")
+        buf.jcc_rel32(0x85, "ne", "rt__fw_mode_ab")
         self._emit_lea_rdx_rva(self.builtin_rvas["str_wb"], "str_wb")
         buf.jmp_label("rt__fw_open")
         buf.mark_label("rt__fw_mode_ab")
         self._emit_lea_rdx_rva(self.builtin_rvas["str_ab"], "str_ab")
         buf.mark_label("rt__fw_open")
-        buf.emit(b"\x48\x8B\x4D\xD0", "mov rcx, [rbp - 0x30]")
         self._emit_call_iat(self.iat_rvas["fopen"], "msvcrt!fopen")
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x84, "z", "rt__fw_err")
-        buf.emit(b"\x48\x89\x45\xC8", "mov [rbp - 0x38], rax ; FILE*")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax")
         buf.emit(b"\x48\x8B\x55\xF0", "mov rdx, [rbp - 0x10]")
         buf.emit(b"\xF6\xC2\x01", "test dl, 1")
         buf.jcc_rel32(0x84, "z", "rt__fw_c_ptr")
         buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax")
+        buf.emit(b"\x48\x8D\x4D\xD8", "lea rcx, [rbp - 0x28]")
+        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
-        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax ; content_len")
-        buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
-        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xB8", "mov [rbp - 0x48], rax")
-        buf.emit(b"\x48\xC7\x45\xB0\x00\x00\x00\x00", "mov qword ptr [rbp - 0x50], 0")
-        buf.emit(b"\x48\x8D\x45\xB8", "lea rax, [rbp - 0x48]")
-        buf.emit(b"\x48\x89\x45\xA8", "mov [rbp - 0x58], rax ; content_ptr")
+        buf.emit(b"\x49\x89\xC0", "mov r8, rax")
         buf.jmp_label("rt__fw_do_write")
         buf.mark_label("rt__fw_c_ptr")
-        buf.emit(b"\x48\x89\x55\xA8", "mov [rbp - 0x58], rdx ; content_ptr")
+        buf.emit(b"\x48\x89\xD1", "mov rcx, rdx")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.mark_label("rt__fw_len_loop")
-        buf.emit(b"\x80\x3C\x02\x00", "cmp byte ptr [rdx + rax], 0")
+        buf.emit(b"\x80\x3C\x01\x00", "cmp byte ptr [rcx + rax], 0")
         buf.jcc_rel32(0x84, "e", "rt__fw_len_done")
         buf.emit(b"\x48\xFF\xC0", "inc rax")
         buf.jmp_label("rt__fw_len_loop")
         buf.mark_label("rt__fw_len_done")
-        buf.emit(b"\x48\x89\x45\xC0", "mov [rbp - 0x40], rax ; content_len")
+        buf.emit(b"\x49\x89\xC0", "mov r8, rax")
         buf.mark_label("rt__fw_do_write")
-        buf.emit(b"\x48\x8B\x4D\xA8", "mov rcx, [rbp - 0x58]")
         buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
-        buf.emit(b"\x4C\x8B\x45\xC0", "mov r8, [rbp - 0x40]")
-        buf.emit(b"\x4C\x8B\x4D\xC8", "mov r9, [rbp - 0x38]")
+        buf.emit(b"\x4C\x8B\x4D\xE0", "mov r9, [rbp - 0x20]")
         self._emit_call_iat(self.iat_rvas["fwrite"], "msvcrt!fwrite")
-        buf.emit(b"\x48\x89\x45\xA0", "mov [rbp - 0x60], rax ; written")
-        buf.emit(b"\x48\x8B\x4D\xC8", "mov rcx, [rbp - 0x38]")
+        buf.emit(b"\x48\x8B\x4D\xE0", "mov rcx, [rbp - 0x20]")
         self._emit_call_iat(self.iat_rvas["fclose"], "msvcrt!fclose")
-        buf.emit(b"\x48\x8B\x45\xA0", "mov rax, [rbp - 0x60]")
+        buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
         buf.jmp_label("rt__fw_done")
         buf.mark_label("rt__fw_err")
-        buf.emit(b"\x48\xC7\xC0\xFF\xFF\xFF\xFF", "mov rax, -1")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
         buf.mark_label("rt__fw_done")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_file_remove(rcx=path) -> rax=bool (1 or 0)
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_file_remove")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1161,22 +1361,18 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_get_cwd() -> rax=ptr
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_get_cwd")
         buf.push_rbp()
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x30)
-        buf.emit(b"\x48\xC7\xC1\x00\x04\x00\x00", "mov rcx, 1024")
-        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
-        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
-        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax ; buf")
-        buf.emit(b"\x48\x89\xC1", "mov rcx, rax")
+        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
         buf.emit(b"\x48\xC7\xC2\x00\x04\x00\x00", "mov rdx, 1024")
         self._emit_call_iat(self.iat_rvas["_getcwd"], "msvcrt!_getcwd")
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x84, "z", "rt__gc_err")
-        buf.emit(b"\x48\x8B\x45\xF0", "mov rax, [rbp - 0x10]")
         buf.jmp_label("rt__gc_done")
         buf.mark_label("rt__gc_err")
         self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
@@ -1184,8 +1380,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_get_env(rcx=key) -> rax=ptr
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_get_env")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1208,10 +1405,10 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # --- Native Socket Primitives (WinSock2 ws2_32.dll) ---
-
-        # fn____bmb_socket_init() -> rax=i64 (0 on success)
+        # Socket primitives
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_init")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1222,8 +1419,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x1E0))
 
-        # fn____bmb_socket_cleanup() -> rax=i64
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_cleanup")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1232,8 +1430,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_socket_create(rcx=family, rdx=type, r8=proto) -> rax=sockfd
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_create")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1242,8 +1441,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_socket_connect(rcx=sockfd, rdx=host, r8=port) -> rax=i64
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_connect")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1251,13 +1451,9 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
         buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; host")
         buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; port")
-
-        # htons(port)
         buf.emit(b"\x4C\x89\xC1", "mov rcx, r8")
         self._emit_call_iat(self.iat_rvas["htons"], "ws2_32!htons")
         buf.emit(b"\x66\x89\x45\xD2", "mov [rbp - 0x2E], ax ; sin_port")
-
-        # inet_addr(host)
         buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__conn_host_ptr")
@@ -1269,11 +1465,8 @@ class PE32PlusExecutableBuilder:
         buf.mark_label("rt__conn_host_ptr")
         self._emit_call_iat(self.iat_rvas["inet_addr"], "ws2_32!inet_addr")
         buf.emit(b"\x89\x45\xD4", "mov [rbp - 0x2C], eax ; sin_addr")
-
         buf.emit(b"\x66\xC7\x45\xD0\x02\x00", "mov word ptr [rbp - 0x30], 2 ; AF_INET")
         buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0 ; sin_zero")
-
-        # connect(sockfd, &addr, 16)
         buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         buf.emit(b"\x48\x8D\x55\xD0", "lea rdx, [rbp - 0x30]")
         buf.emit(b"\x49\xC7\xC0\x10\x00\x00\x00", "mov r8, 16")
@@ -1281,8 +1474,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x50))
 
-        # fn____bmb_socket_bind(rcx=sockfd, rdx=host, r8=port) -> rax=i64
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_bind")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1290,13 +1484,9 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
         buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; host")
         buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8  ; port")
-
-        # htons(port)
         buf.emit(b"\x4C\x89\xC1", "mov rcx, r8")
         self._emit_call_iat(self.iat_rvas["htons"], "ws2_32!htons")
         buf.emit(b"\x66\x89\x45\xD2", "mov [rbp - 0x2E], ax ; sin_port")
-
-        # Check for empty string -> INADDR_ANY
         buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__bind_chk_ptr")
@@ -1320,11 +1510,8 @@ class PE32PlusExecutableBuilder:
         buf.mark_label("rt__bind_inaddr_any")
         buf.emit(b"\xC7\x45\xD4\x00\x00\x00\x00", "mov dword ptr [rbp - 0x2C], 0")
         buf.mark_label("rt__bind_addr_ready")
-
         buf.emit(b"\x66\xC7\x45\xD0\x02\x00", "mov word ptr [rbp - 0x30], 2 ; AF_INET")
         buf.emit(b"\x48\xC7\x45\xD8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x28], 0 ; sin_zero")
-
-        # bind(sockfd, &addr, 16)
         buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         buf.emit(b"\x48\x8D\x55\xD0", "lea rdx, [rbp - 0x30]")
         buf.emit(b"\x49\xC7\xC0\x10\x00\x00\x00", "mov r8, 16")
@@ -1332,8 +1519,9 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x50))
 
-        # fn____bmb_socket_listen(rcx=sockfd, rdx=backlog) -> rax=i64
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_listen")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1342,41 +1530,37 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_socket_accept(rcx=sockfd) -> rax=client_sockfd
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_accept")
         buf.push_rbp()
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x30)
-        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx ; NULL")
-        buf.emit(b"\x4D\x31\xC0", "xor r8, r8  ; NULL")
         self._emit_call_iat(self.iat_rvas["accept"], "ws2_32!accept")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
-        # fn____bmb_socket_send(rcx=sockfd, rdx=data) -> rax=bytes_sent
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_send")
         buf.push_rbp()
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x50)
         buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
-        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; data")
-
+        buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; src_str")
         buf.emit(b"\xF6\xC2\x01", "test dl, 1")
         buf.jcc_rel32(0x84, "z", "rt__sock_send_ptr")
-        # SSO:
         buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
         buf.emit(b"\x48\xD1\xE8", "shr rax, 1")
         buf.emit(b"\x48\x83\xE0\x7F", "and rax, 0x7F")
         buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; len")
         buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
         buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
-        buf.emit(b"\x48\x89\x45\xD8", "mov [rbp - 0x28], rax")
-        buf.emit(b"\x48\x8D\x45\xD8", "lea rax, [rbp - 0x28]")
-        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; src_ptr")
+        buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; sso_bytes")
+        buf.emit(b"\x48\x8D\x55\xE0", "lea rdx, [rbp - 0x20]")
         buf.jmp_label("rt__sock_send_ready")
-
         buf.mark_label("rt__sock_send_ptr")
         buf.emit(b"\x48\x89\x55\xE0", "mov [rbp - 0x20], rdx ; src_ptr")
         buf.emit(b"\x48\x31\xC0", "xor rax, rax")
@@ -1387,7 +1571,6 @@ class PE32PlusExecutableBuilder:
         buf.jmp_label("rt__sock_send_len_loop")
         buf.mark_label("rt__sock_send_len_done")
         buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; len")
-
         buf.mark_label("rt__sock_send_ready")
         buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         buf.emit(b"\x48\x8B\x55\xE0", "mov rdx, [rbp - 0x20]")
@@ -1397,44 +1580,34 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x50))
 
-        # fn____bmb_socket_recv(rcx=sockfd, rdx=max_bytes) -> rax=str
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_recv")
         buf.push_rbp()
         buf.mov_rbp_rsp()
         buf.sub_rsp_imm32(0x50)
         buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; sockfd")
         buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx ; max_bytes")
-
-        # calloc(max_bytes + 1, 1)
         buf.emit(b"\x48\x8B\x4D\xF0", "mov rcx, [rbp - 0x10]")
         buf.emit(b"\x48\xFF\xC1", "inc rcx")
         buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
         self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
         buf.emit(b"\x48\x89\x45\xE8", "mov [rbp - 0x18], rax ; buf_ptr")
-
-        # recv(sockfd, buf, max_bytes, 0)
         buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
         buf.emit(b"\x48\x8B\x55\xE8", "mov rdx, [rbp - 0x18]")
         buf.emit(b"\x4C\x8B\x45\xF0", "mov r8, [rbp - 0x10]")
         buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
         self._emit_call_iat(self.iat_rvas["recv"], "ws2_32!recv")
         buf.emit(b"\x48\x89\x45\xE0", "mov [rbp - 0x20], rax ; n_bytes")
-
-        # If rax <= 0 -> return empty string (SSO = 1)
         buf.emit(b"\x48\x85\xC0", "test rax, rax")
         buf.jcc_rel32(0x8E, "le", "rt__sock_recv_empty")
-
-        # If rax <= 7 -> SSO
         buf.emit(b"\x48\x83\xF8\x07", "cmp rax, 7")
         buf.jcc_rel32(0x8F, "g", "rt__sock_recv_heap")
-
-        # SSO pack: rax = (n_bytes << 1) | 1
         buf.emit(b"\x48\xD1\xE0", "shl rax, 1")
         buf.emit(b"\x48\x83\xC8\x01", "or rax, 1")
         buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
         buf.emit(b"\x4D\x31\xC9", "xor r9, r9")
-
         buf.mark_label("rt__sock_recv_sso_loop")
         buf.emit(b"\x4C\x3B\x4D\xE0", "cmp r9, [rbp - 0x20]")
         buf.jcc_rel32(0x8D, "ge", "rt__sock_recv_done")
@@ -1446,23 +1619,21 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x4C\x09\xD8", "or rax, r11")
         buf.emit(b"\x49\xFF\xC1", "inc r9")
         buf.jmp_label("rt__sock_recv_sso_loop")
-
         buf.mark_label("rt__sock_recv_heap")
         buf.emit(b"\x4C\x8B\x45\xE8", "mov r8, [rbp - 0x18]")
         buf.emit(b"\x48\x8B\x45\xE0", "mov rax, [rbp - 0x20]")
         buf.emit(b"\x41\xC6\x04\x00\x00", "mov byte ptr [r8 + rax], 0")
-        buf.emit(b"\x4C\x89\xC0", "mov rax, r8 ; return heap buf")
+        buf.emit(b"\x4C\x89\xC0", "mov rax, r8")
         buf.jmp_label("rt__sock_recv_done")
-
         buf.mark_label("rt__sock_recv_empty")
         buf.emit(b"\x48\xC7\xC0\x01\x00\x00\x00", "mov rax, 1")
-
         buf.mark_label("rt__sock_recv_done")
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x50))
 
-        # fn____bmb_socket_close(rcx=sockfd) -> rax=i64
+        f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_close")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1471,9 +1642,13 @@ class PE32PlusExecutableBuilder:
         buf.mov_rsp_rbp()
         buf.pop_rbp()
         buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
+        # Compile MIR functions
         for fn in self.mir_module.functions:
-            buf.compile_mir_function(fn, emit_const_str, emit_helper_call)
+            f_start = len(buf.code)
+            frame_size = buf.compile_mir_function(fn, emit_const_str, emit_helper_call)
+            self.func_entries.append((f_start, len(buf.code), "mir", frame_size))
 
         buf.resolve_fixups()
         return bytes(buf.code)
@@ -1519,6 +1694,10 @@ class PE32PlusExecutableBuilder:
         rdata_virtual_size: int,
         rdata_file_size: int,
         rdata_file_offset: int,
+        pdata_rva: int,
+        pdata_virtual_size: int,
+        pdata_file_size: int,
+        pdata_file_offset: int,
         rsrc_rva: int,
         rsrc_virtual_size: int,
         rsrc_file_size: int,
@@ -1526,7 +1705,7 @@ class PE32PlusExecutableBuilder:
         size_of_image: int,
         size_of_headers: int,
     ) -> bytes:
-        hdr = bytearray(0x200)
+        hdr = bytearray(size_of_headers)
         # DOS Header
         hdr[0:2] = b"MZ"
         struct.pack_into("<I", hdr, 0x3C, 0x80)  # e_lfanew = 0x80
@@ -1538,7 +1717,7 @@ class PE32PlusExecutableBuilder:
             hdr,
             0x84,
             0x8664,  # Machine: IMAGE_FILE_MACHINE_AMD64
-            3,       # NumberOfSections: .text, .rdata, .rsrc
+            4,       # NumberOfSections: .text, .rdata, .pdata, .rsrc
             0,       # TimeDateStamp
             0,       # PointerToSymbolTable
             0,       # NumberOfSymbols
@@ -1556,7 +1735,7 @@ class PE32PlusExecutableBuilder:
             14,                    # MajorLinkerVersion
             0,                     # MinorLinkerVersion
             text_file_size,        # SizeOfCode
-            rdata_file_size + rsrc_file_size,  # SizeOfInitializedData
+            rdata_file_size + pdata_file_size + rsrc_file_size,  # SizeOfInitializedData
             0,                     # SizeOfUninitializedData
             TEXT_RVA,              # AddressOfEntryPoint (_start)
             TEXT_RVA,              # BaseOfCode
@@ -1589,10 +1768,12 @@ class PE32PlusExecutableBuilder:
         struct.pack_into("<II", hdr, dd_off + 1 * 8, rdata_rva, self.idt_size)
         # DataDirectory[2] = Resource Table (RVA = rsrc_rva, Size = rsrc_virtual_size)
         struct.pack_into("<II", hdr, dd_off + 2 * 8, rsrc_rva, rsrc_virtual_size)
+        # DataDirectory[3] = Exception Table (.pdata) (RVA = pdata_rva, Size = self.pdata_table_size)
+        struct.pack_into("<II", hdr, dd_off + 3 * 8, pdata_rva, self.pdata_table_size)
         # DataDirectory[12] = IAT (RVA = self.iat_start_rva, Size = self.iat_total_size)
         struct.pack_into("<II", hdr, dd_off + 12 * 8, self.iat_start_rva, self.iat_total_size)
 
-        # Section Headers at 0x188 (3 * 40 bytes = 120 bytes)
+        # Section Headers at 0x188
         sec_off = 0x188
         # Section 0: .text
         struct.pack_into(
@@ -1626,11 +1807,27 @@ class PE32PlusExecutableBuilder:
             0,
             0x40000040 | 0x80000000,  # CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE (for IAT patching)
         )
-        # Section 2: .rsrc
+        # Section 2: .pdata
         struct.pack_into(
             "<8sIIIIIIHHI",
             hdr,
             sec_off + 80,
+            b".pdata\x00\x00",
+            pdata_virtual_size,
+            pdata_rva,
+            pdata_file_size,
+            pdata_file_offset,
+            0,
+            0,
+            0,
+            0,
+            0x40000040,  # CNT_INITIALIZED_DATA | MEM_READ
+        )
+        # Section 3: .rsrc
+        struct.pack_into(
+            "<8sIIIIIIHHI",
+            hdr,
+            sec_off + 120,
             b".rsrc\x00\x00\x00",
             rsrc_virtual_size,
             rsrc_rva,

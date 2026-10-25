@@ -383,6 +383,18 @@ class X86_64CodeBuffer:
         self.rel32_fixups.append((off + 1, label))
         self.asm_lines.append(AsmLine(offset=off, raw_bytes=b"\xE8\x00\x00\x00\x00", mnemonic=f"call {label}"))
 
+    def lea_rdx_label(self, label: str) -> None:
+        off = len(self.code)
+        self.code.extend(b"\x48\x8D\x15\x00\x00\x00\x00")
+        self.rel32_fixups.append((off + 3, label))
+        self.asm_lines.append(AsmLine(offset=off, raw_bytes=b"\x48\x8D\x15\x00\x00\x00\x00", mnemonic=f"lea rdx, [rip + {label}]"))
+
+    def lea_rcx_label(self, label: str) -> None:
+        off = len(self.code)
+        self.code.extend(b"\x48\x8D\x0D\x00\x00\x00\x00")
+        self.rel32_fixups.append((off + 3, label))
+        self.asm_lines.append(AsmLine(offset=off, raw_bytes=b"\x48\x8D\x0D\x00\x00\x00\x00", mnemonic=f"lea rcx, [rip + {label}]"))
+
     def call_abs_addr(self, addr: int, name: str = "") -> None:
         self.mov_rax_imm64(addr, f" ; &{name}" if name else "")
         self.emit(b"\xFF\xD0", f"call rax ; {name}")
@@ -876,6 +888,8 @@ class X86_64CodeBuffer:
                     store_from_rax(str(ins.dst))
 
             i += 1
+
+        return frame_size
 
 
 # --- Windows VirtualAlloc Native Memory Manager ---

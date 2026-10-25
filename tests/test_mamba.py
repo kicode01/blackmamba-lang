@@ -751,6 +751,81 @@ def main() -> i64:
         entry_ins = struct.unpack_from("<I", macho_bytes, 0x4000)[0]
         self.assertEqual(entry_ins, 0xA9BF7BFD) # stp x29, x30, [sp, #-16]!
 
+    def test_seh_pdata_unwind(self):
+        """
+        Phase 3: Hardware Structured Exception Handling (SEH) Unwind Tables (.pdata and .xdata).
+        Verifies:
+        1. PE32+ Optional Header DataDirectory[3] (IMAGE_DIRECTORY_ENTRY_EXCEPTION).
+        2. Sorted IMAGE_RUNTIME_FUNCTION_ENTRY records in .pdata (Section 4).
+        3. UNWIND_INFO records (.xdata) describing function prologues.
+        4. Native VEH handler interception of hardware divide-by-zero (0xC0000094).
+        """
+        import struct
+        import mamba.cli
+        from mamba.backends.pe_exe import PE32PlusExecutableBuilder
+
+        code = """
+def divide(x: i64, y: i64) -> i64:
+    return x // y
+
+def main() -> i64:
+    res = divide(100, 0)
+    print(res)
+    return 0
+"""
+        mir = mamba.cli.compile_source_to_mir(code)
+        out_exe = os.path.abspath("build/test_seh_unit.exe")
+        PE32PlusExecutableBuilder(mir).write_executable(out_exe)
+        self.assertTrue(os.path.exists(out_exe))
+
+        with open(out_exe, "rb") as f:
+            pe = f.read()
+
+        # 1. Verify COFF Section Count = 4 (.text, .rdata, .pdata, .rsrc)
+        e_lfanew = struct.unpack_from("<I", pe, 0x3C)[0]
+        num_sections = struct.unpack_from("<H", pe, e_lfanew + 4 + 2)[0]
+        self.assertEqual(num_sections, 4)
+
+        # 2. Verify DataDirectory[3] (IMAGE_DIRECTORY_ENTRY_EXCEPTION)
+        opt_off = e_lfanew + 24
+        dd_off = opt_off + 112
+        exc_rva, exc_size = struct.unpack_from("<II", pe, dd_off + 3 * 8)
+        self.assertGreater(exc_rva, 0)
+        self.assertGreater(exc_size, 0)
+        self.assertEqual(exc_size % 12, 0)
+
+        # 3. Verify .pdata section header
+        sec_off = opt_off + 240
+        sections = {}
+        for i in range(num_sections):
+            name, vsize, rva, rsize, roff = struct.unpack_from("<8sIIII", pe, sec_off + i * 40)
+            name_str = name.rstrip(b"\x00").decode("ascii")
+            sections[name_str] = (rva, vsize, roff, rsize)
+
+        self.assertIn(".pdata", sections)
+        pdata_rva, pdata_vsize, pdata_roff, pdata_rsize = sections[".pdata"]
+        self.assertEqual(exc_rva, pdata_rva)
+
+        # 4. Verify all RUNTIME_FUNCTION entries in .pdata are strictly ascending
+        num_entries = exc_size // 12
+        self.assertGreater(num_entries, 0)
+        prev_begin = -1
+        for i in range(num_entries):
+            b_rva, e_rva, u_rva = struct.unpack_from("<III", pe, pdata_roff + i * 12)
+            self.assertGreater(b_rva, prev_begin, f"Entry {i} BeginAddress not strictly ascending")
+            self.assertLess(b_rva, e_rva, f"Entry {i} BeginAddress >= EndAddress")
+            self.assertGreaterEqual(u_rva, pdata_rva, f"Entry {i} UnwindInfoAddress outside .pdata")
+            prev_begin = b_rva
+
+        # 5. Run the executable and verify hardware divide-by-zero is trapped cleanly
+        res = subprocess.run([out_exe], capture_output=True, text=True)
+        self.assertIn("Integer Divide By Zero (0xC0000094)", res.stdout)
+        self.assertIn("Call stack unwound successfully via PE32+ .pdata / .xdata tables", res.stdout)
+        self.assertEqual(res.returncode & 0xFFFFFFFF, 0xC0000094)
+
+        if os.path.exists(out_exe):
+            os.remove(out_exe)
+
 
 if __name__ == "__main__":
     unittest.main()
