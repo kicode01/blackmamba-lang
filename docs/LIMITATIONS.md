@@ -122,9 +122,9 @@
 
 ---
 
-## 8. Tooling: LSP & Interactive REPL Shipped; Package Registry in Progress
+## 8. Tooling: LSP, REPL & Package Manager Shipped; Central Web Registry in Progress
 
-* **Current Status (RESOLVED in Phase 5 for LSP & REPL)**:
+* **Current Status (RESOLVED in Phase 5 for LSP, REPL & Package Manager)**:
   * **VS Code Extension & LSP Daemon (`bmb-lsp`)**:
     - Full Language Server Protocol (LSP 3.17) daemon running over JSON-RPC 2.0 via stdio (`bmb lsp --stdio`) or TCP socket (`bmb lsp --tcp <port>`).
     - Real-time syntax diagnostics and error squiggles with exact line and character positions for lexer and parser errors.
@@ -137,12 +137,18 @@
     - Live variable state persistence across turns with automatic type deduction (`30 (i64)`, `6.28 (f64)`, `True (bool)`, `'hello' (str)`).
     - Compiler inspection meta-commands: `:help`, `:vars` (active variables and live values), `:funcs`, `:structs`, `:mir` (SSA IR dump), `:asm` (native machine code disassembly), `:reset`, `:exit`.
     - Support for multi-line blocks (`bmb >>> ` vs `bmb ... `), structs, functions, and standard library imports (`from math import sin, PI`).
+  * **Decentralized Package Manager CLI (`bmb pkg` / `mamba.pkg`)**:
+    - Project manifest (`mamba.toml`) with metadata, build targets, and dependencies.
+    - Cryptographic reproducibility lockfile (`mamba.lock`) with SHA-256 integrity verification.
+    - Support for Git repositories (`--git`, `--tag`, `--branch`, `--rev`) and local filesystem paths (`--path`) vendored into `.mamba/packages/`.
+    - Integrated with `mamba/module_loader.py` for zero-configuration `import <pkg>`.
+    - CLI commands: `init`, `add`, `remove`, `install`, `update`, `list`, `build`, `run`.
 * **Remaining Limitation**:
-  * There is no official package manager CLI (`bmb install <pkg>`) or central package registry yet.
+  * There is no central web package registry (like crates.io / PyPI) yet; dependencies are resolved decentrally via Git repositories and local filesystem paths.
 * **Current Workaround**:
-  * Manage external `.bmb` library dependencies via Git submodules or local vendor directories.
-* **Planned Future Work (Phase 5)**:
-  * Build the `bmb pkg` decentralized package manager with `mamba.toml` manifests and cryptographic lockfiles.
+  * Publish and distribute Black Mamba libraries as Git repositories (GitHub, GitLab, self-hosted) or vendor paths.
+* **Planned Future Work**:
+  * Implement an optional federated package registry with binary caching.
 
 ---
 
@@ -157,4 +163,4 @@
 | **Stdlib** | Core (math, time, random, tensor, json, hash, os, socket, array, test) pure native | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| Hardware atomics, Mutex, threads & par_for shipped in thread.bmb | Low | Complete |
-| **Tooling** | VS Code extension, LSP daemon & interactive REPL shipped | Low | Complete (LSP & REPL) |
+| **Tooling** | VS Code extension, LSP, interactive REPL & package manager shipped | Low | Complete (LSP, REPL, PKG) |

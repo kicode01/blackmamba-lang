@@ -338,6 +338,9 @@ def main(argv: Optional[list] = None) -> int:
 
     sub.add_parser("repl", help="Start the interactive Black Mamba native JIT REPL")
 
+    from .pkg.cli import register_pkg_subparsers, handle_pkg_command
+    register_pkg_subparsers(sub)
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -351,6 +354,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_lsp(args)
     if args.command == "repl":
         return cmd_repl(args)
+    if args.command == "pkg":
+        return handle_pkg_command(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

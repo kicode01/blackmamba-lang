@@ -15,6 +15,10 @@ from mamba.backends.wasm_emitter import WasmBackend
 from mamba.backends.c_emitter import C11Backend, LLVMIRBackend
 import io
 from mamba.repl import ReplSession, ReplResult
+import tempfile
+import shutil
+from mamba.pkg import PackageManager, PackageManifest, PackageLock, Dependency
+from mamba.module_loader import resolve_imports
 from mamba.lsp import (
     LanguageServer,
     DocumentAnalyzer,
@@ -1281,6 +1285,99 @@ fn main() -> i64:
         r_reset = sess.execute(":reset")
         self.assertIn("reset", r_reset.message)
         self.assertEqual(len(sess.assigned_vars), 0)
+
+    def test_package_manager(self):
+        # 1. Manifest serialization & parsing
+        manifest = PackageManifest(
+            name="demo-math",
+            version="1.2.3",
+            description="Math utilities",
+            authors=["Alice <alice@example.com>"],
+            license="Apache-2.0",
+            entry="src/lib.bmb",
+            dependencies={"core": Dependency(name="core", version="^1.0.0")},
+            build_target="wasm",
+            opt_level="speed",
+        )
+        toml_str = manifest.to_toml()
+        self.assertIn('name = "demo-math"', toml_str)
+        self.assertIn('version = "1.2.3"', toml_str)
+        self.assertIn('target = "wasm"', toml_str)
+
+        tmp_dir = tempfile.mkdtemp(prefix="bmb_pkg_unit_")
+        try:
+            m_path = os.path.join(tmp_dir, "mamba.toml")
+            manifest.save(m_path)
+            loaded_manifest = PackageManifest.load(m_path)
+            self.assertEqual(loaded_manifest.name, "demo-math")
+            self.assertEqual(loaded_manifest.version, "1.2.3")
+            self.assertEqual(loaded_manifest.build_target, "wasm")
+
+            # 2. Project initialization
+            app_dir = os.path.join(tmp_dir, "myapp")
+            lib_dir = os.path.join(tmp_dir, "mylib")
+
+            mgr_lib = PackageManager(lib_dir)
+            m_lib = mgr_lib.init_project(lib_dir, name="mylib", is_lib=True)
+            self.assertTrue(os.path.exists(os.path.join(lib_dir, "mamba.toml")))
+            self.assertTrue(os.path.exists(os.path.join(lib_dir, "src", "lib.bmb")))
+            self.assertTrue(os.path.exists(os.path.join(lib_dir, ".gitignore")))
+
+            # Custom library function
+            with open(os.path.join(lib_dir, "src", "lib.bmb"), "w", encoding="utf-8") as f:
+                f.write("fn calc_sum(a: i64, b: i64) -> i64:\n    return a + b\n")
+
+            mgr_app = PackageManager(app_dir)
+            m_app = mgr_app.init_project(app_dir, name="myapp", is_lib=False)
+            self.assertTrue(os.path.exists(os.path.join(app_dir, "src", "main.bmb")))
+
+            # 3. Add path dependency
+            locked = mgr_app.add_dependency(name="mylib", path="../mylib")
+            self.assertEqual(locked.name, "mylib")
+            self.assertEqual(locked.source, "path")
+            self.assertTrue(locked.integrity.startswith("sha256-"))
+
+            # Verify lockfile on disk
+            lock = PackageLock.load(mgr_app.lock_path)
+            self.assertIn("mylib", lock.packages)
+            self.assertEqual(lock.packages["mylib"].integrity, locked.integrity)
+
+            # 4. Compile and execute application with vendored dependency
+            app_src = """from mylib import calc_sum
+
+fn main() -> i64:
+    ans = calc_sum(100, 250)
+    print(f"CALC_SUM_RESULT={ans}")
+    return 0
+"""
+            main_path = os.path.join(app_dir, "src", "main.bmb")
+            mod = Parser.from_source(app_src, main_path).parse_module()
+            mod = resolve_imports(mod, os.path.join(app_dir, "src"))
+            mir = MIRBuilder().build(mod)
+            jit = NativeJITModule(mir)
+            jit.run_main()
+            out = "".join(jit.printed_lines)
+            self.assertIn("CALC_SUM_RESULT=350", out)
+            jit.close()
+
+            # 5. List dependencies
+            recs = mgr_app.list_dependencies()
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["name"], "mylib")
+            self.assertEqual(recs[0]["installed"], "yes")
+
+            # 6. Frozen install verification
+            lock_installed = mgr_app.install(frozen=True)
+            self.assertIn("mylib", lock_installed.packages)
+
+            # 7. Remove dependency
+            removed = mgr_app.remove_dependency("mylib")
+            self.assertTrue(removed)
+            recs_empty = mgr_app.list_dependencies()
+            self.assertEqual(len(recs_empty), 0)
+            self.assertFalse(os.path.exists(os.path.join(mgr_app.vendor_dir, "mylib")))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

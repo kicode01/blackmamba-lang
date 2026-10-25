@@ -132,9 +132,13 @@ Give developers world-class editor support and package management.
   - [x] Compiler inspection meta-commands: `:help`, `:vars` (active state), `:funcs`, `:structs`, `:mir` (SSA IR dump), `:asm` (native x86-64 disassembly), `:reset`, `:exit`.
   - [x] Resilient syntax error recovery and multi-line block detection (`bmb >>> ` vs `bmb ... `).
   - [x] Default CLI fallback: running `bmb` with no arguments in a terminal launches the interactive REPL.
-- [ ] **Black Mamba Package Manager (`bmb pkg`)**:
-  - Decentralized package manifest (`mamba.toml`).
-  - Git-based dependency resolution with cryptographic lockfiles (`mamba.lock`).
+- [x] **Decentralized Package Manager CLI (`bmb pkg` / `mamba.pkg`)**:
+  - [x] Package manifest (`mamba.toml`) declaring metadata, entry point, build target, and dependencies.
+  - [x] Deterministic cryptographic lockfile (`mamba.lock`) with SHA-256 integrity verification across package sources.
+  - [x] Git repository dependency resolution (`--git`, `--tag`, `--branch`, `--rev`) with automatic cloning and checkout.
+  - [x] Local filesystem path dependencies (`--path`) with automated vendoring into `.mamba/packages/`.
+  - [x] Seamless module loader integration in `mamba/module_loader.py` resolving vendored packages (`import <pkg>` or `from <pkg> import ...`).
+  - [x] Complete CLI workflow: `bmb pkg init [--lib|--bin]`, `bmb pkg add`, `bmb pkg remove`, `bmb pkg install [--frozen]`, `bmb pkg update`, `bmb pkg list`, `bmb pkg build`, `bmb pkg run`.
 - [ ] **Documentation Generator (`bmb doc`)**:
   - Automatic extraction of docstrings into static HTML API references.
 
@@ -152,7 +156,7 @@ For full architectural transparency, every known limitation, missing feature, an
 5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, and `test` are pure native `.bmb`.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
 7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, and `par_map` shipped in `thread.bmb`; async channels in progress.
-8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`) & VS Code extension shipped; package registry (`bmb pkg`) in progress.
+8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`), VS Code extension, REPL (`bmb repl`), and package manager (`bmb pkg`) shipped; central web registry in progress.
 
 ---
 
