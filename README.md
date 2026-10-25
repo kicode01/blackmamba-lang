@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="assets/logo_banner.png" alt="Black Mamba Logo" width="580" />
+<img src="assets/logo_banner.png" alt="Black Mamba Logo" width="420" />
 <br/><br/>
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
