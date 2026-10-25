@@ -2,17 +2,8 @@
 
 <div align="center">
 
-<img src="assets/logo.png" alt="Black Mamba Logo" width="220" />
-<br/>
-
-```
-  ____  _             _      __  __                 _           
- |  _ \| |           | |    |  \/  |               | |          
- | |_) | | __ _  ____| | __ | \  / | __ _ _ __ ___ | |__   __ _ 
- |  _ <| |/ _` |/ ___| |/ / | |\/| |/ _` | '_ ` _ \| '_ \ / _` |
- | |_) | | (_| | (__ |   <  | |  | | (_| | | | | | | |_) | (_| |
- |____/|_|\__,_|\____|_|\_\ |_|  |_|\__,_|_| |_| |_|_.__/ \__,_|
-```
+<img src="assets/logo_banner.png" alt="Black Mamba Logo" width="580" />
+<br/><br/>
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
 
