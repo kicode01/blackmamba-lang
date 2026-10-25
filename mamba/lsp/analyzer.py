@@ -77,6 +77,7 @@ STDLIB_MODULES = [
     ("socket", "High-performance TCP/UDP networking sockets (IPv4)"),
     ("array", "Growable vector collections (IntVector) and slice views"),
     ("thread", "Hardware multithreading, atomics, Mutex, par_for, par_map"),
+    ("chan", "Lock-free bounded MPMC ring buffer channels for hardware threads"),
     ("test", "Assertion framework and hardware benchmarking harness"),
 ]
 

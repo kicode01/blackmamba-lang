@@ -1,0 +1,233 @@
+# Black Mamba Standard Library: chan
+# High-Throughput Lock-Free Bounded MPMC Ring Buffer Channels.
+# Implements Dmitry Vyukov's MPMC bounded atomic queue with zero locks and zero GIL.
+# 100% Pure Native Black Mamba (.bmb) across Windows PE32+, Linux ELF64, macOS ARM64, and JIT.
+
+from thread import (
+    AtomicInt,
+    atomic_new,
+    atomic_get,
+    atomic_set,
+    atomic_fetch_add,
+    atomic_fetch_sub,
+    atomic_compare_and_swap,
+    cpu_pause,
+    thread_yield,
+    thread_sleep,
+)
+
+# ==============================================================================
+# 1. Channel Structure Definition
+# ==============================================================================
+
+struct Channel:
+    buffer_val: Array[i64]
+    buffer_seq: Array[AtomicInt]
+    capacity: i64
+    mask: i64
+    head: AtomicInt
+    tail: AtomicInt
+    is_closed: AtomicInt
+
+
+# ==============================================================================
+# 2. Channel Allocation and Lifecycle
+# ==============================================================================
+
+def chan_new(capacity: i64) -> Channel:
+    # Constructs a new bounded lock-free MPMC ring channel.
+    # Capacity is automatically rounded up to the nearest power of 2.
+    c = 2
+    while c < capacity:
+        c *= 2
+    
+    b_val = [0] * c
+    b_seq = [0] * c
+    for i in 0..c:
+        b_seq[i] = atomic_new(i)
+    
+    return Channel(
+        b_val,
+        b_seq,
+        c,
+        c - 1,
+        atomic_new(0),
+        atomic_new(0),
+        atomic_new(0)
+    )
+
+def chan_cap(ch: Channel) -> i64:
+    # Returns the total bounded capacity of the channel.
+    return ch.capacity
+
+def chan_len(ch: Channel) -> i64:
+    # Returns the approximate number of buffered items currently in the channel.
+    t = atomic_get(ch.tail)
+    h = atomic_get(ch.head)
+    diff = t - h
+    if diff < 0:
+        return 0
+    if diff > ch.capacity:
+        return ch.capacity
+    return diff
+
+def chan_is_empty(ch: Channel) -> bool:
+    # Returns True if the channel currently contains no buffered items.
+    return chan_len(ch) == 0
+
+def chan_is_full(ch: Channel) -> bool:
+    # Returns True if the channel's buffer is currently full.
+    return chan_len(ch) >= ch.capacity
+
+def chan_is_closed(ch: Channel) -> bool:
+    # Returns True if the channel has been closed.
+    return atomic_get(ch.is_closed) == 1
+
+def chan_close(ch: Channel) -> void:
+    # Atomically closes the channel.
+    # Buffered items can still be received, but subsequent send calls will fail.
+    atomic_set(ch.is_closed, 1)
+
+
+# ==============================================================================
+# 3. Lock-Free Atomic Send Operations
+# ==============================================================================
+
+def chan_try_send(ch: Channel, val: i64) -> i64:
+    # Non-blocking atomic send attempt.
+    # Returns 1 on success, 0 if channel is full, -1 if channel is closed.
+    if atomic_get(ch.is_closed) == 1:
+        return -1
+    
+    pos = atomic_get(ch.tail)
+    while True:
+        if atomic_get(ch.is_closed) == 1:
+            return -1
+        
+        idx = pos & ch.mask
+        cell_seq = ch.buffer_seq[idx]
+        seq = atomic_get(cell_seq)
+        dif = seq - pos
+        
+        if dif == 0:
+            # Slot is open and ready. Atomically claim it by advancing tail
+            prev = atomic_compare_and_swap(ch.tail, pos, pos + 1)
+            if prev == pos:
+                ch.buffer_val[idx] = val
+                atomic_set(cell_seq, pos + 1)
+                return 1
+            else:
+                pos = prev
+        elif dif < 0:
+            # Buffer is currently full
+            return 0
+        else:
+            # Stale position; reload tail
+            pos = atomic_get(ch.tail)
+
+def chan_send(ch: Channel, val: i64) -> i64:
+    # Blocking atomic send with adaptive spin-pause and OS yield backoff.
+    # Returns 1 on success, -1 if the channel is closed.
+    spins = 0
+    while True:
+        res = chan_try_send(ch, val)
+        if res == 1:
+            return 1
+        if res == -1:
+            return -1
+        
+        spins += 1
+        if spins < 32:
+            cpu_pause()
+        else:
+            thread_yield()
+            if spins > 200:
+                thread_sleep(1)
+
+
+# ==============================================================================
+# 4. Lock-Free Atomic Receive Operations
+# ==============================================================================
+
+def chan_try_recv(ch: Channel, out_box: AtomicInt) -> i64:
+    # Non-blocking atomic receive attempt.
+    # If successful, stores the received item in out_box and returns 1.
+    # Returns 0 if channel is currently empty.
+    # Returns -1 if channel is closed and fully drained.
+    pos = atomic_get(ch.head)
+    while True:
+        idx = pos & ch.mask
+        cell_seq = ch.buffer_seq[idx]
+        seq = atomic_get(cell_seq)
+        dif = seq - (pos + 1)
+        
+        if dif == 0:
+            # Item is ready. Atomically claim it by advancing head
+            prev = atomic_compare_and_swap(ch.head, pos, pos + 1)
+            if prev == pos:
+                val = ch.buffer_val[idx]
+                atomic_set(out_box, val)
+                atomic_set(cell_seq, pos + ch.mask + 1)
+                return 1
+            else:
+                pos = prev
+        elif dif < 0:
+            # Buffer is currently empty. Check if closed
+            if atomic_get(ch.is_closed) == 1:
+                pos2 = atomic_get(ch.head)
+                if pos2 == pos:
+                    return -1
+                pos = pos2
+            else:
+                return 0
+        else:
+            # Stale position; reload head
+            pos = atomic_get(ch.head)
+
+def chan_recv(ch: Channel, out_box: AtomicInt) -> i64:
+    # Blocking atomic receive with adaptive spin-pause and OS yield backoff.
+    # If successful, stores the received item in out_box and returns 1.
+    # Returns -1 if the channel is closed and fully drained.
+    spins = 0
+    while True:
+        res = chan_try_recv(ch, out_box)
+        if res == 1:
+            return 1
+        if res == -1:
+            return -1
+        
+        spins += 1
+        if spins < 32:
+            cpu_pause()
+        else:
+            thread_yield()
+            if spins > 200:
+                thread_sleep(1)
+
+
+# ==============================================================================
+# 5. High-Level Pipeline Helpers
+# ==============================================================================
+
+def chan_drain(ch: Channel) -> i64:
+    # Drains and discards all remaining items in the channel.
+    # Returns the number of items discarded.
+    box = atomic_new(0)
+    count = 0
+    while True:
+        r = chan_try_recv(ch, box)
+        if r <= 0:
+            break
+        count += 1
+    return count
+
+def chan_send_all(ch: Channel, items: Array[i64], count: i64) -> i64:
+    # Sends a slice of items into the channel sequentially.
+    # Returns the count of items successfully sent.
+    sent = 0
+    for i in 0..count:
+        r = chan_send(ch, items[i])
+        if r == -1:
+            break
+        sent += 1
+    return sent

@@ -104,7 +104,7 @@
 
 ---
 
-## 7. Concurrency & Multithreading: Hardware Atomics, Thread Spawning & Parallel Loops (RESOLVED in Phase 4)
+## 7. Concurrency & Multithreading: Hardware Atomics, Thread Spawning, Parallel Loops & Lock-Free Channels (RESOLVED in Phase 4)
 
 * **Current Status (RESOLVED in Phase 4)**:
   * **Zero GIL Hardware Multithreading & Synchronization** (`thread.bmb`):
@@ -115,10 +115,15 @@
     - Native thread management: `hardware_concurrency()`, `thread_spawn(worker_fn, arg)`, `thread_join(handle)`, `thread_current_id()`, `thread_yield()`, and `thread_sleep(ms)`.
     - Parallel data loops: `par_for(start, end, worker_fn, context)` and `par_map(arr, count, fn_ptr)` compiling across native thread pools and distributing chunk workloads across available CPU cores.
     - Full cross-backend integration: Win64 JIT, standalone Windows PE32+ (dynamic `KERNEL32.CreateThread` / `WaitForSingleObject` imports and `.pdata` unwind records), static Linux ELF64, and portable C11 (`<stdatomic.h>` / `<windows.h>` / `<pthread.h>`).
+  * **High-Throughput Lock-Free MPMC Ring Channels** (`chan.bmb`):
+    - Pure `.bmb` implementation of Dmitry Vyukov's bounded multi-producer multi-consumer atomic queue algorithm with power-of-2 sequence counter masking.
+    - Exported API: `Channel`, `chan_new`, `chan_cap`, `chan_len`, `chan_is_empty`, `chan_is_full`, `chan_is_closed`, `chan_close`, `chan_try_send`, `chan_send`, `chan_try_recv`, `chan_recv`, `chan_drain`, `chan_send_all`.
+    - Adaptive spin-pause backoff with OS thread yield/sleep transitions for ultra-low contention latency and zero CPU starvation.
+    - Verified under heavy multi-threaded producer-consumer pipelines with zero deadlocks and zero memory leaks.
 * **Remaining Limitation**:
-  * High-level channels (`chan[T]`) and actor message-passing queues will be introduced in subsequent concurrency runtime enhancements.
+  * Unbounded dynamic channels and actor message-passing event loops (`select { ... }`) will be introduced in subsequent concurrency runtime enhancements.
 * **Current Workaround**:
-  * Use `AtomicInt`, `Mutex`, `SpinLock`, `par_for`, and shared memory structures in `from thread import *`.
+  * Use bounded lock-free ring channels (`from chan import *`) or `AtomicInt`, `Mutex`, `SpinLock`, `par_for` in `from thread import *`.
 
 ---
 

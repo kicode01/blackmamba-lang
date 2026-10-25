@@ -161,11 +161,18 @@ class Parser:
             if self.match(TokenType.STAR):
                 names.append("*")
             else:
+                has_paren = bool(self.match(TokenType.LPAREN))
                 while True:
+                    if has_paren and self.current().type == TokenType.RPAREN:
+                        break
                     n_tok = self.expect(TokenType.IDENT, "Expected imported name")
                     names.append(n_tok.value)
                     if not self.match(TokenType.COMMA):
                         break
+                    if has_paren and self.current().type == TokenType.RPAREN:
+                        break
+                if has_paren:
+                    self.expect(TokenType.RPAREN, "Expected ')' after import list")
             self.skip_newlines()
             return FromImportStmt(line=tok.line, col=tok.col, module_name=mod_tok.value, names=names)
         if tok.type in (TokenType.LET, TokenType.CONST, TokenType.MUT):

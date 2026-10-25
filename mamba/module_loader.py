@@ -215,13 +215,22 @@ def _collect_callees(fn: FuncDef) -> Set[str]:
     return callees
 
 
-def resolve_imports(mod: Module, base_dir: str, loaded_modules: Optional[Set[str]] = None) -> Module:
-    if loaded_modules is None:
-        loaded_modules = set()
+def resolve_imports(
+    mod: Module,
+    base_dir: str,
+    loaded_modules: Optional[Set[str]] = None,
+    ast_cache: Optional[Dict[str, Module]] = None,
+    in_progress: Optional[Set[str]] = None,
+) -> Module:
+    if ast_cache is None:
+        ast_cache = {}
+    if in_progress is None:
+        in_progress = set()
 
     imported_mods: Set[str] = set()
     new_stmts: List[Stmt] = []
     prepended_stmts: List[Stmt] = []
+    seen_defs: Set[str] = set()
 
     for stmt in mod.statements:
         if isinstance(stmt, (ImportStmt, FromImportStmt)):
@@ -230,23 +239,40 @@ def resolve_imports(mod: Module, base_dir: str, loaded_modules: Optional[Set[str
             if isinstance(stmt, ImportStmt) and stmt.alias:
                 imported_mods.add(stmt.alias)
 
-            if mod_name in loaded_modules:
-                continue
-
             file_path = resolve_module_file(mod_name, base_dir)
             if not file_path:
                 continue
 
-            loaded_modules.add(mod_name)
-            with open(file_path, "r", encoding="utf-8") as f:
-                mod_src = f.read()
+            if file_path in in_progress:
+                continue
 
-            imported_ast = Parser.from_source(mod_src, file_path).parse_module()
-            imported_ast = resolve_imports(imported_ast, os.path.dirname(file_path), loaded_modules)
+            if file_path in ast_cache:
+                imported_ast = ast_cache[file_path]
+            else:
+                in_progress.add(file_path)
+                with open(file_path, "r", encoding="utf-8") as f:
+                    mod_src = f.read()
+
+                imported_ast = Parser.from_source(mod_src, file_path).parse_module()
+                imported_ast = resolve_imports(
+                    imported_ast,
+                    os.path.dirname(file_path),
+                    ast_cache=ast_cache,
+                    in_progress=in_progress,
+                )
+                in_progress.remove(file_path)
+                ast_cache[file_path] = imported_ast
 
             if isinstance(stmt, FromImportStmt):
                 if stmt.names == ["*"]:
-                    prepended_stmts.extend(imported_ast.statements)
+                    for s in imported_ast.statements:
+                        name = getattr(s, "name", None)
+                        if name:
+                            if name not in seen_defs:
+                                seen_defs.add(name)
+                                prepended_stmts.append(s)
+                        else:
+                            prepended_stmts.append(s)
                 else:
                     wanted = set(stmt.names)
                     # Transitive dependency closure
@@ -265,14 +291,26 @@ def resolve_imports(mod: Module, base_dir: str, loaded_modules: Optional[Set[str
                             changed = True
 
                     for s in imported_ast.statements:
+                        name = getattr(s, "name", None)
                         if isinstance(s, FuncDef) and s.name in wanted:
-                            prepended_stmts.append(s)
+                            if s.name not in seen_defs:
+                                seen_defs.add(s.name)
+                                prepended_stmts.append(s)
                         elif isinstance(s, StructDef):
-                            prepended_stmts.append(s)
+                            if s.name not in seen_defs:
+                                seen_defs.add(s.name)
+                                prepended_stmts.append(s)
                         elif isinstance(s, Assign):
                             prepended_stmts.append(s)
             elif isinstance(stmt, ImportStmt):
-                prepended_stmts.extend(imported_ast.statements)
+                for s in imported_ast.statements:
+                    name = getattr(s, "name", None)
+                    if name:
+                        if name not in seen_defs:
+                            seen_defs.add(name)
+                            prepended_stmts.append(s)
+                    else:
+                        prepended_stmts.append(s)
         else:
             new_stmts.append(stmt)
 

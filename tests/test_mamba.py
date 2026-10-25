@@ -1460,6 +1460,135 @@ def dot_product(x1: f64, y1: f64, x2: f64, y2: f64) -> f64:
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 
+    def test_lock_free_channels(self):
+        # 1. Single-Threaded Bounded Channel FIFO & State Inspection
+        chan_code = """
+from chan import *
+
+fn main() -> i64:
+    ch = chan_new(4)
+    out = atomic_new(0)
+
+    # Initial state
+    print(f"INIT_CAP={chan_cap(ch)} EMPTY={chan_is_empty(ch)} FULL={chan_is_full(ch)}")
+
+    # Send 4 items
+    chan_send(ch, 11)
+    chan_send(ch, 22)
+    chan_send(ch, 33)
+    chan_send(ch, 44)
+    print(f"LEN={chan_len(ch)} FULL={chan_is_full(ch)}")
+
+    # Overfill test (non-blocking try_send should return 0)
+    overfill = chan_try_send(ch, 55)
+    print(f"OVERFILL={overfill}")
+
+    # Receive in FIFO order
+    chan_recv(ch, out)
+    v1 = atomic_get(out)
+    chan_recv(ch, out)
+    v2 = atomic_get(out)
+    chan_recv(ch, out)
+    v3 = atomic_get(out)
+    chan_recv(ch, out)
+    v4 = atomic_get(out)
+    print(f"FIFO={v1},{v2},{v3},{v4}")
+
+    # Channel should be empty now
+    empty_try = chan_try_recv(ch, out)
+    print(f"EMPTY_RECV={empty_try} IS_EMPTY={chan_is_empty(ch)}")
+
+    # Close channel
+    chan_close(ch)
+    print(f"IS_CLOSED={chan_is_closed(ch)}")
+    recv_closed = chan_recv(ch, out)
+    print(f"RECV_CLOSED={recv_closed}")
+
+    return 0
+"""
+        mod = Parser.from_source(chan_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("INIT_CAP=4 EMPTY=True FULL=False", out)
+        self.assertIn("LEN=4 FULL=True", out)
+        self.assertIn("OVERFILL=0", out)
+        self.assertIn("FIFO=11,22,33,44", out)
+        self.assertIn("EMPTY_RECV=0 IS_EMPTY=True", out)
+        self.assertIn("IS_CLOSED=True", out)
+        self.assertIn("RECV_CLOSED=-1", out)
+
+        # 2. Multi-Threaded Concurrent Producer-Consumer Pipeline
+        concurrent_code = """
+from chan import *
+from thread import thread_spawn, thread_join
+
+struct WorkerCtx:
+    ch: Channel
+    total: AtomicInt
+    count: i64
+
+fn producer_thread(ctx_ptr: i64) -> i64:
+    ctx: WorkerCtx = ctx_ptr
+    for i in 1..=ctx.count:
+        chan_send(ctx.ch, i)
+    chan_close(ctx.ch)
+    return 0
+
+fn consumer_thread(ctx_ptr: i64) -> i64:
+    ctx: WorkerCtx = ctx_ptr
+    box = atomic_new(0)
+    acc = 0
+    while True:
+        r = chan_recv(ctx.ch, box)
+        if r == -1:
+            break
+        acc += atomic_get(box)
+    atomic_set(ctx.total, acc)
+    return 0
+
+fn main() -> i64:
+    ch = chan_new(16)
+    accum = atomic_new(0)
+    ctx = WorkerCtx(ch, accum, 500)
+
+    t_prod = thread_spawn(producer_thread, ctx)
+    t_cons = thread_spawn(consumer_thread, ctx)
+
+    thread_join(t_prod)
+    thread_join(t_cons)
+
+    final_sum = atomic_get(accum)
+    print(f"CONCURRENT_PIPELINE_SUM={final_sum}")
+    return 0
+"""
+        c_mod = Parser.from_source(concurrent_code).parse_module()
+        c_mod = resolve_imports(c_mod, ".")
+        c_mir = MIRBuilder().build(c_mod)
+        c_jit = NativeJITModule(c_mir)
+        c_jit.run_main()
+        c_out = "".join(c_jit.printed_lines)
+        c_jit.close()
+
+        # sum(1..500) = 500 * 501 / 2 = 125250
+        self.assertIn("CONCURRENT_PIPELINE_SUM=125250", c_out)
+
+        # 3. Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_chan.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(c_mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("CONCURRENT_PIPELINE_SUM=125250", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
 
 if __name__ == "__main__":
     unittest.main()
