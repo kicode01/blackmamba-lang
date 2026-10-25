@@ -475,6 +475,8 @@ We believe in 100% engineering honesty. Every design trade-off, hardware boundar
 
 ---
 
-## 📄 License
+## 📄 License & Trademark Notice
 
 Black Mamba is licensed under the [MIT License](LICENSE). Contributions, issues, and discussions are welcome!
+
+> **Disclaimer**: *Black Mamba (`.bmb`) is an independent open-source programming language and native compiler. It is not affiliated with, endorsed by, or sponsored by the Python Software Foundation (PSF). Python is a registered trademark of the Python Software Foundation.*
