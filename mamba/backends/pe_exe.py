@@ -227,6 +227,13 @@ class PE32PlusExecutableBuilder:
                 [
                     "ExitProcess",
                     "AddVectoredExceptionHandler",
+                    "CreateThread",
+                    "WaitForSingleObject",
+                    "GetExitCodeThread",
+                    "CloseHandle",
+                    "GetCurrentThreadId",
+                    "Sleep",
+                    "GetSystemInfo",
                 ],
             ),
             (
@@ -577,8 +584,6 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x89\xC2", "mov rdx, rax")
         self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
         buf.store_slot_rax(-24, "arr_ptr")
-        buf.load_rdx_slot(-8, "count")
-        buf.emit(b"\x48\x89\x10", "mov [rax], rdx")
         buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
         buf.store_slot_rcx(-32, "idx")
         buf.mark_label("rt__alloc_loop")
@@ -589,7 +594,7 @@ class PE32PlusExecutableBuilder:
         buf.load_rax_slot(-24, "arr_ptr")
         buf.load_rcx_slot(-32, "idx")
         buf.load_rdx_slot(-16, "init_bits")
-        buf.emit(b"\x48\x89\x54\xC8\x08", "mov [rax + rcx*8 + 8], rdx")
+        buf.emit(b"\x48\x89\x14\xC8", "mov [rax + rcx*8], rdx")
         buf.load_rax_slot(-32, "idx")
         buf.emit(b"\x48\xFF\xC0", "inc rax")
         buf.store_slot_rax(-32, "idx")
@@ -1644,10 +1649,149 @@ class PE32PlusExecutableBuilder:
         buf.ret()
         self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
+        # Native Hardware Atomic Functions
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_atomic_load")
+        buf.emit(b"\x48\x8B\x01\xC3", "mov rax, [rcx]; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_atomic_store")
+        buf.emit(b"\x48\x87\x11\x48\x89\xD0\xC3", "xchg [rcx], rdx; mov rax, rdx; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_atomic_add")
+        buf.emit(b"\x48\x89\xD0\xF0\x48\x0F\xC1\x01\xC3", "mov rax, rdx; lock xadd [rcx], rax; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_atomic_sub")
+        buf.emit(b"\x48\xF7\xDA\x48\x89\xD0\xF0\x48\x0F\xC1\x01\xC3", "neg rdx; mov rax, rdx; lock xadd [rcx], rax; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_atomic_cas")
+        buf.emit(b"\x48\x89\xD0\xF0\x4C\x0F\xB1\x01\xC3", "mov rax, rdx; lock cmpxchg [rcx], r8; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_atomic_fence")
+        buf.emit(b"\x0F\xAE\xF0\x48\x31\xC0\xC3", "mfence; xor rax, rax; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_cpu_pause")
+        buf.emit(b"\xF3\x90\x48\x31\xC0\xC3", "pause; xor rax, rax; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        # Native Threading & Concurrency Functions
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_thread_concurrency")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x50)
+        buf.emit(b"\x48\x8D\x4D\xC0", "lea rcx, [rbp - 0x40]")
+        self._emit_call_iat(self.iat_rvas["GetSystemInfo"], "kernel32!GetSystemInfo")
+        buf.emit(b"\x8B\x45\xE0", "mov eax, dword ptr [rbp - 0x40 + 32]")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x50))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_thread_spawn")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+        buf.mov_reg_reg("r8", "rcx")
+        buf.mov_reg_reg("r9", "rdx")
+        buf.emit(b"\x48\x31\xC9", "xor rcx, rcx")
+        buf.emit(b"\x48\x31\xD2", "xor rdx, rdx")
+        buf.emit(b"\x48\xC7\x44\x24\x20\x00\x00\x00\x00", "mov qword ptr [rsp + 0x20], 0")
+        buf.emit(b"\x48\xC7\x44\x24\x28\x00\x00\x00\x00", "mov qword ptr [rsp + 0x28], 0")
+        self._emit_call_iat(self.iat_rvas["CreateThread"], "kernel32!CreateThread")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_thread_join")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx")
+        buf.emit(b"\xBA\xFF\xFF\xFF\xFF", "mov edx, 0xFFFFFFFF")
+        self._emit_call_iat(self.iat_rvas["WaitForSingleObject"], "kernel32!WaitForSingleObject")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        buf.emit(b"\x48\x8D\x55\xF0", "lea rdx, [rbp - 0x10]")
+        self._emit_call_iat(self.iat_rvas["GetExitCodeThread"], "kernel32!GetExitCodeThread")
+        buf.emit(b"\x48\x8B\x4D\xF8", "mov rcx, [rbp - 0x08]")
+        self._emit_call_iat(self.iat_rvas["CloseHandle"], "kernel32!CloseHandle")
+        buf.emit(b"\x8B\x45\xF0", "mov eax, dword ptr [rbp - 0x10]")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_thread_id")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        self._emit_call_iat(self.iat_rvas["GetCurrentThreadId"], "kernel32!GetCurrentThreadId")
+        buf.emit(b"\x48\x63\xC0", "movsxd rax, eax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_thread_yield")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x31\xC9", "xor ecx, ecx")
+        self._emit_call_iat(self.iat_rvas["Sleep"], "kernel32!Sleep")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_thread_sleep")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        self._emit_call_iat(self.iat_rvas["Sleep"], "kernel32!Sleep")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
+
+        known_fn_names = {f.name for f in self.mir_module.functions}
+        known_fn_names.update([
+            "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
+            "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
+            "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",
+            "__bmb_socket_close",
+            "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
+            "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+            "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
+            "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+        ])
+
         # Compile MIR functions
         for fn in self.mir_module.functions:
             f_start = len(buf.code)
-            frame_size = buf.compile_mir_function(fn, emit_const_str, emit_helper_call)
+            frame_size = buf.compile_mir_function(fn, emit_const_str, emit_helper_call, known_fn_names)
             self.func_entries.append((f_start, len(buf.code), "mir", frame_size))
 
         buf.resolve_fixups()

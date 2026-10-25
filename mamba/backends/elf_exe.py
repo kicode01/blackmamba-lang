@@ -1464,8 +1464,44 @@ class ELF64ExecutableBuilder:
         buf.emit(b"\x0F\x05", "syscall")
         buf.ret()
 
+        # Native Hardware Atomic Trampolines
+        buf.mark_label("fn____bmb_atomic_load")
+        buf.emit(b"\x48\x8B\x01\xC3", "mov rax, [rcx]; ret")
+
+        buf.mark_label("fn____bmb_atomic_store")
+        buf.emit(b"\x48\x87\x11\x48\x89\xD0\xC3", "xchg [rcx], rdx; mov rax, rdx; ret")
+
+        buf.mark_label("fn____bmb_atomic_add")
+        buf.emit(b"\x48\x89\xD0\xF0\x48\x0F\xC1\x01\xC3", "mov rax, rdx; lock xadd [rcx], rax; ret")
+
+        buf.mark_label("fn____bmb_atomic_sub")
+        buf.emit(b"\x48\xF7\xDA\x48\x89\xD0\xF0\x48\x0F\xC1\x01\xC3", "neg rdx; mov rax, rdx; lock xadd [rcx], rax; ret")
+
+        buf.mark_label("fn____bmb_atomic_cas")
+        buf.emit(b"\x48\x89\xD0\xF0\x4C\x0F\xB1\x01\xC3", "mov rax, rdx; lock cmpxchg [rcx], r8; ret")
+
+        buf.mark_label("fn____bmb_atomic_fence")
+        buf.emit(b"\x0F\xAE\xF0\x48\x31\xC0\xC3", "mfence; xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_cpu_pause")
+        buf.emit(b"\xF3\x90\x48\x31\xC0\xC3", "pause; xor rax, rax; ret")
+
+        known_fn_names = {f.name for f in self.mir_module.functions}
+        known_fn_names.update([
+            "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
+            "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
+            "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",
+            "__bmb_socket_close",
+            "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
+            "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+            "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
+            "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+        ])
+
         for fn in self.mir_module.functions:
-            buf.compile_mir_function(fn, emit_const_str, emit_helper_call)
+            buf.compile_mir_function(fn, emit_const_str, emit_helper_call, known_fn_names)
 
         # 4. Lay out .rodata immediately after .text
         text_bytes_len = len(buf.code)

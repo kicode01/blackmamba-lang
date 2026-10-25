@@ -826,6 +826,129 @@ def main() -> i64:
         if os.path.exists(out_exe):
             os.remove(out_exe)
 
+    def test_hardware_multithreading_and_atomics(self):
+        """
+        Phase 4 Verification: Hardware Multithreading & Concurrency (thread.bmb)
+        - Hardware Atomics: atomic_load, atomic_store, atomic_add, atomic_sub, atomic_cas, atomic_fence
+        - AtomicInt and Mutex synchronization primitives
+        - Native multi-core thread spawning with zero GIL
+        - Parallel data loops: par_for and par_map
+        - Standalone PE32+ executable compilation with native Windows OS threading
+        """
+        from mamba.module_loader import resolve_imports
+        from mamba.backends.pe_exe import PE32PlusExecutableBuilder
+
+        # 1. JIT Test: AtomicInt, Mutex, par_for, par_map
+        code = """
+from thread import *
+
+def worker_sum(idx: i64, ctx: AtomicInt) -> i64:
+    atomic_fetch_add(ctx, idx)
+    return 0
+
+def square(x: i64) -> i64:
+    return x * x
+
+def thread_func(ctx: AtomicInt) -> i64:
+    i = 0
+    while i < 2500:
+        atomic_fetch_add(ctx, 1)
+        i = i + 1
+    return 0
+
+def main() -> i64:
+    # 1. Atomics & CAS
+    ai = atomic_new(50)
+    old = atomic_fetch_add(ai, 50)
+    cur = atomic_get(ai)
+    cas_res = atomic_compare_and_swap(ai, 100, 250)
+    final_val = atomic_get(ai)
+    print(f"ATOMIC_INIT_ADD={old}")
+    print(f"ATOMIC_CUR={cur}")
+    print(f"ATOMIC_CAS_PREV={cas_res}")
+    print(f"ATOMIC_FINAL={final_val}")
+
+    # 2. Mutex Synchronization
+    m = mutex_new()
+    mutex_lock(m)
+    try_fail = mutex_try_lock(m)
+    mutex_unlock(m)
+    try_succ = mutex_try_lock(m)
+    mutex_unlock(m)
+    print(f"MUTEX_TRY_FAIL={try_fail}")
+    print(f"MUTEX_TRY_SUCC={try_succ}")
+
+    # 3. Native Multi-Thread Concurrent Execution (4 threads x 2500 = 10000)
+    counter = atomic_new(0)
+    h1 = thread_spawn(thread_func, counter)
+    h2 = thread_spawn(thread_func, counter)
+    h3 = thread_spawn(thread_func, counter)
+    h4 = thread_spawn(thread_func, counter)
+    thread_join(h1)
+    thread_join(h2)
+    thread_join(h3)
+    thread_join(h4)
+    print(f"CONCURRENT_THREADS_SUM={atomic_get(counter)}")
+
+    # 4. par_for: Sum 0..99 = 4950
+    accum = atomic_new(0)
+    par_for(0, 100, worker_sum, accum)
+    print(f"PAR_FOR_SUM={atomic_get(accum)}")
+
+    # 5. par_map: Squares [1, 2, 3, 4, 5] -> 1 + 4 + 9 + 16 + 25 = 55
+    arr = [1, 2, 3, 4, 5]
+    sq = par_map(arr, 5, square)
+    sq_sum = sq[0] + sq[1] + sq[2] + sq[3] + sq[4]
+    print(f"PAR_MAP_SUM={sq_sum}")
+
+    return 0
+"""
+        mod = Parser.from_source(code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.main()
+        out = jit.get_output()
+
+        self.assertIn("ATOMIC_INIT_ADD=50", out)
+        self.assertIn("ATOMIC_CUR=100", out)
+        self.assertIn("ATOMIC_CAS_PREV=100", out)
+        self.assertIn("ATOMIC_FINAL=250", out)
+        self.assertIn("MUTEX_TRY_FAIL=False", out)
+        self.assertIn("MUTEX_TRY_SUCC=True", out)
+        self.assertIn("CONCURRENT_THREADS_SUM=10000", out)
+        self.assertIn("PAR_FOR_SUM=4950", out)
+        self.assertIn("PAR_MAP_SUM=55", out)
+        jit.close()
+
+        # 2. Standalone PE32+ Executable Native Windows Execution
+        pe_code = """
+from thread import *
+
+def pe_worker(idx: i64, ctx: AtomicInt) -> i64:
+    atomic_fetch_add(ctx, 10)
+    return 0
+
+def main() -> i64:
+    accum = atomic_new(0)
+    par_for(0, 40, pe_worker, accum)
+    print(f"PE_PAR_SUM={atomic_get(accum)}")
+    return 0
+"""
+        pe_mod = Parser.from_source(pe_code).parse_module()
+        pe_mod = resolve_imports(pe_mod, ".")
+        pe_mir = MIRBuilder().build(pe_mod)
+        out_exe = os.path.abspath("build/test_phase4_thread.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(pe_mir).write_executable(out_exe)
+        self.assertTrue(os.path.exists(out_exe))
+
+        res = subprocess.run([out_exe], capture_output=True, text=True, check=True)
+        self.assertIn("PE_PAR_SUM=400", res.stdout)
+
+        if os.path.exists(out_exe):
+            os.remove(out_exe)
+
 
 if __name__ == "__main__":
     unittest.main()

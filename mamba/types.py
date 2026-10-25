@@ -459,6 +459,10 @@ class TypeInferencer:
                 "__bmb_socket_init", "__bmb_socket_create", "__bmb_socket_connect",
                 "__bmb_socket_bind", "__bmb_socket_listen", "__bmb_socket_accept",
                 "__bmb_socket_send", "__bmb_socket_close", "__bmb_socket_cleanup",
+                "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
+                "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+                "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
+                "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             ):
                 if expr.func in ("abs", "min", "max") and any(t == "f64" for t in arg_types):
                     expr.inferred_type = "f64"

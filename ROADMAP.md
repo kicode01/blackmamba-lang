@@ -100,10 +100,13 @@ Reduce reliance on the host Python runtime by providing high-speed, native imple
   - Python frontend bindings: `mamba.compile(...)`, `@mamba.jit` decorator, and `mamba.as_numpy_array(...)` / `mamba.as_torch_tensor(...)` bidirectional zero-copy views.
   - `mamba/stdlib/tensor.bmb`: Pure native 1D elementwise (SAXPY, scale, div), reductions (sum, mean, dot, L2 norm, min, max, argmax), neural activations (ReLU, LeakyReLU, Sigmoid, clamp), and 2D matrix multiplication (`tensor_matmul`).
   - Benchmarked at 6.7 GB/s memory bandwidth on 10,000,000 float64 elements (19.7x faster than standard Python).
-- [ ] **True Hardware Multithreading & Concurrency**:
-  - Native thread spawning with zero Global Interpreter Lock (GIL).
-  - Atomic memory primitives (`atomic_add`, `compare_and_swap`).
-  - Parallel loops (`par for i in 1..=1000:`) compiled to native thread pools.
+- [x] **True Hardware Multithreading & Concurrency** (`thread.bmb`):
+  - Native multi-core thread spawning with zero Global Interpreter Lock (GIL) via `thread_spawn`, `thread_join`, `thread_id`, `thread_yield`, `thread_sleep`.
+  - First-class function pointer loading (`lea reg, [rip + fn__<name>]`) and indirect invocation (`call r11`).
+  - Native hardware atomic memory primitives: `atomic_load`, `atomic_store`, `atomic_add` (`lock xadd`), `atomic_sub`, `atomic_cas` (`lock cmpxchg`), `atomic_fence` (`mfence`), and `cpu_pause` (`pause`).
+  - Thread-safe synchronization data structures: `AtomicInt`, `SpinLock`, and adaptive spin-yield `Mutex`.
+  - Parallel data loops: `par_for(start, end, worker_fn, context)` and `par_map(arr, count, fn_ptr)` compiling across native thread pools.
+  - Full cross-backend integration: Win64 JIT, standalone Windows PE32+ (dynamic `KERNEL32.CreateThread` / `WaitForSingleObject` imports and `.pdata` unwind records), static Linux ELF64, and portable C11 (`<stdatomic.h>` / `<windows.h>` / `<pthread.h>`).
 
 ---
 
@@ -131,12 +134,12 @@ For full architectural transparency, every known limitation, missing feature, an
 
 ### Summary of Current Flaws:
 1. **Dynamic Cyclic Memory**: Ephemeral allocations resolved via compile-time lexical arenas; long-lived cyclic heap graphs leak until process exit.
-2. **Platform Coverage**: Windows PE32+ and Linux ELF64 (3.9 KB) fully native; macOS ARM64 native binary generation in progress.
+2. **Platform Coverage**: Windows PE32+, Linux ELF64 (3.9 KB), and macOS ARM64 shipped; WebAssembly 1.0 standalone.
 3. **Strings**: Small String Optimization (SSO), zero-copy slicing, and dynamic operations resolved; complex Unicode normalization & regex engine in progress.
-4. **Hardware Exceptions**: No `.pdata`/`.xdata` SEH unwinding tables in the PE linker; unhandled CPU faults terminate the process immediately.
-5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, and `hash` are pure native `.bmb`; I/O and networking (`socket`, `os`) in development.
+4. **Hardware Exceptions**: Zero-cost SEH `.pdata`/`.xdata` unwind tables and VEH handler shipped in PE32+ linker.
+5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, and `test` are pure native `.bmb`.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
-7. **Concurrency Syntax**: No native `spawn` or `mutex` syntax in JIT mode (multithreading currently requires the C11/OpenMP emitter).
+7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, and `par_map` shipped in `thread.bmb`; async channels in progress.
 8. **Developer Tooling**: No dedicated VS Code LSP server daemon or package registry yet.
 
 ---

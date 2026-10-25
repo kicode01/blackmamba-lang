@@ -288,6 +288,126 @@ class C11Backend:
             "    return p;",
             "}",
             "",
+            "static inline int64_t bmb___bmb_atomic_load(int64_t* ptr) {",
+            "#if defined(_MSC_VER)",
+            "    return *ptr;",
+            "#else",
+            "    return __atomic_load_n(ptr, __ATOMIC_SEQ_CST);",
+            "#endif",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_atomic_store(int64_t* ptr, int64_t val) {",
+            "#if defined(_MSC_VER)",
+            "    return _InterlockedExchange64((volatile __int64*)ptr, val);",
+            "#else",
+            "    return __atomic_exchange_n(ptr, val, __ATOMIC_SEQ_CST);",
+            "#endif",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_atomic_add(int64_t* ptr, int64_t delta) {",
+            "#if defined(_MSC_VER)",
+            "    return _InterlockedExchangeAdd64((volatile __int64*)ptr, delta);",
+            "#else",
+            "    return __atomic_fetch_add(ptr, delta, __ATOMIC_SEQ_CST);",
+            "#endif",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_atomic_sub(int64_t* ptr, int64_t delta) {",
+            "#if defined(_MSC_VER)",
+            "    return _InterlockedExchangeAdd64((volatile __int64*)ptr, -delta);",
+            "#else",
+            "    return __atomic_fetch_sub(ptr, delta, __ATOMIC_SEQ_CST);",
+            "#endif",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_atomic_cas(int64_t* ptr, int64_t expected, int64_t desired) {",
+            "#if defined(_MSC_VER)",
+            "    return _InterlockedCompareExchange64((volatile __int64*)ptr, desired, expected);",
+            "#else",
+            "    int64_t exp = expected;",
+            "    __atomic_compare_exchange_n(ptr, &exp, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);",
+            "    return exp;",
+            "#endif",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_atomic_fence(void) {",
+            "#if defined(_MSC_VER)",
+            "    MemoryBarrier();",
+            "#else",
+            "    __atomic_thread_fence(__ATOMIC_SEQ_CST);",
+            "#endif",
+            "    return 0;",
+            "}",
+            "",
+            "static inline int64_t bmb___bmb_cpu_pause(void) {",
+            "#if defined(_MSC_VER) || defined(_WIN32)",
+            "    YieldProcessor();",
+            "#elif defined(__x86_64__) || defined(_M_X64)",
+            "    __builtin_ia32_pause();",
+            "#endif",
+            "    return 0;",
+            "}",
+            "",
+            "#if defined(_WIN32)",
+            "#include <windows.h>",
+            "static inline int64_t bmb___bmb_thread_concurrency(void) {",
+            "    SYSTEM_INFO si;",
+            "    GetSystemInfo(&si);",
+            "    return (int64_t)si.dwNumberOfProcessors;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_spawn(int64_t fn_ptr, int64_t arg) {",
+            "    HANDLE h = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)(uintptr_t)fn_ptr, (LPVOID)(uintptr_t)arg, 0, NULL);",
+            "    return (int64_t)(uintptr_t)h;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_join(int64_t handle) {",
+            "    HANDLE h = (HANDLE)(uintptr_t)handle;",
+            "    WaitForSingleObject(h, INFINITE);",
+            "    DWORD code = 0;",
+            "    GetExitCodeThread(h, &code);",
+            "    CloseHandle(h);",
+            "    return (int64_t)code;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_id(void) {",
+            "    return (int64_t)GetCurrentThreadId();",
+            "}",
+            "static inline int64_t bmb___bmb_thread_yield(void) {",
+            "    Sleep(0);",
+            "    return 0;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_sleep(int64_t ms) {",
+            "    Sleep((DWORD)ms);",
+            "    return 0;",
+            "}",
+            "#else",
+            "#include <pthread.h>",
+            "#include <unistd.h>",
+            "static inline int64_t bmb___bmb_thread_concurrency(void) {",
+            "    long n = sysconf(_SC_NPROCESSORS_ONLN);",
+            "    return n > 0 ? (int64_t)n : 1;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_spawn(int64_t fn_ptr, int64_t arg) {",
+            "    pthread_t th;",
+            "    pthread_create(&th, NULL, (void* (*)(void*))(uintptr_t)fn_ptr, (void*)(uintptr_t)arg);",
+            "    return (int64_t)(uintptr_t)th;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_join(int64_t handle) {",
+            "    void* ret = NULL;",
+            "    pthread_join((pthread_t)(uintptr_t)handle, &ret);",
+            "    return (int64_t)(uintptr_t)ret;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_id(void) {",
+            "    return (int64_t)(uintptr_t)pthread_self();",
+            "}",
+            "static inline int64_t bmb___bmb_thread_yield(void) {",
+            "    sched_yield();",
+            "    return 0;",
+            "}",
+            "static inline int64_t bmb___bmb_thread_sleep(int64_t ms) {",
+            "    usleep((useconds_t)(ms * 1000));",
+            "    return 0;",
+            "}",
+            "#endif",
+            "",
             "static inline double* __bmb_alloc_f64(int64_t n, double init_val) {",
             "    double* p = (double*)calloc((size_t)(n > 0 ? n : 1), sizeof(double));",
             "    if (init_val != 0.0) { for (int64_t i = 0; i < n; ++i) p[i] = init_val; }",
@@ -315,9 +435,22 @@ class C11Backend:
             lines.append(f"{inline_kw}{ret_c} bmb_{fn.name}({params_c});")
         lines.append("")
 
+        fn_names = {f.name for f in self.mir_module.functions} | {
+            "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
+            "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
+            "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",
+            "__bmb_socket_close",
+            "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
+            "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+            "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
+            "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+        }
+
         # Function bodies
         for fn in self.mir_module.functions:
-            lines.append(self._emit_function(fn))
+            lines.append(self._emit_function(fn, fn_names))
             lines.append("")
 
         return "\n".join(lines)
@@ -329,7 +462,7 @@ class C11Backend:
             f.write(c_src)
         return os.path.abspath(output_path)
 
-    def _emit_function(self, fn: MIRFunction) -> str:
+    def _emit_function(self, fn: MIRFunction, fn_names: set) -> str:
         is_main = fn.name in ("main", "__bmb_main__")
         c_name = "main" if is_main else f"bmb_{fn.name}"
         ret_c = "int" if is_main else _c_type(fn.return_type)
@@ -428,11 +561,15 @@ class C11Backend:
                         out.append(f'    printf("%lld", (long long){cpv});')
                 out.append('    printf("\\n");')
             elif op == "CALL":
-                args_c = ", ".join(_c_ident(x) for x in ins.extra)
-                if ins.dst and ins.dst != "%void":
-                    out.append(f"    {dst} = bmb_{ins.arg1}({args_c});")
+                args_c = ", ".join(f"(int64_t)bmb_{x}" if x in fn_names else _c_ident(x) for x in ins.extra)
+                if ins.arg1 in fn_names:
+                    call_expr = f"bmb_{ins.arg1}({args_c})"
                 else:
-                    out.append(f"    bmb_{ins.arg1}({args_c});")
+                    call_expr = f"((int64_t (*)(int64_t, ...)){_c_ident(ins.arg1)})({args_c})"
+                if ins.dst and ins.dst != "%void":
+                    out.append(f"    {dst} = {call_expr};")
+                else:
+                    out.append(f"    {call_expr};")
             elif op in ("PY_CALL_F64", "PY_EVAL_F64", "PY_EVAL_TENSOR"):
                 out.append(f"    {dst} = 0.0; /* CPython Host Call */")
             elif op == "ARENA_SAVE":

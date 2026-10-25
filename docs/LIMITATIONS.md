@@ -104,15 +104,21 @@
 
 ---
 
-## 7. Concurrency & Multithreading Primitives in Syntax
+## 7. Concurrency & Multithreading: Hardware Atomics, Thread Spawning & Parallel Loops (RESOLVED in Phase 4)
 
-* **The Limitation**:
-  * Black Mamba has no Global Interpreter Lock (GIL), meaning threads can execute with true hardware parallelism.
-  * However, the `.bmb` frontend syntax does not yet have built-in keywords for spawning native threads, mutex locks, or atomic primitives in pure JIT mode (multithreading is currently supported via `par for` in the C11/OpenMP emitter).
+* **Current Status (RESOLVED in Phase 4)**:
+  * **Zero GIL Hardware Multithreading & Synchronization** (`thread.bmb`):
+    - True multi-core execution with zero Global Interpreter Lock (GIL) across native Windows PE32+, Linux ELF64, portable C11, and JIT.
+    - First-class function pointer loading via RIP-relative address calculation (`lea reg, [rip + fn__<name>]`) and indirect invocation (`call r11`).
+    - Direct hardware atomic operations: `atomic_load`, `atomic_store`, `atomic_add` (`lock xadd`), `atomic_sub`, `atomic_cas` (`lock cmpxchg`), `atomic_fence` (`mfence`), and `cpu_pause` (`pause`).
+    - Thread-safe synchronization structs: `AtomicInt`, `SpinLock`, and adaptive spin-yield `Mutex`.
+    - Native thread management: `hardware_concurrency()`, `thread_spawn(worker_fn, arg)`, `thread_join(handle)`, `thread_current_id()`, `thread_yield()`, and `thread_sleep(ms)`.
+    - Parallel data loops: `par_for(start, end, worker_fn, context)` and `par_map(arr, count, fn_ptr)` compiling across native thread pools and distributing chunk workloads across available CPU cores.
+    - Full cross-backend integration: Win64 JIT, standalone Windows PE32+ (dynamic `KERNEL32.CreateThread` / `WaitForSingleObject` imports and `.pdata` unwind records), static Linux ELF64, and portable C11 (`<stdatomic.h>` / `<windows.h>` / `<pthread.h>`).
+* **Remaining Limitation**:
+  * High-level channels (`chan[T]`) and actor message-passing queues will be introduced in subsequent concurrency runtime enhancements.
 * **Current Workaround**:
-  * Use `bmb build --target c` with OpenMP compiler flags (`-fopenmp`) for multi-core parallel loops.
-* **Planned Fix (Phase 4)**:
-  * Add first-class `spawn`, `channel`, and atomic intrinsics (`atomic_add`, `compare_and_swap`) directly into the JIT and PE linker.
+  * Use `AtomicInt`, `Mutex`, `SpinLock`, `par_for`, and shared memory structures in `from thread import *`.
 
 ---
 
@@ -135,10 +141,10 @@
 | Category | Flaw | Severity | Status |
 | :--- | :--- | :--- | :--- |
 | **Memory** | Linear arena leaks on cyclic heap graphs | Medium | Phase 3 Target |
-| **Platform** | Linux ELF64 shipped (3.9KB); macOS ARM64 in progress | Medium | Phase 2 In Progress |
-| **Strings** | Static interned string pool; no dynamic slicing/concatenation in JIT | Medium | Phase 3 Target |
-| **Exceptions** | Process termination on hardware fault; no `.xdata` unwinding tables | Low | Phase 3 Target |
-| **Stdlib** | Core (math, time, random, tensor, json, hash) pure native; OS, Socket remaining | Medium | Phase 4 Core Done |
+| **Platform** | Windows PE32+, Linux ELF64, macOS ARM64 shipped | Low | Complete |
+| **Strings** | Small String Optimization (SSO) & zero-copy slicing shipped | Low | Complete |
+| **Exceptions** | Hardware SEH unwinding tables (.pdata / .xdata) shipped | Low | Complete |
+| **Stdlib** | Core (math, time, random, tensor, json, hash, os, socket, array, test) pure native | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
-| **Concurrency**| No native `spawn` / `mutex` keywords in JIT (requires C11/OpenMP) | Medium | Phase 4 Target |
+| **Concurrency**| Hardware atomics, Mutex, threads & par_for shipped in thread.bmb | Low | Complete |
 | **Tooling** | No dedicated VS Code extension or LSP daemon | Medium | Phase 5 Target |

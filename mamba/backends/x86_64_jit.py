@@ -383,17 +383,24 @@ class X86_64CodeBuffer:
         self.rel32_fixups.append((off + 1, label))
         self.asm_lines.append(AsmLine(offset=off, raw_bytes=b"\xE8\x00\x00\x00\x00", mnemonic=f"call {label}"))
 
-    def lea_rdx_label(self, label: str) -> None:
+    def lea_reg_label(self, reg: str, label: str) -> None:
+        table = {
+            "rax": (0x48, 0x05), "rcx": (0x48, 0x0D), "rdx": (0x48, 0x15), "rbx": (0x48, 0x1D),
+            "rsp": (0x48, 0x25), "rbp": (0x48, 0x2D), "rsi": (0x48, 0x35), "rdi": (0x48, 0x3D),
+            "r8":  (0x4C, 0x05), "r9":  (0x4C, 0x0D), "r10": (0x4C, 0x15), "r11": (0x4C, 0x1D),
+            "r12": (0x4C, 0x25), "r13": (0x4C, 0x2D), "r14": (0x4C, 0x35), "r15": (0x4C, 0x3D),
+        }
+        rex, modrm = table.get(reg, (0x48, 0x05))
         off = len(self.code)
-        self.code.extend(b"\x48\x8D\x15\x00\x00\x00\x00")
+        self.code.extend(bytes([rex, 0x8D, modrm, 0, 0, 0, 0]))
         self.rel32_fixups.append((off + 3, label))
-        self.asm_lines.append(AsmLine(offset=off, raw_bytes=b"\x48\x8D\x15\x00\x00\x00\x00", mnemonic=f"lea rdx, [rip + {label}]"))
+        self.asm_lines.append(AsmLine(offset=off, raw_bytes=bytes([rex, 0x8D, modrm, 0, 0, 0, 0]), mnemonic=f"lea {reg}, [rip + {label}]"))
+
+    def lea_rdx_label(self, label: str) -> None:
+        self.lea_reg_label("rdx", label)
 
     def lea_rcx_label(self, label: str) -> None:
-        off = len(self.code)
-        self.code.extend(b"\x48\x8D\x0D\x00\x00\x00\x00")
-        self.rel32_fixups.append((off + 3, label))
-        self.asm_lines.append(AsmLine(offset=off, raw_bytes=b"\x48\x8D\x0D\x00\x00\x00\x00", mnemonic=f"lea rcx, [rip + {label}]"))
+        self.lea_reg_label("rcx", label)
 
     def call_abs_addr(self, addr: int, name: str = "") -> None:
         self.mov_rax_imm64(addr, f" ; &{name}" if name else "")
@@ -415,7 +422,8 @@ class X86_64CodeBuffer:
         fn: MIRFunction,
         emit_const_str: Callable[[MIRInstr, Callable[[str], None]], None],
         emit_helper_call: Callable[[str], None],
-    ) -> None:
+        fn_names: Optional[Set[str]] = None,
+    ) -> int:
         """
         Compiles a MIRFunction into register-allocated, branch-fused x86-64 machine code.
         """
@@ -473,16 +481,19 @@ class X86_64CodeBuffer:
             if idx in fused_indices:
                 pass
             elif ins.dst and ins.dst != "%void" and ins.dst not in seen_v:
-                all_vars.append(ins.dst)
-                seen_v.add(ins.dst)
+                if not fn_names or ins.dst not in fn_names:
+                    all_vars.append(ins.dst)
+                    seen_v.add(ins.dst)
             for opnd in (ins.arg1, ins.arg2):
                 if isinstance(opnd, str) and ins.op not in ("LABEL", "JMP", "CALL", "JZ", "JNZ") and opnd not in seen_v:
-                    all_vars.append(opnd)
-                    seen_v.add(opnd)
+                    if not fn_names or opnd not in fn_names:
+                        all_vars.append(opnd)
+                        seen_v.add(opnd)
             for ex in ins.extra:
                 if ex not in seen_v:
-                    all_vars.append(ex)
-                    seen_v.add(ex)
+                    if not fn_names or ex not in fn_names:
+                        all_vars.append(ex)
+                        seen_v.add(ex)
 
         # Prioritize named variables & parameters first, then highest-use temporaries
         ranked_vars = sorted(
@@ -501,12 +512,16 @@ class X86_64CodeBuffer:
                 var_slots[v] = -56 - 8 * slot_idx
 
         def load_into(target_reg: str, vname: str) -> None:
-            if vname in imm_i64:
+            if fn_names and vname in fn_names:
+                self.lea_reg_label(target_reg, f"fn__{vname}")
+            elif vname in imm_i64:
                 self.mov_reg_imm64(target_reg, imm_i64[vname], vname)
             elif vname in reg_map:
                 self.mov_reg_reg(target_reg, reg_map[vname], vname)
-            else:
+            elif vname in var_slots:
                 self.load_reg_slot(target_reg, var_slots[vname], vname)
+            else:
+                self.mov_reg_imm64(target_reg, 0, vname)
 
         def store_from_rax(vname: str) -> None:
             if vname in reg_map:
@@ -883,7 +898,11 @@ class X86_64CodeBuffer:
                         load_into("rax", arg_v)
                         sp_off = 8 * idx
                         self.emit(b"\x48\x89\x84\x24" + struct.pack("<i", sp_off), f"mov qword ptr [rsp + {sp_off}], rax")
-                self.call_label(f"fn__{ins.arg1}")
+                if fn_names and str(ins.arg1) in fn_names:
+                    self.call_label(f"fn__{ins.arg1}")
+                else:
+                    load_into("r11", str(ins.arg1))
+                    self.emit(b"\x41\xFF\xD3", f"call r11 ; indirect call *{ins.arg1}")
                 if ins.dst and ins.dst != "%void":
                     store_from_rax(str(ins.dst))
 
@@ -924,6 +943,10 @@ class NativeJITModule:
         self._allocate_executable_memory()
 
     def _setup_runtime_helpers(self) -> None:
+        import threading
+        alloc_lock = threading.Lock()
+        print_lock = threading.Lock()
+
         # Pre-allocated 64 MiB execution arena
         self.arena_mem = (ctypes.c_uint8 * (64 * 1024 * 1024))()
         self.arena_offset = 0
@@ -941,10 +964,11 @@ class NativeJITModule:
             return bytes((val >> (8 * (i + 1))) & 0xFF for i in range(n))
 
         def alloc_str_in_arena(n_bytes: int) -> int:
-            alloc_bytes = (n_bytes + 15) & ~15
-            old_off = self.arena_offset
-            self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
-            return ctypes.addressof(self.arena_mem) + old_off
+            with alloc_lock:
+                alloc_bytes = (n_bytes + 15) & ~15
+                old_off = self.arena_offset
+                self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
+                return ctypes.addressof(self.arena_mem) + old_off
 
         def make_str_handle(b: bytes) -> int:
             n = len(b)
@@ -992,23 +1016,24 @@ class NativeJITModule:
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_print_item(kind: int, raw_val: int) -> int:
-            if kind == 0:
-                self._write_out(str(raw_val))
-            elif kind == 1:
-                flt = struct.unpack("<d", struct.pack("<q", raw_val))[0]
-                if flt == int(flt) and abs(flt) < 1e15:
-                    self._write_out(f"{flt:.1f}")
-                else:
-                    self._write_out(f"{flt:.6g}")
-            elif kind == 2:
-                self._write_out("True" if raw_val != 0 else "False")
-            elif kind == 3:
-                s_bytes = get_str_bytes(raw_val)
-                self._write_out(s_bytes.decode("utf-8", errors="replace"))
-            elif kind == 4:
-                self._write_out(" ")
-            elif kind == 5:
-                self._write_out("\n")
+            with print_lock:
+                if kind == 0:
+                    self._write_out(str(raw_val))
+                elif kind == 1:
+                    flt = struct.unpack("<d", struct.pack("<q", raw_val))[0]
+                    if flt == int(flt) and abs(flt) < 1e15:
+                        self._write_out(f"{flt:.1f}")
+                    else:
+                        self._write_out(f"{flt:.6g}")
+                elif kind == 2:
+                    self._write_out("True" if raw_val != 0 else "False")
+                elif kind == 3:
+                    s_bytes = get_str_bytes(raw_val)
+                    self._write_out(s_bytes.decode("utf-8", errors="replace"))
+                elif kind == 4:
+                    self._write_out(" ")
+                elif kind == 5:
+                    self._write_out("\n")
             return 0
 
         @ctypes.CFUNCTYPE(ctypes.c_int64)
@@ -1017,16 +1042,18 @@ class NativeJITModule:
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
         def rt_arena_restore(saved_offset: int) -> int:
-            self.arena_offset = max(0, int(saved_offset))
+            with alloc_lock:
+                self.arena_offset = max(0, int(saved_offset))
             return 0
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_alloc_arr(count: int, init_bits: int) -> int:
             n = max(1, int(count))
             alloc_bytes = (n * 8 + 15) & ~15
-            old_off = self.arena_offset
-            self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
-            addr = ctypes.addressof(self.arena_mem) + old_off
+            with alloc_lock:
+                old_off = self.arena_offset
+                self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
+                addr = ctypes.addressof(self.arena_mem) + old_off
             if init_bits != 0:
                 p_i64 = ctypes.cast(addr, ctypes.POINTER(ctypes.c_int64))
                 for i in range(n):
@@ -1346,6 +1373,47 @@ class NativeJITModule:
                     pass
             return 0
 
+        # Native Threading & Concurrency Callbacks
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_thread_concurrency() -> int:
+            return os.cpu_count() or 1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_thread_spawn(func_ptr: int, arg: int) -> int:
+            kernel32 = ctypes.windll.kernel32
+            kernel32.CreateThread.restype = ctypes.c_void_p
+            kernel32.CreateThread.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
+            h = kernel32.CreateThread(None, 0, ctypes.c_void_p(func_ptr), ctypes.c_void_p(arg), 0, None)
+            return int(h) if h else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_thread_join(handle: int) -> int:
+            if not handle:
+                return -1
+            kernel32 = ctypes.windll.kernel32
+            kernel32.WaitForSingleObject.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+            kernel32.WaitForSingleObject(ctypes.c_void_p(handle), 0xFFFFFFFF)
+            exit_code = ctypes.c_uint32()
+            kernel32.GetExitCodeThread.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint32)]
+            kernel32.GetExitCodeThread(ctypes.c_void_p(handle), ctypes.byref(exit_code))
+            kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+            kernel32.CloseHandle(ctypes.c_void_p(handle))
+            return int(exit_code.value)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_thread_id() -> int:
+            return int(ctypes.windll.kernel32.GetCurrentThreadId())
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_thread_yield() -> int:
+            ctypes.windll.kernel32.Sleep(0)
+            return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_thread_sleep(ms: int) -> int:
+            ctypes.windll.kernel32.Sleep(int(ms))
+            return 0
+
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
@@ -1358,6 +1426,8 @@ class NativeJITModule:
             rt_bmb_socket_connect, rt_bmb_socket_bind, rt_bmb_socket_listen,
             rt_bmb_socket_accept, rt_bmb_socket_send, rt_bmb_socket_recv,
             rt_bmb_socket_close,
+            rt_bmb_thread_concurrency, rt_bmb_thread_spawn, rt_bmb_thread_join,
+            rt_bmb_thread_id, rt_bmb_thread_yield, rt_bmb_thread_sleep,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1400,6 +1470,12 @@ class NativeJITModule:
         self.addr_bmb_socket_send = ctypes.cast(rt_bmb_socket_send, ctypes.c_void_p).value
         self.addr_bmb_socket_recv = ctypes.cast(rt_bmb_socket_recv, ctypes.c_void_p).value
         self.addr_bmb_socket_close = ctypes.cast(rt_bmb_socket_close, ctypes.c_void_p).value
+        self.addr_bmb_thread_concurrency = ctypes.cast(rt_bmb_thread_concurrency, ctypes.c_void_p).value
+        self.addr_bmb_thread_spawn = ctypes.cast(rt_bmb_thread_spawn, ctypes.c_void_p).value
+        self.addr_bmb_thread_join = ctypes.cast(rt_bmb_thread_join, ctypes.c_void_p).value
+        self.addr_bmb_thread_id = ctypes.cast(rt_bmb_thread_id, ctypes.c_void_p).value
+        self.addr_bmb_thread_yield = ctypes.cast(rt_bmb_thread_yield, ctypes.c_void_p).value
+        self.addr_bmb_thread_sleep = ctypes.cast(rt_bmb_thread_sleep, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -1504,6 +1580,12 @@ class NativeJITModule:
             ("__bmb_socket_send", self.addr_bmb_socket_send),
             ("__bmb_socket_recv", self.addr_bmb_socket_recv),
             ("__bmb_socket_close", self.addr_bmb_socket_close),
+            ("__bmb_thread_concurrency", self.addr_bmb_thread_concurrency),
+            ("__bmb_thread_spawn", self.addr_bmb_thread_spawn),
+            ("__bmb_thread_join", self.addr_bmb_thread_join),
+            ("__bmb_thread_id", self.addr_bmb_thread_id),
+            ("__bmb_thread_yield", self.addr_bmb_thread_yield),
+            ("__bmb_thread_sleep", self.addr_bmb_thread_sleep),
         ]
         for name, addr in os_trampolines:
             self.code_buf.mark_label(f"fn__{name}")
@@ -1512,9 +1594,41 @@ class NativeJITModule:
             self.code_buf.emit(b"\x48\x83\xC4\x28", "add rsp, 0x28")
             self.code_buf.ret()
 
+        # Native Hardware Atomic Trampolines
+        self.code_buf.mark_label("fn____bmb_atomic_load")
+        self.code_buf.emit(b"\x48\x8B\x01\xC3", "mov rax, [rcx]; ret")
+
+        self.code_buf.mark_label("fn____bmb_atomic_store")
+        self.code_buf.emit(b"\x48\x87\x11\x48\x89\xD0\xC3", "xchg [rcx], rdx; mov rax, rdx; ret")
+
+        self.code_buf.mark_label("fn____bmb_atomic_add")
+        self.code_buf.emit(b"\x48\x89\xD0\xF0\x48\x0F\xC1\x01\xC3", "mov rax, rdx; lock xadd [rcx], rax; ret")
+
+        self.code_buf.mark_label("fn____bmb_atomic_sub")
+        self.code_buf.emit(b"\x48\xF7\xDA\x48\x89\xD0\xF0\x48\x0F\xC1\x01\xC3", "neg rdx; mov rax, rdx; lock xadd [rcx], rax; ret")
+
+        self.code_buf.mark_label("fn____bmb_atomic_cas")
+        self.code_buf.emit(b"\x48\x89\xD0\xF0\x4C\x0F\xB1\x01\xC3", "mov rax, rdx; lock cmpxchg [rcx], r8; ret")
+
+        self.code_buf.mark_label("fn____bmb_atomic_fence")
+        self.code_buf.emit(b"\x0F\xAE\xF0\x48\x31\xC0\xC3", "mfence; xor rax, rax; ret")
+
+        self.code_buf.mark_label("fn____bmb_cpu_pause")
+        self.code_buf.emit(b"\xF3\x90\x48\x31\xC0\xC3", "pause; xor rax, rax; ret")
+
+        known_fn_names = {f.name for f in self.mir_module.functions}
+        for name, _ in os_trampolines:
+            known_fn_names.add(name)
+        known_fn_names.update([
+            "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
+            "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+            "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
+            "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+        ])
+
         for fn in self.mir_module.functions:
             self.func_offsets[fn.name] = len(self.code_buf.code)
-            self.code_buf.compile_mir_function(fn, emit_const_str, emit_helper_call)
+            self.code_buf.compile_mir_function(fn, emit_const_str, emit_helper_call, known_fn_names)
 
         self.code_buf.resolve_fixups()
 
