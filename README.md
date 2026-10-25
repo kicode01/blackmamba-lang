@@ -7,9 +7,9 @@
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
 
-[![Release](https://img.shields.io/badge/release-v1.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v1.0.0)
+[![Release](https://img.shields.io/badge/release-v1.1.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v1.1.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-44%2F44%20(100%25)-success?style=for-the-badge)](tests/test_mamba.py)
+[![Test Suite](https://img.shields.io/badge/tests-47%2F47%20(100%25)-success?style=for-the-badge)](tests/test_mamba.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
 [![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
 [![Targets](https://img.shields.io/badge/targets-Win64%20%7C%20Linux%20ELF64%20%7C%20macOS%20ARM64%20%7C%20WASM%20%7C%20Bare--Metal-blueviolet?style=for-the-badge)](#-visual-architecture-cpython-vs-black-mamba)
@@ -17,7 +17,12 @@
 
 ---
 
-**Black Mamba (`v1.0.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity.
+**Black Mamba (`v1.1.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity or dynamic power.
+
+In **v1.1.0**, Black Mamba achieves complete feature convergence with Python by delivering:
+1. **Dynamic C3 Multiple Inheritance (Diamond MRO) & Cooperative `super()`**: Standard C3 linearization across complex diamond hierarchies, polymorphic virtual vtables, runtime class monkey-patching (`setattr`), and dynamic instance attributes (`hasattr`, `getattr`, `setattr`, `isinstance`), while preserving 1-cycle direct calls for unboxed `struct`s.
+2. **Multi-Frame Stack-Unwinding Structured Exceptions**: Full `try` / `except CustomError as e` / `except (A, B) as e` / `else` / `finally` / `raise` support that cleanly unwinds through intermediate call frames, executing all `finally` handlers while maintaining sub-10 KB standalone executable sizes.
+3. **Pure-Native Stdlib Expansion (29 Modules)**: Built-in TLS 1.3 / X.509 cryptographic stack (`tls.bmb`), ACID relational SQL & PostgreSQL v3 wire engine (`sql.bmb`), and retained-mode GUI toolkit with 24-bit RGB rasterizer, BMP, and SVG exporters (`gui.bmb`).
 
 Unlike **Mojo** (which forces Rust-like borrow checkers and bifurcates `def` vs `fn`) or **Nim** (which departs from Python syntax), Black Mamba preserves true Python syntax while compiling directly down to **bare-metal machine code**, **5.5 KB standalone Windows executables**, **3.9 KB static Linux binaries**, **freestanding microcontroller firmware**, **drop-in `.pyd` Python C-extensions**, and **1.7 KB WebAssembly modules** with **zero external C compiler dependencies**.
 
@@ -309,9 +314,9 @@ Try it yourself: open [`examples/web_game_canvas.html`](examples/web_game_canvas
 
 ---
 
-## 📦 Pure Native Standard Library (26 Modules)
+## 📦 Pure Native Standard Library (29 Modules)
 
-Black Mamba includes a comprehensive 26-module standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**:
+Black Mamba includes a comprehensive 29-module standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**:
 
 | Module | Description | Key Capabilities |
 | :--- | :--- | :--- |
@@ -324,6 +329,9 @@ Black Mamba includes a comprehensive 26-module standard library written in pure 
 | [`debug.bmb`](mamba/stdlib/debug.bmb) | Native Symbolic Diagnostics | Source-line trace helpers, hardware fault triggers, and assertions paired with `--debug` (`RSDS` / COFF / DWARF v4). |
 | [`simd.bmb`](mamba/stdlib/simd.bmb) | Hardware SIMD & AVX2 Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), `Vec4i`, FMA, 8-way unrolled bulk array kernels, GEMM tiling, audio DSP. |
 | [`http.bmb`](mamba/stdlib/http.bmb) | High-Throughput HTTP & WebSockets | Complete HTTP/1.1 parser, query parameters, response builders, router dispatch, RFC 6455 WebSocket handshake & framing (8.2M req/s). |
+| [`tls.bmb`](mamba/stdlib/tls.bmb) | Pure Native TLS 1.3 & X.509 Stack | HKDF-SHA256 (RFC 5869), TLS 1.3 key schedule (RFC 8446), ChaCha20 stream cipher, authenticated record seal/open with MAC tamper detection, ClientHello builder, and ASN.1 DER parser with self-signed certificate generator. |
+| [`sql.bmb`](mamba/stdlib/sql.bmb) | Relational SQL & Postgres Wire Engine | Relational query engine (CREATE TABLE, INSERT, SELECT WHERE, ORDER BY, LIMIT, aggregates), ACID transactions (BEGIN, COMMIT, ROLLBACK), disk file persistence, and PostgreSQL v3 wire protocol packet encoder & frame parser. |
+| [`gui.bmb`](mamba/stdlib/gui.bmb) | Retained-Mode GUI & 24-bit Canvas | Window, Panel, VBox, HBox, Button, Label, TextInput, ProgressBar widgets; automatic flex layout, click hit-testing, 24-bit software RGB rasterizer with 5x7 ASCII font, uncompressed 24-bit BMP image exporter, and vector SVG exporter. |
 | [`math.bmb`](mamba/stdlib/math.bmb) | High-Precision Minimax Math | 7-term Chebyshev/Taylor trig (`sin`, `cos`, `tan`, `atan2`), hyperbolic, exp/log, `hypot`, `clamp`, `lerp`. |
 | [`time.bmb`](mamba/stdlib/time.bmb) | Nanosecond Hardware Timing | Nanosecond monotonic clock (`clock_ns`), float seconds (`clock_sec`), high-precision sleep primitives (`sleep_ms`, `sleep_ns`). |
 | [`random.bmb`](mamba/stdlib/random.bmb) | BigCrush-Validated PRNG | Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period), uniform floats, bounded integers, array sampling. |

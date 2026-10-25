@@ -1,0 +1,197 @@
+# Black Mamba Flagship Showcase: oop_exceptions_showcase.bmb
+# Demonstrates v1.1.0 Features:
+#   1. Dynamic C3 Multiple Inheritance (Diamond MRO) & Cooperative super()
+#   2. Polymorphic Virtual Method Vtable Dispatch
+#   3. Runtime Class Method Monkey-Patching (setattr on classes)
+#   4. Dynamic Instance Attributes (setattr / getattr / hasattr / obj.attr)
+#   5. Multi-Frame Stack-Unwinding Structured Exceptions (try / except / else / finally / raise)
+# 100% Pure Black Mamba (.bmb) — Zero GIL | Zero CPython Runtime Overhead.
+
+# ==============================================================================
+# 1. C3 Multiple Inheritance Diamond Hierarchy & Cooperative super()
+# ==============================================================================
+
+class Shape:
+    name: str
+    scale: i64
+
+    def __init__(self, name: str = "Shape", scale: i64 = 1):
+        self.name = name
+        self.scale = scale
+
+    def describe(self) -> str:
+        return "Shape(" + self.name + ")"
+
+    def compute_cost(self, base_units: i64) -> i64:
+        return base_units * self.scale
+
+class ColoredShape(Shape):
+    color_code: i64
+
+    def __init__(self, name: str, scale: i64, color_code: i64):
+        super().__init__(name, scale)
+        self.color_code = color_code
+
+    def describe(self) -> str:
+        return "Colored[" + str(self.color_code) + "]->" + super().describe()
+
+    def compute_cost(self, base_units: i64) -> i64:
+        return super().compute_cost(base_units * 2) + self.color_code
+
+class BorderedShape(Shape):
+    border_px: i64
+
+    def __init__(self, name: str, scale: i64, border_px: i64):
+        super().__init__(name, scale)
+        self.border_px = border_px
+
+    def describe(self) -> str:
+        return "Bordered[" + str(self.border_px) + "px]->" + super().describe()
+
+    def compute_cost(self, base_units: i64) -> i64:
+        return super().compute_cost(base_units + 10) + self.border_px
+
+class WidgetBox(ColoredShape, BorderedShape):
+    elevation: i64
+
+    def __init__(self, name: str, scale: i64, color_code: i64, border_px: i64, elevation: i64):
+        self.name = name
+        self.scale = scale
+        self.color_code = color_code
+        self.border_px = border_px
+        self.elevation = elevation
+
+    def describe(self) -> str:
+        return "WidgetBox[" + str(self.elevation) + "]->" + super().describe()
+
+    def compute_cost(self, base_units: i64) -> i64:
+        return super().compute_cost(base_units) + self.elevation
+
+def render_polymorphic(s: Shape) -> str:
+    return s.describe()
+
+def evaluate_cost(s: Shape, units: i64) -> i64:
+    return s.compute_cost(units)
+
+# Monkey-patch replacement function
+def patched_bordered_cost(self: BorderedShape, units: i64) -> i64:
+    return units * 50 + self.border_px
+
+def brand_new_perk(self: Shape, bonus: i64) -> i64:
+    return self.scale * 1000 + bonus
+
+# ==============================================================================
+# 2. Custom Exception Hierarchy & Multi-Frame Stack Unwinding
+# ==============================================================================
+
+class TransactionError(RuntimeError):
+    tx_id: i64
+
+    def __init__(self, msg: str, tx_id: i64):
+        self.message = msg
+        self.tx_id = tx_id
+
+class InsufficientBalanceError(TransactionError):
+    required: i64
+    available: i64
+
+    def __init__(self, msg: str, tx_id: i64, required: i64, available: i64):
+        super().__init__(msg, tx_id)
+        self.required = required
+        self.available = available
+
+def bank_step_charge(account_bal: i64, charge: i64, tx_id: i64, trace: Array[str]) -> i64:
+    trace[0] = trace[0] + "charge_enter;"
+    if charge < 0:
+        raise ValueError("negative_charge_disallowed")
+    if charge > account_bal:
+        raise InsufficientBalanceError("insufficient_funds", tx_id, charge, account_bal)
+    trace[0] = trace[0] + "charge_ok;"
+    return account_bal - charge
+
+def bank_step_service(bal: i64, charge: i64, tx_id: i64, trace: Array[str]) -> i64:
+    try:
+        new_bal = bank_step_charge(bal, charge, tx_id, trace)
+        return new_bal
+    finally:
+        trace[0] = trace[0] + "service_cleanup;"
+
+def bank_process_tx(bal: i64, charge: i64, tx_id: i64, trace: Array[str]) -> i64:
+    try:
+        final_bal = bank_step_service(bal, charge, tx_id, trace)
+    except InsufficientBalanceError as ibe:
+        trace[0] = trace[0] + "handled_balance_err(" + ibe.message + ":need=" + str(ibe.required) + ":have=" + str(ibe.available) + ");"
+        return -1
+    except (ValueError, KeyError) as ve:
+        trace[0] = trace[0] + "handled_val_err(" + ve.message + ");"
+        try:
+            raise
+        except Exception as rethrown:
+            trace[0] = trace[0] + "caught_rethrow(" + rethrown.message + ");"
+        return -2
+    else:
+        trace[0] = trace[0] + "tx_succeeded;"
+        return final_bal
+    finally:
+        trace[0] = trace[0] + "tx_finalized;"
+    return 0
+
+# ==============================================================================
+# 3. Main Showcase Execution
+# ==============================================================================
+
+def main() -> i64:
+    print("=== Black Mamba v1.1.0: Dynamic C3 OOP & Stack Unwinding Showcase ===")
+
+    # 1. Diamond MRO & Cooperative super()
+    box = WidgetBox("CardPanel", 2, 0x00FF88, 4, 12)
+    print("MRO Describe:", box.describe())
+    print("Poly Describe:", render_polymorphic(box))
+    let init_cost: i64 = evaluate_cost(box, 5)
+    print("Initial Cost (units=5):", init_cost)
+
+    # 2. Type Introspection (isinstance)
+    print("isinstance(box, Shape):", isinstance(box, Shape))
+    print("isinstance(box, (ColoredShape, BorderedShape)):", isinstance(box, (ColoredShape, BorderedShape)))
+    let plain_shape: Shape = Shape("Circle", 1)
+    print("isinstance(plain_shape, WidgetBox):", isinstance(plain_shape, WidgetBox))
+
+    # 3. Runtime Class Monkey-Patching
+    setattr(BorderedShape, "compute_cost", patched_bordered_cost)
+    let patched_cost: i64 = evaluate_cost(box, 5)
+    print("Patched Cost (via BorderedShape monkey-patch):", patched_cost)
+
+    setattr(Shape, "perk", brand_new_perk)
+    print("New Method Call box.perk(50):", box.perk(50))
+
+    # 4. Dynamic Instance Attributes
+    print("hasattr(box, 'theme'):", hasattr(box, "theme"))
+    setattr(box, "theme", "cyber_dark")
+    print("hasattr(box, 'theme'):", hasattr(box, "theme"))
+    print("getattr(box, 'theme'):", getattr(box, "theme"))
+    box.badge_id = 9999
+    print("box.badge_id:", box.badge_id)
+
+    # 5. Multi-Frame Stack-Unwinding Exceptions
+    print("\n--- Multi-Frame Structured Exception Tests ---")
+    trace = [""]
+
+    # Case A: Success Path
+    let bal_a: i64 = bank_process_tx(500, 100, 1001, trace)
+    print("Success Bal:", bal_a)
+    print("Trace A:", trace[0])
+
+    # Case B: Custom Exception Unwind
+    trace[0] = ""
+    let bal_b: i64 = bank_process_tx(200, 450, 1002, trace)
+    print("Overdraft Code:", bal_b)
+    print("Trace B:", trace[0])
+
+    # Case C: Rethrown Exception Unwind
+    trace[0] = ""
+    let bal_c: i64 = bank_process_tx(500, -25, 1003, trace)
+    print("Invalid Qty Code:", bal_c)
+    print("Trace C:", trace[0])
+
+    print("\n[OK] Dynamic OOP & Structured Exceptions Verified.")
+    return 0

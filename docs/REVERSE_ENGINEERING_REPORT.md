@@ -103,7 +103,7 @@ Black Mamba (`mamba` / `.bmb`) solves Python's speed limit while preserving 100%
    * Maps hot variables to Win64 callee-saved hardware registers (`r12`, `r13`, `r14`, `r15`, `rbx`, `rsi`, `rdi`).
    * Fuses comparisons and conditional jumps (`CMP_*_I64` + `JZ`) into single 2-instruction macro-ops (`cmp rax, rcx; jge label`).
    * Folds immediate constants directly into ALU instructions (`add rax, imm32`, `cmp rax, imm32`).
-4. **True "Write Once, Compile Anywhere" Multi-Target Backends (`v1.0.0`)**:
+4. **True "Write Once, Compile Anywhere" Multi-Target Backends (`v1.1.0`)**:
    * **In-Memory x86-64 Native JIT**: Compiles and executes in hardware memory in sub-millisecond time via `VirtualAlloc` with zero-GIL memory/thread trampolines.
    * **Standalone Windows PE32+ Executable (`.exe`)**: Emits self-contained 64-bit Windows executables (`5.5 KB–9.5 KB`) with SEH `.pdata`/`.xdata` unwind tables and `--debug` CodeView `RSDS` + COFF symbols.
    * **Static Linux ELF64 (`.elf`) & macOS ARM64 Mach-O (`.macho`)**: Emits zero-dependency `3.9 KB–5.3 KB` Linux x86-64 binaries (with DWARF v4 `.debug_line`) and Apple Silicon AArch64 executables via direct kernel syscalls.

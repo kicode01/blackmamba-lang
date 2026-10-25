@@ -153,7 +153,7 @@ flowchart TD
 
 ---
 
-## 3. Official `v1.0.0` Strategic Vectors Completion Matrix
+## 3. Official Strategic Vectors Completion Matrix (`v1.0.0` & `v1.1.0`)
 
 | Vector | Focus Area | Status | Shipped In | Verified Production Achievement |
 | :--- | :--- | :---: | :---: | :--- |
@@ -165,6 +165,9 @@ flowchart TD
 | **Vector 6** | **Complete Self-Hosting `.bmb` -> `.exe` Compiler** (`compiler.bmb`, `codegen.bmb`) | **COMPLETED ✅** | `v0.9.5` / `v1.0.0` | Pure `.bmb` Lexer, Pratt Parser, x86-64 Assembler & PE32+ `.exe` Linker (**1.63 ms** zero-Python compile) |
 | **Vector 7** | **Embedded & Bare-Metal Edge Target** (`embedded.bmb`) | **COMPLETED ✅** | `v0.9.8` | Freestanding No-OS HAL, MMIO 32/8-bit, **65.7M ticks/s** PID, `.bin` / `.hex` / `.elf` |
 | **Vector 8** | **Native Debug Symbols & Diagnostics** (`--debug`, `debug.bmb`) | **COMPLETED ✅** | `v1.0.0` | PE32+ CodeView `RSDS` + COFF `.symtab` + Symbolic SEH, ELF64 DWARF v4 `.debug_line`, C11 `#line` |
+| **Vector 9** | **Dynamic C3 Diamond OOP & Monkey-Patching** | **COMPLETED ✅** | `v1.1.0` | Full Python C3 MRO diamond linearization, cooperative `super()`, virtual vtable dispatch, class method monkey-patching (`setattr`), dynamic attributes (`hasattr`/`getattr`), and `isinstance` |
+| **Vector 10** | **Multi-Frame Stack-Unwinding Structured Exceptions** | **COMPLETED ✅** | `v1.1.0` | Full `try` / `except CustomError as e` / `except (A, B) as e` / `else` / `finally` / `raise` unwinding across multi-frame call stacks with zero-cost thread-local registers |
+| **Vector 11** | **Pure Native TLS 1.3, SQL & GUI Ecosystem** (`tls`, `sql`, `gui`) | **COMPLETED ✅** | `v1.1.0` | Pure `.bmb` TLS 1.3 / X.509 cryptographic stack (`tls.bmb`), ACID relational SQL & Postgres v3 engine (`sql.bmb`), retained-mode UI toolkit & 24-bit RGB rasterizer (`gui.bmb`) |
 
 ---
 

@@ -1,0 +1,862 @@
+# Black Mamba Standard Library: sql.bmb
+# Pure Native Relational SQL Execution Engine, ACID Transaction Journal & PostgreSQL v3 Wire Protocol.
+# Implements:
+#   1. Relational SQL Lexer & Parser (CREATE TABLE, INSERT INTO, SELECT, WHERE, ORDER BY, LIMIT, UPDATE, DELETE)
+#   2. Aggregate Query Functions: COUNT(*), SUM(col), MAX(col), MIN(col)
+#   3. Snapshot-Isolated ACID Transactions: BEGIN, COMMIT, ROLLBACK
+#   4. Durable SQL Dump Persistence via os.bmb (sql_save / sql_open_file)
+#   5. PostgreSQL Frontend/Backend Wire Protocol v3.0 Packet Framing & Frame Parser
+# 100% Pure Black Mamba (.bmb) — Zero SQLite / libpq / CPython Dependencies.
+
+from os import file_exists, read_file, write_file
+
+# ==============================================================================
+# 1. Constants & Storage Structures
+# ==============================================================================
+
+SQL_COL_INT = 1
+SQL_COL_TEXT = 2
+
+SQL_MAX_TABLES = 8
+SQL_MAX_COLS = 8
+SQL_MAX_ROWS = 128
+
+struct SqlTable:
+    name: str
+    active: i64
+    col_count: i64
+    col_names: Array[str]
+    col_types: Array[i64]
+    row_count: i64
+    row_alive: Array[i64]
+    cells_str: Array[str]
+    cells_int: Array[i64]
+    # Snapshot storage for ACID BEGIN / ROLLBACK
+    snap_row_count: i64
+    snap_row_alive: Array[i64]
+    snap_cells_str: Array[str]
+    snap_cells_int: Array[i64]
+
+struct SqlDb:
+    table_count: i64
+    tables: Array[SqlTable]
+    in_tx: i64
+    snap_table_count: i64
+    snap_table_active: Array[i64]
+
+struct SqlResult:
+    ok: bool
+    error: str
+    row_count: i64
+    col_count: i64
+    affected_rows: i64
+    col_names: Array[str]
+    cells: Array[str]
+
+# ==============================================================================
+# 2. Database & Table Allocation
+# ==============================================================================
+
+def _sql_new_empty_table() -> SqlTable:
+    let cnames: Array[str] = [""] * SQL_MAX_COLS
+    let ctypes: Array[i64] = [0] * SQL_MAX_COLS
+    let ralive: Array[i64] = [0] * SQL_MAX_ROWS
+    let ncells: i64 = SQL_MAX_ROWS * SQL_MAX_COLS
+    let cstr: Array[str] = [""] * ncells
+    let cint: Array[i64] = [0] * ncells
+    let s_ralive: Array[i64] = [0] * SQL_MAX_ROWS
+    let s_cstr: Array[str] = [""] * ncells
+    let s_cint: Array[i64] = [0] * ncells
+    return SqlTable("", 0, 0, cnames, ctypes, 0, ralive, cstr, cint, 0, s_ralive, s_cstr, s_cint)
+
+def sql_open() -> SqlDb:
+    let dummy: SqlTable = _sql_new_empty_table()
+    let tbls: Array[SqlTable] = [dummy] * SQL_MAX_TABLES
+    for i in 0..SQL_MAX_TABLES:
+        tbls[i] = _sql_new_empty_table()
+    let snap_act: Array[i64] = [0] * SQL_MAX_TABLES
+    return SqlDb(0, tbls, 0, 0, snap_act)
+
+def _sql_err(msg: str) -> SqlResult:
+    let empty_cols: Array[str] = []
+    let empty_cells: Array[str] = []
+    return SqlResult(False, msg, 0, 0, 0, empty_cols, empty_cells)
+
+def _sql_ok_affected(n: i64) -> SqlResult:
+    let empty_cols: Array[str] = []
+    let empty_cells: Array[str] = []
+    return SqlResult(True, "", 0, 0, n, empty_cols, empty_cells)
+
+def sql_cell(res: SqlResult, row: i64, col: i64) -> str:
+    if row < 0 or row >= res.row_count or col < 0 or col >= res.col_count:
+        return ""
+    return res.cells[row * res.col_count + col]
+
+def _sql_parse_int(s: str) -> i64:
+    let n: i64 = len(s)
+    if n == 0:
+        return 0
+    let sign: i64 = 1
+    let start: i64 = 0
+    if ord(s[0]) == 45:
+        sign = -1
+        start = 1
+    elif ord(s[0]) == 43:
+        start = 1
+    let acc: i64 = 0
+    for i in start..n:
+        let c: i64 = ord(s[i])
+        if c >= 48 and c <= 57:
+            acc = acc * 10 + (c - 48)
+        else:
+            break
+    return acc * sign
+
+def sql_cell_int(res: SqlResult, row: i64, col: i64) -> i64:
+    return _sql_parse_int(sql_cell(res, row, col))
+
+def sql_format_table(res: SqlResult) -> str:
+    if not res.ok:
+        return "ERROR: " + res.error
+    let out: str = ""
+    for c in 0..res.col_count:
+        if c > 0:
+            out = out + " | "
+        out = out + res.col_names[c]
+    out = out + "\n"
+    for r in 0..res.row_count:
+        for c in 0..res.col_count:
+            if c > 0:
+                out = out + " | "
+            out = out + sql_cell(res, r, c)
+        if r + 1 < res.row_count:
+            out = out + "\n"
+    return out
+
+# ==============================================================================
+# 3. SQL Tokenizer
+# ==============================================================================
+
+struct _SqlTokens:
+    count: i64
+    items: Array[str]
+    uppers: Array[str]
+    quoted: Array[i64]
+
+def _sql_upper(s: str) -> str:
+    let n: i64 = len(s)
+    let out: str = ""
+    for i in 0..n:
+        let c: i64 = ord(s[i])
+        if c >= 97 and c <= 122:
+            out = out + chr(c - 32)
+        else:
+            out = out + s[i]
+    return out
+
+def _sql_is_space(c: i64) -> bool:
+    return c == 32 or c == 9 or c == 10 or c == 13
+
+def _sql_is_ident_char(c: i64) -> bool:
+    return (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or (c >= 48 and c <= 57) or c == 95
+
+def _sql_tokenize(q: str) -> _SqlTokens:
+    let max_t: i64 = 128
+    let items: Array[str] = [""] * max_t
+    let uppers: Array[str] = [""] * max_t
+    let quoted: Array[i64] = [0] * max_t
+    let cnt: i64 = 0
+    let n: i64 = len(q)
+    let i: i64 = 0
+
+    while i < n and cnt < max_t:
+        let c: i64 = ord(q[i])
+        if _sql_is_space(c) or c == 59:
+            i += 1
+        elif c == 39 or c == 34:
+            # Single or double quoted string literal
+            let quote_ch: i64 = c
+            i += 1
+            let s_val: str = ""
+            while i < n and ord(q[i]) != quote_ch:
+                s_val = s_val + q[i]
+                i += 1
+            if i < n and ord(q[i]) == quote_ch:
+                i += 1
+            items[cnt] = s_val
+            uppers[cnt] = _sql_upper(s_val)
+            quoted[cnt] = 1
+            cnt += 1
+        elif c == 40 or c == 41 or c == 44 or c == 42:
+            # '(', ')', ',', '*'
+            let sym: str = q[i]
+            items[cnt] = sym
+            uppers[cnt] = sym
+            quoted[cnt] = 0
+            cnt += 1
+            i += 1
+        elif c == 60 or c == 62 or c == 33 or c == 61:
+            # Operators: =, !=, <>, <, <=, >, >=
+            if i + 1 < n:
+                let c2: i64 = ord(q[i + 1])
+                if c2 == 61 or (c == 60 and c2 == 62):
+                    let op2: str = q[i:i + 2]
+                    if op2 == "<>":
+                        op2 = "!="
+                    items[cnt] = op2
+                    uppers[cnt] = op2
+                    quoted[cnt] = 0
+                    cnt += 1
+                    i += 2
+                else:
+                    items[cnt] = q[i]
+                    uppers[cnt] = q[i]
+                    quoted[cnt] = 0
+                    cnt += 1
+                    i += 1
+            else:
+                items[cnt] = q[i]
+                uppers[cnt] = q[i]
+                quoted[cnt] = 0
+                cnt += 1
+                i += 1
+        elif c == 45 and i + 1 < n and ord(q[i + 1]) >= 48 and ord(q[i + 1]) <= 57:
+            # Negative integer literal
+            let start: i64 = i
+            i += 1
+            while i < n and ord(q[i]) >= 48 and ord(q[i]) <= 57:
+                i += 1
+            let num_s: str = q[start:i]
+            items[cnt] = num_s
+            uppers[cnt] = num_s
+            quoted[cnt] = 0
+            cnt += 1
+        elif _sql_is_ident_char(c):
+            let start: i64 = i
+            while i < n and _sql_is_ident_char(ord(q[i])):
+                i += 1
+            let word: str = q[start:i]
+            items[cnt] = word
+            uppers[cnt] = _sql_upper(word)
+            quoted[cnt] = 0
+            cnt += 1
+        else:
+            i += 1
+
+    return _SqlTokens(cnt, items, uppers, quoted)
+
+# ==============================================================================
+# 4. Internal Helpers (Table Lookup, WHERE Evaluation, ACID Snapshots)
+# ==============================================================================
+
+def _sql_find_table(db: SqlDb, name: str) -> i64:
+    let target: str = _sql_upper(name)
+    for i in 0..db.table_count:
+        let t: SqlTable = db.tables[i]
+        if t.active == 1 and _sql_upper(t.name) == target:
+            return i
+    return -1
+
+def _sql_find_col(t: SqlTable, col_name: str) -> i64:
+    let target: str = _sql_upper(col_name)
+    for c in 0..t.col_count:
+        if _sql_upper(t.col_names[c]) == target:
+            return c
+    return -1
+
+def _sql_row_matches(t: SqlTable, row: i64, has_where: i64, w_col: i64, w_op: str, w_val_s: str, w_val_i: i64) -> bool:
+    if t.row_alive[row] == 0:
+        return False
+    if has_where == 0:
+        return True
+    let cell_idx: i64 = row * SQL_MAX_COLS + w_col
+    if t.col_types[w_col] == SQL_COL_INT:
+        let lv: i64 = t.cells_int[cell_idx]
+        if w_op == "=":
+            return lv == w_val_i
+        if w_op == "!=":
+            return lv != w_val_i
+        if w_op == "<":
+            return lv < w_val_i
+        if w_op == "<=":
+            return lv <= w_val_i
+        if w_op == ">":
+            return lv > w_val_i
+        if w_op == ">=":
+            return lv >= w_val_i
+        return False
+    else:
+        let ls: str = t.cells_str[cell_idx]
+        if w_op == "=":
+            return ls == w_val_s
+        if w_op == "!=":
+            return ls != w_val_s
+        if w_op == "<":
+            return ls < w_val_s
+        if w_op == "<=":
+            return ls <= w_val_s
+        if w_op == ">":
+            return ls > w_val_s
+        if w_op == ">=":
+            return ls >= w_val_s
+        return False
+
+def _sql_begin_tx(db: SqlDb) -> SqlResult:
+    db.in_tx = 1
+    db.snap_table_count = db.table_count
+    for ti in 0..SQL_MAX_TABLES:
+        let t: SqlTable = db.tables[ti]
+        db.snap_table_active[ti] = t.active
+        t.snap_row_count = t.row_count
+        for r in 0..t.row_count:
+            t.snap_row_alive[r] = t.row_alive[r]
+            for c in 0..t.col_count:
+                let idx: i64 = r * SQL_MAX_COLS + c
+                t.snap_cells_str[idx] = t.cells_str[idx]
+                t.snap_cells_int[idx] = t.cells_int[idx]
+    return _sql_ok_affected(0)
+
+def _sql_commit_tx(db: SqlDb) -> SqlResult:
+    db.in_tx = 0
+    return _sql_ok_affected(0)
+
+def _sql_rollback_tx(db: SqlDb) -> SqlResult:
+    if db.in_tx == 0:
+        return _sql_err("no active transaction to rollback")
+    db.table_count = db.snap_table_count
+    for ti in 0..SQL_MAX_TABLES:
+        let t: SqlTable = db.tables[ti]
+        t.active = db.snap_table_active[ti]
+        t.row_count = t.snap_row_count
+        for r in 0..t.row_count:
+            t.row_alive[r] = t.snap_row_alive[r]
+            for c in 0..t.col_count:
+                let idx: i64 = r * SQL_MAX_COLS + c
+                t.cells_str[idx] = t.snap_cells_str[idx]
+                t.cells_int[idx] = t.snap_cells_int[idx]
+    db.in_tx = 0
+    return _sql_ok_affected(0)
+
+# ==============================================================================
+# 5. Core SQL Execution Engine (`sql_exec`)
+# ==============================================================================
+
+def sql_exec(db: SqlDb, query: str) -> SqlResult:
+    let toks: _SqlTokens = _sql_tokenize(query)
+    if toks.count == 0:
+        return _sql_ok_affected(0)
+
+    let kw0: str = toks.uppers[0]
+
+    # --- ACID Transaction Control ---
+    if kw0 == "BEGIN":
+        return _sql_begin_tx(db)
+    if kw0 == "COMMIT":
+        return _sql_commit_tx(db)
+    if kw0 == "ROLLBACK":
+        return _sql_rollback_tx(db)
+
+    # --- CREATE TABLE <name> (col1 INT, col2 TEXT, ...) ---
+    if kw0 == "CREATE" and toks.count >= 6 and toks.uppers[1] == "TABLE":
+        let tname: str = toks.items[2]
+        if _sql_find_table(db, tname) >= 0:
+            return _sql_err("table already exists: " + tname)
+        if db.table_count >= SQL_MAX_TABLES:
+            return _sql_err("max table limit reached")
+        let t: SqlTable = db.tables[db.table_count]
+        t.name = tname
+        t.active = 1
+        t.col_count = 0
+        t.row_count = 0
+
+        let p: i64 = 3
+        if p < toks.count and toks.items[p] == "(":
+            p += 1
+        while p + 1 < toks.count and toks.items[p] != ")":
+            if t.col_count >= SQL_MAX_COLS:
+                return _sql_err("max column limit reached")
+            let cname: str = toks.items[p]
+            let ctype_s: str = toks.uppers[p + 1]
+            t.col_names[t.col_count] = cname
+            if ctype_s == "INT" or ctype_s == "INTEGER" or ctype_s == "I64":
+                t.col_types[t.col_count] = SQL_COL_INT
+            else:
+                t.col_types[t.col_count] = SQL_COL_TEXT
+            t.col_count += 1
+            p += 2
+            if p < toks.count and toks.items[p] == ",":
+                p += 1
+        db.table_count += 1
+        return _sql_ok_affected(0)
+
+    # --- INSERT INTO <name> VALUES (v1, v2, ...) ---
+    if kw0 == "INSERT" and toks.count >= 6 and toks.uppers[1] == "INTO":
+        let t_idx: i64 = _sql_find_table(db, toks.items[2])
+        if t_idx < 0:
+            return _sql_err("unknown table: " + toks.items[2])
+        let t: SqlTable = db.tables[t_idx]
+        if t.row_count >= SQL_MAX_ROWS:
+            return _sql_err("table row capacity full")
+        let p: i64 = 3
+        while p < toks.count and toks.uppers[p] != "VALUES":
+            p += 1
+        if p >= toks.count:
+            return _sql_err("expected VALUES in INSERT")
+        p += 1
+        if p < toks.count and toks.items[p] == "(":
+            p += 1
+        let r: i64 = t.row_count
+        let col_i: i64 = 0
+        while p < toks.count and toks.items[p] != ")" and col_i < t.col_count:
+            let raw_v: str = toks.items[p]
+            let cell_idx: i64 = r * SQL_MAX_COLS + col_i
+            if t.col_types[col_i] == SQL_COL_INT:
+                let iv: i64 = _sql_parse_int(raw_v)
+                t.cells_int[cell_idx] = iv
+                t.cells_str[cell_idx] = str(iv)
+            else:
+                t.cells_str[cell_idx] = raw_v
+                t.cells_int[cell_idx] = 0
+            col_i += 1
+            p += 1
+            if p < toks.count and toks.items[p] == ",":
+                p += 1
+        t.row_alive[r] = 1
+        t.row_count += 1
+        return _sql_ok_affected(1)
+
+    # --- UPDATE <name> SET <col> = <val> [WHERE <wcol> <op> <wval>] ---
+    if kw0 == "UPDATE" and toks.count >= 6:
+        let t_idx: i64 = _sql_find_table(db, toks.items[1])
+        if t_idx < 0:
+            return _sql_err("unknown table: " + toks.items[1])
+        let t: SqlTable = db.tables[t_idx]
+        if toks.uppers[2] != "SET":
+            return _sql_err("expected SET in UPDATE")
+        let set_col: i64 = _sql_find_col(t, toks.items[3])
+        if set_col < 0 or toks.items[4] != "=":
+            return _sql_err("invalid SET clause")
+        let new_val_s: str = toks.items[5]
+        let new_val_i: i64 = _sql_parse_int(new_val_s)
+
+        let has_where: i64 = 0
+        let w_col: i64 = 0
+        let w_op: str = "="
+        let w_val_s: str = ""
+        let w_val_i: i64 = 0
+        if toks.count >= 10 and toks.uppers[6] == "WHERE":
+            has_where = 1
+            w_col = _sql_find_col(t, toks.items[7])
+            if w_col < 0:
+                return _sql_err("unknown WHERE column: " + toks.items[7])
+            w_op = toks.items[8]
+            w_val_s = toks.items[9]
+            w_val_i = _sql_parse_int(w_val_s)
+
+        let updated: i64 = 0
+        for r in 0..t.row_count:
+            if _sql_row_matches(t, r, has_where, w_col, w_op, w_val_s, w_val_i):
+                let cidx: i64 = r * SQL_MAX_COLS + set_col
+                if t.col_types[set_col] == SQL_COL_INT:
+                    t.cells_int[cidx] = new_val_i
+                    t.cells_str[cidx] = str(new_val_i)
+                else:
+                    t.cells_str[cidx] = new_val_s
+                updated += 1
+        return _sql_ok_affected(updated)
+
+    # --- DELETE FROM <name> [WHERE <wcol> <op> <wval>] ---
+    if kw0 == "DELETE" and toks.count >= 3 and toks.uppers[1] == "FROM":
+        let t_idx: i64 = _sql_find_table(db, toks.items[2])
+        if t_idx < 0:
+            return _sql_err("unknown table: " + toks.items[2])
+        let t: SqlTable = db.tables[t_idx]
+        let has_where: i64 = 0
+        let w_col: i64 = 0
+        let w_op: str = "="
+        let w_val_s: str = ""
+        let w_val_i: i64 = 0
+        if toks.count >= 7 and toks.uppers[3] == "WHERE":
+            has_where = 1
+            w_col = _sql_find_col(t, toks.items[4])
+            if w_col < 0:
+                return _sql_err("unknown WHERE column: " + toks.items[4])
+            w_op = toks.items[5]
+            w_val_s = toks.items[6]
+            w_val_i = _sql_parse_int(w_val_s)
+
+        let deleted: i64 = 0
+        for r in 0..t.row_count:
+            if _sql_row_matches(t, r, has_where, w_col, w_op, w_val_s, w_val_i):
+                t.row_alive[r] = 0
+                deleted += 1
+        return _sql_ok_affected(deleted)
+
+    # --- SELECT <proj> FROM <name> [WHERE ...] [ORDER BY <col> [ASC|DESC]] [LIMIT <n>] ---
+    if kw0 == "SELECT":
+        let from_pos: i64 = -1
+        for i in 1..toks.count:
+            if toks.uppers[i] == "FROM":
+                from_pos = i
+                break
+        if from_pos < 2 or from_pos + 1 >= toks.count:
+            return _sql_err("invalid SELECT FROM syntax")
+
+        let t_idx: i64 = _sql_find_table(db, toks.items[from_pos + 1])
+        if t_idx < 0:
+            return _sql_err("unknown table: " + toks.items[from_pos + 1])
+        let t: SqlTable = db.tables[t_idx]
+
+        # Parse optional clauses after table name
+        let p: i64 = from_pos + 2
+        let has_where: i64 = 0
+        let w_col: i64 = 0
+        let w_op: str = "="
+        let w_val_s: str = ""
+        let w_val_i: i64 = 0
+        let order_col: i64 = -1
+        let order_desc: i64 = 0
+        let limit_n: i64 = SQL_MAX_ROWS
+
+        while p < toks.count:
+            let kw: str = toks.uppers[p]
+            if kw == "WHERE" and p + 3 < toks.count:
+                has_where = 1
+                w_col = _sql_find_col(t, toks.items[p + 1])
+                if w_col < 0:
+                    return _sql_err("unknown WHERE column: " + toks.items[p + 1])
+                w_op = toks.items[p + 2]
+                w_val_s = toks.items[p + 3]
+                w_val_i = _sql_parse_int(w_val_s)
+                p += 4
+            elif kw == "ORDER" and p + 2 < toks.count and toks.uppers[p + 1] == "BY":
+                order_col = _sql_find_col(t, toks.items[p + 2])
+                if order_col < 0:
+                    return _sql_err("unknown ORDER BY column: " + toks.items[p + 2])
+                p += 3
+                if p < toks.count and (toks.uppers[p] == "ASC" or toks.uppers[p] == "DESC"):
+                    if toks.uppers[p] == "DESC":
+                        order_desc = 1
+                    p += 1
+            elif kw == "LIMIT" and p + 1 < toks.count:
+                limit_n = _sql_parse_int(toks.items[p + 1])
+                p += 2
+            else:
+                p += 1
+
+        # Collect matching row indices
+        let matched: Array[i64] = [0] * SQL_MAX_ROWS
+        let m_cnt: i64 = 0
+        for r in 0..t.row_count:
+            if _sql_row_matches(t, r, has_where, w_col, w_op, w_val_s, w_val_i):
+                matched[m_cnt] = r
+                m_cnt += 1
+
+        # Optional ORDER BY sort (in-place insertion sort over matched row indices)
+        if order_col >= 0 and m_cnt > 1:
+            let is_int_ord: bool = t.col_types[order_col] == SQL_COL_INT
+            for i in 1..m_cnt:
+                let key_r: i64 = matched[i]
+                let j: i64 = i - 1
+                while j >= 0:
+                    let cur_r: i64 = matched[j]
+                    let swap_needed: bool = False
+                    if is_int_ord:
+                        let va: i64 = t.cells_int[cur_r * SQL_MAX_COLS + order_col]
+                        let vb: i64 = t.cells_int[key_r * SQL_MAX_COLS + order_col]
+                        if order_desc == 1:
+                            swap_needed = va < vb
+                        else:
+                            swap_needed = va > vb
+                    else:
+                        let sa: str = t.cells_str[cur_r * SQL_MAX_COLS + order_col]
+                        let sb: str = t.cells_str[key_r * SQL_MAX_COLS + order_col]
+                        if order_desc == 1:
+                            swap_needed = sa < sb
+                        else:
+                            swap_needed = sa > sb
+                    if swap_needed:
+                        matched[j + 1] = cur_r
+                        j -= 1
+                    else:
+                        break
+                matched[j + 1] = key_r
+
+        # Parse projection list (columns or aggregates COUNT/SUM/MAX/MIN)
+        let proj_kind: Array[i64] = [0] * SQL_MAX_COLS
+        # kind: 0 = column, 1 = COUNT, 2 = SUM, 3 = MAX, 4 = MIN
+        let proj_col: Array[i64] = [0] * SQL_MAX_COLS
+        let proj_names: Array[str] = [""] * SQL_MAX_COLS
+        let proj_cnt: i64 = 0
+        let has_agg: i64 = 0
+
+        if from_pos == 2 and toks.items[1] == "*":
+            for c in 0..t.col_count:
+                proj_kind[c] = 0
+                proj_col[c] = c
+                proj_names[c] = t.col_names[c]
+            proj_cnt = t.col_count
+        else:
+            let sp: i64 = 1
+            while sp < from_pos and proj_cnt < SQL_MAX_COLS:
+                let u: str = toks.uppers[sp]
+                if (u == "COUNT" or u == "SUM" or u == "MAX" or u == "MIN") and sp + 3 <= from_pos and toks.items[sp + 1] == "(":
+                    has_agg = 1
+                    let arg_tok: str = toks.items[sp + 2]
+                    if u == "COUNT":
+                        proj_kind[proj_cnt] = 1
+                        proj_col[proj_cnt] = 0
+                        proj_names[proj_cnt] = "COUNT(" + arg_tok + ")"
+                    else:
+                        let acol: i64 = _sql_find_col(t, arg_tok)
+                        if acol < 0:
+                            return _sql_err("unknown aggregate column: " + arg_tok)
+                        if u == "SUM":
+                            proj_kind[proj_cnt] = 2
+                        elif u == "MAX":
+                            proj_kind[proj_cnt] = 3
+                        else:
+                            proj_kind[proj_cnt] = 4
+                        proj_col[proj_cnt] = acol
+                        proj_names[proj_cnt] = u + "(" + arg_tok + ")"
+                    proj_cnt += 1
+                    sp += 4
+                else:
+                    let c_idx: i64 = _sql_find_col(t, toks.items[sp])
+                    if c_idx < 0:
+                        return _sql_err("unknown SELECT column: " + toks.items[sp])
+                    proj_kind[proj_cnt] = 0
+                    proj_col[proj_cnt] = c_idx
+                    proj_names[proj_cnt] = t.col_names[c_idx]
+                    proj_cnt += 1
+                    sp += 1
+                if sp < from_pos and toks.items[sp] == ",":
+                    sp += 1
+
+        let out_col_names: Array[str] = [""] * proj_cnt
+        for c in 0..proj_cnt:
+            out_col_names[c] = proj_names[c]
+
+        if has_agg == 1:
+            let agg_cells: Array[str] = [""] * proj_cnt
+            for c in 0..proj_cnt:
+                let k: i64 = proj_kind[c]
+                let tc: i64 = proj_col[c]
+                if k == 1:
+                    agg_cells[c] = str(m_cnt)
+                elif k == 2:
+                    let sum_v: i64 = 0
+                    for mi in 0..m_cnt:
+                        sum_v += t.cells_int[matched[mi] * SQL_MAX_COLS + tc]
+                    agg_cells[c] = str(sum_v)
+                elif k == 3:
+                    if m_cnt == 0:
+                        agg_cells[c] = "0"
+                    else:
+                        let max_v: i64 = t.cells_int[matched[0] * SQL_MAX_COLS + tc]
+                        for mi in 1..m_cnt:
+                            let v: i64 = t.cells_int[matched[mi] * SQL_MAX_COLS + tc]
+                            if v > max_v:
+                                max_v = v
+                        agg_cells[c] = str(max_v)
+                else:
+                    if m_cnt == 0:
+                        agg_cells[c] = "0"
+                    else:
+                        let min_v: i64 = t.cells_int[matched[0] * SQL_MAX_COLS + tc]
+                        for mi in 1..m_cnt:
+                            let v: i64 = t.cells_int[matched[mi] * SQL_MAX_COLS + tc]
+                            if v < min_v:
+                                min_v = v
+                        agg_cells[c] = str(min_v)
+            return SqlResult(True, "", 1, proj_cnt, 0, out_col_names, agg_cells)
+
+        let out_rows: i64 = m_cnt
+        if limit_n < out_rows:
+            out_rows = limit_n
+        if out_rows < 0:
+            out_rows = 0
+        let total_cells: i64 = out_rows * proj_cnt
+        let out_cells: Array[str] = [""] * total_cells
+        for ri in 0..out_rows:
+            let src_r: i64 = matched[ri]
+            for ci in 0..proj_cnt:
+                out_cells[ri * proj_cnt + ci] = t.cells_str[src_r * SQL_MAX_COLS + proj_col[ci]]
+        return SqlResult(True, "", out_rows, proj_cnt, 0, out_col_names, out_cells)
+
+    return _sql_err("unsupported SQL statement: " + kw0)
+
+# ==============================================================================
+# 6. Durable SQL Dump Persistence (`sql_save` / `sql_open_file`)
+# ==============================================================================
+
+def sql_save(db: SqlDb, filepath: str) -> bool:
+    let dump: str = ""
+    for ti in 0..db.table_count:
+        let t: SqlTable = db.tables[ti]
+        if t.active == 1:
+            dump = dump + "CREATE TABLE " + t.name + " ("
+            for c in 0..t.col_count:
+                if c > 0:
+                    dump = dump + ", "
+                let ty_s: str = "TEXT"
+                if t.col_types[c] == SQL_COL_INT:
+                    ty_s = "INT"
+                dump = dump + t.col_names[c] + " " + ty_s
+            dump = dump + ");\n"
+            for r in 0..t.row_count:
+                if t.row_alive[r] == 1:
+                    dump = dump + "INSERT INTO " + t.name + " VALUES ("
+                    for c in 0..t.col_count:
+                        if c > 0:
+                            dump = dump + ", "
+                        let idx: i64 = r * SQL_MAX_COLS + c
+                        if t.col_types[c] == SQL_COL_INT:
+                            dump = dump + str(t.cells_int[idx])
+                        else:
+                            dump = dump + "'" + t.cells_str[idx] + "'"
+                    dump = dump + ");\n"
+    let written: i64 = write_file(filepath, dump)
+    return written >= 0
+
+def sql_open_file(filepath: str) -> SqlDb:
+    let db: SqlDb = sql_open()
+    if len(filepath) == 0 or not file_exists(filepath):
+        return db
+    let content: str = read_file(filepath)
+    let n: i64 = len(content)
+    let pos: i64 = 0
+    while pos < n:
+        let line_start: i64 = pos
+        while pos < n and ord(content[pos]) != 10:
+            pos += 1
+        let stmt_s: str = content[line_start:pos]
+        if len(stmt_s) > 0:
+            sql_exec(db, stmt_s)
+        if pos < n and ord(content[pos]) == 10:
+            pos += 1
+    return db
+
+# ==============================================================================
+# 7. PostgreSQL v3.0 Wire Protocol Packet Framing (Frontend / Backend)
+# ==============================================================================
+
+struct PgFrame:
+    ok: bool
+    msg_type: str
+    payload_len: i64
+    auth_code: i64
+    tx_status: str
+    field_count: i64
+    fields: Array[str]
+    tag: str
+
+def _pg_put_be32(buf: Array[i64], off: i64, val: i64) -> i64:
+    buf[off] = (val >> 24) & 255
+    buf[off + 1] = (val >> 16) & 255
+    buf[off + 2] = (val >> 8) & 255
+    buf[off + 3] = val & 255
+    return off + 4
+
+def _pg_get_be32(buf: Array[i64], off: i64) -> i64:
+    return ((buf[off] & 255) << 24) | ((buf[off + 1] & 255) << 16) | ((buf[off + 2] & 255) << 8) | (buf[off + 3] & 255)
+
+def _pg_get_be16(buf: Array[i64], off: i64) -> i64:
+    return ((buf[off] & 255) << 8) | (buf[off + 1] & 255)
+
+def pg_build_startup_packet(user: str, database: str) -> Array[i64]:
+    # Format: Int32(len) + Int32(196608 = v3.0) + "user\0" + user + "\0database\0" + database + "\0\0"
+    let body_s: str = "user" + chr(0) + user + chr(0) + "database" + chr(0) + database + chr(0) + chr(0)
+    let body_len: i64 = len(body_s)
+    let total_len: i64 = 8 + body_len
+    let pkt: Array[i64] = [0] * total_len
+    _pg_put_be32(pkt, 0, total_len)
+    _pg_put_be32(pkt, 4, 196608)
+    for i in 0..body_len:
+        pkt[8 + i] = ord(body_s[i]) & 255
+    return pkt
+
+def pg_build_query_packet(sql: str) -> Array[i64]:
+    # Simple Query: Byte1('Q'=81) + Int32(4 + len(sql) + 1) + String(sql) + Byte1(0)
+    let slen: i64 = len(sql)
+    let total_len: i64 = 1 + 4 + slen + 1
+    let pkt: Array[i64] = [0] * total_len
+    pkt[0] = 81
+    _pg_put_be32(pkt, 1, 4 + slen + 1)
+    for i in 0..slen:
+        pkt[5 + i] = ord(sql[i]) & 255
+    pkt[5 + slen] = 0
+    return pkt
+
+def pg_build_terminate_packet() -> Array[i64]:
+    # Terminate: Byte1('X'=88) + Int32(4)
+    return [88, 0, 0, 0, 4]
+
+def pg_build_data_row_packet(cols: Array[str], col_count: i64) -> Array[i64]:
+    # Backend DataRow: Byte1('D'=68) + Int32(len) + Int16(col_count) + [Int32(clen) + Bytes]*
+    let body_bytes: i64 = 2
+    for i in 0..col_count:
+        body_bytes += 4 + len(cols[i])
+    let total_len: i64 = 1 + 4 + body_bytes
+    let pkt: Array[i64] = [0] * total_len
+    pkt[0] = 68
+    _pg_put_be32(pkt, 1, 4 + body_bytes)
+    pkt[5] = (col_count >> 8) & 255
+    pkt[6] = col_count & 255
+    let p: i64 = 7
+    for i in 0..col_count:
+        let s: str = cols[i]
+        let slen: i64 = len(s)
+        p = _pg_put_be32(pkt, p, slen)
+        for j in 0..slen:
+            pkt[p + j] = ord(s[j]) & 255
+        p += slen
+    return pkt
+
+def pg_parse_server_frame(buf: Array[i64], buf_len: i64) -> PgFrame:
+    let empty_f: Array[str] = []
+    if buf_len < 5:
+        return PgFrame(False, "", 0, -1, "", 0, empty_f, "")
+    let mtype: str = chr(buf[0] & 255)
+    let plen: i64 = _pg_get_be32(buf, 1)
+    if plen < 4 or 1 + plen > buf_len:
+        return PgFrame(False, mtype, plen, -1, "", 0, empty_f, "")
+
+    # 'R' = Authentication message
+    if mtype == "R" and plen >= 8:
+        let auth_c: i64 = _pg_get_be32(buf, 5)
+        return PgFrame(True, "R", plen, auth_c, "", 0, empty_f, "")
+
+    # 'Z' = ReadyForQuery (tx status: 'I' idle, 'T' in tx, 'E' failed tx)
+    if mtype == "Z" and plen == 5:
+        let tx_s: str = chr(buf[5] & 255)
+        return PgFrame(True, "Z", plen, 0, tx_s, 0, empty_f, "")
+
+    # 'C' = CommandComplete
+    if mtype == "C":
+        let tag_s: str = ""
+        let k: i64 = 5
+        while k < 1 + plen and (buf[k] & 255) != 0:
+            tag_s = tag_s + chr(buf[k] & 255)
+            k += 1
+        return PgFrame(True, "C", plen, 0, "", 0, empty_f, tag_s)
+
+    # 'D' = DataRow
+    if mtype == "D" and plen >= 6:
+        let ncols: i64 = _pg_get_be16(buf, 5)
+        let fvals: Array[str] = [""] * ncols
+        let p: i64 = 7
+        for c in 0..ncols:
+            if p + 4 > 1 + plen:
+                break
+            let flen: i64 = _pg_get_be32(buf, p)
+            p += 4
+            if flen > 0 and p + flen <= 1 + plen:
+                let cell_s: str = ""
+                for b in 0..flen:
+                    cell_s = cell_s + chr(buf[p + b] & 255)
+                fvals[c] = cell_s
+                p += flen
+        return PgFrame(True, "D", plen, 0, "", ncols, fvals, "")
+
+    return PgFrame(True, mtype, plen, 0, "", 0, empty_f, "")

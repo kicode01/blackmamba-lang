@@ -3138,6 +3138,400 @@ def main() -> i64:
             with self.assertRaises(RuntimeError):
                 mgr.add_dependency("tampered_pkg", registry=reg_index_path)
 
+    def test_v110_dynamic_c3_oop_and_monkey_patching(self):
+        """v1.1.0: Tests C3 Diamond Multiple Inheritance, cooperative super(), type introspection,
+        runtime method monkey-patching, dynamic attributes, and MRO conflict rejection."""
+        src = """
+class A:
+    x: i64
+    def __init__(self, x: i64 = 10):
+        self.x = x
+
+    def chain(self) -> str:
+        return "A(" + str(self.x) + ")"
+
+    def compute(self, v: i64) -> i64:
+        return v + self.x
+
+class B(A):
+    b_tag: i64
+    def __init__(self, x: i64, b_tag: i64):
+        super().__init__(x)
+        self.b_tag = b_tag
+
+    def chain(self) -> str:
+        return "B[" + str(self.b_tag) + "]->" + super().chain()
+
+    def compute(self, v: i64) -> i64:
+        return super().compute(v * 2) + self.b_tag
+
+class C(A):
+    c_tag: i64
+    def __init__(self, x: i64, c_tag: i64):
+        super().__init__(x)
+        self.c_tag = c_tag
+
+    def chain(self) -> str:
+        return "C[" + str(self.c_tag) + "]->" + super().chain()
+
+    def compute(self, v: i64) -> i64:
+        return super().compute(v + 5) + self.c_tag
+
+class D(B, C):
+    d_tag: i64
+    def __init__(self, x: i64, b_tag: i64, c_tag: i64, d_tag: i64):
+        self.x = x
+        self.b_tag = b_tag
+        self.c_tag = c_tag
+        self.d_tag = d_tag
+
+    def chain(self) -> str:
+        return "D[" + str(self.d_tag) + "]->" + super().chain()
+
+    def compute(self, v: i64) -> i64:
+        return super().compute(v) + self.d_tag
+
+def poly_dispatch(a: A) -> str:
+    return a.chain()
+
+def patched_b_compute(self: B, v: i64) -> i64:
+    return v * 100 + self.b_tag
+
+def new_method_addon(self: A, bonus: i64) -> i64:
+    return self.x + bonus
+
+def main() -> i64:
+    d = D(10, 2, 3, 4)
+    print("MRO_CHAIN:", d.chain())
+    print("POLY_DISPATCH:", poly_dispatch(d))
+    print("INITIAL_COMPUTE:", d.compute(5))
+
+    # Type introspection
+    print("IS_A:", isinstance(d, A))
+    print("IS_BC:", isinstance(d, (B, C)))
+    let a_obj: A = A(99)
+    print("A_IS_D:", isinstance(a_obj, D))
+
+    # Monkey-patching existing method
+    setattr(B, "compute", patched_b_compute)
+    print("PATCHED_COMPUTE:", d.compute(5))
+
+    # Adding new method
+    setattr(A, "addon", new_method_addon)
+    print("ADDON_METHOD:", d.addon(50))
+
+    # Dynamic instance attributes
+    print("HAS_DYNAMIC_BEFORE:", hasattr(d, "custom_tag"))
+    setattr(d, "custom_tag", "black_mamba_v110")
+    print("HAS_DYNAMIC_AFTER:", hasattr(d, "custom_tag"))
+    print("GET_DYNAMIC:", getattr(d, "custom_tag"))
+    d.dyn_num = 8888
+    print("DIRECT_DYN_ATTR:", d.dyn_num)
+
+    return 0
+"""
+        ast = Parser.from_source(src).parse_module()
+        mir = MIRBuilder().build(ast)
+
+        # 1. JIT execution
+        jit = NativeJITModule(mir)
+        rc = jit.run_main()
+        out = jit.get_output()
+        jit.close()
+        self.assertEqual(rc, 0)
+        self.assertIn("MRO_CHAIN:D[4]->B[2]->C[3]->A(10)", out)
+        self.assertIn("POLY_DISPATCH:D[4]->B[2]->C[3]->A(10)", out)
+        self.assertIn("INITIAL_COMPUTE:34", out)
+        self.assertIn("IS_A:True", out)
+        self.assertIn("IS_BC:True", out)
+        self.assertIn("A_IS_D:False", out)
+        self.assertIn("PATCHED_COMPUTE:506", out)
+        self.assertIn("ADDON_METHOD:60", out)
+        self.assertIn("HAS_DYNAMIC_BEFORE:False", out)
+        self.assertIn("HAS_DYNAMIC_AFTER:True", out)
+        self.assertIn("GET_DYNAMIC:black_mamba_v110", out)
+        self.assertIn("DIRECT_DYN_ATTR:8888", out)
+
+        # 2. Standalone PE32+ Execution
+        with tempfile.TemporaryDirectory() as tmp:
+            exe_path = os.path.join(tmp, "test_v110_oop.exe")
+            PE32PlusExecutableBuilder(mir).write_executable(exe_path)
+            proc = subprocess.run([exe_path], capture_output=True, text=True, check=False)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("MRO_CHAIN:D[4]->B[2]->C[3]->A(10)", proc.stdout)
+            self.assertIn("PATCHED_COMPUTE:506", proc.stdout)
+            self.assertIn("GET_DYNAMIC:black_mamba_v110", proc.stdout)
+
+        # 3. Reject Inconsistent C3 Diamond Hierarchy
+        bad_c3_src = """
+class X:
+    pass
+class Y:
+    pass
+class A(X, Y):
+    pass
+class B(Y, X):
+    pass
+class Z(A, B):
+    pass
+def main() -> i64:
+    return 0
+"""
+        with self.assertRaises(TypeError) as ctx:
+            bad_ast = Parser.from_source(bad_c3_src).parse_module()
+            MIRBuilder().build(bad_ast)
+        self.assertIn("Cannot create a consistent method resolution order", str(ctx.exception))
+
+    def test_v110_stack_unwinding_exceptions(self):
+        """v1.1.0: Tests Multi-Frame Stack-Unwinding Structured Exceptions (try/except/else/finally/raise),
+        custom exception hierarchy, and proper finally execution across clean returns, breaks, and unwinding."""
+        src = """
+class DatabaseError(RuntimeError):
+    code: i64
+    table: str
+    def __init__(self, msg: str, code: i64, table: str):
+        self.message = msg
+        self.code = code
+        self.table = table
+
+def level3_worker(qty: i64, trace: Array[str]) -> i64:
+    trace[0] = trace[0] + "L3_enter;"
+    if qty == 0:
+        raise DatabaseError("deadlock_abort", 500, "transactions")
+    if qty < 0:
+        raise ValueError("negative_quantity_invalid")
+    trace[0] = trace[0] + "L3_done;"
+    return qty * 10
+
+def level2_middle(qty: i64, trace: Array[str]) -> i64:
+    try:
+        val = level3_worker(qty, trace)
+        return val
+    finally:
+        trace[0] = trace[0] + "L2_finally;"
+
+def level1_handler(qty: i64, trace: Array[str]) -> i64:
+    try:
+        res = level2_middle(qty, trace)
+    except DatabaseError as dbe:
+        trace[0] = trace[0] + "caught_db(" + dbe.message + ":" + str(dbe.code) + ":" + dbe.table + ");"
+        return -500
+    except (ValueError, KeyError) as ve:
+        trace[0] = trace[0] + "caught_val(" + ve.message + ");"
+        try:
+            raise
+        except Exception as rethrown:
+            trace[0] = trace[0] + "rethrown(" + rethrown.message + ");"
+        return -99
+    else:
+        trace[0] = trace[0] + "L1_else;"
+        return res
+    finally:
+        trace[0] = trace[0] + "L1_finally;"
+    return 0
+
+def main() -> i64:
+    trace = [""]
+
+    # Case 1: Normal success path (else + finally)
+    trace[0] = ""
+    r1 = level1_handler(5, trace)
+    print("SUCCESS_RES:", r1, "TRACE:", trace[0])
+
+    # Case 2: Multi-frame custom exception unwinding
+    trace[0] = ""
+    r2 = level1_handler(0, trace)
+    print("DB_ERR_RES:", r2, "TRACE:", trace[0])
+
+    # Case 3: Exception tuple matching and bare raise rethrow
+    trace[0] = ""
+    r3 = level1_handler(-10, trace)
+    print("VAL_ERR_RES:", r3, "TRACE:", trace[0])
+
+    return 0
+"""
+        ast = Parser.from_source(src).parse_module()
+        mir = MIRBuilder().build(ast)
+
+        # 1. JIT execution
+        jit = NativeJITModule(mir)
+        rc = jit.run_main()
+        out = jit.get_output()
+        jit.close()
+        self.assertEqual(rc, 0)
+        self.assertIn("SUCCESS_RES:50TRACE:L3_enter;L3_done;L2_finally;L1_else;L1_finally;", out)
+        self.assertIn("DB_ERR_RES:-500TRACE:L3_enter;L2_finally;caught_db(deadlock_abort:500:transactions);L1_finally;", out)
+        self.assertIn("VAL_ERR_RES:-99TRACE:L3_enter;L2_finally;caught_val(negative_quantity_invalid);rethrown(negative_quantity_invalid);L1_finally;", out)
+
+        # 2. Standalone PE32+ Execution
+        with tempfile.TemporaryDirectory() as tmp:
+            exe_path = os.path.join(tmp, "test_v110_exceptions.exe")
+            PE32PlusExecutableBuilder(mir).write_executable(exe_path)
+            proc = subprocess.run([exe_path], capture_output=True, text=True, check=False)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("SUCCESS_RES:50", proc.stdout)
+            self.assertIn("DB_ERR_RES:-500", proc.stdout)
+            self.assertIn("VAL_ERR_RES:-99", proc.stdout)
+
+    def test_v110_native_tls_sql_gui_ecosystem(self):
+        """v1.1.0: Tests Pure-Native stdlib/tls.bmb (TLS 1.3/X.509), stdlib/sql.bmb (ACID/Postgres v3),
+        and stdlib/gui.bmb (Retained-Mode UI/24-bit Canvas/BMP/SVG) in JIT and PE32+."""
+        src = """
+from tls import (
+    tls_bytes_from_str, tls_bytes_to_str, tls_bytes_to_hex,
+    sha256_bytes, hkdf_extract, hkdf_expand,
+    tls13_derive_handshake_keys, tls13_seal_record, tls13_open_record,
+    tls13_build_client_hello, x509_build_self_signed_der, x509_parse_der, x509_verify_fingerprint
+)
+from sql import (
+    sql_open, sql_exec, sql_cell, sql_cell_int, sql_format_table,
+    sql_save, sql_open_file,
+    pg_build_startup_packet, pg_build_query_packet, pg_parse_server_frame
+)
+from gui import (
+    gui_create_window, gui_add_panel, gui_add_vbox, gui_add_label,
+    gui_add_button, gui_add_progress_bar, gui_layout, gui_click,
+    gui_render_canvas, canvas_free, gui_export_svg, gui_export_bmp
+)
+from os import remove_file, file_exists
+
+def test_tls() -> i64:
+    key = [1] * 32
+    iv = [2] * 12
+    pt_str = "GET / HTTP/1.1\\r\\nHost: example.com\\r\\n\\r\\n"
+    pt = tls_bytes_from_str(pt_str)
+    rec = tls13_seal_record(key, iv, 0, 23, pt, len(pt_str))
+    print("TLS_SEAL_LEN=" + str(rec.length))
+
+    opened = tls13_open_record(key, iv, 0, rec.data, rec.length)
+    print("TLS_OPEN_OK=" + str(opened.ok) + " TYPE=" + str(opened.content_type) + " LEN=" + str(opened.length))
+
+    # Tamper test
+    rec.data[10] = rec.data[10] ^ 0xFF
+    bad_opened = tls13_open_record(key, iv, 0, rec.data, rec.length)
+    print("TLS_TAMPER_DETECTED=" + str(not bad_opened.ok))
+
+    # ClientHello
+    rnd = [7] * 32
+    pk = [9] * 32
+    ch = tls13_build_client_hello("mamba.lang", rnd, pk)
+    print("CH_LEN=" + str(ch.length) + " REC_TYPE=" + str(ch.data[0]))
+
+    # X.509
+    cert_res = x509_build_self_signed_der("mamba.lang", "Mamba CA", 101, pk)
+    cert = x509_parse_der(cert_res.data, cert_res.length)
+    print("CERT_VALID=" + str(cert.valid) + " CN=" + cert.subject_cn + " ISSUER=" + cert.issuer_cn + " VER=" + str(cert.version))
+    print("CERT_PIN_OK=" + str(x509_verify_fingerprint(cert_res.data, cert_res.length, cert.fingerprint_sha256)))
+    return 0
+
+def test_sql() -> i64:
+    db = sql_open()
+    sql_exec(db, "CREATE TABLE users (id INT, name TEXT, score INT);")
+    sql_exec(db, "INSERT INTO users VALUES (1, 'Alice', 95);")
+    sql_exec(db, "INSERT INTO users VALUES (2, 'Bob', 80);")
+    sql_exec(db, "INSERT INTO users VALUES (3, 'Charlie', 88);")
+
+    agg = sql_exec(db, "SELECT COUNT(*), SUM(score), MAX(score) FROM users;")
+    print("AGG=" + sql_cell(agg, 0, 0) + "," + sql_cell(agg, 0, 1) + "," + sql_cell(agg, 0, 2))
+
+    sel = sql_exec(db, "SELECT name, score FROM users WHERE score >= 85 ORDER BY score DESC LIMIT 2;")
+    print("SEL_ROWS=" + str(sel.row_count) + " TOP=" + sql_cell(sel, 0, 0) + ":" + sql_cell(sel, 0, 1))
+
+    # ACID Transaction Rollback
+    sql_exec(db, "BEGIN;")
+    sql_exec(db, "UPDATE users SET score = 100 WHERE id = 1;")
+    sql_exec(db, "DELETE FROM users WHERE id = 2;")
+    sel_mid = sql_exec(db, "SELECT COUNT(*), MAX(score) FROM users;")
+    print("MID_TX=" + sql_cell(sel_mid, 0, 0) + "," + sql_cell(sel_mid, 0, 1))
+    sql_exec(db, "ROLLBACK;")
+
+    sel_post = sql_exec(db, "SELECT COUNT(*), MAX(score) FROM users;")
+    print("POST_ROLLBACK=" + sql_cell(sel_post, 0, 0) + "," + sql_cell(sel_post, 0, 1))
+
+    # Postgres wire frame
+    q_pkt = pg_build_query_packet("SELECT 1;")
+    frame = pg_parse_server_frame(q_pkt, len(q_pkt))
+    print("PG_FRAME_TYPE=" + frame.msg_type + " OK=" + str(frame.ok))
+    return 0
+
+def test_gui() -> i64:
+    win = gui_create_window("Black Mamba Dashboard", 400, 300)
+    p = gui_add_panel(win, -1, 360, 260)
+    vb = gui_add_vbox(win, p, 10)
+    lbl = gui_add_label(win, vb, "System Status: Online")
+    btn = gui_add_button(win, vb, "Execute Query", 160, 32)
+    pb = gui_add_progress_bar(win, vb, 75, 200, 16)
+    gui_layout(win)
+
+    # Click hit test
+    btn_id = gui_click(win, win.widgets[btn].x + 10, win.widgets[btn].y + 10)
+    print("CLICKED_BTN_OK=" + str(btn_id == btn))
+
+    # Canvas render
+    canv = gui_render_canvas(win)
+    print("CANVAS_SIZE=" + str(canv.width) + "x" + str(canv.height) + " STRIDE=" + str(canv.stride))
+
+    # Export BMP & SVG
+    bmp_path = "_test_ui_unit.bmp"
+    svg_path = "_test_ui_unit.svg"
+    b_ok = gui_export_bmp(canv, bmp_path)
+    s_ok = gui_export_svg(win, svg_path)
+    print("BMP_EXPORT_OK=" + str(b_ok and file_exists(bmp_path)))
+    print("SVG_EXPORT_OK=" + str(s_ok and file_exists(svg_path)))
+
+    canvas_free(canv)
+    if file_exists(bmp_path):
+        remove_file(bmp_path)
+    if file_exists(svg_path):
+        remove_file(svg_path)
+    return 0
+
+def main() -> i64:
+    test_tls()
+    test_sql()
+    test_gui()
+    return 0
+"""
+        ast = Parser.from_source(src, "test_ecosystem.bmb").parse_module()
+        mir = MIRBuilder().build(ast, filename="test_ecosystem.bmb")
+
+        # 1. JIT execution
+        jit = NativeJITModule(mir)
+        rc = jit.run_main()
+        out = jit.get_output()
+        jit.close()
+        self.assertEqual(rc, 0)
+        self.assertIn("TLS_SEAL_LEN=59", out)
+        self.assertIn("TLS_OPEN_OK=True TYPE=23 LEN=37", out)
+        self.assertIn("TLS_TAMPER_DETECTED=True", out)
+        self.assertIn("CH_LEN=140 REC_TYPE=22", out)
+        self.assertIn("CERT_VALID=True CN=mamba.lang ISSUER=Mamba CA VER=3", out)
+        self.assertIn("CERT_PIN_OK=True", out)
+        self.assertIn("AGG=3,263,95", out)
+        self.assertIn("SEL_ROWS=2 TOP=Alice:95", out)
+        self.assertIn("MID_TX=2,100", out)
+        self.assertIn("POST_ROLLBACK=3,95", out)
+        self.assertIn("PG_FRAME_TYPE=Q OK=True", out)
+        self.assertIn("CLICKED_BTN_OK=True", out)
+        self.assertIn("CANVAS_SIZE=400x300 STRIDE=1200", out)
+        self.assertIn("BMP_EXPORT_OK=True", out)
+        self.assertIn("SVG_EXPORT_OK=True", out)
+
+        # 2. Standalone PE32+ Execution
+        with tempfile.TemporaryDirectory() as tmp:
+            exe_path = os.path.join(tmp, "test_v110_ecosystem.exe")
+            PE32PlusExecutableBuilder(mir).write_executable(exe_path)
+            proc = subprocess.run([exe_path], capture_output=True, text=True, check=False)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("TLS_SEAL_LEN=59", proc.stdout)
+            self.assertIn("TLS_OPEN_OK=True TYPE=23 LEN=37", proc.stdout)
+            self.assertIn("CERT_VALID=True", proc.stdout)
+            self.assertIn("AGG=3,263,95", proc.stdout)
+            self.assertIn("POST_ROLLBACK=3,95", proc.stdout)
+            self.assertIn("CLICKED_BTN_OK=True", proc.stdout)
+            self.assertIn("BMP_EXPORT_OK=True", proc.stdout)
+            self.assertIn("SVG_EXPORT_OK=True", proc.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

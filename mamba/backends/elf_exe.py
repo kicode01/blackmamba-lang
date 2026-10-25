@@ -1720,6 +1720,21 @@ class ELF64ExecutableBuilder:
         buf.rel32_fixups.append((len(buf.code) - 4, "rt__bmb_alloc_root"))
         buf.emit(b"\x48\x89\xC8\xC3", "mov rax, rcx; ret")
 
+        buf.mark_label("rt__bmb_slots")
+        buf.emit(b"\x00" * 128, "dq 16 dup(0) (rt_slots)")
+
+        buf.mark_label("fn____bmb_rt_slot_get")
+        buf.emit(b"\x83\xE1\x0F", "and ecx, 15")
+        buf.emit(b"\x48\x8D\x05\x00\x00\x00\x00", "lea rax, [rip + rt__bmb_slots]")
+        buf.rel32_fixups.append((len(buf.code) - 4, "rt__bmb_slots"))
+        buf.emit(b"\x48\x8B\x04\xC8\xC3", "mov rax, [rax + rcx*8]; ret")
+
+        buf.mark_label("fn____bmb_rt_slot_set")
+        buf.emit(b"\x83\xE1\x0F", "and ecx, 15")
+        buf.emit(b"\x48\x8D\x05\x00\x00\x00\x00", "lea rax, [rip + rt__bmb_slots]")
+        buf.rel32_fixups.append((len(buf.code) - 4, "rt__bmb_slots"))
+        buf.emit(b"\x48\x89\x14\xC8\x48\x89\xD0\xC3", "mov [rax + rcx*8], rdx; mov rax, rdx; ret")
+
         buf.mark_label("fn____bmb_exit")
         buf.emit(b"\x48\x89\xCF\xB8\x3C\x00\x00\x00\x0F\x05\xC3", "mov rdi, rcx; mov eax, 60; syscall; ret")
 
@@ -1765,7 +1780,7 @@ class ELF64ExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
         ])
 
         for fn in self.mir_module.functions:

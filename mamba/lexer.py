@@ -54,6 +54,10 @@ class TokenType(Enum):
     IMPORT = auto()
     FROM = auto()
     AS = auto()
+    TRY = auto()
+    EXCEPT = auto()
+    FINALLY = auto()
+    RAISE = auto()
 
     # Operators
     PLUS = auto()          # +
@@ -147,6 +151,10 @@ KEYWORDS = {
     "import": TokenType.IMPORT,
     "from": TokenType.FROM,
     "as": TokenType.AS,
+    "try": TokenType.TRY,
+    "except": TokenType.EXCEPT,
+    "finally": TokenType.FINALLY,
+    "raise": TokenType.RAISE,
 }
 
 

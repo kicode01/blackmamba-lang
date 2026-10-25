@@ -68,6 +68,7 @@ class TernaryIf(Expr):
 class Call(Expr):
     func: str = ""
     args: List[Expr] = field(default_factory=list)
+    super_target: Optional[Tuple[str, str]] = None
 
 
 @dataclass
@@ -258,6 +259,28 @@ class StructDef(Stmt):
     name: str = ""
     fields: List[StructField] = field(default_factory=list)
     methods: List[FuncDef] = field(default_factory=list)
+    bases: List[str] = field(default_factory=list)
+    is_class: bool = False
+
+
+@dataclass
+class ExceptHandler(Node):
+    exc_types: List[str] = field(default_factory=list)
+    var_name: Optional[str] = None
+    body: List[Stmt] = field(default_factory=list)
+
+
+@dataclass
+class TryStmt(Stmt):
+    body: List[Stmt] = field(default_factory=list)
+    handlers: List[ExceptHandler] = field(default_factory=list)
+    else_body: List[Stmt] = field(default_factory=list)
+    finally_body: List[Stmt] = field(default_factory=list)
+
+
+@dataclass
+class RaiseStmt(Stmt):
+    exc: Optional[Expr] = None
 
 
 @dataclass

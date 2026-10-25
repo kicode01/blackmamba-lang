@@ -1,17 +1,17 @@
 """
-Black Mamba (.bmb) Intermediate Representation (MIR) & Multi-Pass Optimizer.
+Black Mamba (.bmb) Intermediate Representation (MIR), Dynamic OOP Lowering & Multi-Pass Optimizer.
 
-Lowers typed AST into a 3-address Intermediate Representation (MIR) and runs:
-1. Constant Folding & Propagation
-2. Algebraic Simplification & Strength Reduction (e.g., x * 2^k -> x << k, x ** 2 -> x * x)
-3. Copy Propagation
-4. Automatic Tail-Call Optimization (TCO)
-5. Dead Code Elimination (DCE)
+Lowers typed AST into a 3-address Intermediate Representation (MIR) supporting:
+- 0-header value `struct`s with 1-cycle direct calls
+- Dynamic OOP `class`es with C3 diamond MRO, `super()`, virtual vtables, `isinstance`,
+  and runtime monkey-patching (`setattr`, `getattr`, `hasattr`)
+- Pay-what-you-use multi-frame stack-unwinding structured exceptions (`try`/`except`/`else`/`finally` & `raise`)
+- Multi-pass optimization (TCO, Constant Folding, Strength Reduction, Copy Propagation, DCE, Lexical Arena Lifetimes)
 """
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 from .ast_nodes import (
     ArrayLit,
     Assign,
@@ -36,12 +36,15 @@ from .ast_nodes import (
     MatchStmt,
     MethodCall,
     Module,
+    Param,
+    RaiseStmt,
     Return,
     SliceExpr,
     Stmt,
     StringLit,
     StructDef,
     TernaryIf,
+    TryStmt,
     UnaryOp,
     Var,
     WhileStmt,
@@ -132,6 +135,13 @@ class MIRModule:
         return "\n\n".join(fn.format() for fn in self.functions)
 
 
+@dataclass
+class _TryContext:
+    catch_target: str
+    finally_body: List[Stmt]
+    loop_depth: int
+
+
 class MIRBuilder:
     def __init__(self):
         self.temp_counter = 0
@@ -139,7 +149,29 @@ class MIRBuilder:
         self.loop_stack: List[Tuple[str, str]] = []  # (continue_label, break_label)
         self.structs: Dict[str, StructDef] = {}
         self.func_return_types: Dict[str, str] = {}
+        self.func_params: Dict[str, List[Param]] = {}
         self.string_pool: List[str] = []
+
+        # Dynamic OOP & Exception state
+        self.has_exceptions: bool = False
+        self.dynamic_classes: Set[str] = set()
+        self.mro: Dict[str, List[str]] = {}
+        self.class_ids: Dict[str, int] = {}
+        self.mro_masks: Dict[str, int] = {}
+        self.class_field_offsets: Dict[Tuple[str, str], int] = {}
+        self.class_alloc_slots: Dict[str, int] = {}
+        self.vtable_indices: Dict[Tuple[str, str], int] = {}
+        self.vtable_methods: Dict[str, List[str]] = {}
+        self.vtable_method_owners: Dict[Tuple[str, str], str] = {}
+        self.dyn_attr_types: Dict[Tuple[str, str], str] = {}
+
+        self.try_stack: List[_TryContext] = []
+        self.active_caught_exc_vars: List[str] = []
+        self.cur_fn_name: str = ""
+        self.cur_fn_return_type: str = "i64"
+        self.cur_fn_unwind_label: str = ""
+        self.cur_fn_needs_unwind_pad: bool = False
+        self.entry_fn_name: str = "main"
 
     def new_temp(self, local_types: Dict[str, str], vtype: str = "i64") -> str:
         self.temp_counter += 1
@@ -168,13 +200,41 @@ class MIRBuilder:
         module = resolve_imports(module, base_dir or os.getcwd())
         Inferencer = TypeInferencer(module)
         module = Inferencer.run()
+
         self.structs = Inferencer.structs
+        self.has_exceptions = Inferencer.has_exceptions
+        self.dynamic_classes = Inferencer.dynamic_classes
+        self.mro = Inferencer.mro
+        self.class_ids = Inferencer.class_ids
+        self.mro_masks = Inferencer.mro_masks
+        self.class_field_offsets = Inferencer.class_field_offsets
+        self.class_alloc_slots = Inferencer.class_alloc_slots
+        self.vtable_indices = Inferencer.vtable_indices
+        self.vtable_methods = Inferencer.vtable_methods
+        self.vtable_method_owners = Inferencer.vtable_method_owners
+        self.dyn_attr_types = Inferencer.dyn_attr_types
+
         for fname, sig in Inferencer.signatures.items():
             self.func_return_types[fname] = sig.return_type
+        for fname, fn_def in Inferencer.funcs.items():
+            self.func_params[fname] = fn_def.params
 
         mir_funcs: List[MIRFunction] = []
         top_stmts: List[Stmt] = []
         self.constants: Dict[str, Expr] = {}
+
+        # Synthesize dynamic OOP runtime helpers when dynamic classes are used
+        if self.dynamic_classes:
+            mir_funcs.extend(self._synthesize_oop_helpers())
+
+        # Pre-check whether top-level statements exist so we know the exact entry function name
+        has_user_main = any(isinstance(s, FuncDef) and s.name == "main" for s in module.statements)
+        has_top_exec = any(
+            not isinstance(s, (StructDef, FuncDef))
+            and not (isinstance(s, ExprStmt) and isinstance(s.expr, StringLit) and not s.expr.value.startswith("f:"))
+            for s in module.statements
+        )
+        self.entry_fn_name = "__bmb_main__" if (has_top_exec and has_user_main) else "main"
 
         for stmt in module.statements:
             if isinstance(stmt, Assign) and isinstance(stmt.value, (FloatLit, IntLit, BoolLit, StringLit)):
@@ -222,8 +282,293 @@ class MIRBuilder:
         MIROptimizer().optimize_module(mir_mod)
         return mir_mod
 
+    def _synthesize_oop_helpers(self) -> List[MIRFunction]:
+        """
+        Synthesize pure-MIR helpers for:
+        1. `__bmb_ensure_vtables() -> i64`: lazily populates global vtable directory in `rt_slot[1]`
+        2. `__bmb_dyn_set(obj: i64, key: str, val: i64) -> i64`: sets per-instance dynamic attribute
+        3. `__bmb_dyn_get(obj: i64, key: str, default_val: i64) -> i64`: gets per-instance dynamic attribute
+        4. `__bmb_dyn_has(obj: i64, key: str) -> bool`: checks per-instance dynamic attribute existence
+        """
+        helpers: List[MIRFunction] = []
+
+        # 1. __bmb_ensure_vtables
+        self.temp_counter = 0
+        lt_vt: Dict[str, str] = {}
+        ins_vt: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry", line=1)]
+        c1 = self.new_temp(lt_vt, "i64")
+        dir_ptr = self.new_temp(lt_vt, "i64")
+        done_lbl = self.new_label("vt_ready")
+        ins_vt.append(MIRInstr(op="CONST_I64", dst=c1, arg1=1, val_type="i64"))
+        ins_vt.append(MIRInstr(op="CALL", dst=dir_ptr, arg1="__bmb_rt_slot_get", extra=[c1], val_type="i64"))
+        ins_vt.append(MIRInstr(op="JNZ", arg1=dir_ptr, arg2=done_lbl))
+
+        max_cid = max(self.class_ids.values(), default=0)
+        dir_bytes = self.new_temp(lt_vt, "i64")
+        ins_vt.append(MIRInstr(op="CONST_I64", dst=dir_bytes, arg1=(max_cid + 1) * 8, val_type="i64"))
+        ins_vt.append(MIRInstr(op="CALL", dst=dir_ptr, arg1="__bmb_mem_alloc", extra=[dir_bytes], val_type="i64"))
+
+        for cls_name in self.dynamic_classes:
+            cid = self.class_ids[cls_name]
+            v_methods = self.vtable_methods.get(cls_name, [])
+            vt_bytes = self.new_temp(lt_vt, "i64")
+            vt_ptr = self.new_temp(lt_vt, "i64")
+            ins_vt.append(MIRInstr(op="CONST_I64", dst=vt_bytes, arg1=max(1, len(v_methods)) * 8, val_type="i64"))
+            ins_vt.append(MIRInstr(op="CALL", dst=vt_ptr, arg1="__bmb_mem_alloc", extra=[vt_bytes], val_type="i64"))
+            for m_idx, fn_target in enumerate(v_methods):
+                if fn_target and fn_target in self.func_return_types:
+                    idx_t = self.new_temp(lt_vt, "i64")
+                    fn_ptr_t = self.new_temp(lt_vt, "i64")
+                    ign = self.new_temp(lt_vt, "i64")
+                    ins_vt.append(MIRInstr(op="CONST_I64", dst=idx_t, arg1=m_idx, val_type="i64"))
+                    ins_vt.append(MIRInstr(op="MOV", dst=fn_ptr_t, arg1=fn_target, val_type="i64"))
+                    ins_vt.append(MIRInstr(op="CALL", dst=ign, arg1="__bmb_mem_write", extra=[vt_ptr, idx_t, fn_ptr_t], val_type="i64"))
+            cid_t = self.new_temp(lt_vt, "i64")
+            ign2 = self.new_temp(lt_vt, "i64")
+            ins_vt.append(MIRInstr(op="CONST_I64", dst=cid_t, arg1=cid, val_type="i64"))
+            ins_vt.append(MIRInstr(op="CALL", dst=ign2, arg1="__bmb_mem_write", extra=[dir_ptr, cid_t, vt_ptr], val_type="i64"))
+
+        ign_s = self.new_temp(lt_vt, "i64")
+        ins_vt.append(MIRInstr(op="CALL", dst=ign_s, arg1="__bmb_rt_slot_set", extra=[c1, dir_ptr], val_type="i64"))
+        ins_vt.append(MIRInstr(op="LABEL", arg1=done_lbl))
+        ins_vt.append(MIRInstr(op="RET", arg1=dir_ptr, val_type="i64"))
+        helpers.append(MIRFunction(name="__bmb_ensure_vtables", params=[], return_type="i64", instructions=ins_vt, local_types=lt_vt, start_line=1))
+        self.func_return_types["__bmb_ensure_vtables"] = "i64"
+
+        # 2. __bmb_dyn_set(obj: i64, key: str, val: i64) -> i64
+        self.temp_counter = 0
+        lt_ds: Dict[str, str] = {"obj": "i64", "key": "str", "val": "i64", "props": "i64", "i": "i64"}
+        ins_ds: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry", line=1)]
+        c2 = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=c2, arg1=2, val_type="i64"))
+        p_init = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="CALL", dst=p_init, arg1="__bmb_mem_read", extra=["obj", c2], val_type="i64"))
+        ins_ds.append(MIRInstr(op="MOV", dst="props", arg1=p_init, val_type="i64"))
+        has_p_lbl = self.new_label("dyn_has_p")
+        ins_ds.append(MIRInstr(op="JNZ", arg1="props", arg2=has_p_lbl))
+        sz_t = self.new_temp(lt_ds, "i64")
+        new_p = self.new_temp(lt_ds, "i64")
+        ign_w = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=sz_t, arg1=520, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=new_p, arg1="__bmb_mem_alloc", extra=[sz_t], val_type="i64"))
+        ins_ds.append(MIRInstr(op="MOV", dst="props", arg1=new_p, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=ign_w, arg1="__bmb_mem_write", extra=["obj", c2, "props"], val_type="i64"))
+        ins_ds.append(MIRInstr(op="LABEL", arg1=has_p_lbl))
+
+        c0 = self.new_temp(lt_ds, "i64")
+        cnt_v = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=c0, arg1=0, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=cnt_v, arg1="__bmb_mem_read", extra=["props", c0], val_type="i64"))
+        ins_ds.append(MIRInstr(op="MOV", dst="i", arg1=c0, val_type="i64"))
+
+        loop_lbl = self.new_label("dyn_s_loop")
+        end_lbl = self.new_label("dyn_s_append")
+        next_lbl = self.new_label("dyn_s_next")
+        ins_ds.append(MIRInstr(op="LABEL", arg1=loop_lbl))
+        cmp_i = self.new_temp(lt_ds, "bool")
+        ins_ds.append(MIRInstr(op="CMP_LT_I64", dst=cmp_i, arg1="i", arg2=cnt_v, val_type="bool"))
+        ins_ds.append(MIRInstr(op="JZ", arg1=cmp_i, arg2=end_lbl))
+        two_t = self.new_temp(lt_ds, "i64")
+        one_t = self.new_temp(lt_ds, "i64")
+        mul_t = self.new_temp(lt_ds, "i64")
+        k_off = self.new_temp(lt_ds, "i64")
+        v_off = self.new_temp(lt_ds, "i64")
+        cur_k = self.new_temp(lt_ds, "str")
+        eq_k = self.new_temp(lt_ds, "bool")
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=two_t, arg1=2, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=one_t, arg1=1, val_type="i64"))
+        ins_ds.append(MIRInstr(op="MUL_I64", dst=mul_t, arg1="i", arg2=two_t, val_type="i64"))
+        ins_ds.append(MIRInstr(op="ADD_I64", dst=k_off, arg1=mul_t, arg2=one_t, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=cur_k, arg1="__bmb_mem_read", extra=["props", k_off], val_type="str"))
+        ins_ds.append(MIRInstr(op="STR_CMP_EQ", dst=eq_k, arg1=cur_k, arg2="key", val_type="bool"))
+        ins_ds.append(MIRInstr(op="JZ", arg1=eq_k, arg2=next_lbl))
+        ins_ds.append(MIRInstr(op="ADD_I64", dst=v_off, arg1=k_off, arg2=one_t, val_type="i64"))
+        ign_u = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="CALL", dst=ign_u, arg1="__bmb_mem_write", extra=["props", v_off, "val"], val_type="i64"))
+        ins_ds.append(MIRInstr(op="RET", arg1="val", val_type="i64"))
+        ins_ds.append(MIRInstr(op="LABEL", arg1=next_lbl))
+        nxt_i = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="ADD_I64", dst=nxt_i, arg1="i", arg2=one_t, val_type="i64"))
+        ins_ds.append(MIRInstr(op="MOV", dst="i", arg1=nxt_i, val_type="i64"))
+        ins_ds.append(MIRInstr(op="JMP", arg1=loop_lbl))
+
+        ins_ds.append(MIRInstr(op="LABEL", arg1=end_lbl))
+        cap_t = self.new_temp(lt_ds, "i64")
+        can_add = self.new_temp(lt_ds, "bool")
+        full_lbl = self.new_label("dyn_s_full")
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=cap_t, arg1=32, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CMP_LT_I64", dst=can_add, arg1=cnt_v, arg2=cap_t, val_type="bool"))
+        ins_ds.append(MIRInstr(op="JZ", arg1=can_add, arg2=full_lbl))
+        two_a = self.new_temp(lt_ds, "i64")
+        one_a = self.new_temp(lt_ds, "i64")
+        mul_a = self.new_temp(lt_ds, "i64")
+        ak_off = self.new_temp(lt_ds, "i64")
+        av_off = self.new_temp(lt_ds, "i64")
+        new_cnt = self.new_temp(lt_ds, "i64")
+        w1 = self.new_temp(lt_ds, "i64")
+        w2 = self.new_temp(lt_ds, "i64")
+        w3 = self.new_temp(lt_ds, "i64")
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=two_a, arg1=2, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CONST_I64", dst=one_a, arg1=1, val_type="i64"))
+        ins_ds.append(MIRInstr(op="MUL_I64", dst=mul_a, arg1=cnt_v, arg2=two_a, val_type="i64"))
+        ins_ds.append(MIRInstr(op="ADD_I64", dst=ak_off, arg1=mul_a, arg2=one_a, val_type="i64"))
+        ins_ds.append(MIRInstr(op="ADD_I64", dst=av_off, arg1=ak_off, arg2=one_a, val_type="i64"))
+        ins_ds.append(MIRInstr(op="ADD_I64", dst=new_cnt, arg1=cnt_v, arg2=one_a, val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=w1, arg1="__bmb_mem_write", extra=["props", ak_off, "key"], val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=w2, arg1="__bmb_mem_write", extra=["props", av_off, "val"], val_type="i64"))
+        ins_ds.append(MIRInstr(op="CALL", dst=w3, arg1="__bmb_mem_write", extra=["props", c0, new_cnt], val_type="i64"))
+        ins_ds.append(MIRInstr(op="LABEL", arg1=full_lbl))
+        ins_ds.append(MIRInstr(op="RET", arg1="val", val_type="i64"))
+        helpers.append(
+            MIRFunction(
+                name="__bmb_dyn_set",
+                params=[("obj", "i64"), ("key", "str"), ("val", "i64")],
+                return_type="i64",
+                instructions=ins_ds,
+                local_types=lt_ds,
+                start_line=1,
+            )
+        )
+        self.func_return_types["__bmb_dyn_set"] = "i64"
+
+        # 3. __bmb_dyn_get(obj: i64, key: str, default_val: i64) -> i64
+        self.temp_counter = 0
+        lt_dg: Dict[str, str] = {"obj": "i64", "key": "str", "default_val": "i64", "i": "i64"}
+        ins_dg: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry", line=1)]
+        g_c2 = self.new_temp(lt_dg, "i64")
+        g_props = self.new_temp(lt_dg, "i64")
+        g_miss = self.new_label("dyn_g_miss")
+        ins_dg.append(MIRInstr(op="CONST_I64", dst=g_c2, arg1=2, val_type="i64"))
+        ins_dg.append(MIRInstr(op="CALL", dst=g_props, arg1="__bmb_mem_read", extra=["obj", g_c2], val_type="i64"))
+        ins_dg.append(MIRInstr(op="JZ", arg1=g_props, arg2=g_miss))
+        g_c0 = self.new_temp(lt_dg, "i64")
+        g_cnt = self.new_temp(lt_dg, "i64")
+        ins_dg.append(MIRInstr(op="CONST_I64", dst=g_c0, arg1=0, val_type="i64"))
+        ins_dg.append(MIRInstr(op="CALL", dst=g_cnt, arg1="__bmb_mem_read", extra=[g_props, g_c0], val_type="i64"))
+        ins_dg.append(MIRInstr(op="MOV", dst="i", arg1=g_c0, val_type="i64"))
+        g_loop = self.new_label("dyn_g_loop")
+        g_next = self.new_label("dyn_g_next")
+        ins_dg.append(MIRInstr(op="LABEL", arg1=g_loop))
+        g_cmp = self.new_temp(lt_dg, "bool")
+        ins_dg.append(MIRInstr(op="CMP_LT_I64", dst=g_cmp, arg1="i", arg2=g_cnt, val_type="bool"))
+        ins_dg.append(MIRInstr(op="JZ", arg1=g_cmp, arg2=g_miss))
+        g_two = self.new_temp(lt_dg, "i64")
+        g_one = self.new_temp(lt_dg, "i64")
+        g_mul = self.new_temp(lt_dg, "i64")
+        gk_off = self.new_temp(lt_dg, "i64")
+        gv_off = self.new_temp(lt_dg, "i64")
+        g_curk = self.new_temp(lt_dg, "str")
+        g_eq = self.new_temp(lt_dg, "bool")
+        g_res = self.new_temp(lt_dg, "i64")
+        ins_dg.append(MIRInstr(op="CONST_I64", dst=g_two, arg1=2, val_type="i64"))
+        ins_dg.append(MIRInstr(op="CONST_I64", dst=g_one, arg1=1, val_type="i64"))
+        ins_dg.append(MIRInstr(op="MUL_I64", dst=g_mul, arg1="i", arg2=g_two, val_type="i64"))
+        ins_dg.append(MIRInstr(op="ADD_I64", dst=gk_off, arg1=g_mul, arg2=g_one, val_type="i64"))
+        ins_dg.append(MIRInstr(op="CALL", dst=g_curk, arg1="__bmb_mem_read", extra=[g_props, gk_off], val_type="str"))
+        ins_dg.append(MIRInstr(op="STR_CMP_EQ", dst=g_eq, arg1=g_curk, arg2="key", val_type="bool"))
+        ins_dg.append(MIRInstr(op="JZ", arg1=g_eq, arg2=g_next))
+        ins_dg.append(MIRInstr(op="ADD_I64", dst=gv_off, arg1=gk_off, arg2=g_one, val_type="i64"))
+        ins_dg.append(MIRInstr(op="CALL", dst=g_res, arg1="__bmb_mem_read", extra=[g_props, gv_off], val_type="i64"))
+        ins_dg.append(MIRInstr(op="RET", arg1=g_res, val_type="i64"))
+        ins_dg.append(MIRInstr(op="LABEL", arg1=g_next))
+        g_ni = self.new_temp(lt_dg, "i64")
+        ins_dg.append(MIRInstr(op="ADD_I64", dst=g_ni, arg1="i", arg2=g_one, val_type="i64"))
+        ins_dg.append(MIRInstr(op="MOV", dst="i", arg1=g_ni, val_type="i64"))
+        ins_dg.append(MIRInstr(op="JMP", arg1=g_loop))
+        ins_dg.append(MIRInstr(op="LABEL", arg1=g_miss))
+        ins_dg.append(MIRInstr(op="RET", arg1="default_val", val_type="i64"))
+        helpers.append(
+            MIRFunction(
+                name="__bmb_dyn_get",
+                params=[("obj", "i64"), ("key", "str"), ("default_val", "i64")],
+                return_type="i64",
+                instructions=ins_dg,
+                local_types=lt_dg,
+                start_line=1,
+            )
+        )
+        self.func_return_types["__bmb_dyn_get"] = "i64"
+
+        # 4. __bmb_dyn_has(obj: i64, key: str) -> bool
+        self.temp_counter = 0
+        lt_dh: Dict[str, str] = {"obj": "i64", "key": "str", "i": "i64"}
+        ins_dh: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry", line=1)]
+        h_c2 = self.new_temp(lt_dh, "i64")
+        h_props = self.new_temp(lt_dh, "i64")
+        h_miss = self.new_label("dyn_h_miss")
+        ins_dh.append(MIRInstr(op="CONST_I64", dst=h_c2, arg1=2, val_type="i64"))
+        ins_dh.append(MIRInstr(op="CALL", dst=h_props, arg1="__bmb_mem_read", extra=["obj", h_c2], val_type="i64"))
+        ins_dh.append(MIRInstr(op="JZ", arg1=h_props, arg2=h_miss))
+        h_c0 = self.new_temp(lt_dh, "i64")
+        h_cnt = self.new_temp(lt_dh, "i64")
+        ins_dh.append(MIRInstr(op="CONST_I64", dst=h_c0, arg1=0, val_type="i64"))
+        ins_dh.append(MIRInstr(op="CALL", dst=h_cnt, arg1="__bmb_mem_read", extra=[h_props, h_c0], val_type="i64"))
+        ins_dh.append(MIRInstr(op="MOV", dst="i", arg1=h_c0, val_type="i64"))
+        h_loop = self.new_label("dyn_h_loop")
+        h_next = self.new_label("dyn_h_next")
+        ins_dh.append(MIRInstr(op="LABEL", arg1=h_loop))
+        h_cmp = self.new_temp(lt_dh, "bool")
+        ins_dh.append(MIRInstr(op="CMP_LT_I64", dst=h_cmp, arg1="i", arg2=h_cnt, val_type="bool"))
+        ins_dh.append(MIRInstr(op="JZ", arg1=h_cmp, arg2=h_miss))
+        h_two = self.new_temp(lt_dh, "i64")
+        h_one = self.new_temp(lt_dh, "i64")
+        h_mul = self.new_temp(lt_dh, "i64")
+        hk_off = self.new_temp(lt_dh, "i64")
+        h_curk = self.new_temp(lt_dh, "str")
+        h_eq = self.new_temp(lt_dh, "bool")
+        ins_dh.append(MIRInstr(op="CONST_I64", dst=h_two, arg1=2, val_type="i64"))
+        ins_dh.append(MIRInstr(op="CONST_I64", dst=h_one, arg1=1, val_type="i64"))
+        ins_dh.append(MIRInstr(op="MUL_I64", dst=h_mul, arg1="i", arg2=h_two, val_type="i64"))
+        ins_dh.append(MIRInstr(op="ADD_I64", dst=hk_off, arg1=h_mul, arg2=h_one, val_type="i64"))
+        ins_dh.append(MIRInstr(op="CALL", dst=h_curk, arg1="__bmb_mem_read", extra=[h_props, hk_off], val_type="str"))
+        ins_dh.append(MIRInstr(op="STR_CMP_EQ", dst=h_eq, arg1=h_curk, arg2="key", val_type="bool"))
+        ins_dh.append(MIRInstr(op="JZ", arg1=h_eq, arg2=h_next))
+        ins_dh.append(MIRInstr(op="RET", arg1=h_one, val_type="bool"))
+        ins_dh.append(MIRInstr(op="LABEL", arg1=h_next))
+        h_ni = self.new_temp(lt_dh, "i64")
+        ins_dh.append(MIRInstr(op="ADD_I64", dst=h_ni, arg1="i", arg2=h_one, val_type="i64"))
+        ins_dh.append(MIRInstr(op="MOV", dst="i", arg1=h_ni, val_type="i64"))
+        ins_dh.append(MIRInstr(op="JMP", arg1=h_loop))
+        ins_dh.append(MIRInstr(op="LABEL", arg1=h_miss))
+        h_zero = self.new_temp(lt_dh, "bool")
+        ins_dh.append(MIRInstr(op="CONST_I64", dst=h_zero, arg1=0, val_type="bool"))
+        ins_dh.append(MIRInstr(op="RET", arg1=h_zero, val_type="bool"))
+        helpers.append(
+            MIRFunction(
+                name="__bmb_dyn_has",
+                params=[("obj", "i64"), ("key", "str")],
+                return_type="bool",
+                instructions=ins_dh,
+                local_types=lt_dh,
+                start_line=1,
+            )
+        )
+        self.func_return_types["__bmb_dyn_has"] = "bool"
+
+        return helpers
+
+    def _emit_post_call_unwind_check(self, instrs: List[MIRInstr], local_types: Dict[str, str]) -> None:
+        if not self.has_exceptions:
+            return
+        slot0 = self.new_temp(local_types, "i64")
+        exc_p = self.new_temp(local_types, "i64")
+        instrs.append(MIRInstr(op="CONST_I64", dst=slot0, arg1=0, val_type="i64"))
+        instrs.append(MIRInstr(op="CALL", dst=exc_p, arg1="__bmb_rt_slot_get", extra=[slot0], val_type="i64"))
+        if self.try_stack:
+            instrs.append(MIRInstr(op="JNZ", arg1=exc_p, arg2=self.try_stack[-1].catch_target))
+        else:
+            self.cur_fn_needs_unwind_pad = True
+            instrs.append(MIRInstr(op="JNZ", arg1=exc_p, arg2=self.cur_fn_unwind_label))
+
     def _lower_function(self, fn: FuncDef) -> MIRFunction:
         self.temp_counter = 0
+        self.try_stack = []
+        self.active_caught_exc_vars = []
+        self.cur_fn_name = fn.name
+        self.cur_fn_return_type = fn.return_type or "i64"
+        self.cur_fn_unwind_label = self.new_label("fn_unwind")
+        self.cur_fn_needs_unwind_pad = False
+
         params = [(p.name, p.type_ann or "i64") for p in fn.params]
         local_types: Dict[str, str] = {name: ptype for name, ptype in params}
         instrs: List[MIRInstr] = [MIRInstr(op="LABEL", arg1="__tco_entry", line=fn.line or 1)]
@@ -237,6 +582,46 @@ class MIRBuilder:
             const_op = "CONST_F64" if fn.return_type == "f64" else "CONST_I64"
             instrs.append(MIRInstr(op=const_op, dst=tmp, arg1=default_ret, val_type=fn.return_type or "i64", line=fn.line or 1))
             instrs.append(MIRInstr(op="RET", arg1=tmp, val_type=fn.return_type or "i64", line=fn.line or 1))
+
+        # Emit multi-frame stack-unwind landing pad if any nested call or `raise` can unwind out of `fn`
+        if self.cur_fn_needs_unwind_pad:
+            instrs.append(MIRInstr(op="LABEL", arg1=self.cur_fn_unwind_label, line=fn.line or 1))
+            if fn.name == self.entry_fn_name:
+                # Top-level uncaught exception handler: print Pythonic traceback and exit(1)
+                c0 = self.new_temp(local_types, "i64")
+                exc_v = self.new_temp(local_types, "BaseException")
+                ign_clr = self.new_temp(local_types, "i64")
+                msg_idx = self.class_field_offsets.get(("BaseException", "message"), 3)
+                line_idx = self.class_field_offsets.get(("BaseException", "line"), 5)
+                m_off = self.new_temp(local_types, "i64")
+                l_off = self.new_temp(local_types, "i64")
+                msg_v = self.new_temp(local_types, "str")
+                line_v = self.new_temp(local_types, "i64")
+                p1_id = self.intern_string("[Unhandled Exception L")
+                p2_id = self.intern_string("] ")
+                p1_s = self.new_temp(local_types, "str")
+                p2_s = self.new_temp(local_types, "str")
+                one_code = self.new_temp(local_types, "i64")
+                ign_ex = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=c0, arg1=0, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=exc_v, arg1="__bmb_rt_slot_get", extra=[c0], val_type="BaseException"))
+                instrs.append(MIRInstr(op="CALL", dst=ign_clr, arg1="__bmb_rt_slot_set", extra=[c0, c0], val_type="i64"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=m_off, arg1=msg_idx, val_type="i64"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=l_off, arg1=line_idx, val_type="i64"))
+                instrs.append(MIRInstr(op="LOAD_IDX", dst=msg_v, arg1=exc_v, arg2=m_off, val_type="str"))
+                instrs.append(MIRInstr(op="LOAD_IDX", dst=line_v, arg1=exc_v, arg2=l_off, val_type="i64"))
+                instrs.append(MIRInstr(op="CONST_STR", dst=p1_s, arg1=p1_id, val_type="str"))
+                instrs.append(MIRInstr(op="CONST_STR", dst=p2_s, arg1=p2_id, val_type="str"))
+                instrs.append(MIRInstr(op="PRINT", extra=[p1_s, line_v, p2_s, msg_v], comment="str,i64,str,str", val_type="void"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=one_code, arg1=1, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=ign_ex, arg1="__bmb_exit", extra=[one_code], val_type="i64"))
+                instrs.append(MIRInstr(op="RET", arg1=one_code, val_type="i64", comment="unwind_ret"))
+            else:
+                u_ret = 0.0 if fn.return_type == "f64" else 0
+                u_tmp = self.new_temp(local_types, fn.return_type or "i64")
+                u_op = "CONST_F64" if fn.return_type == "f64" else "CONST_I64"
+                instrs.append(MIRInstr(op=u_op, dst=u_tmp, arg1=u_ret, val_type=fn.return_type or "i64"))
+                instrs.append(MIRInstr(op="RET", arg1=u_tmp, val_type=fn.return_type or "i64", comment="unwind_ret"))
 
         return MIRFunction(
             name=fn.name,
@@ -257,6 +642,16 @@ class MIRBuilder:
                 for k in range(start_idx, len(instrs)):
                     if instrs[k].line == 0:
                         instrs[k].line = stmt_line
+
+    def _run_enclosing_finally_for_exit(self, min_try_idx: int, instrs: List[MIRInstr], local_types: Dict[str, str]) -> None:
+        """Execute enclosing `finally:` suites in LIFO order before early `return` / `break` / `continue`."""
+        saved_stack = list(self.try_stack)
+        for idx in range(len(saved_stack) - 1, min_try_idx - 1, -1):
+            ctx = saved_stack[idx]
+            if ctx.finally_body:
+                self.try_stack = saved_stack[:idx]
+                self._lower_block(ctx.finally_body, instrs, local_types)
+        self.try_stack = saved_stack
 
     def _lower_stmt(self, stmt: Stmt, instrs: List[MIRInstr], local_types: Dict[str, str]) -> None:
         if isinstance(stmt, Assign):
@@ -326,28 +721,203 @@ class MIRBuilder:
             obj_v, obj_t = self._lower_expr(stmt.target, instrs, local_types)
             val_v, val_t = self._lower_expr(stmt.value, instrs, local_types)
             field_idx = self._struct_field_index(obj_t, stmt.field_name)
-            idx_tmp = self.new_temp(local_types, "i64")
-            instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=field_idx, val_type="i64"))
-            instrs.append(MIRInstr(op="STORE_IDX", dst=obj_v, arg1=idx_tmp, arg2=val_v, val_type=val_t))
+            if field_idx >= 0:
+                idx_tmp = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=field_idx, val_type="i64"))
+                instrs.append(MIRInstr(op="STORE_IDX", dst=obj_v, arg1=idx_tmp, arg2=val_v, val_type=val_t))
+            elif obj_t in self.dynamic_classes:
+                key_id = self.intern_string(stmt.field_name)
+                key_v = self.new_temp(local_types, "str")
+                ign = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_STR", dst=key_v, arg1=key_id, comment=stmt.field_name, val_type="str"))
+                instrs.append(MIRInstr(op="CALL", dst=ign, arg1="__bmb_dyn_set", extra=[obj_v, key_v, val_v], val_type="i64"))
             return
 
         if isinstance(stmt, Return):
             if stmt.value is not None:
                 rv, rt = self._lower_expr(stmt.value, instrs, local_types)
+                self._run_enclosing_finally_for_exit(0, instrs, local_types)
                 instrs.append(MIRInstr(op="RET", arg1=rv, val_type=rt))
             else:
+                self._run_enclosing_finally_for_exit(0, instrs, local_types)
                 tmp = self.new_temp(local_types, "i64")
                 instrs.append(MIRInstr(op="CONST_I64", dst=tmp, arg1=0, val_type="i64"))
                 instrs.append(MIRInstr(op="RET", arg1=tmp, val_type="i64"))
             return
 
+        if isinstance(stmt, RaiseStmt):
+            stmt_line = stmt.line or 1
+            if stmt.exc is None:
+                if self.active_caught_exc_vars:
+                    exc_v = self.active_caught_exc_vars[-1]
+                else:
+                    c0_r = self.new_temp(local_types, "i64")
+                    exc_v = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=c0_r, arg1=0, val_type="i64"))
+                    instrs.append(MIRInstr(op="CALL", dst=exc_v, arg1="__bmb_rt_slot_get", extra=[c0_r], val_type="i64"))
+            elif isinstance(stmt.exc, Var) and stmt.exc.name in self.structs and stmt.exc.name not in local_types:
+                ctor_call = Call(
+                    line=stmt_line,
+                    col=stmt.col,
+                    func=stmt.exc.name,
+                    args=[StringLit(line=stmt_line, col=stmt.col, value=stmt.exc.name), IntLit(value=0), IntLit(value=stmt_line)],
+                    inferred_type=stmt.exc.name,
+                )
+                exc_v, _ = self._lower_expr(ctor_call, instrs, local_types)
+            else:
+                ev, et = self._lower_expr(stmt.exc, instrs, local_types)
+                if et == "str":
+                    ctor_call = Call(
+                        line=stmt_line,
+                        col=stmt.col,
+                        func="RuntimeError",
+                        args=[stmt.exc, IntLit(value=0), IntLit(value=stmt_line)],
+                        inferred_type="RuntimeError",
+                    )
+                    exc_v, _ = self._lower_expr(ctor_call, instrs, local_types)
+                else:
+                    exc_v = ev
+                    if (et, "line") in self.class_field_offsets and (
+                        not isinstance(stmt.exc, Call) or len(stmt.exc.args) < 3
+                    ):
+                        l_slot = self._class_or_base_offset(et, "line")
+                        l_idx_t = self.new_temp(local_types, "i64")
+                        l_val_t = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CONST_I64", dst=l_idx_t, arg1=l_slot, val_type="i64"))
+                        instrs.append(MIRInstr(op="CONST_I64", dst=l_val_t, arg1=stmt_line, val_type="i64"))
+                        instrs.append(MIRInstr(op="STORE_IDX", dst=exc_v, arg1=l_idx_t, arg2=l_val_t, val_type="i64"))
+
+            c0_set = self.new_temp(local_types, "i64")
+            ign_set = self.new_temp(local_types, "i64")
+            instrs.append(MIRInstr(op="CONST_I64", dst=c0_set, arg1=0, val_type="i64"))
+            instrs.append(MIRInstr(op="CALL", dst=ign_set, arg1="__bmb_rt_slot_set", extra=[c0_set, exc_v], val_type="i64"))
+            if self.try_stack:
+                instrs.append(MIRInstr(op="JMP", arg1=self.try_stack[-1].catch_target))
+            else:
+                self.cur_fn_needs_unwind_pad = True
+                instrs.append(MIRInstr(op="JMP", arg1=self.cur_fn_unwind_label))
+            return
+
+        if isinstance(stmt, TryStmt):
+            dispatch_lbl = self.new_label("try_catch")
+            else_lbl = self.new_label("try_else")
+            fin_ok_lbl = self.new_label("try_fin_ok")
+            fin_unw_lbl = self.new_label("try_fin_unw")
+            end_lbl = self.new_label("try_end")
+            cur_loop_depth = len(self.loop_stack)
+
+            # 1. `try:` body
+            catch_entry = dispatch_lbl if stmt.handlers else fin_unw_lbl
+            self.try_stack.append(_TryContext(catch_target=catch_entry, finally_body=stmt.finally_body, loop_depth=cur_loop_depth))
+            self._lower_block(stmt.body, instrs, local_types)
+            self.try_stack.pop()
+            instrs.append(MIRInstr(op="JMP", arg1=else_lbl))
+
+            # 2. `else:` body (runs iff `try:` did not raise; protected only by `finally:`)
+            instrs.append(MIRInstr(op="LABEL", arg1=else_lbl))
+            if stmt.else_body:
+                if stmt.finally_body:
+                    self.try_stack.append(_TryContext(catch_target=fin_unw_lbl, finally_body=stmt.finally_body, loop_depth=cur_loop_depth))
+                self._lower_block(stmt.else_body, instrs, local_types)
+                if stmt.finally_body:
+                    self.try_stack.pop()
+            instrs.append(MIRInstr(op="JMP", arg1=fin_ok_lbl))
+
+            # 3. `except:` handler chain
+            if stmt.handlers:
+                instrs.append(MIRInstr(op="LABEL", arg1=dispatch_lbl))
+                c0_e = self.new_temp(local_types, "i64")
+                exc_ptr = self.new_temp(local_types, "BaseException")
+                exc_mask = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=c0_e, arg1=0, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=exc_ptr, arg1="__bmb_rt_slot_get", extra=[c0_e], val_type="BaseException"))
+                instrs.append(MIRInstr(op="LOAD_IDX", dst=exc_mask, arg1=exc_ptr, arg2=c0_e, val_type="i64"))
+
+                if stmt.finally_body:
+                    self.try_stack.append(_TryContext(catch_target=fin_unw_lbl, finally_body=stmt.finally_body, loop_depth=cur_loop_depth))
+
+                for h_idx, h in enumerate(stmt.handlers):
+                    next_h_lbl = self.new_label(f"except_next_{h_idx}")
+                    if h.exc_types:
+                        h_mask_val = 0
+                        for et_name in h.exc_types:
+                            if et_name in self.class_ids:
+                                h_mask_val |= 1 << self.class_ids[et_name]
+                        m_const = self.new_temp(local_types, "i64")
+                        anded = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CONST_I64", dst=m_const, arg1=h_mask_val, val_type="i64"))
+                        instrs.append(MIRInstr(op="AND_I64", dst=anded, arg1=exc_mask, arg2=m_const, val_type="i64"))
+                        instrs.append(MIRInstr(op="JZ", arg1=anded, arg2=next_h_lbl))
+
+                    # Handler matched! Clear active unwinding slot and save caught exception for bare `raise`
+                    ign_clr = self.new_temp(local_types, "i64")
+                    caught_hold = self.new_temp(local_types, "BaseException")
+                    instrs.append(MIRInstr(op="CALL", dst=ign_clr, arg1="__bmb_rt_slot_set", extra=[c0_e, c0_e], val_type="i64"))
+                    instrs.append(MIRInstr(op="MOV", dst=caught_hold, arg1=exc_ptr, val_type="BaseException"))
+                    if h.var_name:
+                        v_t = h.exc_types[0] if len(h.exc_types) == 1 and h.exc_types[0] in self.structs else "Exception"
+                        local_types[h.var_name] = v_t
+                        instrs.append(MIRInstr(op="MOV", dst=h.var_name, arg1=exc_ptr, val_type=v_t))
+
+                    self.active_caught_exc_vars.append(caught_hold)
+                    self._lower_block(h.body, instrs, local_types)
+                    self.active_caught_exc_vars.pop()
+                    instrs.append(MIRInstr(op="JMP", arg1=fin_ok_lbl))
+                    instrs.append(MIRInstr(op="LABEL", arg1=next_h_lbl))
+
+                if stmt.finally_body:
+                    self.try_stack.pop()
+
+                # Unmatched by all `except:` clauses -> run `finally:` on unwind path
+                instrs.append(MIRInstr(op="JMP", arg1=fin_unw_lbl))
+
+            # 4. Normal `finally:` path
+            instrs.append(MIRInstr(op="LABEL", arg1=fin_ok_lbl))
+            if stmt.finally_body:
+                self._lower_block(stmt.finally_body, instrs, local_types)
+            instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
+
+            # 5. Unwinding `finally:` path (saves & temporarily clears rt_slot[0] so calls inside `finally` don't false-unwind!)
+            instrs.append(MIRInstr(op="LABEL", arg1=fin_unw_lbl))
+            if stmt.finally_body:
+                c0_u = self.new_temp(local_types, "i64")
+                saved_u = self.new_temp(local_types, "i64")
+                ign_u1 = self.new_temp(local_types, "i64")
+                ign_u2 = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=c0_u, arg1=0, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=saved_u, arg1="__bmb_rt_slot_get", extra=[c0_u], val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=ign_u1, arg1="__bmb_rt_slot_set", extra=[c0_u, c0_u], val_type="i64"))
+                self._lower_block(stmt.finally_body, instrs, local_types)
+                instrs.append(MIRInstr(op="CALL", dst=ign_u2, arg1="__bmb_rt_slot_set", extra=[c0_u, saved_u], val_type="i64"))
+
+            if self.try_stack:
+                instrs.append(MIRInstr(op="JMP", arg1=self.try_stack[-1].catch_target))
+            else:
+                self.cur_fn_needs_unwind_pad = True
+                instrs.append(MIRInstr(op="JMP", arg1=self.cur_fn_unwind_label))
+
+            instrs.append(MIRInstr(op="LABEL", arg1=end_lbl))
+            return
+
         if isinstance(stmt, Break):
             if self.loop_stack:
+                cur_depth = len(self.loop_stack)
+                min_idx = len(self.try_stack)
+                while min_idx > 0 and self.try_stack[min_idx - 1].loop_depth == cur_depth:
+                    min_idx -= 1
+                if min_idx < len(self.try_stack):
+                    self._run_enclosing_finally_for_exit(min_idx, instrs, local_types)
                 instrs.append(MIRInstr(op="JMP", arg1=self.loop_stack[-1][1]))
             return
 
         if isinstance(stmt, Continue):
             if self.loop_stack:
+                cur_depth = len(self.loop_stack)
+                min_idx = len(self.try_stack)
+                while min_idx > 0 and self.try_stack[min_idx - 1].loop_depth == cur_depth:
+                    min_idx -= 1
+                if min_idx < len(self.try_stack):
+                    self._run_enclosing_finally_for_exit(min_idx, instrs, local_types)
                 instrs.append(MIRInstr(op="JMP", arg1=self.loop_stack[-1][0]))
             return
 
@@ -462,6 +1032,21 @@ class MIRBuilder:
         if isinstance(stmt, ExprStmt):
             self._lower_expr(stmt.expr, instrs, local_types)
 
+    def _coerce_exc_or_scalar_to_str(self, val: str, vtype: str, instrs: List[MIRInstr], local_types: Dict[str, str]) -> str:
+        if vtype == "str":
+            return val
+        if vtype in self.mro and "BaseException" in self.mro[vtype]:
+            m_off = self.new_temp(local_types, "i64")
+            m_dst = self.new_temp(local_types, "str")
+            m_slot = self._class_or_base_offset(vtype, "message")
+            instrs.append(MIRInstr(op="CONST_I64", dst=m_off, arg1=m_slot, val_type="i64"))
+            instrs.append(MIRInstr(op="LOAD_IDX", dst=m_dst, arg1=val, arg2=m_off, val_type="str"))
+            return m_dst
+        str_v = self.new_temp(local_types, "str")
+        cast_op = "STR_FROM_F64" if vtype == "f64" else ("STR_FROM_BOOL" if vtype == "bool" else "STR_FROM_I64")
+        instrs.append(MIRInstr(op=cast_op, dst=str_v, arg1=val, val_type="str"))
+        return str_v
+
     def _lower_expr(self, expr: Expr, instrs: List[MIRInstr], local_types: Dict[str, str]) -> Tuple[str, str]:
         if isinstance(expr, IntLit):
             dst = self.new_temp(local_types, "i64")
@@ -487,18 +1072,10 @@ class MIRBuilder:
                     instrs.append(MIRInstr(op="CONST_STR", dst=dst, arg1=str_id, comment="", val_type="str"))
                     return dst, "str"
                 cur_v, cur_t = self._lower_expr(parts[0], instrs, local_types)
-                if cur_t != "str":
-                    str_v = self.new_temp(local_types, "str")
-                    cast_op = "STR_FROM_F64" if cur_t == "f64" else ("STR_FROM_BOOL" if cur_t == "bool" else "STR_FROM_I64")
-                    instrs.append(MIRInstr(op=cast_op, dst=str_v, arg1=cur_v, val_type="str"))
-                    cur_v = str_v
+                cur_v = self._coerce_exc_or_scalar_to_str(cur_v, cur_t, instrs, local_types)
                 for p in parts[1:]:
                     nxt_v, nxt_t = self._lower_expr(p, instrs, local_types)
-                    if nxt_t != "str":
-                        str_v = self.new_temp(local_types, "str")
-                        cast_op = "STR_FROM_F64" if nxt_t == "f64" else ("STR_FROM_BOOL" if nxt_t == "bool" else "STR_FROM_I64")
-                        instrs.append(MIRInstr(op=cast_op, dst=str_v, arg1=nxt_v, val_type="str"))
-                        nxt_v = str_v
+                    nxt_v = self._coerce_exc_or_scalar_to_str(nxt_v, nxt_t, instrs, local_types)
                     concat_dst = self.new_temp(local_types, "str")
                     instrs.append(MIRInstr(op="STR_CONCAT", dst=concat_dst, arg1=cur_v, arg2=nxt_v, val_type="str"))
                     cur_v = concat_dst
@@ -630,7 +1207,6 @@ class MIRBuilder:
                 operand_t = "i64"
 
             if expr.op == "**":
-                # Fast square or integer power
                 if isinstance(expr.right, IntLit) and expr.right.value == 2:
                     dst = self.new_temp(local_types, operand_t)
                     mul_op = "MUL_F64" if operand_t == "f64" else "MUL_I64"
@@ -666,7 +1242,7 @@ class MIRBuilder:
             instrs.append(MIRInstr(op="JMP", arg1=end_lbl))
             instrs.append(MIRInstr(op="LABEL", arg1=else_lbl))
             ev, et = self._lower_expr(expr.else_expr, instrs, local_types)
-            final_t = expr.inferred_type or unify_types(tt, et)
+            final_t = expr.inferred_type or unify_types(tt, et, self.mro)
             local_types[dst] = final_t
             instrs.append(MIRInstr(op="MOV", dst=dst, arg1=ev, val_type=final_t))
             instrs.append(MIRInstr(op="LABEL", arg1=end_lbl))
@@ -747,23 +1323,75 @@ class MIRBuilder:
         if isinstance(expr, FieldAccess):
             obj_v, obj_t = self._lower_expr(expr.target, instrs, local_types)
             field_idx = self._struct_field_index(obj_t, expr.field_name)
-            field_t = self._struct_field_type(obj_t, expr.field_name)
+            if field_idx >= 0:
+                field_t = self._struct_field_type(obj_t, expr.field_name)
+                idx_tmp = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=field_idx, val_type="i64"))
+                dst = self.new_temp(local_types, field_t)
+                instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=obj_v, arg2=idx_tmp, val_type=field_t))
+                return dst, field_t
+            if obj_t in self.dynamic_classes:
+                dyn_t = self.dyn_attr_types.get((obj_t, expr.field_name), expr.inferred_type or "i64")
+                key_id = self.intern_string(expr.field_name)
+                key_v = self.new_temp(local_types, "str")
+                def_v = self.new_temp(local_types, "i64")
+                dst = self.new_temp(local_types, dyn_t)
+                instrs.append(MIRInstr(op="CONST_STR", dst=key_v, arg1=key_id, comment=expr.field_name, val_type="str"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=def_v, arg1=0, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1="__bmb_dyn_get", extra=[obj_v, key_v, def_v], val_type=dyn_t))
+                return dst, dyn_t
             idx_tmp = self.new_temp(local_types, "i64")
-            instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=field_idx, val_type="i64"))
-            dst = self.new_temp(local_types, field_t)
-            instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=obj_v, arg2=idx_tmp, val_type=field_t))
-            return dst, field_t
+            instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=0, val_type="i64"))
+            dst = self.new_temp(local_types, "i64")
+            instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=obj_v, arg2=idx_tmp, val_type="i64"))
+            return dst, "i64"
 
         if isinstance(expr, MethodCall):
             obj_v, obj_t = self._lower_expr(expr.target, instrs, local_types)
-            lowered_call = Call(
-                line=expr.line,
-                col=expr.col,
-                func=f"{obj_t}__{expr.method}",
-                args=[expr.target] + expr.args,
-                inferred_type=expr.inferred_type,
-            )
-            return self._lower_expr(lowered_call, instrs, local_types)
+            m_full = f"{obj_t}__{expr.method}"
+            # Dynamic OOP virtual vtable dispatch (supports polymorphism + runtime monkey-patching!)
+            if obj_t in self.dynamic_classes and (obj_t, expr.method) in self.vtable_indices:
+                v_idx = self.vtable_indices[(obj_t, expr.method)]
+                arg_vals = [obj_v]
+                for a in expr.args:
+                    av, _ = self._lower_expr(a, instrs, local_types)
+                    arg_vals.append(av)
+                # Fill omitted default parameters if method declared defaults
+                decl_params = self.func_params.get(m_full, [])
+                for p_idx in range(len(arg_vals), len(decl_params)):
+                    def_e = decl_params[p_idx].default or IntLit(value=0)
+                    dv, _ = self._lower_expr(def_e, instrs, local_types)
+                    arg_vals.append(dv)
+
+                one_idx = self.new_temp(local_types, "i64")
+                vt_ptr = self.new_temp(local_types, "i64")
+                m_idx_t = self.new_temp(local_types, "i64")
+                fn_ptr = self.new_temp(local_types, "i64")
+                ret_t = self.func_return_types.get(m_full) or expr.inferred_type or "i64"
+                dst = self.new_temp(local_types, ret_t)
+                instrs.append(MIRInstr(op="CONST_I64", dst=one_idx, arg1=1, val_type="i64"))
+                instrs.append(MIRInstr(op="LOAD_IDX", dst=vt_ptr, arg1=obj_v, arg2=one_idx, val_type="i64"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=m_idx_t, arg1=v_idx, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=fn_ptr, arg1="__bmb_mem_read", extra=[vt_ptr, m_idx_t], val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1=fn_ptr, extra=arg_vals, val_type=ret_t))
+                self._emit_post_call_unwind_check(instrs, local_types)
+                return dst, ret_t
+
+            # Plain 0-header struct direct static call (evaluate receiver once!)
+            arg_vals = [obj_v]
+            for a in expr.args:
+                av, _ = self._lower_expr(a, instrs, local_types)
+                arg_vals.append(av)
+            decl_params = self.func_params.get(m_full, [])
+            for p_idx in range(len(arg_vals), len(decl_params)):
+                def_e = decl_params[p_idx].default or IntLit(value=0)
+                dv, _ = self._lower_expr(def_e, instrs, local_types)
+                arg_vals.append(dv)
+            ret_t = self.func_return_types.get(m_full) or expr.inferred_type or "i64"
+            dst = self.new_temp(local_types, ret_t)
+            instrs.append(MIRInstr(op="CALL", dst=dst, arg1=m_full, extra=arg_vals, val_type=ret_t))
+            self._emit_post_call_unwind_check(instrs, local_types)
+            return dst, ret_t
 
         if isinstance(expr, Call):
             if expr.func == "print":
@@ -771,14 +1399,19 @@ class MIRBuilder:
                 arg_types: List[str] = []
                 for a in expr.args:
                     if isinstance(a, StringLit) and a.value.startswith("f:"):
-                        # Expand f-string `f"hello {x} world"` into print parts
                         parts = self._split_fstring(a.value[2:], a.line, a.col)
                         for p in parts:
                             pv, pt = self._lower_expr(p, instrs, local_types)
+                            if pt in self.mro and "BaseException" in self.mro[pt]:
+                                pv = self._coerce_exc_or_scalar_to_str(pv, pt, instrs, local_types)
+                                pt = "str"
                             arg_vals.append(pv)
                             arg_types.append(pt)
                     else:
                         av, at = self._lower_expr(a, instrs, local_types)
+                        if at in self.mro and "BaseException" in self.mro[at]:
+                            av = self._coerce_exc_or_scalar_to_str(av, at, instrs, local_types)
+                            at = "str"
                         arg_vals.append(av)
                         arg_types.append(at)
                 instrs.append(
@@ -791,10 +1424,233 @@ class MIRBuilder:
                 )
                 return "%void", "void"
 
-            # Struct constructor call `Vec2(x, y)` -> allocate contiguous slot array
+            # Dynamic OOP Reflection & Monkey-Patching Intrinsics: isinstance, setattr, getattr, hasattr
+            if expr.func == "isinstance" and len(expr.args) == 2:
+                obj_v, obj_t = self._lower_expr(expr.args[0], instrs, local_types)
+                target_names: List[str] = []
+                if isinstance(expr.args[1], Var):
+                    target_names.append(expr.args[1].name)
+                elif isinstance(expr.args[1], ArrayLit):
+                    for el in expr.args[1].elements:
+                        if isinstance(el, Var):
+                            target_names.append(el.name)
+                if obj_t in self.dynamic_classes:
+                    mask_val = 0
+                    for tn in target_names:
+                        if tn in self.class_ids:
+                            mask_val |= 1 << self.class_ids[tn]
+                    c0_i = self.new_temp(local_types, "i64")
+                    obj_mask = self.new_temp(local_types, "i64")
+                    t_mask = self.new_temp(local_types, "i64")
+                    anded = self.new_temp(local_types, "i64")
+                    dst = self.new_temp(local_types, "bool")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=c0_i, arg1=0, val_type="i64"))
+                    instrs.append(MIRInstr(op="LOAD_IDX", dst=obj_mask, arg1=obj_v, arg2=c0_i, val_type="i64"))
+                    instrs.append(MIRInstr(op="CONST_I64", dst=t_mask, arg1=mask_val, val_type="i64"))
+                    instrs.append(MIRInstr(op="AND_I64", dst=anded, arg1=obj_mask, arg2=t_mask, val_type="i64"))
+                    instrs.append(MIRInstr(op="CMP_NE_I64", dst=dst, arg1=anded, arg2=c0_i, val_type="bool"))
+                    return dst, "bool"
+                is_static_match = 1 if obj_t in target_names else 0
+                dst = self.new_temp(local_types, "bool")
+                instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=is_static_match, val_type="bool"))
+                return dst, "bool"
+
+            if expr.func == "setattr" and len(expr.args) == 3:
+                # 1. Class-level runtime method monkey-patching: `setattr(MyClass, "method", new_fn)`
+                if (
+                    isinstance(expr.args[0], Var)
+                    and expr.args[0].name in self.dynamic_classes
+                    and expr.args[0].name not in local_types
+                    and isinstance(expr.args[1], StringLit)
+                ):
+                    cls_name = expr.args[0].name
+                    m_name = expr.args[1].value
+                    fn_v, _ = self._lower_expr(expr.args[2], instrs, local_types)
+                    if (cls_name, m_name) in self.vtable_indices:
+                        v_idx = self.vtable_indices[(cls_name, m_name)]
+                        dir_ptr = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CALL", dst=dir_ptr, arg1="__bmb_ensure_vtables", extra=[], val_type="i64"))
+                        orig_owner = self.vtable_method_owners.get((cls_name, m_name), cls_name)
+                        for sub_c in self.dynamic_classes:
+                            if cls_name in self.mro.get(sub_c, []):
+                                sub_owner = self.vtable_method_owners.get((sub_c, m_name))
+                                if sub_c == cls_name or sub_owner in (None, cls_name, orig_owner):
+                                    cid_t = self.new_temp(local_types, "i64")
+                                    vt_p = self.new_temp(local_types, "i64")
+                                    vidx_t = self.new_temp(local_types, "i64")
+                                    ign_w = self.new_temp(local_types, "i64")
+                                    instrs.append(MIRInstr(op="CONST_I64", dst=cid_t, arg1=self.class_ids[sub_c], val_type="i64"))
+                                    instrs.append(MIRInstr(op="CALL", dst=vt_p, arg1="__bmb_mem_read", extra=[dir_ptr, cid_t], val_type="i64"))
+                                    instrs.append(MIRInstr(op="CONST_I64", dst=vidx_t, arg1=v_idx, val_type="i64"))
+                                    instrs.append(MIRInstr(op="CALL", dst=ign_w, arg1="__bmb_mem_write", extra=[vt_p, vidx_t, fn_v], val_type="i64"))
+                    return fn_v, "i64"
+
+                # 2. Instance-level attribute mutation: `setattr(obj, attr_name, val)`
+                obj_v, obj_t = self._lower_expr(expr.args[0], instrs, local_types)
+                key_v, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                val_v, val_t = self._lower_expr(expr.args[2], instrs, local_types)
+                if isinstance(expr.args[1], StringLit):
+                    f_idx = self._struct_field_index(obj_t, expr.args[1].value)
+                    if f_idx >= 0:
+                        idx_t = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CONST_I64", dst=idx_t, arg1=f_idx, val_type="i64"))
+                        instrs.append(MIRInstr(op="STORE_IDX", dst=obj_v, arg1=idx_t, arg2=val_v, val_type=val_t))
+                        return val_v, "i64"
+                elif obj_t in self.structs:
+                    end_s_lbl = self.new_label("setattr_end")
+                    for sf in self.structs[obj_t].fields:
+                        nxt_sf = self.new_label("setattr_nxt")
+                        sf_id = self.intern_string(sf.name)
+                        sf_k = self.new_temp(local_types, "str")
+                        sf_eq = self.new_temp(local_types, "bool")
+                        sf_idx_t = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CONST_STR", dst=sf_k, arg1=sf_id, val_type="str"))
+                        instrs.append(MIRInstr(op="STR_CMP_EQ", dst=sf_eq, arg1=key_v, arg2=sf_k, val_type="bool"))
+                        instrs.append(MIRInstr(op="JZ", arg1=sf_eq, arg2=nxt_sf))
+                        instrs.append(MIRInstr(op="CONST_I64", dst=sf_idx_t, arg1=self._struct_field_index(obj_t, sf.name), val_type="i64"))
+                        instrs.append(MIRInstr(op="STORE_IDX", dst=obj_v, arg1=sf_idx_t, arg2=val_v, val_type=val_t))
+                        instrs.append(MIRInstr(op="JMP", arg1=end_s_lbl))
+                        instrs.append(MIRInstr(op="LABEL", arg1=nxt_sf))
+                    if obj_t in self.dynamic_classes:
+                        ign_d = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CALL", dst=ign_d, arg1="__bmb_dyn_set", extra=[obj_v, key_v, val_v], val_type="i64"))
+                    instrs.append(MIRInstr(op="LABEL", arg1=end_s_lbl))
+                    return val_v, "i64"
+
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1="__bmb_dyn_set", extra=[obj_v, key_v, val_v], val_type="i64"))
+                return dst, "i64"
+
+            if expr.func == "getattr" and len(expr.args) in (2, 3):
+                obj_v, obj_t = self._lower_expr(expr.args[0], instrs, local_types)
+                key_v, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                if len(expr.args) == 3:
+                    def_v, def_t = self._lower_expr(expr.args[2], instrs, local_types)
+                else:
+                    def_t = expr.inferred_type or "i64"
+                    def_v = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=def_v, arg1=0, val_type="i64"))
+                res_t = expr.inferred_type or def_t or "i64"
+                if isinstance(expr.args[1], StringLit):
+                    f_idx = self._struct_field_index(obj_t, expr.args[1].value)
+                    if f_idx >= 0:
+                        ft = self._struct_field_type(obj_t, expr.args[1].value)
+                        idx_t = self.new_temp(local_types, "i64")
+                        dst = self.new_temp(local_types, ft)
+                        instrs.append(MIRInstr(op="CONST_I64", dst=idx_t, arg1=f_idx, val_type="i64"))
+                        instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=obj_v, arg2=idx_t, val_type=ft))
+                        return dst, ft
+                elif obj_t in self.structs:
+                    dst = self.new_temp(local_types, res_t)
+                    end_g_lbl = self.new_label("getattr_end")
+                    for sf in self.structs[obj_t].fields:
+                        nxt_gf = self.new_label("getattr_nxt")
+                        sf_id = self.intern_string(sf.name)
+                        sf_k = self.new_temp(local_types, "str")
+                        sf_eq = self.new_temp(local_types, "bool")
+                        sf_idx_t = self.new_temp(local_types, "i64")
+                        sf_val = self.new_temp(local_types, res_t)
+                        instrs.append(MIRInstr(op="CONST_STR", dst=sf_k, arg1=sf_id, val_type="str"))
+                        instrs.append(MIRInstr(op="STR_CMP_EQ", dst=sf_eq, arg1=key_v, arg2=sf_k, val_type="bool"))
+                        instrs.append(MIRInstr(op="JZ", arg1=sf_eq, arg2=nxt_gf))
+                        instrs.append(MIRInstr(op="CONST_I64", dst=sf_idx_t, arg1=self._struct_field_index(obj_t, sf.name), val_type="i64"))
+                        instrs.append(MIRInstr(op="LOAD_IDX", dst=sf_val, arg1=obj_v, arg2=sf_idx_t, val_type=res_t))
+                        instrs.append(MIRInstr(op="MOV", dst=dst, arg1=sf_val, val_type=res_t))
+                        instrs.append(MIRInstr(op="JMP", arg1=end_g_lbl))
+                        instrs.append(MIRInstr(op="LABEL", arg1=nxt_gf))
+                    if obj_t in self.dynamic_classes:
+                        dyn_g = self.new_temp(local_types, res_t)
+                        instrs.append(MIRInstr(op="CALL", dst=dyn_g, arg1="__bmb_dyn_get", extra=[obj_v, key_v, def_v], val_type=res_t))
+                        instrs.append(MIRInstr(op="MOV", dst=dst, arg1=dyn_g, val_type=res_t))
+                    else:
+                        instrs.append(MIRInstr(op="MOV", dst=dst, arg1=def_v, val_type=res_t))
+                    instrs.append(MIRInstr(op="LABEL", arg1=end_g_lbl))
+                    return dst, res_t
+
+                dst = self.new_temp(local_types, res_t)
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1="__bmb_dyn_get", extra=[obj_v, key_v, def_v], val_type=res_t))
+                return dst, res_t
+
+            if expr.func == "hasattr" and len(expr.args) == 2:
+                obj_v, obj_t = self._lower_expr(expr.args[0], instrs, local_types)
+                key_v, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                if isinstance(expr.args[1], StringLit):
+                    attr_s = expr.args[1].value
+                    if self._struct_field_index(obj_t, attr_s) >= 0 or (obj_t, attr_s) in self.vtable_indices:
+                        dst = self.new_temp(local_types, "bool")
+                        instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=1, val_type="bool"))
+                        return dst, "bool"
+                if obj_t in self.dynamic_classes:
+                    dst = self.new_temp(local_types, "bool")
+                    instrs.append(MIRInstr(op="CALL", dst=dst, arg1="__bmb_dyn_has", extra=[obj_v, key_v], val_type="bool"))
+                    return dst, "bool"
+                dst = self.new_temp(local_types, "bool")
+                instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=0, val_type="bool"))
+                return dst, "bool"
+
+            # Struct / Class constructor call `Vec2(x, y)` or `Dog("Rex")`
             if expr.func in self.structs:
                 sdef = self.structs[expr.func]
                 dst = self.new_temp(local_types, expr.func)
+                if expr.func in self.dynamic_classes:
+                    total_slots = self.class_alloc_slots.get(expr.func, 3 + len(sdef.fields))
+                    cnt_tmp = self.new_temp(local_types, "i64")
+                    zero_tmp = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CONST_I64", dst=cnt_tmp, arg1=max(3, total_slots), val_type="i64"))
+                    instrs.append(MIRInstr(op="CONST_I64", dst=zero_tmp, arg1=0, val_type="i64"))
+                    instrs.append(MIRInstr(op="ALLOC_ARR", dst=dst, arg1=cnt_tmp, arg2=zero_tmp, val_type=expr.func))
+
+                    # Initialize header: [0] = __type_mask__, [1] = __vtable_ptr__, [2] = __dyn_props__ (0)
+                    dir_ptr = self.new_temp(local_types, "i64")
+                    cid_t = self.new_temp(local_types, "i64")
+                    vt_ptr = self.new_temp(local_types, "i64")
+                    mask_t = self.new_temp(local_types, "i64")
+                    one_t = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="CALL", dst=dir_ptr, arg1="__bmb_ensure_vtables", extra=[], val_type="i64"))
+                    instrs.append(MIRInstr(op="CONST_I64", dst=cid_t, arg1=self.class_ids[expr.func], val_type="i64"))
+                    instrs.append(MIRInstr(op="CALL", dst=vt_ptr, arg1="__bmb_mem_read", extra=[dir_ptr, cid_t], val_type="i64"))
+                    instrs.append(MIRInstr(op="CONST_I64", dst=mask_t, arg1=self.mro_masks[expr.func], val_type="i64"))
+                    instrs.append(MIRInstr(op="STORE_IDX", dst=dst, arg1=zero_tmp, arg2=mask_t, val_type="i64"))
+                    instrs.append(MIRInstr(op="CONST_I64", dst=one_t, arg1=1, val_type="i64"))
+                    instrs.append(MIRInstr(op="STORE_IDX", dst=dst, arg1=one_t, arg2=vt_ptr, val_type="i64"))
+
+                    init_fn_name = f"{expr.func}____init__"
+                    if init_fn_name in self.func_return_types:
+                        # Initialize fields to defaults first, then invoke `Cls____init__(dst, *args)`
+                        for f in sdef.fields:
+                            def_e = f.default if f.default is not None else self._default_expr_for_type(f.type_ann)
+                            av, at = self._lower_expr(def_e, instrs, local_types)
+                            f_slot = self.class_field_offsets[(expr.func, f.name)]
+                            idx_tmp = self.new_temp(local_types, "i64")
+                            instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=f_slot, val_type="i64"))
+                            instrs.append(MIRInstr(op="STORE_IDX", dst=dst, arg1=idx_tmp, arg2=av, val_type=at))
+                        init_args = [dst]
+                        for a in expr.args:
+                            av, _ = self._lower_expr(a, instrs, local_types)
+                            init_args.append(av)
+                        decl_p = self.func_params.get(init_fn_name, [])
+                        for p_idx in range(len(init_args), len(decl_p)):
+                            def_p = decl_p[p_idx].default or self._default_expr_for_type(decl_p[p_idx].type_ann or "i64")
+                            dv, _ = self._lower_expr(def_p, instrs, local_types)
+                            init_args.append(dv)
+                        ign_init = self.new_temp(local_types, "i64")
+                        instrs.append(MIRInstr(op="CALL", dst=ign_init, arg1=init_fn_name, extra=init_args, val_type="i64"))
+                        self._emit_post_call_unwind_check(instrs, local_types)
+                    else:
+                        for idx, f in enumerate(sdef.fields):
+                            arg_e = (
+                                expr.args[idx]
+                                if idx < len(expr.args)
+                                else (f.default if f.default is not None else self._default_expr_for_type(f.type_ann))
+                            )
+                            av, at = self._lower_expr(arg_e, instrs, local_types)
+                            f_slot = self.class_field_offsets[(expr.func, f.name)]
+                            idx_tmp = self.new_temp(local_types, "i64")
+                            instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=f_slot, val_type="i64"))
+                            instrs.append(MIRInstr(op="STORE_IDX", dst=dst, arg1=idx_tmp, arg2=av, val_type=at))
+                    return dst, expr.func
+
+                # Plain 0-header struct allocation (0..K-1)
                 cnt_tmp = self.new_temp(local_types, "i64")
                 zero_tmp = self.new_temp(local_types, "i64")
                 instrs.append(MIRInstr(op="CONST_I64", dst=cnt_tmp, arg1=max(1, len(sdef.fields)), val_type="i64"))
@@ -829,7 +1685,7 @@ class MIRBuilder:
                     return dst, "f64"
                 if at != "f64":
                     dst = self.new_temp(local_types, "f64")
-                    instrs.append(MIRInstr(op="I64_TO_F64", dst=dst, arg1=av, val_type="f64") )
+                    instrs.append(MIRInstr(op="I64_TO_F64", dst=dst, arg1=av, val_type="f64"))
                     return dst, "f64"
                 return av, "f64"
 
@@ -874,12 +1730,7 @@ class MIRBuilder:
 
             if expr.func == "str" and len(expr.args) == 1:
                 av, at = self._lower_expr(expr.args[0], instrs, local_types)
-                if at == "str":
-                    return av, "str"
-                dst = self.new_temp(local_types, "str")
-                cast_op = "STR_FROM_F64" if at == "f64" else ("STR_FROM_BOOL" if at == "bool" else "STR_FROM_I64")
-                instrs.append(MIRInstr(op=cast_op, dst=dst, arg1=av, val_type="str"))
-                return dst, "str"
+                return self._coerce_exc_or_scalar_to_str(av, at, instrs, local_types), "str"
 
             if expr.func == "bool" and len(expr.args) == 1 and "bool" not in self.func_return_types:
                 av, at = self._lower_expr(expr.args[0], instrs, local_types)
@@ -965,14 +1816,69 @@ class MIRBuilder:
             for a in expr.args:
                 av, _ = self._lower_expr(a, instrs, local_types)
                 arg_vals.append(av)
+            decl_params = self.func_params.get(expr.func, [])
+            for p_idx in range(len(arg_vals), len(decl_params)):
+                def_e = decl_params[p_idx].default or self._default_expr_for_type(decl_params[p_idx].type_ann or "i64")
+                dv, _ = self._lower_expr(def_e, instrs, local_types)
+                arg_vals.append(dv)
+
             ret_t = self.func_return_types.get(expr.func) or expr.inferred_type or "i64"
             dst = self.new_temp(local_types, ret_t)
+            if (
+                expr.super_target is not None
+                and expr.super_target[0] in self.dynamic_classes
+                and expr.super_target in self.vtable_indices
+                and expr.super_target[1] != "__init__"
+                and f"{expr.super_target[0]}__{expr.super_target[1]}" in self.func_return_types
+            ):
+                next_owner, sup_m = expr.super_target
+                orig_owner_fn = f"{next_owner}__{sup_m}"
+                v_idx = self.vtable_indices[(next_owner, sup_m)]
+                dir_ptr = self.new_temp(local_types, "i64")
+                cid_t = self.new_temp(local_types, "i64")
+                vt_ptr = self.new_temp(local_types, "i64")
+                vidx_t = self.new_temp(local_types, "i64")
+                cur_fn = self.new_temp(local_types, "i64")
+                orig_fn_v = self.new_temp(local_types, "i64")
+                is_same = self.new_temp(local_types, "bool")
+                patched_lbl = self.new_label("super_patched")
+                done_lbl = self.new_label("super_done")
+                instrs.append(MIRInstr(op="CALL", dst=dir_ptr, arg1="__bmb_ensure_vtables", extra=[], val_type="i64"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=cid_t, arg1=self.class_ids[next_owner], val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=vt_ptr, arg1="__bmb_mem_read", extra=[dir_ptr, cid_t], val_type="i64"))
+                instrs.append(MIRInstr(op="CONST_I64", dst=vidx_t, arg1=v_idx, val_type="i64"))
+                instrs.append(MIRInstr(op="CALL", dst=cur_fn, arg1="__bmb_mem_read", extra=[vt_ptr, vidx_t], val_type="i64"))
+                instrs.append(MIRInstr(op="MOV", dst=orig_fn_v, arg1=orig_owner_fn, val_type="i64"))
+                instrs.append(MIRInstr(op="CMP_EQ_I64", dst=is_same, arg1=cur_fn, arg2=orig_fn_v, val_type="bool"))
+                instrs.append(MIRInstr(op="JZ", arg1=is_same, arg2=patched_lbl))
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1=expr.func, extra=arg_vals, val_type=ret_t))
+                instrs.append(MIRInstr(op="JMP", arg1=done_lbl))
+                instrs.append(MIRInstr(op="LABEL", arg1=patched_lbl))
+                instrs.append(MIRInstr(op="CALL", dst=dst, arg1=cur_fn, extra=arg_vals, val_type=ret_t))
+                instrs.append(MIRInstr(op="LABEL", arg1=done_lbl))
+                self._emit_post_call_unwind_check(instrs, local_types)
+                return dst, ret_t
+
             instrs.append(MIRInstr(op="CALL", dst=dst, arg1=expr.func, extra=arg_vals, val_type=ret_t))
+            if not expr.func.startswith("__bmb_"):
+                self._emit_post_call_unwind_check(instrs, local_types)
             return dst, ret_t
 
         dst = self.new_temp(local_types, "i64")
         instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=0, val_type="i64"))
         return dst, "i64"
+
+    def _default_expr_for_type(self, t: str) -> Expr:
+        if t == "str":
+            return StringLit(value="")
+        if t == "f64":
+            return FloatLit(value=0.0)
+        return IntLit(value=0)
+
+    def _class_or_base_offset(self, cls_name: str, field_name: str) -> int:
+        if (cls_name, field_name) in self.class_field_offsets:
+            return self.class_field_offsets[(cls_name, field_name)]
+        return self.class_field_offsets.get(("BaseException", field_name), 3)
 
     def _coerce_to_cond(self, val: str, vtype: str, instrs: List[MIRInstr], local_types: Dict[str, str]) -> str:
         """Convert non-integer values (str, f64) into an i64 truthiness flag for JZ/JNZ."""
@@ -1016,6 +1922,8 @@ class MIRBuilder:
         return parts
 
     def _struct_field_index(self, struct_name: str, field_name: str) -> int:
+        if struct_name in self.dynamic_classes:
+            return self.class_field_offsets.get((struct_name, field_name), -1)
         sdef = self.structs.get(struct_name)
         if sdef:
             for idx, f in enumerate(sdef.fields):
@@ -1083,16 +1991,13 @@ class MIROptimizer:
         Compile-Time Lexical Arena Lifetimes:
         Performs escape analysis on function allocations (ALLOC_ARR).
         If heap allocations do not escape the function via RET or parameter mutation,
-        automatically captures an arena savepoint at function entry and restores it before RET.
-        This reclaims local heap buffers with ZERO garbage collection pause overhead.
+        automatically captures an arena savepoint at function entry and restores it before normal RET
+        (never on exception `unwind_ret`, preserving unwinding `ExcObj` allocations up the call stack!).
         """
         has_alloc = any(ins.op in ("ALLOC_ARR", "STR_CONCAT", "STR_SLICE") for ins in fn.instructions)
         if not has_alloc:
             return
 
-        # 1. Sound Escape Analysis:
-        # If return type is not a scalar primitive (i64, f64, bool, void),
-        # the returned object (struct, array, string) is allocated in the arena and escapes to caller!
         if fn.return_type not in ("f64", "i64", "bool", "void"):
             return
 
@@ -1107,12 +2012,11 @@ class MIROptimizer:
         for ins in fn.instructions:
             if ins.op == "RET" and ins.val_type not in ("f64", "i64", "bool", "void"):
                 return
-            if ins.op == "CALL" and ins.arg1 == "__bmb_alloc_root_set":
+            if ins.op == "CALL" and ins.arg1 in ("__bmb_alloc_root_set", "__bmb_rt_slot_set"):
                 return
             if ins.op == "STORE_IDX" and ins.dst in param_derived:
-                return  # Escaped via mutation of caller's parameter or nested struct/array
+                return
 
-        # 2. Ephemeral allocations detected: emit ARENA_SAVE before __tco_entry and ARENA_RESTORE before RET
         save_var = f"%arena_sp_{fn.name}"
         fn.local_types[save_var] = "i64"
 
@@ -1120,17 +2024,13 @@ class MIROptimizer:
             MIRInstr(op="ARENA_SAVE", dst=save_var, val_type="i64", comment="lexical arena checkpoint", line=fn.start_line)
         ]
         for ins in fn.instructions:
-            if ins.op == "RET":
+            if ins.op == "RET" and ins.comment != "unwind_ret":
                 new_instrs.append(MIRInstr(op="ARENA_RESTORE", arg1=save_var, comment="auto-reclaim lexical arena", line=ins.line))
             new_instrs.append(ins)
 
         fn.instructions = new_instrs
 
     def _apply_tail_call_optimization(self, fn: MIRFunction) -> None:
-        """
-        Convert tail calls `t = CALL fn.name(a1, a2, ...); RET t` into
-        register parameter reassignment + `JMP __tco_entry`.
-        """
         instrs = fn.instructions
         new_instrs: List[MIRInstr] = []
         i = 0
@@ -1146,7 +2046,6 @@ class MIROptimizer:
                 and len(ins.extra) == len(fn.params)
             ):
                 fn.is_tco = True
-                # Evaluate arguments into temporaries first so parallel assignment is safe
                 tco_temps: List[Tuple[str, str, str]] = []
                 for idx, ((p_name, p_type), arg_val) in enumerate(zip(fn.params, ins.extra)):
                     tmp_name = f"%tco_{i}_{idx}"
@@ -1166,7 +2065,6 @@ class MIROptimizer:
         consts: Dict[str, Union[int, float]] = {}
         const_types: Dict[str, str] = {}
 
-        # Variables modified across loop back-edges cannot be treated as block-local constants
         mutated_vars = set()
         seen_defs = set()
         for ins in fn.instructions:
@@ -1177,7 +2075,6 @@ class MIROptimizer:
 
         for ins in fn.instructions:
             if ins.op in ("LABEL", "JMP", "JZ", "JNZ", "CALL"):
-                # Clear non-SSA mutable constants at control flow boundaries
                 for k in list(consts.keys()):
                     if k in mutated_vars:
                         consts.pop(k, None)
@@ -1206,7 +2103,6 @@ class MIROptimizer:
                     consts.pop(ins.dst, None)
                 continue
 
-            # Fold binary operations on two known constants
             if ins.dst and isinstance(ins.arg1, str) and isinstance(ins.arg2, str):
                 c1 = consts.get(ins.arg1)
                 c2 = consts.get(ins.arg2)
@@ -1221,7 +2117,6 @@ class MIROptimizer:
                         const_types[ins.dst] = "f64" if is_flt else "i64"
                         continue
 
-                # Algebraic simplification & identity reduction
                 if ins.op == "MUL_I64":
                     if c2 == 1:
                         ins.op = "MOV"
@@ -1242,7 +2137,6 @@ class MIROptimizer:
                 elif ins.op == "ADD_I64" and c1 == 0:
                     ins.op = "MOV"
                     ins.arg1 = ins.arg2
-                    ins.arg2 = None
                     ins.arg2 = None
 
             if ins.dst:
@@ -1295,7 +2189,6 @@ class MIROptimizer:
         return None
 
     def _copy_propagation(self, fn: MIRFunction) -> None:
-        # Propagate single-assignment temporary copies `%t_dst = MOV %t_src`
         def_counts: Dict[str, int] = {}
         for ins in fn.instructions:
             if ins.dst:
@@ -1333,7 +2226,7 @@ class MIROptimizer:
         for ins in fn.instructions:
             if ins.op == "STORE_IDX" and ins.dst:
                 used.add(ins.dst)
-            if isinstance(ins.arg1, str) and ins.op not in ("LABEL", "JMP", "CALL"):
+            if isinstance(ins.arg1, str) and ins.op not in ("LABEL", "JMP"):
                 used.add(ins.arg1)
             if isinstance(ins.arg2, str) and ins.op not in ("JZ", "JNZ"):
                 used.add(ins.arg2)

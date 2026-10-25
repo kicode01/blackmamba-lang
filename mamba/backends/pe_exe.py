@@ -365,6 +365,7 @@ class PE32PlusExecutableBuilder:
             ("str_ab", b"ab\x00"),
             ("str_empty", b"\x00"),
             ("alloc_root", b"\x00" * 8),
+            ("rt_slots", b"\x00" * 128),
             ("fmt_seh_div0", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Integer Divide By Zero (0xC0000094) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
             ("fmt_seh_access", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Access Violation (0xC0000005) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
             ("fmt_seh_stack", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Stack Overflow (0xC00000FD) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
@@ -2276,6 +2277,28 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x89\xC8\xC3", "mov rax, rcx; ret")
         self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_rt_slot_get")
+        buf.emit(b"\x83\xE1\x0F", "and ecx, 15")
+        rt_slots_rva = self.builtin_rvas["rt_slots"]
+        off = len(buf.code)
+        next_rva = TEXT_RVA + off + 7
+        rel32 = rt_slots_rva - next_rva
+        buf.emit(b"\x48\x8D\x05" + struct.pack("<i", rel32), "lea rax, [rip + rt_slots]")
+        buf.emit(b"\x48\x8B\x04\xC8\xC3", "mov rax, [rax + rcx*8]; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_rt_slot_set")
+        buf.emit(b"\x83\xE1\x0F", "and ecx, 15")
+        rt_slots_rva = self.builtin_rvas["rt_slots"]
+        off = len(buf.code)
+        next_rva = TEXT_RVA + off + 7
+        rel32 = rt_slots_rva - next_rva
+        buf.emit(b"\x48\x8D\x05" + struct.pack("<i", rel32), "lea rax, [rip + rt_slots]")
+        buf.emit(b"\x48\x89\x14\xC8\x48\x89\xD0\xC3", "mov [rax + rcx*8], rdx; mov rax, rdx; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
@@ -2290,7 +2313,7 @@ class PE32PlusExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
         ])
 
         # Compile MIR functions

@@ -30,6 +30,7 @@ from .ast_nodes import (
     MatchStmt,
     MethodCall,
     Module,
+    RaiseStmt,
     RangeExpr,
     Return,
     SliceExpr,
@@ -37,6 +38,7 @@ from .ast_nodes import (
     StringLit,
     StructDef,
     TernaryIf,
+    TryStmt,
     UnaryOp,
     Var,
     WhileStmt,
@@ -204,6 +206,18 @@ def _bind_dunder_name_stmt(stmt: Stmt, mod_name: str, file_path: str) -> None:
     elif isinstance(stmt, StructDef):
         for m in stmt.methods:
             _bind_dunder_name_stmt(m, mod_name, file_path)
+    elif isinstance(stmt, TryStmt):
+        for s in stmt.body:
+            _bind_dunder_name_stmt(s, mod_name, file_path)
+        for h in stmt.handlers:
+            for s in h.body:
+                _bind_dunder_name_stmt(s, mod_name, file_path)
+        for s in stmt.else_body:
+            _bind_dunder_name_stmt(s, mod_name, file_path)
+        for s in stmt.finally_body:
+            _bind_dunder_name_stmt(s, mod_name, file_path)
+    elif isinstance(stmt, RaiseStmt) and stmt.exc:
+        stmt.exc = _bind_dunder_name_expr(stmt.exc, mod_name, file_path)
 
 
 def _rewrite_module_calls(expr: Expr, imported_mods: Set[str], local_vars: Optional[Set[str]] = None) -> Expr:
@@ -323,6 +337,24 @@ def _rewrite_stmt(stmt: Stmt, imported_mods: Set[str], local_vars: Optional[Set[
             elif isinstance(s, ForRangeStmt):
                 fn_locals.add(s.var_name)
             _rewrite_stmt(s, imported_mods, fn_locals)
+    elif isinstance(stmt, StructDef):
+        for m in stmt.methods:
+            _rewrite_stmt(m, imported_mods, locals_set)
+    elif isinstance(stmt, TryStmt):
+        for s in stmt.body:
+            _rewrite_stmt(s, imported_mods, locals_set)
+        for h in stmt.handlers:
+            h_locals = set(locals_set)
+            if h.var_name:
+                h_locals.add(h.var_name)
+            for s in h.body:
+                _rewrite_stmt(s, imported_mods, h_locals)
+        for s in stmt.else_body:
+            _rewrite_stmt(s, imported_mods, locals_set)
+        for s in stmt.finally_body:
+            _rewrite_stmt(s, imported_mods, locals_set)
+    elif isinstance(stmt, RaiseStmt) and stmt.exc is not None:
+        stmt.exc = _rewrite_module_calls(stmt.exc, imported_mods, locals_set)
 
 
 def _collect_callees(fn: FuncDef) -> Set[str]:
@@ -408,6 +440,18 @@ def _collect_callees(fn: FuncDef) -> Set[str]:
                     scan_expr(c.pattern)
                 for b in c.body:
                     scan_stmt(b)
+        elif isinstance(s, TryStmt):
+            for b in s.body:
+                scan_stmt(b)
+            for h in s.handlers:
+                for b in h.body:
+                    scan_stmt(b)
+            for b in s.else_body:
+                scan_stmt(b)
+            for b in s.finally_body:
+                scan_stmt(b)
+        elif isinstance(s, RaiseStmt) and s.exc:
+            scan_expr(s.exc)
 
     for s in fn.body:
         scan_stmt(s)

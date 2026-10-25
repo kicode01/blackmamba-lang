@@ -479,6 +479,13 @@ class X86_64CodeBuffer:
                 fused_indices.add(idx)
 
         # 3. Frequency-ranked hardware register allocation into CALLEE_SAVED_REGS (r12..r15, rbx, rsi, rdi)
+        local_names: Set[str] = set()
+        for p_name, _ in fn.params:
+            local_names.add(p_name)
+        for ins in instrs:
+            if ins.dst and ins.dst != "%void":
+                local_names.add(ins.dst)
+
         all_vars: List[str] = []
         seen_v: Set[str] = set()
         for p_name, _ in fn.params:
@@ -488,19 +495,17 @@ class X86_64CodeBuffer:
             if idx in fused_indices:
                 pass
             elif ins.dst and ins.dst != "%void" and ins.dst not in seen_v:
-                if not fn_names or ins.dst not in fn_names:
-                    all_vars.append(ins.dst)
-                    seen_v.add(ins.dst)
+                all_vars.append(ins.dst)
+                seen_v.add(ins.dst)
             for opnd in (ins.arg1, ins.arg2):
                 if isinstance(opnd, str) and ins.op not in ("LABEL", "JMP", "CALL", "JZ", "JNZ") and opnd not in seen_v:
-                    if not fn_names or opnd not in fn_names:
+                    if opnd in local_names:
                         all_vars.append(opnd)
                         seen_v.add(opnd)
             for ex in ins.extra:
-                if ex not in seen_v:
-                    if not fn_names or ex not in fn_names:
-                        all_vars.append(ex)
-                        seen_v.add(ex)
+                if ex not in seen_v and ex in local_names:
+                    all_vars.append(ex)
+                    seen_v.add(ex)
 
         # Prioritize named variables & parameters first, then highest-use temporaries
         ranked_vars = sorted(
@@ -514,19 +519,19 @@ class X86_64CodeBuffer:
         # Remaining variables get stack slots starting below the 7 saved registers ([rbp - 64], [rbp - 72], ...)
         var_slots: Dict[str, int] = {}
         for v in all_vars:
-            if v not in reg_map:
+            if v not in reg_map and v not in imm_i64:
                 slot_idx = len(var_slots) + 1
                 var_slots[v] = -56 - 8 * slot_idx
 
         def load_into(target_reg: str, vname: str) -> None:
-            if fn_names and vname in fn_names:
-                self.lea_reg_label(target_reg, f"fn__{vname}")
-            elif vname in imm_i64:
+            if vname in imm_i64:
                 self.mov_reg_imm64(target_reg, imm_i64[vname], vname)
             elif vname in reg_map:
                 self.mov_reg_reg(target_reg, reg_map[vname], vname)
             elif vname in var_slots:
                 self.load_reg_slot(target_reg, var_slots[vname], vname)
+            elif fn_names and vname in fn_names:
+                self.lea_reg_label(target_reg, f"fn__{vname}")
             else:
                 self.mov_reg_imm64(target_reg, 0, vname)
 
@@ -1067,8 +1072,10 @@ class NativeJITModule:
             n = max(1, int(count))
             alloc_bytes = (n * 8 + 15) & ~15
             with alloc_lock:
+                if self.arena_offset + alloc_bytes > (64 * 1024 * 1024 - 1024):
+                    self.arena_offset = 0
                 old_off = self.arena_offset
-                self.arena_offset = (old_off + alloc_bytes) % (64 * 1024 * 1024)
+                self.arena_offset += alloc_bytes
                 addr = ctypes.addressof(self.arena_mem) + old_off
             if init_bits != 0:
                 p_i64 = ctypes.cast(addr, ctypes.POINTER(ctypes.c_int64))
@@ -1744,6 +1751,8 @@ class NativeJITModule:
         # Zero-GIL Native Hardware Memory & Thread-ID Trampolines
         self._alloc_root_cell = ctypes.c_int64(0)
         alloc_root_addr = ctypes.addressof(self._alloc_root_cell)
+        self._rt_slots_arr = (ctypes.c_int64 * 16)()
+        rt_slots_addr = ctypes.addressof(self._rt_slots_arr)
 
         self.code_buf.mark_label("fn____bmb_thread_id")
         self.code_buf.emit(b"\x65\x8B\x04\x25\x48\x00\x00\x00\xC3", "mov eax, dword ptr gs:[0x48]; ret")
@@ -1771,6 +1780,18 @@ class NativeJITModule:
 
         self.code_buf.mark_label("fn____bmb_alloc_root_set")
         self.code_buf.emit(b"\x48\xB8" + struct.pack("<Q", alloc_root_addr) + b"\x48\x89\x08\x48\x89\xC8\xC3", "movabs rax, alloc_root; mov [rax], rcx; mov rax, rcx; ret")
+
+        self.code_buf.mark_label("fn____bmb_rt_slot_get")
+        self.code_buf.emit(
+            b"\x83\xE1\x0F\x48\xB8" + struct.pack("<Q", rt_slots_addr) + b"\x48\x8B\x04\xC8\xC3",
+            "and ecx, 15; movabs rax, rt_slots; mov rax, [rax + rcx*8]; ret",
+        )
+
+        self.code_buf.mark_label("fn____bmb_rt_slot_set")
+        self.code_buf.emit(
+            b"\x83\xE1\x0F\x48\xB8" + struct.pack("<Q", rt_slots_addr) + b"\x48\x89\x14\xC8\x48\x89\xD0\xC3",
+            "and ecx, 15; movabs rax, rt_slots; mov [rax + rcx*8], rdx; mov rax, rdx; ret",
+        )
 
         # Native Hardware Atomic Trampolines
         self.code_buf.mark_label("fn____bmb_atomic_load")
@@ -1804,6 +1825,7 @@ class NativeJITModule:
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32",
             "__bmb_mem_read8", "__bmb_mem_write8", "__bmb_alloc_root_get", "__bmb_alloc_root_set",
+            "__bmb_rt_slot_get", "__bmb_rt_slot_set",
         ])
 
         for fn in self.mir_module.functions:
@@ -1877,6 +1899,8 @@ class NativeJITModule:
 
     def run_main(self) -> int:
         self._exit_code_override = None
+        for _k in range(16):
+            self._rt_slots_arr[_k] = 0
         if "__bmb_main__" in self.func_offsets:
             res = int(self.call_function("__bmb_main__"))
             return self._exit_code_override if self._exit_code_override is not None else res

@@ -1,0 +1,138 @@
+# Black Mamba Flagship Showcase: tls_sql_gui_showcase.bmb
+# Demonstrates v1.1.0 Pure Native Ecosystem:
+#   1. tls.bmb: TLS 1.3 Key Schedule, Authenticated Records, ClientHello, ASN.1 DER X.509
+#   2. sql.bmb: Relational SQL Engine, Aggregates, ACID Transactions (BEGIN/ROLLBACK), Postgres v3 Wire
+#   3. gui.bmb: Desktop Retained-Mode UI, Box Layout, Event Dispatch, 24-bit Canvas, BMP & SVG Exporters
+# 100% Pure Native Black Mamba (.bmb) — Zero External C Dependencies.
+
+from tls import (
+    tls_bytes_from_str, tls_bytes_to_str, tls_bytes_to_hex,
+    tls13_derive_handshake_keys, tls13_seal_record, tls13_open_record,
+    tls13_build_client_hello, x509_build_self_signed_der, x509_parse_der, x509_verify_fingerprint
+)
+from sql import (
+    sql_open, sql_exec, sql_cell, sql_cell_int, sql_format_table,
+    pg_build_startup_packet, pg_build_query_packet, pg_parse_server_frame
+)
+from gui import (
+    gui_create_window, gui_add_panel, gui_add_vbox, gui_add_label,
+    gui_add_button, gui_add_text_input, gui_add_progress_bar,
+    gui_layout, gui_click, gui_render_canvas, canvas_free,
+    gui_export_svg, gui_export_bmp
+)
+from os import remove_file, file_exists, file_size
+
+def showcase_tls() -> i64:
+    print("=== 1. Pure Native TLS 1.3 & X.509 Stack (tls.bmb) ===")
+
+    # A. Handshake Key Schedule & Authenticated Record Layer
+    let client_key: Array[i64] = [0x5A] * 32
+    let client_iv: Array[i64] = [0x3C] * 12
+    let payload_str: str = "POST /api/v1/trade HTTP/1.1\\r\\nContent-Type: application/json\\r\\n\\r\\n{\"symbol\":\"BMB\",\"shares\":1000}"
+    let payload: Array[i64] = tls_bytes_from_str(payload_str)
+
+    let sealed = tls13_seal_record(client_key, client_iv, 1, 23, payload, len(payload_str))
+    print("  -> Sealed TLS 1.3 Record Size:", sealed.length, "bytes")
+
+    let opened = tls13_open_record(client_key, client_iv, 1, sealed.data, sealed.length)
+    print("  -> Record Authentication & Decryption OK:", opened.ok, "(ContentType=" + str(opened.content_type) + ")")
+
+    # Tamper detection test
+    sealed.data[12] = sealed.data[12] ^ 0x01
+    let tampered = tls13_open_record(client_key, client_iv, 1, sealed.data, sealed.length)
+    print("  -> Cryptographic Tamper Detected (AEAD tag mismatch):", not tampered.ok)
+
+    # B. TLS 1.3 ClientHello Packet
+    let rnd: Array[i64] = [0x42] * 32
+    let pk: Array[i64] = [0x88] * 32
+    let ch = tls13_build_client_hello("sec.mamba.org", rnd, pk)
+    print("  -> Constructed TLS 1.3 ClientHello Wire Packet:", ch.length, "bytes")
+
+    # C. ASN.1 DER X.509 Certificate Generation & Verification
+    let cert_pkg = x509_build_self_signed_der("sec.mamba.org", "Black Mamba CA", 2026, pk)
+    let cert = x509_parse_der(cert_pkg.data, cert_pkg.length)
+    print("  -> Parsed X.509v" + str(cert.version) + " DER Subject:", cert.subject_cn, "| Issuer:", cert.issuer_cn)
+    print("  -> SHA-256 Fingerprint Validated:", x509_verify_fingerprint(cert_pkg.data, cert_pkg.length, cert.fingerprint_sha256))
+    return 0
+
+def showcase_sql() -> i64:
+    print("\n=== 2. Relational SQL Engine & PostgreSQL Wire Framing (sql.bmb) ===")
+    let db = sql_open()
+
+    sql_exec(db, "CREATE TABLE portfolio (id INT, ticker TEXT, shares INT, price INT);")
+    sql_exec(db, "INSERT INTO portfolio VALUES (1, 'BMB', 500, 120);")
+    sql_exec(db, "INSERT INTO portfolio VALUES (2, 'NVDA', 150, 140);")
+    sql_exec(db, "INSERT INTO portfolio VALUES (3, 'GOOG', 200, 180);")
+    sql_exec(db, "INSERT INTO portfolio VALUES (4, 'AAPL', 300, 220);")
+
+    # Filtered & Ordered Query
+    let top_assets = sql_exec(db, "SELECT ticker, shares, price FROM portfolio WHERE price >= 140 ORDER BY price DESC LIMIT 3;")
+    print("  -> Top Assets (Price >= 140):\n" + sql_format_table(top_assets))
+
+    # Aggregate Analytics
+    let agg = sql_exec(db, "SELECT COUNT(*), SUM(shares), MAX(price) FROM portfolio;")
+    print("  -> Aggregates: Assets=" + sql_cell(agg, 0, 0) + " | TotalShares=" + sql_cell(agg, 0, 1) + " | MaxPrice=$" + sql_cell(agg, 0, 2))
+
+    # ACID Transaction Isolation with ROLLBACK
+    sql_exec(db, "BEGIN;")
+    sql_exec(db, "UPDATE portfolio SET price = 999 WHERE ticker = 'BMB';")
+    sql_exec(db, "DELETE FROM portfolio WHERE ticker = 'AAPL';")
+    let mid_tx = sql_exec(db, "SELECT COUNT(*), MAX(price) FROM portfolio;")
+    print("  -> Mid-Transaction: Count=" + sql_cell(mid_tx, 0, 0) + " | MaxPrice=$" + sql_cell(mid_tx, 0, 1))
+
+    sql_exec(db, "ROLLBACK;")
+    let post_tx = sql_exec(db, "SELECT COUNT(*), MAX(price) FROM portfolio;")
+    print("  -> Post-ROLLBACK Atomicity: Count=" + sql_cell(post_tx, 0, 0) + " | MaxPrice=$" + sql_cell(post_tx, 0, 1))
+
+    # PostgreSQL v3 Wire Protocol Framing
+    let startup_pkt = pg_build_startup_packet("mamba_user", "analytics_db")
+    let query_pkt = pg_build_query_packet("SELECT * FROM portfolio;")
+    let frame = pg_parse_server_frame(query_pkt, len(query_pkt))
+    print("  -> PostgreSQL Wire Framing: Type='" + frame.msg_type + "' | StartupBytes=" + str(len(startup_pkt)))
+    return 0
+
+def showcase_gui() -> i64:
+    print("\n=== 3. Desktop Retained-Mode GUI & Software Framebuffer (gui.bmb) ===")
+    let win = gui_create_window("Black Mamba Control Center", 480, 360)
+
+    let panel = gui_add_panel(win, -1, 448, 328)
+    let vbox = gui_add_vbox(win, panel, 12)
+
+    let title_lbl = gui_add_label(win, vbox, "Black Mamba Autonomous Node")
+    let status_lbl = gui_add_label(win, vbox, "Node Health: 100% | Latency: 0.12ms")
+    let input_box = gui_add_text_input(win, vbox, "Enter CLI Command...", 400, 32)
+    let exec_btn = gui_add_button(win, vbox, "Deploy Pipeline", 180, 36)
+    let prog_bar = gui_add_progress_bar(win, vbox, 88, 400, 18)
+
+    gui_layout(win)
+    print("  -> Retained-Mode UI Tree Constructed: " + str(win.widget_count) + " widgets")
+
+    # Simulate Mouse Click on Button
+    let btn_x = win.widgets[exec_btn].x + 10
+    let btn_y = win.widgets[exec_btn].y + 10
+    let clicked_id = gui_click(win, btn_x, btn_y)
+    print("  -> Mouse Click Hit-Test on Button (id=" + str(exec_btn) + "): Hit=" + str(clicked_id == exec_btn))
+
+    # Render Software Framebuffer & Export Vector SVG and 24-bit BMP
+    let canvas = gui_render_canvas(win)
+    let bmp_name = "control_center_preview.bmp"
+    let svg_name = "control_center_preview.svg"
+
+    let bmp_ok = gui_export_bmp(canvas, bmp_name)
+    let svg_ok = gui_export_svg(win, svg_name)
+    print("  -> Exported Uncompressed 24-bit BMP Image (" + str(file_size(bmp_name)) + " bytes):", bmp_ok)
+    print("  -> Exported Crisp Vector SVG UI Snapshot (" + str(file_size(svg_name)) + " bytes):", svg_ok)
+
+    canvas_free(canvas)
+    if file_exists(bmp_name):
+        remove_file(bmp_name)
+    if file_exists(svg_name):
+        remove_file(svg_name)
+    return 0
+
+def main() -> i64:
+    showcase_tls()
+    showcase_sql()
+    showcase_gui()
+    print("\n[SUCCESS] TLS 1.3, Relational SQL & Retained-Mode GUI Ecosystem Validated.")
+    return 0

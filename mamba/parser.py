@@ -15,6 +15,7 @@ from .ast_nodes import (
     Break,
     Call,
     Continue,
+    ExceptHandler,
     Expr,
     ExprStmt,
     FieldAccess,
@@ -35,6 +36,7 @@ from .ast_nodes import (
     Module,
     Param,
     PassStmt,
+    RaiseStmt,
     RangeExpr,
     Return,
     SliceExpr,
@@ -43,6 +45,7 @@ from .ast_nodes import (
     StructDef,
     StructField,
     TernaryIf,
+    TryStmt,
     UnaryOp,
     Var,
     WhileStmt,
@@ -130,6 +133,10 @@ class Parser:
             return self.parse_for(is_parallel=True)
         if tok.type == TokenType.MATCH:
             return self.parse_match()
+        if tok.type == TokenType.TRY:
+            return self.parse_try()
+        if tok.type == TokenType.RAISE:
+            return self.parse_raise()
         if tok.type == TokenType.RETURN:
             return self.parse_return()
         if tok.type == TokenType.BREAK:
@@ -246,12 +253,34 @@ class Parser:
 
     def parse_struct_def(self) -> StructDef:
         start_tok = self.current()
+        is_class = start_tok.type == TokenType.CLASS
         self.pos += 1  # struct or class
         name = self.expect(TokenType.IDENT, "Expected struct/class name").value
+        bases: List[str] = []
         if self.match(TokenType.LPAREN):
-            while not self.match(TokenType.RPAREN):
-                self.pos += 1
+            if self.current().type != TokenType.RPAREN:
+                while True:
+                    b_tok = self.expect(TokenType.IDENT, "Expected base class name")
+                    if str(b_tok.value) != "object":
+                        bases.append(str(b_tok.value))
+                    if not self.match(TokenType.COMMA):
+                        break
+                    if self.current().type == TokenType.RPAREN:
+                        break
+            self.expect(TokenType.RPAREN, "Expected ')' after base classes")
         self.expect(TokenType.COLON, "Expected ':' after struct/class name")
+        if self.current().type == TokenType.PASS:
+            self.pos += 1
+            self.skip_newlines()
+            return StructDef(
+                line=start_tok.line,
+                col=start_tok.col,
+                name=name,
+                fields=[],
+                methods=[],
+                bases=bases,
+                is_class=is_class,
+            )
         self.skip_newlines()
         self.expect(TokenType.INDENT, "Expected indented block for struct/class")
 
@@ -259,7 +288,7 @@ class Parser:
         methods: List[FuncDef] = []
         self.skip_newlines()
         while self.current().type not in (TokenType.DEDENT, TokenType.EOF):
-            if self.current().type == TokenType.PASS:
+            if self.current().type in (TokenType.PASS, TokenType.STRING):
                 self.pos += 1
                 self.skip_newlines()
                 continue
@@ -281,7 +310,81 @@ class Parser:
             self.skip_newlines()
 
         self.match(TokenType.DEDENT)
-        return StructDef(line=start_tok.line, col=start_tok.col, name=name, fields=fields, methods=methods)
+        return StructDef(
+            line=start_tok.line,
+            col=start_tok.col,
+            name=name,
+            fields=fields,
+            methods=methods,
+            bases=bases,
+            is_class=is_class,
+        )
+
+    def parse_try(self) -> TryStmt:
+        start_tok = self.expect(TokenType.TRY)
+        self.expect(TokenType.COLON, "Expected ':' after 'try'")
+        body = self.parse_block()
+        handlers: List[ExceptHandler] = []
+        else_body: List[Stmt] = []
+        finally_body: List[Stmt] = []
+
+        self.skip_newlines()
+        while self.current().type == TokenType.EXCEPT:
+            ex_tok = self.expect(TokenType.EXCEPT)
+            exc_types: List[str] = []
+            var_name: Optional[str] = None
+            if self.current().type != TokenType.COLON:
+                if self.match(TokenType.LPAREN):
+                    while self.current().type != TokenType.RPAREN:
+                        t_tok = self.expect(TokenType.IDENT, "Expected exception type name")
+                        exc_types.append(str(t_tok.value))
+                        if not self.match(TokenType.COMMA):
+                            break
+                    self.expect(TokenType.RPAREN, "Expected ')' after exception tuple")
+                else:
+                    t_tok = self.expect(TokenType.IDENT, "Expected exception type name")
+                    exc_types.append(str(t_tok.value))
+                    while self.match(TokenType.PIPE):
+                        t2_tok = self.expect(TokenType.IDENT, "Expected exception type name after '|'")
+                        exc_types.append(str(t2_tok.value))
+                if self.match(TokenType.AS):
+                    v_tok = self.expect(TokenType.IDENT, "Expected variable name after 'as'")
+                    var_name = str(v_tok.value)
+            self.expect(TokenType.COLON, "Expected ':' after 'except' clause")
+            h_body = self.parse_block()
+            handlers.append(ExceptHandler(line=ex_tok.line, col=ex_tok.col, exc_types=exc_types, var_name=var_name, body=h_body))
+            self.skip_newlines()
+
+        if self.match(TokenType.ELSE):
+            self.expect(TokenType.COLON, "Expected ':' after 'else'")
+            else_body = self.parse_block()
+            self.skip_newlines()
+
+        if self.match(TokenType.FINALLY):
+            self.expect(TokenType.COLON, "Expected ':' after 'finally'")
+            finally_body = self.parse_block()
+
+        if not handlers and not finally_body:
+            raise ParseError("Expected at least one 'except' or 'finally' block after 'try'", self.current())
+
+        return TryStmt(
+            line=start_tok.line,
+            col=start_tok.col,
+            body=body,
+            handlers=handlers,
+            else_body=else_body,
+            finally_body=finally_body,
+        )
+
+    def parse_raise(self) -> RaiseStmt:
+        start_tok = self.expect(TokenType.RAISE)
+        exc: Optional[Expr] = None
+        if self.current().type not in (TokenType.NEWLINE, TokenType.SEMI, TokenType.DEDENT, TokenType.EOF):
+            exc = self.parse_expr()
+            if self.match(TokenType.FROM):
+                self.parse_expr()
+        self.skip_newlines()
+        return RaiseStmt(line=start_tok.line, col=start_tok.col, exc=exc)
 
     def parse_block(self) -> List[Stmt]:
         if self.current().type != TokenType.NEWLINE:
@@ -700,7 +803,21 @@ class Parser:
             return Var(line=tok.line, col=tok.col, name=str(tok.value))
         if tok.type == TokenType.LPAREN:
             self.pos += 1
+            if self.current().type == TokenType.RPAREN:
+                self.pos += 1
+                return ArrayLit(line=tok.line, col=tok.col, elements=[])
             expr = self.parse_expr()
+            if self.match(TokenType.COMMA):
+                elems: List[Expr] = [expr]
+                if self.current().type != TokenType.RPAREN:
+                    while True:
+                        elems.append(self.parse_expr())
+                        if not self.match(TokenType.COMMA):
+                            break
+                        if self.current().type == TokenType.RPAREN:
+                            break
+                self.expect(TokenType.RPAREN, "Expected ')' after tuple")
+                return ArrayLit(line=tok.line, col=tok.col, elements=elems)
             self.expect(TokenType.RPAREN, "Expected ')'")
             return expr
         if tok.type == TokenType.LBRACKET:

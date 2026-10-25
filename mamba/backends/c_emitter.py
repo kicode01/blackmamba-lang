@@ -471,6 +471,14 @@ class C11Backend:
             "    bmb___bmb_alloc_root = val;",
             "    return val;",
             "}",
+            "static int64_t bmb___bmb_rt_slots[16] = {0};",
+            "static inline int64_t bmb___bmb_rt_slot_get(int64_t idx) {",
+            "    return bmb___bmb_rt_slots[idx & 15];",
+            "}",
+            "static inline int64_t bmb___bmb_rt_slot_set(int64_t idx, int64_t val) {",
+            "    bmb___bmb_rt_slots[idx & 15] = val;",
+            "    return val;",
+            "}",
             "static inline int64_t bmb___bmb_exit(int64_t code) {",
             "    fflush(NULL);",
             "    exit((int)code);",
@@ -513,7 +521,7 @@ class C11Backend:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
         }
 
         # Function bodies
@@ -565,8 +573,14 @@ class C11Backend:
                 out.append(f'#line {last_dbg_line} "{dbg_file}"')
             op = ins.op
             dst = _c_ident(ins.dst) if ins.dst else ""
-            a1 = _c_ident(str(ins.arg1)) if isinstance(ins.arg1, str) else ins.arg1
-            a2 = _c_ident(str(ins.arg2)) if isinstance(ins.arg2, str) else ins.arg2
+            if isinstance(ins.arg1, str) and ins.arg1 in fn_names and op not in ("LABEL", "JMP", "JZ", "JNZ", "CALL"):
+                a1 = f"(int64_t)bmb_{ins.arg1}"
+            else:
+                a1 = _c_ident(str(ins.arg1)) if isinstance(ins.arg1, str) else ins.arg1
+            if isinstance(ins.arg2, str) and ins.arg2 in fn_names and op not in ("LABEL", "JMP", "JZ", "JNZ", "CALL"):
+                a2 = f"(int64_t)bmb_{ins.arg2}"
+            else:
+                a2 = _c_ident(str(ins.arg2)) if isinstance(ins.arg2, str) else ins.arg2
 
             if op == "LABEL":
                 lbl = str(ins.arg1).lstrip(".")
@@ -616,9 +630,18 @@ class C11Backend:
                 fn_alloc = "__bmb_alloc_f64" if ins.val_type == "Array[f64]" else "__bmb_alloc_i64"
                 out.append(f"    {dst} = {fn_alloc}({a1}, {a2});")
             elif op == "LOAD_IDX":
-                out.append(f"    {dst} = {a1}[{a2}];")
+                dst_ct = _c_type(fn.local_types.get(ins.dst or "", ins.val_type))
+                if dst_ct == "double":
+                    out.append(f"    {dst} = ((double*)({a1}))[{a2}];")
+                elif dst_ct != "int64_t":
+                    out.append(f"    {dst} = ({dst_ct})(uintptr_t)({a1}[{a2}]);")
+                else:
+                    out.append(f"    {dst} = {a1}[{a2}];")
             elif op == "STORE_IDX":
-                out.append(f"    {dst}[{a1}] = {a2};")
+                if ins.val_type == "f64":
+                    out.append(f"    ((double*)({dst}))[{a1}] = (double)({a2});")
+                else:
+                    out.append(f"    {dst}[{a1}] = (int64_t)(uintptr_t)({a2});")
             elif op == "PRINT":
                 types = [t for t in (ins.comment or "").split(",") if t]
                 for idx, (pv, pt) in enumerate(zip(ins.extra, types)):
@@ -635,13 +658,26 @@ class C11Backend:
                         out.append(f'    printf("%lld", (long long){cpv});')
                 out.append('    printf("\\n");')
             elif op == "CALL":
-                args_c = ", ".join(f"(int64_t)bmb_{x}" if x in fn_names else _c_ident(x) for x in ins.extra)
-                if ins.arg1 in fn_names:
-                    call_expr = f"bmb_{ins.arg1}({args_c})"
+                raw_fn = str(ins.arg1)
+                if raw_fn in ("__bmb_mem_read", "__bmb_mem_write", "__bmb_rt_slot_get", "__bmb_rt_slot_set"):
+                    args_c = ", ".join(
+                        f"(int64_t)(uintptr_t)bmb_{x}" if x in fn_names else f"(int64_t)(uintptr_t)({_c_ident(x)})"
+                        for x in ins.extra
+                    )
                 else:
-                    call_expr = f"((int64_t (*)(int64_t, ...)){_c_ident(ins.arg1)})({args_c})"
+                    args_c = ", ".join(f"(int64_t)(uintptr_t)bmb_{x}" if x in fn_names else _c_ident(x) for x in ins.extra)
+                if raw_fn in fn_names:
+                    call_expr = f"bmb_{raw_fn}({args_c})"
+                else:
+                    call_expr = f"((int64_t (*)(int64_t, ...))(uintptr_t){_c_ident(raw_fn)})({args_c})"
                 if ins.dst and ins.dst != "%void":
-                    out.append(f"    {dst} = {call_expr};")
+                    dst_ct = _c_type(fn.local_types.get(ins.dst, ins.val_type))
+                    if dst_ct not in ("int64_t", "double") and raw_fn in ("__bmb_mem_read", "__bmb_rt_slot_get") or (
+                        dst_ct not in ("int64_t", "double") and raw_fn not in fn_names
+                    ):
+                        out.append(f"    {dst} = ({dst_ct})(uintptr_t)({call_expr});")
+                    else:
+                        out.append(f"    {dst} = {call_expr};")
                 else:
                     out.append(f"    {call_expr};")
             elif op in ("PY_CALL_F64", "PY_EVAL_F64", "PY_EVAL_TENSOR"):
@@ -825,8 +861,15 @@ class LLVMIRBackend:
                 continue
             if op == "MOV" and ins.dst:
                 d = ins.dst.lstrip("%")
-                s = str(ins.arg1).lstrip("%")
+                raw_s = str(ins.arg1)
                 llt = self._llvm_type(ins.val_type)
+                fn_set = {f.name for f in self.mir_module.functions}
+                if raw_s in fn_set:
+                    r = next_ssa()
+                    out.append(f"  {r} = ptrtoint ptr @{raw_s} to i64")
+                    out.append(f"  store i64 {r}, ptr %{d}.slot, align 8")
+                    continue
+                s = raw_s.lstrip("%")
                 r = next_ssa()
                 out.append(f"  {r} = load {llt}, ptr %{s}.slot, align 8")
                 out.append(f"  store {llt} {r}, ptr %{d}.slot, align 8")

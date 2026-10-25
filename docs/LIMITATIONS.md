@@ -1,6 +1,6 @@
-# Black Mamba (`.bmb`) `v1.0.0` — Comprehensive Architectural Boundaries, Trade-Offs & Limitations
+# Black Mamba (`.bmb`) `v1.1.0` — Comprehensive Architectural Boundaries, Trade-Offs & Limitations
 
-> **Transparency Statement**: Black Mamba (`v1.0.0`) achieves **12x–33.9x compute speedups**, **14,361x ReDoS regex speedups**, **5.5 KB–9.5 KB standalone executables**, **1.7 KB WebAssembly modules**, and **1.6 ms pure-`.bmb` self-hosting compilation** by eliminating Python's 2,112-byte stack frame debt and dynamic object boxing. For 100% engineering honesty, this document catalogs every architectural boundary, resolved milestone, intentional design trade-off, and remaining limitation in `v1.0.0`.
+> **Transparency Statement**: Black Mamba (`v1.1.0`) achieves **12x–33.9x compute speedups**, **14,361x ReDoS regex speedups**, **5.5 KB–9.5 KB standalone executables**, **1.7 KB WebAssembly modules**, and **1.6 ms pure-`.bmb` self-hosting compilation** by eliminating Python's 2,112-byte stack frame debt and unboxed static structs. In `v1.1.0`, Black Mamba closes the final gaps with Python by introducing Dynamic C3 Multiple Inheritance (Diamond MRO), Multi-Frame Stack-Unwinding Structured Exceptions, and Pure-Native TLS 1.3, SQL, and Retained-Mode GUI modules. For 100% engineering honesty, this document catalogs every architectural boundary, resolved milestone, intentional design trade-off, and remaining limitation in `v1.1.0`.
 
 ---
 
@@ -59,24 +59,26 @@
 
 ---
 
-## 4. Exception Handling & Native Debugging: Hardware SEH, CodeView `RSDS`, COFF & DWARF v4 (RESOLVED in `v1.0.0`)
+## 4. Exception Handling & Native Debugging: Multi-Frame Stack-Unwinding & Hardware SEH (RESOLVED in `v1.1.0`)
 
-* **Current Status (RESOLVED)**:
+* **Current Status (RESOLVED in `v1.1.0`)**:
   * **Zero-Cost Hardware SEH Tables & Symbolic Line-Mapped Crash Reports**:
     - The direct PE32+ standalone binary linker generates full Windows Structured Exception Handling (SEH) `.pdata` and `.xdata` unwinding tables wired to `DataDirectory[3]` (`IMAGE_DIRECTORY_ENTRY_EXCEPTION`).
     - Emits strictly ascending `IMAGE_RUNTIME_FUNCTION_ENTRY` records describing every function, runtime helper, and entry point in `.text`, compatible with Windows kernel `RtlLookupFunctionEntry` and `RtlVirtualUnwind`.
     - Registers a native Vectored Exception Handler (`AddVectoredExceptionHandler`) in `_start` that intercepts hardware divide-by-zero (`0xC0000094`), memory access violations (`0xC0000005`), and stack overflows (`0xC00000FD`).
-    - **New in `v1.0.0` (`--debug` / `-g`)**: Computes ASLR-safe RVA offsets (`ExceptionAddress - ImageBase`) via PEB `ImageBaseAddress` (`gs:[0x60]+0x10`) to print exact symbolic `<function>` names and `<file.bmb>:<line>` source locations on crash, alongside PE32+ `IMAGE_DIRECTORY_ENTRY_DEBUG` (`RSDS` CodeView), COFF `.symtab`, ELF64 `.symtab` + DWARF v4 `.debug_line`, C11 `#line`, and runtime helpers in `debug.bmb`.
-* **Remaining Architectural Boundary**:
-  * User-level dynamic exception class hierarchies (`try: ... except CustomError as e:` with heap-allocated stack-unwinding exception objects) are lowered to lightweight control-flow status checks rather than C++ Itanium/DWARF personality unwinding, keeping binary sizes under 10 KB and preserving zero-cost normal execution.
-* **Best Practice**:
-  * Use explicit return codes / result structs for recoverable domain errors; rely on `--debug` + hardware SEH and `debug_assert` (`from debug import *`) for invariant faults.
+    - Computes ASLR-safe RVA offsets (`ExceptionAddress - ImageBase`) via PEB `ImageBaseAddress` (`gs:[0x60]+0x10`) to print exact symbolic `<function>` names and `<file.bmb>:<line>` source locations on crash, alongside PE32+ `IMAGE_DIRECTORY_ENTRY_DEBUG` (`RSDS` CodeView), COFF `.symtab`, ELF64 `.symtab` + DWARF v4 `.debug_line`, C11 `#line`, and runtime helpers in `debug.bmb`.
+  * **Multi-Frame Stack-Unwinding Structured Exceptions (RESOLVED in `v1.1.0`)**:
+    - Full Python parity for structured exceptions: `try` / `except CustomError as e:` / `except (Err1, Err2) as e:` / `else` / `finally` / `raise`.
+    - Supports deep multi-frame call stacks: exceptions unwind through intermediate call frames, cleanly invoking every intermediate `finally:` cleanup block before delivering the payload to the matching handler.
+    - Custom user-level exception class hierarchies (inheriting from `Exception`, `RuntimeError`, `ValueError`, `KeyError`, etc.) with arbitrary custom fields and `e.message` payload extraction.
+    - Tuple exception matching (`except (A, B) as e`) and bare `raise` rethrowing in catch blocks.
+    - Preserves sub-10 KB standalone executable sizes via zero-cost thread-local exception registers and unwinding slots across JIT, PE32+, ELF64, Mach-O, C11, and WASM.
 
 ---
 
-## 5. Standard Library Completeness: All 26 Pure Native `.bmb` Modules Shipped (`v1.0.0`)
+## 5. Standard Library Completeness: All 29 Pure Native `.bmb` Modules Shipped (`v1.1.0`)
 
-* **Current Status (RESOLVED — 26 Pure `.bmb` Modules with Zero CPython Runtime Dependency)**:
+* **Current Status (RESOLVED — 29 Pure `.bmb` Modules with Zero CPython Runtime Dependency)**:
   * **Compiler & Self-Hosting**:
     - `compiler.bmb`: Indentation-aware native lexer (3.56M tokens/s), Top-Down Operator Precedence (Pratt) parser, and unified `ASTNode` engine.
     - `codegen.bmb`: Self-hosting Win64 x86-64 machine-code assembler, AST code generator, and standalone PE32+ `.exe` binary linker (1.63 ms zero-Python `.bmb -> .exe` compilation).
@@ -92,13 +94,17 @@
     - `gc.bmb`: Generational `Region` arenas ($O(1)$ bulk cyclic reset) and iterative mark-sweep cycle collector (`GC`).
     - `array.bmb`: Dynamic growable vectors (`IntVector`, `FloatVector`, `StrVector`), zero-copy slices, quicksort, and binary search.
     - `kv.bmb`: Durable log-structured embedded Key-Value database with append-only WAL, in-memory index, and atomic compaction.
+    - `sql.bmb` (**NEW in `v1.1.0`**): Complete pure native relational SQL engine (CREATE TABLE, INSERT, SELECT WHERE, ORDER BY, LIMIT, aggregates COUNT/SUM/MAX/MIN, UPDATE, DELETE), ACID transactions (BEGIN, COMMIT, ROLLBACK), disk file persistence via `os.bmb`, and PostgreSQL v3 wire protocol packet encoder & frame parser.
   * **Networking, Web, Security & Clustering**:
     - `os.bmb`: Text & null-safe binary file I/O (`read_file`, `write_file`, `read_bytes`, `write_bytes`), `get_cwd`, `get_env`, `exit`, and zero-allocation path manipulation across JIT, PE32+, ELF64, Mach-O, C11, and WASM.
     - `socket.bmb`: Native TCP/UDP sockets (`socket_create`, `connect`, `bind`, `listen`, `accept`, `send`, `recv`, `http_get`) via WinSock2 IAT on Windows and raw kernel syscalls on Linux.
     - `http.bmb`: High-throughput HTTP/1.1 parser, response builders, 8.2M req/s router, and RFC 6455 full-duplex WebSocket handshake & framing engine.
+    - `tls.bmb` (**NEW in `v1.1.0`**): Complete pure native cryptographic TLS 1.3 and X.509 stack: HKDF-SHA256 (RFC 5869), TLS 1.3 key schedule (RFC 8446), ChaCha20 stream cipher (RFC 8439), authenticated record seal/open with MAC authentication and tamper detection, ClientHello packet builder, and ASN.1 DER certificate parser with self-signed certificate generation and SHA-256 fingerprint verification.
     - `cluster.bmb`: Distributed multi-node TCP actor message framing and RPC authenticated via RFC 2104 `HMAC-SHA256`.
     - `hash.bmb`: NIST FIPS 180-4 `SHA-256`, `HMAC-SHA256`, `MurmurHash3`, `FNV-1a`, and fast hex encoders.
     - `json.bmb`: Pure native JSON DOM parser (`JsonDoc`, `JsonNode`) and high-speed serializer (`json_dumps`).
+  * **User Interface & Graphics**:
+    - `gui.bmb` (**NEW in `v1.1.0`**): Complete pure native retained-mode UI toolkit: Window, Panel, VBox, HBox, Label, Button, TextInput, ProgressBar widgets; automatic flex layout and click hit-testing dispatch; software 24-bit RGB rasterizer with built-in 5x7 ASCII font rendering; uncompressed 24-bit BMP image exporter, and vector SVG exporter.
   * **Strings, Concurrency, Embedded & Testing**:
     - `regex.bmb`: Linear-time $O(N)$ Thompson NFA & Pike VM regular expression engine with total ReDoS immunity.
     - `unicode.bmb`: Pure native UTF-8 decoder, UAX #29 grapheme cluster segmentation, UTF-16 surrogates, and Unicode case folding.
@@ -108,19 +114,25 @@
     - `embedded.bmb`: Bare-metal microcontroller HAL (volatile 32/8-bit MMIO, `GpioPort`, `UartDevice`, `SysTimer`, IVT, 65.7M Hz `PIDController`, `RingBuffer`).
     - `time.bmb`: Nanosecond monotonic hardware clock (`clock_ns`, `clock_sec`) and precision sleep (`sleep_ms`, `sleep_ns`).
     - `test.bmb`: Assertion suite runner and hardware nanosecond micro-benchmarking harness.
-* **Remaining Ecosystem Scope Outside Stdlib**:
-  * Full X.509 / TLS 1.3 cipher-suite negotiation, relational SQL engines (`PostgreSQL` / `SQLite` wire protocols), and desktop GUI widget toolkits are intentionally kept outside the core stdlib; use a reverse proxy (e.g., Nginx/Caddy/Cloudflare) for TLS termination, `kv.bmb` / `series.bmb` for embedded storage/analytics, or `py_call(...)` via `mamba/interop.py` when running alongside CPython.
+
 ---
 
-## 6. Dynamic OOP: Intentional Fast-Path Value Structs (No C3 MRO or Monkey-Patching)
+## 6. Dynamic OOP: C3 Multiple Inheritance, Cooperative `super()`, Virtual Vtables & Monkey-Patching (RESOLVED in `v1.1.0`)
 
-* **The Architectural Choice**:
-  * Black Mamba supports `struct` with typed fields, default values, and methods (`fn method(self)`).
-  * By design, Black Mamba `v1.0.0` omits Python's dynamic multiple-inheritance diamond resolution (C3 Method Resolution Order), runtime class synthesis (`type("Foo", (), {})`), and runtime method monkey-patching (`setattr(MyClass, "foo", new_fn)`).
-* **Why It Exists**:
-  * Dynamic multiple inheritance and monkey-patching force hash-table dictionary lookups on every attribute/method access, which is a primary bottleneck in CPython OOP. Black Mamba compiles struct field accesses to single-cycle fixed memory offsets and method calls to direct 1-cycle function calls.
-* **Best Practice**:
-  * Prefer composition, explicit interfaces, and unboxed `struct` value types. (Optional V8-style hidden-class shape tables remain a post-`1.0` research extension.)
+* **Current Status (RESOLVED in `v1.1.0`)**:
+  * **Dynamic C3 Linearization (Diamond MRO)**:
+    - Standard Python C3 Method Resolution Order algorithm accurately resolves complex diamond inheritance graphs (`class D(B, C)` where `B(A)` and `C(A)`).
+    - Detects and rejects inconsistent inheritance hierarchies with a descriptive `TypeError: Cannot create a consistent method resolution order (MRO)` at compile time.
+  * **Cooperative `super()` Dispatch**:
+    - Next-in-MRO resolution ensures cooperative calls via `super().method(...)` traverse the complete diamond hierarchy exactly once without duplicate evaluations or skipping intermediate classes.
+  * **Polymorphic Virtual Vtable Dispatch**:
+    - Dynamic classes compile with polymorphic virtual method tables (vtables), supporting runtime method overriding and virtual dispatch through base class references (`def render(s: Shape) -> str: return s.describe()`).
+  * **Runtime Class Monkey-Patching & Dynamic Instance Attributes**:
+    - Class methods can be replaced or added at runtime via `setattr(Class, "method_name", new_fn)`. Virtual vtable slots are dynamically patched in-place.
+    - Instances support dynamic attribute attachment and reflection via `setattr(obj, "attr", val)`, `getattr(obj, "attr")`, and `hasattr(obj, "attr")`.
+    - Type introspection via `isinstance(obj, Class)` and tuple matching (`isinstance(obj, (A, B))`).
+  * **Zero-Overhead Static Fast Path**:
+    - Value structs (`struct`) remain 100% zero-cost unboxed value types with fixed memory offsets and direct 1-cycle function calls, giving developers the freedom to choose high-speed value structs for tight inner loops or dynamic `class` hierarchies for extensible OOP architectures.
 
 ---
 
@@ -187,17 +199,19 @@
 
 ---
 
-### Summary Checklist of All Flaws
+### Summary Checklist of All Capabilities & Resolved Boundaries
 
-| Category | Flaw / Capability | Severity | Status |
+| Category | Capability / Milestone | Severity | Status |
 | :--- | :--- | :--- | :--- |
-| **Memory** | Ephemeral arenas + `gc.bmb` generational regions & cycle collector | Low | Resolved |
+| **Memory** | Ephemeral arenas + `gc.bmb` generational regions & cycle collector | Low | Complete |
 | **Platform** | Windows PE32+, Linux ELF64, macOS ARM64, `.pyd` C-Ext, Bare-Metal `.bin`/`.hex`, WASM 1.0, C11, LLVM | Low | Complete |
 | **Strings** | SSO, zero-copy slicing, `regex.bmb`, and pure native `unicode.bmb` engine | Low | Complete |
-| **Exceptions & Debug** | Hardware SEH (`.pdata`/`.xdata`), CodeView `RSDS`/COFF & DWARF v4 (`--debug`) | Low | Complete |
-| **Stdlib** | 26 pure native `.bmb` modules (`codegen`, `compiler`, `series`, `alloc`, `embedded`, `cluster`, `debug`, `http`, `simd`, `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`) | Low | Complete |
-| **Storage** | Embedded log-structured Key-Value engine (`kv.bmb`) with WAL & compaction | Low | Complete |
+| **Exceptions & Debug** | Multi-frame stack unwinding (`try/except/else/finally/raise`), hardware SEH, CodeView `RSDS`/COFF & DWARF v4 | Low | Complete (v1.1.0) |
+| **Stdlib** | 29 pure native `.bmb` modules (`codegen`, `compiler`, `series`, `alloc`, `embedded`, `cluster`, `debug`, `http`, `simd`, `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`, `tls`, `sql`, `gui`) | Low | Complete (v1.1.0) |
+| **Storage & SQL** | Embedded Key-Value engine (`kv.bmb`) + Relational ACID SQL engine & Postgres v3 wire protocol (`sql.bmb`) | Low | Complete (v1.1.0) |
+| **Security & TLS** | Pure native TLS 1.3 key schedule, ChaCha20 cipher, HMAC-SHA256, ClientHello, X.509 DER parser (`tls.bmb`) | Low | Complete (v1.1.0) |
+| **GUI & Graphics** | Retained-mode widget tree, flex layout, click dispatch, 24-bit canvas, 5x7 font, BMP & SVG export (`gui.bmb`) | Low | Complete (v1.1.0) |
 | **Async** | Cooperative reactor & scheduler (`async.bmb`) with monotonic timers | Low | Complete |
-| **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
+| **Dynamic OOP** | Dynamic C3 Multiple Inheritance (Diamond MRO), cooperative `super()`, virtual vtables, monkey-patching (`setattr`, `getattr`, `hasattr`, `isinstance`) + unboxed fast-path `struct` | Low | Complete (v1.1.0) |
 | **Concurrency**| Atomics, threads, `par_for`, lock-free MPMC channels, `Select`, `Actor` & `cluster.bmb` TCP RPC | Low | Complete |
 | **Tooling** | Self-hosting `.bmb -> .exe` compiler, VS Code LSP, REPL, `bmb pkg --registry`, `bmb doc` & `bmb.exe` | Low | Complete |

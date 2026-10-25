@@ -347,8 +347,12 @@ class MachOARM64ExecutableBuilder:
         rodata_buf.extend(b"\x00")
 
         # Heap pointer storage (8 bytes)
+        while len(rodata_buf) % 8 != 0:
+            rodata_buf.append(0)
         heap_ptr_offset = len(rodata_buf)
         rodata_buf.extend(b"\x00" * 8)
+        rt_slots_offset = len(rodata_buf)
+        rodata_buf.extend(b"\x00" * 128)
 
         string_rel_offsets: Dict[int, int] = {}
         for idx, s in enumerate(self.mir_module.string_pool):
@@ -1050,6 +1054,27 @@ class MachOARM64ExecutableBuilder:
         buf.mark_label("fn____bmb_alloc_root_set")
         buf.ret()
 
+        buf.mark_label("fn____bmb_rt_slot_get")
+        buf.mov_reg_imm64(2, 15)
+        buf.and_reg(0, 0, 2)
+        buf.mov_reg_imm64(2, 3)
+        buf.lsl_reg(0, 0, 2)
+        buf.adr_label(2, "lbl__rt_slots")
+        buf.add_reg(2, 2, 0)
+        buf.emit32(0xF9400040, "ldr x0, [x2]")
+        buf.ret()
+
+        buf.mark_label("fn____bmb_rt_slot_set")
+        buf.mov_reg_imm64(2, 15)
+        buf.and_reg(0, 0, 2)
+        buf.mov_reg_imm64(2, 3)
+        buf.lsl_reg(0, 0, 2)
+        buf.adr_label(2, "lbl__rt_slots")
+        buf.add_reg(2, 2, 0)
+        buf.emit32(0xF9000041, "str x1, [x2]")
+        buf.mov_reg_reg(0, 1)
+        buf.ret()
+
         buf.mark_label("fn____bmb_exit")
         buf.mov_reg_imm64(16, 0x2000001)
         buf.svc(0x80)
@@ -1071,7 +1096,7 @@ class MachOARM64ExecutableBuilder:
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
             "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
-            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_exit",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
         ])
 
         helper_labels = {
@@ -1117,6 +1142,7 @@ class MachOARM64ExecutableBuilder:
         buf.labels["lbl__rodata_false"] = rodata_offset_in_text + str_false
         buf.labels["lbl__rodata_empty"] = rodata_offset_in_text + str_empty
         buf.labels["lbl__heap_ptr"] = rodata_offset_in_text + heap_ptr_offset
+        buf.labels["lbl__rt_slots"] = rodata_offset_in_text + rt_slots_offset
         buf.labels["lbl__heap_base"] = rodata_offset_in_text + len(rodata_buf) + 16
 
         for idx, ro_off in string_rel_offsets.items():
@@ -1241,6 +1267,8 @@ class MachOARM64ExecutableBuilder:
                 buf.mov_reg_imm64(reg, int(src))
             elif src in slots:
                 buf.ldr_reg_fp_offset(reg, slots[src])
+            elif src in self.known_fn_names:
+                buf.adr_label(reg, f"fn__{src}")
             else:
                 buf.mov_reg_imm64(reg, 0)
 

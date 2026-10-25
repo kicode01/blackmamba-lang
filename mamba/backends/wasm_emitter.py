@@ -177,14 +177,15 @@ class WasmBackend:
                 ensure_local(vname, vt)
 
         for ins in fn.instructions:
-            if ins.dst and ins.dst != "%void":
+            if ins.dst and ins.dst != "%void" and ins.dst not in self.func_indices:
                 ensure_local(ins.dst, ins.val_type)
-            if isinstance(ins.arg1, str) and ins.op not in ("LABEL", "JMP", "CALL"):
+            if isinstance(ins.arg1, str) and ins.op not in ("LABEL", "JMP", "CALL") and ins.arg1 not in self.func_indices:
                 ensure_local(ins.arg1, fn.local_types.get(ins.arg1, "i64"))
-            if isinstance(ins.arg2, str) and ins.op not in ("JZ", "JNZ"):
+            if isinstance(ins.arg2, str) and ins.op not in ("JZ", "JNZ") and ins.arg2 not in self.func_indices:
                 ensure_local(ins.arg2, fn.local_types.get(ins.arg2, "i64"))
             for ex in ins.extra:
-                ensure_local(ex, fn.local_types.get(ex, "i64"))
+                if ex not in self.func_indices:
+                    ensure_local(ex, fn.local_types.get(ex, "i64"))
 
         # Add internal dispatch `$pc` (i32) and `$tmp_i32` (i32)
         pc_idx = len(local_idx)
@@ -319,6 +320,13 @@ class WasmBackend:
         dst_l = local_idx.get(str(ins.dst), 0) if ins.dst and ins.dst != "%void" else None
 
         def load_as(vname: str, target_wt: int) -> None:
+            if vname not in local_idx and vname in self.func_indices:
+                f_handle = self.func_indices[vname] + 1
+                if target_wt == WASM_F64:
+                    code.extend(b"\x44" + struct.pack("<d", float(f_handle)))
+                else:
+                    code.extend(b"\x42" + _sleb128(f_handle))
+                return
             l_id = local_idx[vname]
             cur_wt = local_wasm_type[vname]
             code.extend(b"\x20" + _uleb128(l_id))
@@ -588,7 +596,7 @@ class WasmBackend:
             load_as(str(ins.arg1), WASM_I64)
             code.append(0xA7)
             code.extend(b"\x41\x08\x6C\x6A")
-            val_wt = local_wasm_type[str(ins.arg2)]
+            val_wt = local_wasm_type.get(str(ins.arg2), WASM_I64)
             load_as(str(ins.arg2), val_wt)
             if val_wt == WASM_F64:
                 code.extend(b"\x39\x03\x00")  # f64.store align=8 offset=0
@@ -649,6 +657,57 @@ class WasmBackend:
                     code.extend(b"\x3A\x00\x00")  # i64.store8
                     if dst_l is not None:
                         code.extend(b"\x42\x00\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_alloc_root_get" and dst_l is not None:
+                    code.extend(b"\x41" + _sleb128(248) + b"\x29\x03\x00")
+                    code.extend(b"\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_alloc_root_set" and len(ins.extra) >= 1:
+                    code.extend(b"\x41" + _sleb128(248))
+                    load_as(ins.extra[0], WASM_I64)
+                    code.extend(b"\x37\x03\x00")
+                    if dst_l is not None:
+                        load_as(ins.extra[0], WASM_I64)
+                        code.extend(b"\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_rt_slot_get" and len(ins.extra) >= 1 and dst_l is not None:
+                    load_as(ins.extra[0], WASM_I64)
+                    code.extend(b"\xA7\x41\x0F\x71\x41\x08\x6C\x41" + _sleb128(256) + b"\x6A\x29\x03\x00")
+                    code.extend(b"\x21" + _uleb128(dst_l))
+                    return
+                if callee_name == "__bmb_rt_slot_set" and len(ins.extra) >= 2:
+                    load_as(ins.extra[0], WASM_I64)
+                    code.extend(b"\xA7\x41\x0F\x71\x41\x08\x6C\x41" + _sleb128(256) + b"\x6A")
+                    load_as(ins.extra[1], WASM_I64)
+                    code.extend(b"\x37\x03\x00")
+                    if dst_l is not None:
+                        load_as(ins.extra[1], WASM_I64)
+                        code.extend(b"\x21" + _uleb128(dst_l))
+                    return
+                if callee_name in local_idx:
+                    if dst_l is not None:
+                        if local_wasm_type[str(ins.dst)] == WASM_F64:
+                            code.extend(b"\x44" + struct.pack("<d", 0.0))
+                        else:
+                            code.extend(b"\x42\x00")
+                        code.extend(b"\x21" + _uleb128(dst_l))
+                    for f_idx, cand_fn in enumerate(self.mir_module.functions):
+                        if len(cand_fn.params) != len(ins.extra):
+                            continue
+                        cand_ret_wt = WASM_F64 if cand_fn.return_type == "f64" else WASM_I64
+                        if dst_l is not None and cand_ret_wt != local_wasm_type[str(ins.dst)]:
+                            continue
+                        load_as(callee_name, WASM_I64)
+                        code.extend(b"\x42" + _sleb128(f_idx + 1) + b"\x51")  # i64.const (f_idx+1); i64.eq
+                        code.extend(b"\x04\x40")  # if (void)
+                        for arg_v, (_, p_t) in zip(ins.extra, cand_fn.params):
+                            load_as(arg_v, WASM_F64 if p_t == "f64" else WASM_I64)
+                        code.extend(b"\x10" + _uleb128(f_idx))
+                        if dst_l is not None:
+                            code.extend(b"\x21" + _uleb128(dst_l))
+                        else:
+                            code.append(0x1A)  # drop
+                        code.append(0x0B)  # end if
                     return
                 # External OS / host primitive stub in WASM: return 0 / 0.0
                 if dst_l is not None:

@@ -36,7 +36,7 @@ npm install -g @vscode/vsce
 cd editors/vscode
 npm install
 vsce package
-code --install-extension vscode-black-mamba-1.0.0.vsix
+code --install-extension vscode-black-mamba-1.1.0.vsix
 ```
 
 ---
