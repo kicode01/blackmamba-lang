@@ -291,6 +291,9 @@ class ARM64CodeBuffer:
         self.fixups.append((len(self.code), label, "bl", 0))
         self.emit32(0x94000000, f"bl {label}")
 
+    def blr_reg(self, rn: int) -> None:
+        self.emit32(0xD63F0000 | ((rn & 31) << 5), f"blr x{rn}")
+
     def b_cond_label(self, cond: int, label: str) -> None:
         self.fixups.append((len(self.code), label, "b.cond", cond))
         self.emit32(0x54000000 | cond, f"b.cond #{cond} {label}")
@@ -857,7 +860,179 @@ class MachOARM64ExecutableBuilder:
         buf.add_sp_imm(48)
         buf.ldp_fp_lr_and_ret()
 
+        # Builtin runtime implementations and stubs for ARM64 macOS
+        buf.mark_label("fn____bmb_file_exists")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_file_size")
+        buf.mov_reg_imm64(0, -1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_file_read")
+        buf.mov_reg_imm64(0, 1) # empty string SSO
+        buf.ret()
+
+        buf.mark_label("fn____bmb_file_write")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_file_remove")
+        buf.mov_reg_imm64(0, 1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_get_cwd")
+        buf.mov_reg_imm64(0, 1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_get_env")
+        buf.mov_reg_imm64(0, 1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_init")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_cleanup")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_create")
+        buf.mov_reg_imm64(0, -1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_connect")
+        buf.mov_reg_imm64(0, -1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_bind")
+        buf.mov_reg_imm64(0, -1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_listen")
+        buf.mov_reg_imm64(0, -1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_accept")
+        buf.mov_reg_imm64(0, -1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_send")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_recv")
+        buf.mov_reg_imm64(0, 1) # empty string SSO
+        buf.ret()
+
+        buf.mark_label("fn____bmb_socket_close")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_atomic_load")
+        buf.emit32(0xF9400000, "ldr x0, [x0]")
+        buf.ret()
+
+        buf.mark_label("fn____bmb_atomic_store")
+        buf.emit32(0xF9000001, "str x1, [x0]")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_atomic_add")
+        buf.emit32(0xF9400002, "ldr x2, [x0]")
+        buf.emit32(0x8B010043, "add x3, x2, x1")
+        buf.emit32(0xF9000003, "str x3, [x0]")
+        buf.emit32(0xAA0203E0, "mov x0, x2")
+        buf.ret()
+
+        buf.mark_label("fn____bmb_atomic_sub")
+        buf.emit32(0xF9400002, "ldr x2, [x0]")
+        buf.emit32(0xCB010043, "sub x3, x2, x1")
+        buf.emit32(0xF9000003, "str x3, [x0]")
+        buf.emit32(0xAA0203E0, "mov x0, x2")
+        buf.ret()
+
+        buf.mark_label("fn____bmb_atomic_cas")
+        buf.emit32(0xF9400003, "ldr x3, [x0]")
+        buf.emit32(0xEB01007F, "cmp x3, x1")
+        buf.emit32(0x54000041, "b.ne +8")
+        buf.emit32(0xF9000002, "str x2, [x0]")
+        buf.emit32(0xAA0303E0, "mov x0, x3")
+        buf.ret()
+
+        buf.mark_label("fn____bmb_atomic_fence")
+        buf.emit32(0xD5033BBF, "dmb ish")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_cpu_pause")
+        buf.emit32(0xD503205F, "yield")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_thread_concurrency")
+        buf.mov_reg_imm64(0, 4)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_thread_spawn")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_thread_join")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_thread_id")
+        buf.mov_reg_imm64(0, 1)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_thread_yield")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_thread_sleep")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_mem_alloc")
+        buf.stp_fp_lr()
+        buf.mov_fp_sp()
+        buf.sub_sp_imm(16)
+        buf.mov_reg_reg(1, 0) # size in x1
+        buf.mov_reg_imm64(0, 1) # count = 1
+        buf.bl_label("rt__alloc_arr")
+        buf.add_sp_imm(16)
+        buf.ldp_fp_lr_and_ret()
+
+        buf.mark_label("fn____bmb_mem_free")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_mem_read")
+        buf.ldr_reg_reg(0, 0, 1, shift=3)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_mem_write")
+        buf.str_reg_reg(2, 0, 1, shift=3)
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
         # 4. Compile all MIR user functions
+        self.known_fn_names = {f.name for f in self.mir_module.functions}
+        self.known_fn_names.update([
+            "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
+            "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
+            "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",
+            "__bmb_socket_close",
+            "__bmb_atomic_load", "__bmb_atomic_store", "__bmb_atomic_add", "__bmb_atomic_sub",
+            "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
+            "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
+            "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+        ])
+
         helper_labels = {
             "print": "rt__print",
             "alloc_arr": "rt__alloc_arr",
@@ -1096,6 +1271,17 @@ class MachOARM64ExecutableBuilder:
                 load_val(9, str(ins.arg1))
                 buf.neg_reg(9, 9)
                 store_val(9, str(ins.dst))
+            elif op == "ABS_I64":
+                load_val(9, str(ins.arg1))
+                buf.cmp_imm(9, 0)
+                buf.emit32(0x5400004A, "b.ge +8")
+                buf.neg_reg(9, 9)
+                store_val(9, str(ins.dst))
+            elif op == "ABS_F64":
+                load_val(9, str(ins.arg1))
+                buf.mov_reg_imm64(10, 0x7FFFFFFFFFFFFFFF)
+                buf.and_reg(9, 9, 10)
+                store_val(9, str(ins.dst))
             elif op == "AND_I64":
                 load_val(9, str(ins.arg1))
                 load_val(10, str(ins.arg2))
@@ -1138,7 +1324,11 @@ class MachOARM64ExecutableBuilder:
                 for arg_idx, arg_name in enumerate(ins.extra):
                     if arg_idx < 8:
                         load_val(arg_idx, arg_name)
-                buf.bl_label(f"fn__{ins.arg1}")
+                if ins.arg1 in self.known_fn_names:
+                    buf.bl_label(f"fn__{ins.arg1}")
+                else:
+                    load_val(16, str(ins.arg1))
+                    buf.blr_reg(16)
                 if ins.dst and ins.dst != "%void":
                     store_val(0, str(ins.dst))
             elif op == "PRINT":

@@ -392,6 +392,21 @@ class WasmBackend:
             code.extend(b"\x21" + _uleb128(dst_l))
             return
 
+        if op == "ABS_I64" and dst_l is not None:
+            load_as(str(ins.arg1), WASM_I64)
+            code.extend(b"\x22" + _uleb128(dst_l))   # local.tee dst_l
+            code.extend(b"\x42\x00")                # i64.const 0
+            code.extend(b"\x53")                    # i64.lt_s
+            code.extend(b"\x04\x7E")                # if (result i64)
+            code.extend(b"\x42\x00")                # i64.const 0
+            code.extend(b"\x20" + _uleb128(dst_l))   # local.get dst_l
+            code.extend(b"\x7D")                    # i64.sub
+            code.extend(b"\x05")                    # else
+            code.extend(b"\x20" + _uleb128(dst_l))   # local.get dst_l
+            code.extend(b"\x0B")                    # end
+            code.extend(b"\x21" + _uleb128(dst_l))   # local.set dst_l
+            return
+
         if op == "ABS_F64" and dst_l is not None:
             load_as(str(ins.arg1), WASM_F64)
             code.extend(b"\x99")  # f64.abs

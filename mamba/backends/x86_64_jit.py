@@ -285,7 +285,8 @@ class X86_64CodeBuffer:
     def abs_rax(self) -> None:
         self.emit(b"\x48\x89\xC1", "mov rcx, rax")
         self.emit(b"\x48\xF7\xD9", "neg rcx")
-        self.emit(b"\x48\x0F\x4C\xC1", "cmovl rax, rcx")
+        self.emit(b"\x48\x85\xC0", "test rax, rax")
+        self.emit(b"\x48\x0F\x48\xC1", "cmovs rax, rcx")
 
     def cmp_rax_rcx(self) -> None:
         self.emit(b"\x48\x39\xC8", "cmp rax, rcx")

@@ -465,6 +465,72 @@ class ELF64ExecutableBuilder:
         buf.emit(b"\x48\x83\xC8\x03", "or rax, 3")
         buf.ret()
 
+        # rt__str_to_i64(rcx = str handle) -> rax = i64
+        buf.mark_label("rt__str_to_i64")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx ; s")
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__s2i_ptr")
+
+        # SSO string: unpack bytes to stack
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\xC6\x45\xF8\x00", "mov byte ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.jmp_label("rt__s2i_start")
+
+        buf.mark_label("rt__s2i_ptr")
+        # rcx is already src_ptr
+        buf.mark_label("rt__s2i_start")
+        # Skip leading spaces / tabs
+        buf.mark_label("rt__s2i_skip_ws")
+        buf.emit(b"\x8A\x01", "mov al, [rcx]")
+        buf.emit(b"\x3C\x20", "cmp al, ' '")
+        buf.jcc_rel32(0x84, "e", "rt__s2i_ws_adv")
+        buf.emit(b"\x3C\x09", "cmp al, '\\t'")
+        buf.jcc_rel32(0x85, "ne", "rt__s2i_check_sign")
+        buf.mark_label("rt__s2i_ws_adv")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.jmp_label("rt__s2i_skip_ws")
+
+        buf.mark_label("rt__s2i_check_sign")
+        buf.emit(b"\x49\xC7\xC0\x01\x00\x00\x00", "mov r8, 1 ; sign = 1")
+        buf.emit(b"\x8A\x01", "mov al, [rcx]")
+        buf.emit(b"\x3C\x2D", "cmp al, '-'")
+        buf.jcc_rel32(0x85, "ne", "rt__s2i_check_plus")
+        buf.emit(b"\x49\xC7\xC0\xFF\xFF\xFF\xFF", "mov r8, -1 ; sign = -1")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.jmp_label("rt__s2i_digits")
+        buf.mark_label("rt__s2i_check_plus")
+        buf.emit(b"\x3C\x2B", "cmp al, '+'")
+        buf.jcc_rel32(0x85, "ne", "rt__s2i_digits")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+
+        buf.mark_label("rt__s2i_digits")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax ; accumulator = 0")
+        buf.mark_label("rt__s2i_loop")
+        buf.emit(b"\x0F\xB6\x11", "movzx edx, byte ptr [rcx]")
+        buf.emit(b"\x83\xEA\x30", "sub edx, 48 ; '0'")
+        buf.emit(b"\x83\xFA\x09", "cmp edx, 9")
+        buf.jcc_rel32(0x87, "a", "rt__s2i_done")
+        buf.emit(b"\x48\x8D\x04\x80", "lea rax, [rax + rax*4]")
+        buf.emit(b"\x48\x01\xC0", "add rax, rax")
+        buf.emit(b"\x48\x01\xD0", "add rax, rdx")
+        buf.emit(b"\x48\xFF\xC1", "inc rcx")
+        buf.jmp_label("rt__s2i_loop")
+
+        buf.mark_label("rt__s2i_done")
+        buf.emit(b"\x49\x83\xF8\x00", "cmp r8, 0")
+        buf.jcc_rel32(0x8D, "ge", "rt__s2i_ret")
+        buf.emit(b"\x48\xF7\xD8", "neg rax")
+        buf.mark_label("rt__s2i_ret")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
         buf.mark_label("rt__str_index")
         buf.emit(b"\xF6\xC1\x01", "test cl, 1")
         buf.jcc_rel32(0x84, "z", "rt__idx_heap")
@@ -874,7 +940,7 @@ class ELF64ExecutableBuilder:
             "str_from_bool": "rt__str_from_bool",
             "str_ord": "rt__str_ord",
             "str_chr": "rt__str_chr",
-            "str_to_i64": "rt__str_stub",
+            "str_to_i64": "rt__str_to_i64",
             "str_to_f64": "rt__str_stub",
             "clock_ns": "rt__clock_ns",
         }
@@ -1507,6 +1573,34 @@ class ELF64ExecutableBuilder:
 
         buf.mark_label("fn____bmb_mem_write")
         buf.emit(b"\x4C\x89\x04\xD1", "mov [rcx + rdx*8], r8")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
+        # Native Threading & Concurrency Functions
+        buf.mark_label("fn____bmb_thread_concurrency")
+        buf.emit(b"\x48\xC7\xC0\x04\x00\x00\x00\xC3", "mov rax, 4; ret")
+
+        buf.mark_label("fn____bmb_thread_spawn")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_thread_join")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_thread_id")
+        buf.emit(b"\x48\xC7\xC0\xBA\x00\x00\x00", "mov rax, 186 ; sys_gettid")
+        buf.emit(b"\x0F\x05\xC3", "syscall; ret")
+
+        buf.mark_label("fn____bmb_thread_yield")
+        buf.emit(b"\x48\xC7\xC0\x18\x00\x00\x00", "mov rax, 24 ; sys_sched_yield")
+        buf.emit(b"\x0F\x05\xC3", "syscall; ret")
+
+        buf.mark_label("fn____bmb_thread_sleep")
+        buf.mark_label("rt__elf_sleep_loop")
+        buf.emit(b"\x48\x85\xC9", "test rcx, rcx")
+        buf.jcc_rel32(0x8E, "le", "rt__elf_sleep_done")
+        buf.emit(b"\xF3\x90", "pause")
+        buf.emit(b"\x48\xFF\xC9", "dec rcx")
+        buf.jmp_label("rt__elf_sleep_loop")
+        buf.mark_label("rt__elf_sleep_done")
         buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
 
         known_fn_names = {f.name for f in self.mir_module.functions}
