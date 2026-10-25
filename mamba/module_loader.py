@@ -8,6 +8,7 @@ and unifying their declarations into the target compilation unit.
 
 import copy
 import os
+import sys
 from typing import Dict, List, Optional, Set
 from .ast_nodes import (
     ArrayLit,
@@ -39,7 +40,22 @@ from .ast_nodes import (
 )
 from .parser import Parser
 
-STDLIB_DIR = os.path.join(os.path.dirname(__file__), "stdlib")
+def _get_stdlib_dir() -> str:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        p = os.path.join(sys._MEIPASS, "mamba", "stdlib")
+        if os.path.exists(p):
+            return p
+    p1 = os.path.join(os.path.dirname(__file__), "stdlib")
+    if os.path.exists(p1):
+        return p1
+    if getattr(sys, "frozen", False):
+        p2 = os.path.join(os.path.dirname(sys.executable), "stdlib")
+        if os.path.exists(p2):
+            return p2
+    return p1
+
+
+STDLIB_DIR = _get_stdlib_dir()
 
 
 def resolve_module_file(module_name: str, base_dir: str) -> Optional[str]:

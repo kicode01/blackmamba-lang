@@ -33,9 +33,9 @@
 
 ---
 
-## 3. Strings, Unicode & Regex: Dynamic Slicing, SSO & Pure Linear-Time Regex Engine (RESOLVED); Complex Unicode Remaining
+## 3. Strings, Unicode & Regex: Dynamic Slicing, SSO, Linear Regex & Pure Native Unicode Engine (RESOLVED)
 
-* **Current Status**:
+* **Current Status (RESOLVED)**:
   * **SSO & Dynamic Strings (RESOLVED in Phase 3)**:
     - Small String Optimization (SSO): strings $\le$ 7 bytes live directly inside 64-bit CPU registers as immediate tagged integers with **zero memory allocations** and **zero pointer dereferences**.
     - Strings $\le$ 15 bytes are stored in inline contiguous descriptors without secondary heap buffers.
@@ -46,13 +46,14 @@
     - Guaranteed $O(N)$ linear-time performance and total immunity to catastrophic backtracking (ReDoS attacks).
     - Full support for literals, wildcards (`.`), character classes (`[0-9]`, `[a-z]`, `[^...]`), escape sequences (`\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\n`, `\t`), anchors (`^`, `$`), quantifiers (`*`, `+`, `?`, `{n}`, `{n,}`, `{n,m}`), alternations (`a|b`), non-capturing groups, prefix matching (`regex_match`), unanchored search (`regex_search`, `regex_find`, `regex_find_all`), global string replacement (`regex_replace`), string splitting (`regex_split`), and ergonomic functional shorthands (`re_match`, `re_search`, `re_find`, `re_replace`, `re_split`).
     - Raw string literal support (`r"..."` / `R"..."`) in the Black Mamba lexer ensures regex escape patterns pass untouched to the Thompson NFA compiler.
-  * **Remaining Limitation**:
-    - Complex variable-width Unicode normalization (PEP 393 wide codepoint transcoding, e.g. UTF-16 surrogate pairs and full locale-sensitive collation tables) currently relies on host Python text routines via the CPython Host Bridge (`py_call`).
-* **Current Workaround**:
-  * Use `from regex import *` for all high-speed regular expressions, search, replace, and splitting with zero CPython dependencies.
-  * For complex locale-sensitive string transforms or full Unicode normalization, use the CPython Host Bridge (`py_call("unicodedata", "normalize", ...)`).
-* **Planned Future Work**:
-  * Native UTF-8 grapheme cluster iterator and pure `.bmb` Unicode normalization.
+  * **Pure Native Unicode Engine (RESOLVED in Tier 1 via `unicode.bmb`)**:
+    - `unicode.bmb`: Pure native UTF-8 decoders, scalar validation, codepoint enumeration, and UTF-16 surrogate pair transcoding with zero external dependencies.
+    - Standard UAX #29 Grapheme Cluster Segmentation (`grapheme_len`, `grapheme_is_boundary`) handling combining characters, regional indicators, and zero-width joiners (`ZWJ`).
+    - Codepoint classification & character properties: `cp_is_ascii`, `cp_is_whitespace`, `cp_is_alphabetic` (Latin, Greek, Cyrillic, CJK Ideographs), `cp_is_numeric`, `cp_is_combining`, `cp_is_emoji`.
+    - Full Case Conversion & Folding (`cp_to_upper`, `cp_to_lower`, `str_to_upper`, `str_to_lower`) covering basic and extended Latin blocks without host Python FFI.
+* **Best Practices**:
+  * Use `from unicode import *` for all codepoint decoding, grapheme clustering, and case transforms.
+  * Use `from regex import *` for high-speed regular expressions with guaranteed linear execution time.
 
 ---
 

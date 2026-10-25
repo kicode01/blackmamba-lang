@@ -151,6 +151,29 @@ Give developers world-class editor support, package management, and documentatio
 
 ---
 
+## Tier 1 High-Impact Runtime Frontiers ✅ *(COMPLETED & VERIFIED)*
+
+- [x] **Pure Native Unicode Engine (`unicode.bmb`)**:
+  - [x] UTF-8 byte length computation, multibyte codepoint decoders, and scalar validity checks with zero host CPython FFI.
+  - [x] UAX #29 Grapheme Cluster Segmentation (`grapheme_len`, `grapheme_is_boundary`) handling combining marks, regional flags, and ZWJ emoji sequences.
+  - [x] UTF-16 Surrogate Pair transcoding (`utf16_encode_high_surrogate`, `utf16_encode_low_surrogate`, `utf16_decode_surrogates`).
+  - [x] Codepoint classification and character properties (`cp_is_ascii`, `cp_is_whitespace`, `cp_is_alphabetic`, `cp_is_numeric`, `cp_is_combining`, `cp_is_emoji`).
+  - [x] Case conversion and folding (`cp_to_upper`, `cp_to_lower`, `str_to_upper`, `str_to_lower`).
+- [x] **Asynchronous Reactor & Event Loop (`async.bmb`)**:
+  - [x] Pure native cooperative asynchronous reactor and task scheduler (`async_loop_new`, `async_spawn`, `async_delay`).
+  - [x] Non-blocking step tick execution (`async_tick`) with monotonic hardware clock task expiration.
+  - [x] Task lifecycle inspection (`async_task_status`, `async_task_result`, `async_task_is_done`).
+  - [x] Batch runners (`async_run_until_complete`, `async_run_all`, `async_stop`).
+- [x] **Native Embedded Key-Value Storage Engine (`kv.bmb`)**:
+  - [x] Durable log-structured storage engine (append-only WAL + fast in-memory table) with durable disk flushing via `os.bmb`.
+  - [x] Storage lifecycle and operations (`kv_open`, `kv_put`, `kv_put_int`, `kv_get`, `kv_get_int`, `kv_has`, `kv_delete`, `kv_sync`, `kv_compact`, `kv_close`).
+  - [x] Automatic compaction purging tombstoned records with atomic write-sync.
+- [x] **Single-Binary Standalone Toolchain (`dist/bmb.exe`)**:
+  - [x] Zero-host-Python requirement for end users.
+  - [x] Single standalone executable bundle packaging the complete Black Mamba compiler, native linkers (PE32+, ELF64, Mach-O ARM64, WASM, C11), LSP server, REPL, package manager, and doc generator.
+
+---
+
 ## ⚠️ Current Limitations & Flaws (What Black Mamba Lacks Today)
 
 For full architectural transparency, every known limitation, missing feature, and trade-off in Black Mamba today is thoroughly documented in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
@@ -158,9 +181,9 @@ For full architectural transparency, every known limitation, missing feature, an
 ### Summary of Current Flaws:
 1. **Dynamic Cyclic Memory**: Ephemeral allocations resolved via compile-time lexical arenas; long-lived cyclic heap graphs resolved via `gc.bmb` generational region tracking & tracing cycle collector.
 2. **Platform Coverage**: Windows PE32+, Linux ELF64 (3.9 KB), and macOS ARM64 shipped; WebAssembly 1.0 standalone.
-3. **Strings**: Small String Optimization (SSO), zero-copy slicing, dynamic operations, and linear-time regex engine (`regex.bmb`) resolved; complex Unicode normalization in progress.
+3. **Strings**: Small String Optimization (SSO), zero-copy slicing, dynamic operations, linear-time regex engine (`regex.bmb`), and pure native Unicode engine (`unicode.bmb`) resolved.
 4. **Hardware Exceptions**: Zero-cost SEH `.pdata`/`.xdata` unwind tables and VEH handler shipped in PE32+ linker.
-5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `gc`, and `test` are pure native `.bmb`.
+5. **Standard Library**: Core 16 modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`) are pure native `.bmb`.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
 7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, `par_map`, lock-free bounded MPMC channels, multi-channel `Select` multiplexing, and priority `Actor` event loops (`chan.bmb`) shipped.
 8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`), VS Code extension, REPL (`bmb repl`), package manager (`bmb pkg`), and doc generator (`bmb doc`) shipped; central web registry in progress.

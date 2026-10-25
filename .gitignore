@@ -1,3 +1,10 @@
+# Build artifacts & distributions
+build/
+dist/
+*.spec
+scratch/
+*.db
+
 # Python Bytecode
 __pycache__/
 *.py[cod]

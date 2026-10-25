@@ -326,6 +326,9 @@ Black Mamba includes a comprehensive standard library written in pure `.bmb` tha
 | [`thread.bmb`](mamba/stdlib/thread.bmb) | Hardware Multithreading | Multi-core thread spawning, atomic memory operations (`atomic_cas`, `atomic_add`), `SpinLock`, `Mutex`, `par_for`. |
 | [`chan.bmb`](mamba/stdlib/chan.bmb) | Lock-Free Channels & Actors | Dmitry Vyukov's MPMC queue, Go-style `Select` multiplexer (`select_wait`), and priority `Actor` loops. |
 | [`regex.bmb`](mamba/stdlib/regex.bmb) | Linear-Time Regular Expressions | Thompson NFA compiler & Pike VM with guaranteed $O(N)$ execution and total immunity to ReDoS attacks. |
+| [`unicode.bmb`](mamba/stdlib/unicode.bmb) | Pure Native Unicode Engine | UTF-8 decoders, scalar validation, UAX #29 grapheme cluster segmentation, UTF-16 surrogate pairs, case folding. |
+| [`async.bmb`](mamba/stdlib/async.bmb) | Asynchronous Reactor & Event Loop | Pure native cooperative async reactor, monotonic timer scheduling, non-blocking step ticks, and batch runners. |
+| [`kv.bmb`](mamba/stdlib/kv.bmb) | Embedded Key-Value Storage Engine | Zero-dependency persistent key-value store with append WAL, in-memory index, compaction, and disk durability. |
 | [`gc.bmb`](mamba/stdlib/gc.bmb) | Generational Regions & Cycles | Generational arenas (`Region`) for $O(1)$ bulk reclamation and non-recursive tracing mark-sweep cycle collectors (`GC`). |
 | [`test.bmb`](mamba/stdlib/test.bmb) | Testing & Benchmark Harness | Assertion macros (`assert_eq_i64`), suite runner, and hardware nanosecond benchmarking reporting Mops/sec. |
 

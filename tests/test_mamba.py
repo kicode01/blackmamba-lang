@@ -1923,6 +1923,229 @@ fn main() -> i64:
         if os.path.exists(pe_exe_path):
             os.remove(pe_exe_path)
 
+    def test_stdlib_unicode_engine(self):
+        unicode_code = """
+from unicode import utf8_byte_len, utf8_decode_at, utf8_codepoint_len, utf8_validate, utf8_codepoint_at
+from unicode import utf16_is_surrogate, utf16_decode_surrogates, utf16_encode_high_surrogate, utf16_encode_low_surrogate
+from unicode import cp_is_ascii, cp_is_whitespace, cp_is_alphabetic, cp_is_numeric, cp_is_emoji, grapheme_len, cp_to_upper, cp_to_lower
+
+fn main() -> i64:
+    # 1. UTF-8 Lead Byte Lengths
+    b1 = utf8_byte_len(65)   # ASCII 'A' -> 1
+    b2 = utf8_byte_len(194)  # 0xC2 -> 2
+    b3 = utf8_byte_len(224)  # 0xE0 -> 3
+    b4 = utf8_byte_len(240)  # 0xF0 -> 4
+    b_err = utf8_byte_len(254) # invalid -> -1
+    print(f"UTF8_BYTES: b1={b1} b2={b2} b3={b3} b4={b4} b_err={b_err}")
+
+    # 2. String Codepoints & Validation
+    s = "Hello World"
+    cp_count = utf8_codepoint_len(s)
+    is_valid = utf8_validate(s)
+    cp_1 = utf8_codepoint_at(s, 1) # 'e' = 101
+    print(f"UTF8_STR: cp_count={cp_count} is_valid={is_valid} cp_1={cp_1}")
+
+    # 3. UTF-16 Surrogate Pair Transcoding (U+1F600 Grinning Face = 128512)
+    face_cp = 128512
+    high = utf16_encode_high_surrogate(face_cp)
+    low = utf16_encode_low_surrogate(face_cp)
+    decoded_cp = utf16_decode_surrogates(high, low)
+    is_surr = utf16_is_surrogate(high)
+    is_emoji = cp_is_emoji(face_cp)
+    print(f"UTF16_SURR: high={high} low={low} decoded={decoded_cp} is_surr={is_surr} is_emoji={is_emoji}")
+
+    # 4. Codepoint Classification & Properties
+    ascii_ok = cp_is_ascii(65)
+    ws_space = cp_is_whitespace(32)
+    ws_tab = cp_is_whitespace(9)
+    alpha_a = cp_is_alphabetic(65)
+    alpha_cjk = cp_is_alphabetic(19968) # Chinese character '一'
+    num_5 = cp_is_numeric(53) # '5'
+    print(f"PROPS: ascii={ascii_ok} ws_sp={ws_space} ws_tab={ws_tab} alpha_a={alpha_a} alpha_cjk={alpha_cjk} num_5={num_5}")
+
+    # 5. UAX #29 Grapheme Segmentation
+    g_ascii = grapheme_len("blackmamba")
+    print(f"GRAPHEME: g_ascii={g_ascii}")
+
+    # 6. Case Conversion & Folding
+    up_a = cp_to_upper(97)   # 'a' -> 'A' (65)
+    lo_z = cp_to_lower(90)   # 'Z' -> 'z' (122)
+    up_lat = cp_to_upper(224) # 'à' -> 'À' (192)
+    print(f"CASE: up_a={up_a} lo_z={lo_z} up_lat={up_lat}")
+    return 0
+"""
+        mod = Parser.from_source(unicode_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("UTF8_BYTES: b1=1 b2=2 b3=3 b4=4 b_err=-1", out)
+        self.assertIn("UTF8_STR: cp_count=11 is_valid=True cp_1=101", out)
+        self.assertIn("UTF16_SURR: high=55357 low=56832 decoded=128512 is_surr=True is_emoji=True", out)
+        self.assertIn("PROPS: ascii=True ws_sp=True ws_tab=True alpha_a=True alpha_cjk=True num_5=True", out)
+        self.assertIn("GRAPHEME: g_ascii=10", out)
+        self.assertIn("CASE: up_a=65 lo_z=122 up_lat=192", out)
+
+        # Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_unicode.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("UTF8_BYTES: b1=1 b2=2 b3=3 b4=4 b_err=-1", pe_res.stdout)
+        self.assertIn("UTF8_STR: cp_count=11 is_valid=True cp_1=101", pe_res.stdout)
+        self.assertIn("UTF16_SURR: high=55357 low=56832 decoded=128512 is_surr=True is_emoji=True", pe_res.stdout)
+        self.assertIn("PROPS: ascii=True ws_sp=True ws_tab=True alpha_a=True alpha_cjk=True num_5=True", pe_res.stdout)
+        self.assertIn("GRAPHEME: g_ascii=10", pe_res.stdout)
+        self.assertIn("CASE: up_a=65 lo_z=122 up_lat=192", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
+    def test_stdlib_async_reactor(self):
+        async_code = """
+from async import async_loop_new, async_spawn, async_delay, async_tick, async_run_until_complete, async_run_all, async_task_status, async_task_result, async_task_is_done
+
+def worker_add(x: i64) -> i64:
+    return x + 100
+
+def worker_mult(x: i64) -> i64:
+    return x * 10
+
+def main() -> i64:
+    loop = async_loop_new(16)
+    t1 = async_spawn(loop, worker_add, 42)
+    t2 = async_spawn(loop, worker_mult, 7)
+
+    # 1. Tick cooperative step
+    executed = async_tick(loop)
+    r1 = async_task_result(loop, t1)
+    r2 = async_task_result(loop, t2)
+    done1 = async_task_is_done(loop, t1)
+    done2 = async_task_is_done(loop, t2)
+    print(f"ASYNC_TICK: executed={executed} r1={r1} r2={r2} done1={done1} done2={done2}")
+
+    # 2. Delayed Task Execution via monotonic hardware clock
+    t3 = async_delay(loop, 2, worker_add, 500)
+    st_before = async_task_status(loop, t3)
+    r3 = async_run_until_complete(loop, t3)
+    st_after = async_task_status(loop, t3)
+    print(f"ASYNC_DELAY: st_before={st_before} r3={r3} st_after={st_after}")
+
+    # 3. Run all batch queue
+    t4 = async_spawn(loop, worker_mult, 9)
+    total_completed = async_run_all(loop)
+    r4 = async_task_result(loop, t4)
+    print(f"ASYNC_ALL: total={total_completed} r4={r4}")
+    return 0
+"""
+        mod = Parser.from_source(async_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("ASYNC_TICK: executed=2 r1=142 r2=70 done1=True done2=True", out)
+        self.assertIn("ASYNC_DELAY: st_before=0 r3=600 st_after=2", out)
+        self.assertIn("ASYNC_ALL: total=4 r4=90", out)
+
+        # Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_async.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("ASYNC_TICK: executed=2 r1=142 r2=70 done1=True done2=True", pe_res.stdout)
+        self.assertIn("ASYNC_DELAY: st_before=0 r3=600 st_after=2", pe_res.stdout)
+        self.assertIn("ASYNC_ALL: total=4 r4=90", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
+    def test_stdlib_kv_store(self):
+        kv_code = """
+from kv import kv_open, kv_put, kv_get, kv_put_int, kv_get_int, kv_has, kv_delete, kv_sync, kv_compact, kv_close, kv_len
+
+def main() -> i64:
+    path = "build/test_kv_suite.db"
+    db = kv_open(path, 64)
+    kv_put(db, "user:1", "Alice")
+    kv_put(db, "user:2", "Bob")
+    kv_put(db, "user:3", "Charlie")
+    kv_put_int(db, "score:1", 9500)
+    kv_put_int(db, "score:2", 8200)
+
+    # 1. In-memory data access & counts
+    u1 = kv_get(db, "user:1")
+    u2 = kv_get(db, "user:2")
+    sc1 = kv_get_int(db, "score:1", 0)
+    sc2 = kv_get_int(db, "score:2", 0)
+    has_u1 = kv_has(db, "user:1")
+    count1 = kv_len(db)
+    print(f"KV_PASS1: u1={u1} u2={u2} sc1={sc1} sc2={sc2} has_u1={has_u1} count1={count1}")
+
+    # 2. Deletion and compaction
+    kv_delete(db, "user:2")
+    has_u2_after = kv_has(db, "user:2")
+    count2 = kv_len(db)
+    print(f"KV_PASS2: has_u2_after={has_u2_after} count2={count2}")
+
+    kv_compact(db)
+    kv_close(db)
+
+    # 3. Persistent reload and recovery from disk WAL
+    db2 = kv_open(path, 64)
+    u1_reload = kv_get(db2, "user:1")
+    u2_reload = kv_get(db2, "user:2")
+    u3_reload = kv_get(db2, "user:3")
+    sc1_reload = kv_get_int(db2, "score:1", 0)
+    has_u2_reload = kv_has(db2, "user:2")
+    count3 = kv_len(db2)
+    kv_close(db2)
+    print(f"KV_PASS3: u1_reload={u1_reload} u2_reload={u2_reload} u3_reload={u3_reload} sc1_reload={sc1_reload} has_u2_reload={has_u2_reload} count3={count3}")
+    return 0
+"""
+        db_path = os.path.abspath("build/test_kv_suite.db")
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        os.makedirs("build", exist_ok=True)
+
+        mod = Parser.from_source(kv_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("KV_PASS1: u1=Alice u2=Bob sc1=9500 sc2=8200 has_u1=True count1=5", out)
+        self.assertIn("KV_PASS2: has_u2_after=False count2=4", out)
+        self.assertIn("KV_PASS3: u1_reload=Alice u2_reload= u3_reload=Charlie sc1_reload=9500 has_u2_reload=False count3=4", out)
+
+        # Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_kv.exe")
+        if os.path.exists(db_path):
+            os.remove(db_path)
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("KV_PASS1: u1=Alice u2=Bob sc1=9500 sc2=8200 has_u1=True count1=5", pe_res.stdout)
+        self.assertIn("KV_PASS2: has_u2_after=False count2=4", pe_res.stdout)
+        self.assertIn("KV_PASS3: u1_reload=Alice u2_reload= u3_reload=Charlie sc1_reload=9500 has_u2_reload=False count3=4", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+        if os.path.exists(db_path):
+            os.remove(db_path)
+
 
 if __name__ == "__main__":
     unittest.main()
