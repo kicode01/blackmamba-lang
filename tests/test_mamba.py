@@ -663,6 +663,44 @@ def test_vectors() -> i64:
         self.assertIn("base_1_mutated=8888", out)
         mod.close()
 
+    def test_stdlib_test_module(self):
+        """
+        Phase 4: Pure native Black Mamba (.bmb) Testing & Micro-Benchmarking standard library.
+        Verifies test_runner_new, test_suite, test_case, assert_eq_i64, assert_ne_i64,
+        assert_lt_i64, assert_eq_f64, assert_eq_str, assert_str_contains, benchmark_create,
+        benchmark_print, and test_summary.
+        """
+        import mamba
+        test_bmb_code = """
+from test import *
+
+def run_tests() -> i64:
+    t = test_runner_new(True)
+    test_suite(t, "Core Logic")
+    test_case(t, "Assertions")
+    assert_eq_i64(t, 10 + 20, 30, "sum == 30")
+    assert_ne_i64(t, 5, 6, "5 != 6")
+    assert_lt_i64(t, 1, 2, "1 < 2")
+    assert_eq_f64(t, 1.5 * 2.0, 3.0, 0.001, "1.5 * 2.0 == 3.0")
+    assert_eq_str(t, "mamba", "mamba", "str eq")
+    assert_str_contains(t, "black_mamba", "mamba", "contains mamba")
+
+    b = benchmark_create("Dummy Bench", 1000, 50000)
+    benchmark_print(b)
+    return test_summary(t)
+"""
+        mod = mamba.compile(test_bmb_code)
+        res = mod.run_tests()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("=== Test Suite: Core Logic ===", out)
+        self.assertIn("[PASS] sum == 30", out)
+        self.assertIn("[PASS] contains mamba", out)
+        self.assertIn("Benchmark: Dummy Bench", out)
+        self.assertIn("TEST SUMMARY: 6/6 assertions passed", out)
+        self.assertIn("STATUS: ALL TESTS PASSED! [100% SUCCESS]", out)
+        mod.close()
+
 
 if __name__ == "__main__":
     unittest.main()

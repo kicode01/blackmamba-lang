@@ -1,0 +1,103 @@
+# Black Mamba Flagship Showcase: test_showcase.bmb
+# Built-In Assertion Framework, Test Runner, and Nanosecond Micro-Benchmarking Harness
+# Demonstrates test suites, assertions, and high-precision benchmarking across all 6 backends.
+
+from test import *
+from array import *
+
+def main() -> i64:
+    print("================================================================================")
+    print("      BLACK MAMBA (.BMB) NATIVE TESTING & BENCHMARK HARNESS SHOWCASE            ")
+    print("================================================================================")
+
+    runner = test_runner_new(True)
+
+    # --------------------------------------------------------------------------
+    # Suite 1: Numerical & Logic Assertions
+    # --------------------------------------------------------------------------
+    test_suite(runner, "Numerical & Logic Primitives")
+    test_case(runner, "Integer Equalities and Bounds")
+    assert_eq_i64(runner, 1024 * 1024, 1048576, "1 MB == 1048576 bytes")
+    assert_ne_i64(runner, 42, 43, "42 != 43")
+    assert_lt_i64(runner, -10, 0, "-10 < 0")
+    assert_le_i64(runner, 100, 100, "100 <= 100")
+    assert_gt_i64(runner, 100, 99, "100 > 99")
+    assert_ge_i64(runner, 50, 50, "50 >= 50")
+
+    test_case(runner, "Floating-Point Precision Tolerance")
+    assert_eq_f64(runner, 0.1 + 0.2, 0.3, 0.000001, "0.1 + 0.2 == 0.3 within 1e-6")
+    assert_true(runner, 3.1415926535 > 3.14, "pi > 3.14")
+    assert_false(runner, 1.0 == 2.0, "1.0 != 2.0")
+
+    # --------------------------------------------------------------------------
+    # Suite 2: String & Substring Assertions
+    # --------------------------------------------------------------------------
+    test_suite(runner, "String Manipulation & Containment")
+    test_case(runner, "String Equality & Substrings")
+    assert_eq_str(runner, "black" + "_mamba", "black_mamba", "string concatenation")
+    assert_ne_str(runner, "alpha", "beta", "alpha != beta")
+    assert_str_contains(runner, "bare_metal_jit_compiler", "jit", "'jit' in 'bare_metal_jit_compiler'")
+    assert_false(runner, str_contains("compiler", "python"), "'python' not in 'compiler'")
+
+    # --------------------------------------------------------------------------
+    # Suite 3: Data Structures (IntVector & Sorting)
+    # --------------------------------------------------------------------------
+    test_suite(runner, "Dynamic Vector Collection Logic")
+    test_case(runner, "IntVector Growth and Quicksort")
+    v = int_vec_new(2)
+    int_vec_push(v, 40)
+    int_vec_push(v, 10)
+    int_vec_push(v, 30)
+    int_vec_push(v, 20)
+    assert_eq_i64(runner, int_vec_len(v), 4, "vector length == 4")
+    assert_eq_i64(runner, int_vec_get(v, -1), 20, "last element == 20")
+    int_vec_sort(v)
+    assert_eq_i64(runner, int_vec_get(v, 0), 10, "sorted min == 10")
+    assert_eq_i64(runner, int_vec_get(v, 3), 40, "sorted max == 40")
+    bs_idx = int_vec_binary_search(v, 30)
+    assert_eq_i64(runner, bs_idx, 2, "binary search 30 at index 2")
+
+    # --------------------------------------------------------------------------
+    # Suite 4: Nanosecond Micro-Benchmarking
+    # --------------------------------------------------------------------------
+    print("")
+    print("================================================================================")
+    print("                      NANOSECOND MICRO-BENCHMARKS                               ")
+    print("================================================================================")
+
+    # Benchmark 1: 1,000,000 Integer Bitwise Operations
+    b1_iters = 1000000
+    b1_start = clock_ns()
+    b1_acc = 0
+    for i in 0..b1_iters:
+        b1_acc = (b1_acc + i) ^ 0x55555555
+    b1_elapsed = clock_ns() - b1_start
+    b1 = benchmark_create("Bitwise Mix (Add + Xor)", b1_iters, b1_elapsed)
+    benchmark_print(b1)
+
+    # Benchmark 2: 100,000 IntVector Push & Pop Operations
+    b2_iters = 100000
+    b2_vec = int_vec_new(b2_iters)
+    b2_start = clock_ns()
+    for i in 0..b2_iters:
+        int_vec_push(b2_vec, i)
+    for i in 0..b2_iters:
+        int_vec_pop(b2_vec)
+    b2_elapsed = clock_ns() - b2_start
+    b2 = benchmark_create("IntVector Push & Pop", b2_iters * 2, b2_elapsed)
+    benchmark_print(b2)
+
+    # Benchmark 3: 50,000 String Substring Slicing Operations
+    b3_iters = 50000
+    b3_src = "black_mamba_high_performance_systems_programming"
+    b3_start = clock_ns()
+    b3_matches = 0
+    for i in 0..b3_iters:
+        sub = b3_src[6:11]
+        if sub == "mamba":
+            b3_matches += 1
+    b3_elapsed = clock_ns() - b3_start
+    b3 = benchmark_create("Zero-Copy SSO String Slicing", b3_iters, b3_elapsed)
+    benchmark_print(b3)
+
+    return test_summary(runner)
