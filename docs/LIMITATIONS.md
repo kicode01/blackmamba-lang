@@ -87,7 +87,7 @@
     - `socket.bmb`: Pure native TCP/UDP networking sockets with zero CPython dependencies. Complete `Socket` struct (`fd`, `family`, `sock_type`, `is_connected`, `is_bound`, `is_listening`), low-level core primitives (`socket_init`, `socket_cleanup`, `socket_create`, `socket_connect`, `socket_bind`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`), high-level client/server helpers (`tcp_connect`, `tcp_server`, `http_get`), running bare-metal across Win64 JIT, standalone Windows PE32+ (dynamic `ws2_32.dll` IAT imports), static Linux ELF64 (direct raw kernel syscalls `sys_socket`, `sys_connect`, `sys_bind`, `sys_listen`, `sys_accept`, `sys_write`, `sys_read`, `sys_close`), C11, and WebAssembly stubs.
     - `array.bmb`: High-performance dynamic growable vector collections (`IntVector`, `FloatVector`, `StrVector`) and zero-copy memory slice views (`IntSlice`, `FloatSlice`) with amortized $O(1)$ capacity growth, negative indexing (`-1`), insert, pop, $O(1)$ swap-remove, in-place quicksort, $O(\log N)$ binary search, and contiguous memory copy/fill routines.
     - `test.bmb`: Built-in assertion framework (`assert_eq_i64`, `assert_eq_f64`, `assert_eq_str`, `assert_str_contains`), test runner with suite tracking (`test_runner_new`, `test_suite`, `test_case`, `test_summary`), and hardware nanosecond micro-benchmarking harness (`benchmark_create`, `benchmark_print`) reporting throughput in Mops/sec.
-    - `chan.bmb`: Dmitry Vyukov's lock-free bounded MPMC ring buffer queue with zero locks and zero GIL for concurrent multithreading.
+    - `chan.bmb`: Dmitry Vyukov's lock-free bounded MPMC ring buffer queue with zero locks and zero GIL for concurrent multithreading, multi-channel `Select` multiplexing, and priority `Actor` event loops.
     - `regex.bmb`: Pure native Thompson NFA compiler and Pike VM execution engine with $O(N)$ linear-time performance and total ReDoS immunity.
     - `gc.bmb`: Generational region tracking and tracing cycle collection for long-lived cyclic heap graphs and generational arenas.
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
@@ -125,15 +125,17 @@
     - Native thread management: `hardware_concurrency()`, `thread_spawn(worker_fn, arg)`, `thread_join(handle)`, `thread_current_id()`, `thread_yield()`, and `thread_sleep(ms)`.
     - Parallel data loops: `par_for(start, end, worker_fn, context)` and `par_map(arr, count, fn_ptr)` compiling across native thread pools and distributing chunk workloads across available CPU cores.
     - Full cross-backend integration: Win64 JIT, standalone Windows PE32+ (dynamic `KERNEL32.CreateThread` / `WaitForSingleObject` imports and `.pdata` unwind records), static Linux ELF64, and portable C11 (`<stdatomic.h>` / `<windows.h>` / `<pthread.h>`).
-  * **High-Throughput Lock-Free MPMC Ring Channels** (`chan.bmb`):
+  * **High-Throughput Lock-Free MPMC Ring Channels & Select Multiplexing** (`chan.bmb`):
     - Pure `.bmb` implementation of Dmitry Vyukov's bounded multi-producer multi-consumer atomic queue algorithm with power-of-2 sequence counter masking.
-    - Exported API: `Channel`, `chan_new`, `chan_cap`, `chan_len`, `chan_is_empty`, `chan_is_full`, `chan_is_closed`, `chan_close`, `chan_try_send`, `chan_send`, `chan_try_recv`, `chan_recv`, `chan_drain`, `chan_send_all`.
+    - Exported Queue API: `Channel`, `chan_new`, `chan_cap`, `chan_len`, `chan_is_empty`, `chan_is_full`, `chan_is_closed`, `chan_close`, `chan_try_send`, `chan_send`, `chan_try_recv`, `chan_recv`, `chan_drain`, `chan_send_all`.
+    - Go-Style Multi-Channel `Select` Multiplexer: Ultra-fast 2-channel select (`chan_select2`, `chan_select2_wait`), generalized `Select` multiplexer (`select_new`, `select_add_recv`, `select_add_send`, `select_add_default`, `select_poll`, `select_wait`) with pseudo-random / round-robin fairness, non-blocking polling, millisecond-precision timeouts, and default fallback cases.
+    - High-Level Concurrent `Actor` Model: Cooperative message loops (`Actor`, `actor_new`, `actor_send`, `actor_signal`, `actor_recv`, `actor_stop`, `actor_is_alive`) with dual queues prioritizing high-priority control signals over normal data messages.
     - Adaptive spin-pause backoff with OS thread yield/sleep transitions for ultra-low contention latency and zero CPU starvation.
     - Verified under heavy multi-threaded producer-consumer pipelines with zero deadlocks and zero memory leaks.
 * **Remaining Limitation**:
-  * Unbounded dynamic channels and actor message-passing event loops (`select { ... }`) will be introduced in subsequent concurrency runtime enhancements.
+  * Distributed network actor clusters and unbounded dynamic channels will be introduced in subsequent concurrency runtime enhancements.
 * **Current Workaround**:
-  * Use bounded lock-free ring channels (`from chan import *`) or `AtomicInt`, `Mutex`, `SpinLock`, `par_for` in `from thread import *`.
+  * Use bounded lock-free ring channels (`from chan import *`), Go-style `Select` multiplexers, `Actor` event loops, or `AtomicInt`, `Mutex`, `SpinLock`, `par_for` in `from thread import *`.
 
 ---
 

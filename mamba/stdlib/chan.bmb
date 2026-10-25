@@ -231,3 +231,318 @@ def chan_send_all(ch: Channel, items: Array[i64], count: i64) -> i64:
             break
         sent += 1
     return sent
+
+
+# ==============================================================================
+# 6. Optimized 2-Channel Receive Multiplexer
+# ==============================================================================
+
+def chan_select2(ch1: Channel, ch2: Channel, out_box: AtomicInt) -> i64:
+    # Ultra-fast non-blocking receive poll across two channels.
+    # Returns 1 if ch1 had an item (stored in out_box).
+    # Returns 2 if ch2 had an item (stored in out_box).
+    # Returns 0 if neither channel currently has an item.
+    # Returns -1 if ch1 is closed and drained.
+    # Returns -2 if ch2 is closed and drained.
+    r1 = chan_try_recv(ch1, out_box)
+    if r1 == 1:
+        return 1
+    r2 = chan_try_recv(ch2, out_box)
+    if r2 == 1:
+        return 2
+    if r1 == -1:
+        return -1
+    if r2 == -1:
+        return -2
+    return 0
+
+def chan_select2_wait(ch1: Channel, ch2: Channel, timeout_ms: i64, out_box: AtomicInt) -> i64:
+    # Waits for an item from either ch1 or ch2 with adaptive spin-backoff and optional timeout.
+    # Returns 1 (ch1 fired), 2 (ch2 fired), -1 (ch1 closed), -2 (ch2 closed), or 0 (timed out).
+    if timeout_ms == 0:
+        return chan_select2(ch1, ch2, out_box)
+    
+    start_t = 0
+    timeout_ns = 0
+    if timeout_ms > 0:
+        start_t = clock_ns()
+        timeout_ns = timeout_ms * 1000000
+    
+    spins = 0
+    while True:
+        res = chan_select2(ch1, ch2, out_box)
+        if res != 0:
+            return res
+        
+        if timeout_ms > 0:
+            if clock_ns() - start_t >= timeout_ns:
+                return 0
+        
+        spins += 1
+        if spins < 32:
+            cpu_pause()
+        else:
+            thread_yield()
+            if spins > 200:
+                thread_sleep(1)
+
+
+# ==============================================================================
+# 7. General Multi-Channel Multiplexing (Select)
+# ==============================================================================
+
+SEL_OP_RECV = 1
+SEL_OP_SEND = 2
+SEL_OP_DEFAULT = 3
+
+struct Select:
+    ops: Array[i64]
+    channels: Array[Channel]
+    values: Array[i64]
+    out_boxes: Array[AtomicInt]
+    count: i64
+    capacity: i64
+    has_default: i64
+    round_robin: i64
+
+def _select_grow(sel: Select) -> void:
+    new_cap = sel.capacity * 2
+    if new_cap < 8:
+        new_cap = 8
+    new_ops = [0] * new_cap
+    new_channels = [0] * new_cap
+    new_values = [0] * new_cap
+    new_boxes = [0] * new_cap
+    for i in 0..sel.count:
+        new_ops[i] = sel.ops[i]
+        new_channels[i] = sel.channels[i]
+        new_values[i] = sel.values[i]
+        new_boxes[i] = sel.out_boxes[i]
+    for i in sel.count..new_cap:
+        new_boxes[i] = atomic_new(0)
+    sel.ops = new_ops
+    sel.channels = new_channels
+    sel.values = new_values
+    sel.out_boxes = new_boxes
+    sel.capacity = new_cap
+
+def select_new_with_cap(initial_cap: i64) -> Select:
+    # Constructs a channel multiplexer with explicit capacity.
+    c = initial_cap
+    if c < 4:
+        c = 4
+    ops = [0] * c
+    channels = [0] * c
+    values = [0] * c
+    boxes = [0] * c
+    for i in 0..c:
+        boxes[i] = atomic_new(0)
+    return Select(ops, channels, values, boxes, 0, c, 0, 0)
+
+def select_new() -> Select:
+    # Constructs a channel multiplexer with default capacity (8 cases).
+    return select_new_with_cap(8)
+
+def select_add_recv(sel: Select, ch: Channel) -> i64:
+    # Registers a non-blocking receive case on channel ch.
+    # Returns the 0-based case index.
+    if sel.count >= sel.capacity:
+        _select_grow(sel)
+    idx = sel.count
+    sel.ops[idx] = 1 # SEL_OP_RECV
+    sel.channels[idx] = ch
+    sel.values[idx] = 0
+    sel.count += 1
+    return idx
+
+def select_add_send(sel: Select, ch: Channel, val: i64) -> i64:
+    # Registers a non-blocking send case of val to channel ch.
+    # Returns the 0-based case index.
+    if sel.count >= sel.capacity:
+        _select_grow(sel)
+    idx = sel.count
+    sel.ops[idx] = 2 # SEL_OP_SEND
+    sel.channels[idx] = ch
+    sel.values[idx] = val
+    sel.count += 1
+    return idx
+
+def select_add_default(sel: Select) -> i64:
+    # Registers a non-blocking default case that fires if no channel is ready.
+    # Returns -2.
+    sel.has_default = 1
+    return -2
+
+def select_len(sel: Select) -> i64:
+    # Returns total number of registered channel cases.
+    return sel.count
+
+def select_recv_value(sel: Select, case_idx: i64) -> i64:
+    # Returns the value received during the last firing of case_idx.
+    if case_idx < 0 or case_idx >= sel.count:
+        return 0
+    return atomic_get(sel.out_boxes[case_idx])
+
+def select_clear(sel: Select) -> void:
+    # Resets all cases for reuse.
+    sel.count = 0
+    sel.has_default = 0
+    sel.round_robin = 0
+
+def select_poll(sel: Select, out_val: AtomicInt) -> i64:
+    # Non-blocking evaluation of all registered cases.
+    # Uses round-robin offset to ensure fairness and prevent channel starvation.
+    # Returns 0-based case index on success (and writes value into out_val).
+    # Returns -2 if default case fired.
+    # Returns -1 if no cases are ready.
+    if sel.count == 0:
+        if sel.has_default == 1:
+            return -2
+        return -1
+    
+    start_idx = sel.round_robin
+    sel.round_robin = (sel.round_robin + 1) % sel.count
+    
+    for i in 0..sel.count:
+        case_idx = (start_idx + i) % sel.count
+        op = sel.ops[case_idx]
+        ch = sel.channels[case_idx]
+        if op == 1: # RECV
+            box = sel.out_boxes[case_idx]
+            res = chan_try_recv(ch, box)
+            if res == 1:
+                atomic_set(out_val, atomic_get(box))
+                return case_idx
+        elif op == 2: # SEND
+            val = sel.values[case_idx]
+            res = chan_try_send(ch, val)
+            if res == 1:
+                atomic_set(out_val, val)
+                return case_idx
+    
+    if sel.has_default == 1:
+        return -2
+    return -1
+
+def select_wait(sel: Select, timeout_ms: i64, out_val: AtomicInt) -> i64:
+    # Waits across all registered channel cases with adaptive backoff and optional timeout.
+    # Returns the 0-based case index that fired (and writes received/sent value to out_val).
+    # Returns -2 if default case fired immediately.
+    # Returns -1 if timeout expired before any case became ready.
+    if timeout_ms == 0:
+        return select_poll(sel, out_val)
+    
+    start_t = 0
+    timeout_ns = 0
+    if timeout_ms > 0:
+        start_t = clock_ns()
+        timeout_ns = timeout_ms * 1000000
+    
+    spins = 0
+    while True:
+        fired = select_poll(sel, out_val)
+        if fired >= 0:
+            return fired
+        if fired == -2:
+            return -2
+        
+        if timeout_ms > 0:
+            if clock_ns() - start_t >= timeout_ns:
+                return -1
+        
+        spins += 1
+        if spins < 32:
+            cpu_pause()
+        else:
+            thread_yield()
+            if spins > 200:
+                thread_sleep(1)
+
+
+# ==============================================================================
+# 8. High-Level Actor Model & Cooperative Event Loops
+# ==============================================================================
+
+struct Actor:
+    mailbox: Channel
+    control: Channel
+    id: i64
+    is_alive: AtomicInt
+
+def actor_new(id: i64, mailbox_cap: i64) -> Actor:
+    # Constructs a lightweight concurrent actor with dedicated mailbox and priority control queue.
+    return Actor(
+        chan_new(mailbox_cap),
+        chan_new(8),
+        id,
+        atomic_new(1)
+    )
+
+def actor_send(a: Actor, msg: i64) -> i64:
+    # Sends a normal data message to the actor's mailbox.
+    # Returns 1 on success, 0 if mailbox is full, -1 if actor is stopped.
+    if atomic_get(a.is_alive) == 0:
+        return -1
+    return chan_try_send(a.mailbox, msg)
+
+def actor_signal(a: Actor, sig: i64) -> i64:
+    # Sends a priority control signal (e.g. shutdown, pause, reset) to the actor.
+    # Returns 1 on success, 0 if control queue is full, -1 if actor is stopped.
+    if atomic_get(a.is_alive) == 0:
+        return -1
+    return chan_try_send(a.control, sig)
+
+def actor_recv(a: Actor, timeout_ms: i64, out_msg: AtomicInt) -> i64:
+    # Cooperative actor event loop receiver.
+    # Always prioritizes control signals over regular data messages.
+    # Returns 100 if a priority control signal was received.
+    # Returns 1 if a normal mailbox message was received.
+    # Returns 0 if timed out or no messages available.
+    # Returns -1 if actor is closed.
+    r_ctrl = chan_try_recv(a.control, out_msg)
+    if r_ctrl == 1:
+        return 100
+    
+    r_mail = chan_try_recv(a.mailbox, out_msg)
+    if r_mail == 1:
+        return 1
+    
+    if timeout_ms == 0:
+        return 0
+    
+    start_t = 0
+    timeout_ns = 0
+    if timeout_ms > 0:
+        start_t = clock_ns()
+        timeout_ns = timeout_ms * 1000000
+    
+    spins = 0
+    while True:
+        r_ctrl = chan_try_recv(a.control, out_msg)
+        if r_ctrl == 1:
+            return 100
+        r_mail = chan_try_recv(a.mailbox, out_msg)
+        if r_mail == 1:
+            return 1
+        
+        if timeout_ms > 0:
+            if clock_ns() - start_t >= timeout_ns:
+                return 0
+        
+        spins += 1
+        if spins < 32:
+            cpu_pause()
+        else:
+            thread_yield()
+            if spins > 200:
+                thread_sleep(1)
+
+def actor_stop(a: Actor) -> void:
+    # Shuts down the actor, marks it inactive, and closes its channels.
+    atomic_set(a.is_alive, 0)
+    chan_close(a.control)
+    chan_close(a.mailbox)
+
+def actor_is_alive(a: Actor) -> bool:
+    # Returns True if the actor is currently alive and accepting messages.
+    return atomic_get(a.is_alive) == 1

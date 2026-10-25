@@ -1589,6 +1589,147 @@ fn main() -> i64:
         if os.path.exists(pe_exe_path):
             os.remove(pe_exe_path)
 
+    def test_channel_select_and_actors(self):
+        sel_code = """
+from chan import (
+    Channel,
+    chan_new,
+    chan_send,
+    chan_recv,
+    chan_try_send,
+    chan_try_recv,
+    chan_select2,
+    Select,
+    select_new,
+    select_add_recv,
+    select_add_send,
+    select_add_default,
+    select_poll,
+    select_wait,
+    select_recv_value,
+    Actor,
+    actor_new,
+    actor_send,
+    actor_signal,
+    actor_recv,
+    actor_stop,
+    actor_is_alive,
+)
+from thread import (
+    AtomicInt,
+    atomic_new,
+    atomic_get,
+    atomic_set,
+    thread_spawn,
+    thread_sleep,
+)
+
+def delayed_worker(ch_ptr: i64) -> i64:
+    thread_sleep(15)
+    chan_send(ch_ptr, 777)
+    return 0
+
+fn main() -> i64:
+    out = atomic_new(0)
+
+    # 1. Multi-Channel Select Poll & Default Fallback
+    ch_a = chan_new(4)
+    ch_b = chan_new(4)
+    sel = select_new()
+    c_a = select_add_recv(sel, ch_a)
+    c_b = select_add_recv(sel, ch_b)
+    select_add_default(sel)
+
+    p_empty = select_poll(sel, out)
+    chan_send(ch_b, 42)
+    p_b = select_poll(sel, out)
+    v_b = atomic_get(out)
+    chan_send(ch_a, 100)
+    p_a = select_poll(sel, out)
+    v_a = atomic_get(out)
+    print(f"SEL_POLL: empty={p_empty} b_idx={p_b} b_val={v_b} a_idx={p_a} a_val={v_a}")
+
+    # 2. Select Send Case on Full vs Ready Channel
+    ch_send = chan_new(2)
+    chan_send(ch_send, 1)
+    chan_send(ch_send, 2)
+    sel_snd = select_new()
+    s_idx = select_add_send(sel_snd, ch_send, 999)
+    select_add_default(sel_snd)
+    p_full = select_poll(sel_snd, out)
+    
+    b_drain = atomic_new(0)
+    chan_recv(ch_send, b_drain)
+    p_ready = select_poll(sel_snd, out)
+    v_sent = atomic_get(out)
+    print(f"SEL_SEND: full={p_full} ready={p_ready} sent={v_sent}")
+
+    # 3. Thread-Safe Select Wait with Timeout & Background Delivery
+    ch_bg = chan_new(4)
+    sel_bg = select_new()
+    select_add_recv(sel_bg, ch_bg)
+    thread_spawn(delayed_worker, ch_bg)
+    w_idx = select_wait(sel_bg, 500, out)
+    w_val = atomic_get(out)
+    print(f"SEL_WAIT: idx={w_idx} val={w_val}")
+
+    # 4. Ultra-Fast 2-Channel Select
+    c1 = chan_new(2)
+    c2 = chan_new(2)
+    s2_none = chan_select2(c1, c2, out)
+    chan_send(c2, 555)
+    s2_hit = chan_select2(c1, c2, out)
+    s2_val = atomic_get(out)
+    print(f"SEL2: none={s2_none} hit={s2_hit} val={s2_val}")
+
+    # 5. Concurrent Actor Event Loop & Priority Signals
+    act = actor_new(10, 16)
+    actor_send(act, 201)
+    actor_signal(act, 999)
+    
+    t0 = actor_recv(act, 0, out)
+    v0 = atomic_get(out)
+    t1 = actor_recv(act, 0, out)
+    v1 = atomic_get(out)
+    t2 = actor_recv(act, 0, out)
+    
+    alive_before = 1 if actor_is_alive(act) else 0
+    actor_stop(act)
+    alive_after = 1 if actor_is_alive(act) else 0
+    print(f"ACTOR: t0={t0} v0={v0} t1={t1} v1={v1} t2={t2} alive={alive_before}->{alive_after}")
+
+    return 0
+"""
+        mod = Parser.from_source(sel_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("SEL_POLL: empty=-2 b_idx=1 b_val=42 a_idx=0 a_val=100", out)
+        self.assertIn("SEL_SEND: full=-2 ready=0 sent=999", out)
+        self.assertIn("SEL_WAIT: idx=0 val=777", out)
+        self.assertIn("SEL2: none=0 hit=2 val=555", out)
+        self.assertIn("ACTOR: t0=100 v0=999 t1=1 v1=201 t2=0 alive=1->0", out)
+
+        # Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_select.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("SEL_POLL: empty=-2 b_idx=1 b_val=42 a_idx=0 a_val=100", pe_res.stdout)
+        self.assertIn("SEL_SEND: full=-2 ready=0 sent=999", pe_res.stdout)
+        self.assertIn("SEL_WAIT: idx=0 val=777", pe_res.stdout)
+        self.assertIn("SEL2: none=0 hit=2 val=555", pe_res.stdout)
+        self.assertIn("ACTOR: t0=100 v0=999 t1=1 v1=201 t2=0 alive=1->0", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
     def test_stdlib_regex_module(self):
         regex_code = """
 from regex import *
