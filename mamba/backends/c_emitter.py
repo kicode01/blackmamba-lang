@@ -414,6 +414,23 @@ class C11Backend:
             "    return p;",
             "}",
             "",
+            "static inline int64_t bmb___bmb_mem_alloc(int64_t size_bytes) {",
+            "    void* p = calloc((size_t)(size_bytes > 0 ? size_bytes : 1), 1);",
+            "    return (int64_t)(uintptr_t)p;",
+            "}",
+            "static inline int64_t bmb___bmb_mem_free(int64_t ptr) {",
+            "    if (ptr) free((void*)(uintptr_t)ptr);",
+            "    return 0;",
+            "}",
+            "static inline int64_t bmb___bmb_mem_read(int64_t ptr, int64_t offset) {",
+            "    if (!ptr) return 0;",
+            "    return ((int64_t*)(uintptr_t)ptr)[offset];",
+            "}",
+            "static inline int64_t bmb___bmb_mem_write(int64_t ptr, int64_t offset, int64_t val) {",
+            "    if (ptr) ((int64_t*)(uintptr_t)ptr)[offset] = val;",
+            "    return 0;",
+            "}",
+            "",
         ]
 
         # String literal pool
@@ -446,6 +463,7 @@ class C11Backend:
             "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
         }
 
         # Function bodies

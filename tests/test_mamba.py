@@ -1670,6 +1670,118 @@ fn main() -> i64:
         if os.path.exists(pe_exe_path):
             os.remove(pe_exe_path)
 
+    def test_stdlib_gc_module(self):
+        gc_code = """
+from gc import *
+
+fn main() -> i64:
+    # 1. Low-Level Heap Allocation & Quadword Memory Access
+    raw = mem_alloc(32)
+    mem_write(raw, 0, 777)
+    mem_write(raw, 1, 888)
+    v0 = mem_read(raw, 0)
+    v1 = mem_read(raw, 1)
+    mem_free(raw)
+    print(f"RAW_MEM: v0={v0} v1={v1}")
+
+    # 2. Generational Region Arena: Fast Allocation & O(1) Instant Bulk Reclamation
+    r = region_new(1024)
+    p1 = region_alloc(r, 4)
+    p2 = region_alloc(r, 4)
+    region_write(r, p1, 0, 100)
+    region_write(r, p2, 0, 200)
+    region_write(r, p1, 1, p2)
+    region_write(r, p2, 1, p1)
+    rv1 = region_read(r, p1, 0)
+    rv2 = region_read(r, p2, 0)
+    used_before = region_used(r)
+    allocs = region_count(r)
+    region_reset(r)
+    used_after = region_used(r)
+    region_free(r)
+    print(f"REGION: rv1={rv1} rv2={rv2} used_before={used_before} allocs={allocs} used_after={used_after}")
+
+    # 3. Tracing Cycle Collector: Mutual 2-Node Cyclic Graph (A <-> B)
+    g = gc_new()
+    a = mem_alloc(16)
+    b = mem_alloc(16)
+    mem_write(a, 0, 11)
+    mem_write(b, 0, 22)
+    gc_track(g, a)
+    gc_track(g, b)
+    gc_link(g, a, b)
+    gc_link(g, b, a)
+    gc_add_root(g, a)
+    
+    r_live = gc_collect(g)
+    cnt_live = gc_count(g)
+    
+    gc_remove_root(g, a)
+    r_dead = gc_collect(g)
+    cnt_dead = gc_count(g)
+    total_reclaimed = gc_total_reclaimed(g)
+    print(f"GC_MUTUAL: r_live={r_live} cnt_live={cnt_live} r_dead={r_dead} cnt_dead={cnt_dead} total={total_reclaimed}")
+
+    # 4. Dense Multi-Node Cyclic Ring & Entanglement (5 nodes)
+    g2 = gc_new()
+    n1 = mem_alloc(16)
+    n2 = mem_alloc(16)
+    n3 = mem_alloc(16)
+    n4 = mem_alloc(16)
+    n5 = mem_alloc(16)
+    gc_track(g2, n1)
+    gc_track(g2, n2)
+    gc_track(g2, n3)
+    gc_track(g2, n4)
+    gc_track(g2, n5)
+    gc_link(g2, n1, n2)
+    gc_link(g2, n2, n3)
+    gc_link(g2, n3, n4)
+    gc_link(g2, n4, n5)
+    gc_link(g2, n5, n2)
+    gc_link(g2, n3, n1)
+    
+    gc_add_root(g2, n1)
+    r2_live = gc_collect(g2)
+    cnt2_live = gc_count(g2)
+    
+    gc_remove_root(g2, n1)
+    r2_dead = gc_collect(g2)
+    cnt2_dead = gc_count(g2)
+    gc_free(g2)
+    print(f"GC_DENSE: r_live={r2_live} cnt_live={cnt2_live} r_dead={r2_dead} cnt_dead={cnt2_dead}")
+
+    gc_free(g)
+    return 0
+"""
+        mod = Parser.from_source(gc_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("RAW_MEM: v0=777 v1=888", out)
+        self.assertIn("REGION: rv1=100 rv2=200 used_before=64 allocs=2 used_after=0", out)
+        self.assertIn("GC_MUTUAL: r_live=0 cnt_live=2 r_dead=2 cnt_dead=0 total=2", out)
+        self.assertIn("GC_DENSE: r_live=0 cnt_live=5 r_dead=5 cnt_dead=0", out)
+
+        # Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_gc.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("RAW_MEM: v0=777 v1=888", pe_res.stdout)
+        self.assertIn("REGION: rv1=100 rv2=200 used_before=64 allocs=2 used_after=0", pe_res.stdout)
+        self.assertIn("GC_MUTUAL: r_live=0 cnt_live=2 r_dead=2 cnt_dead=0 total=2", pe_res.stdout)
+        self.assertIn("GC_DENSE: r_live=0 cnt_live=5 r_dead=5 cnt_dead=0", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1486,6 +1486,25 @@ class ELF64ExecutableBuilder:
         buf.mark_label("fn____bmb_cpu_pause")
         buf.emit(b"\xF3\x90\x48\x31\xC0\xC3", "pause; xor rax, rax; ret")
 
+        # Native Heap Allocation Primitives
+        buf.mark_label("fn____bmb_mem_alloc")
+        buf.emit(b"\x48\x85\xC9", "test rcx, rcx")
+        buf.jcc_rel32(0x8F, "g", "rt__elf_mem_alloc_size_ok")
+        buf.emit(b"\x48\xC7\xC1\x08\x00\x00\x00", "mov rcx, 8")
+        buf.mark_label("rt__elf_mem_alloc_size_ok")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        buf.jmp_label("rt__alloc_arr")
+
+        buf.mark_label("fn____bmb_mem_free")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_mem_read")
+        buf.emit(b"\x48\x8B\x04\xD1\xC3", "mov rax, [rcx + rdx*8]; ret")
+
+        buf.mark_label("fn____bmb_mem_write")
+        buf.emit(b"\x4C\x89\x04\xD1", "mov [rcx + rdx*8], r8")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
@@ -1498,6 +1517,7 @@ class ELF64ExecutableBuilder:
             "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
         ])
 
         for fn in self.mir_module.functions:

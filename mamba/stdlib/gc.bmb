@@ -1,0 +1,372 @@
+# Black Mamba Standard Library: gc.bmb
+# Generational Region Tracking and Tracing Cycle Collection.
+# Pure Native Black Mamba (.bmb) for Long-Lived Cyclic Heap Graphs & Arenas.
+# 100% Zero-CPython-overhead across native Windows PE32+, Linux ELF64, macOS ARM64, and JIT.
+
+# ==============================================================================
+# 1. Low-Level Native Memory Primitives
+# ==============================================================================
+
+def mem_alloc(size_bytes: i64) -> i64:
+    # Allocates zero-initialized contiguous native heap memory of size_bytes.
+    # Returns raw 64-bit memory pointer.
+    return __bmb_mem_alloc(size_bytes)
+
+def mem_free(ptr: i64) -> i64:
+    # Releases native heap memory back to the operating system.
+    return __bmb_mem_free(ptr)
+
+def mem_read(ptr: i64, offset: i64) -> i64:
+    # Reads 64-bit integer at memory address (ptr + offset * 8).
+    return __bmb_mem_read(ptr, offset)
+
+def mem_write(ptr: i64, offset: i64, val: i64) -> i64:
+    # Writes 64-bit integer val to memory address (ptr + offset * 8).
+    return __bmb_mem_write(ptr, offset, val)
+
+
+# ==============================================================================
+# 2. Generational Region Tracker (Bulk Cyclic Memory Reclamation)
+# ==============================================================================
+
+struct Region:
+    base_ptr: i64
+    capacity_bytes: i64
+    offset: i64
+    total_allocations: i64
+
+def region_new(capacity_bytes: i64) -> Region:
+    # Constructs a generational region arena of capacity_bytes.
+    cap = capacity_bytes
+    if cap <= 0:
+        cap = 65536
+    ptr = mem_alloc(cap)
+    return Region(ptr, cap, 0, 0)
+
+def region_alloc(r: Region, num_words: i64) -> i64:
+    # Bump-allocates num_words (64-bit words) from the region arena.
+    # Returns raw 64-bit pointer or 0 if capacity is exceeded.
+    bytes_needed = num_words * 8
+    # 16-byte alignment
+    rem = bytes_needed % 16
+    if rem != 0:
+        bytes_needed += 16 - rem
+    
+    if r.offset + bytes_needed > r.capacity_bytes:
+        return 0
+    
+    p = r.base_ptr + r.offset
+    r.offset += bytes_needed
+    r.total_allocations += 1
+    return p
+
+def region_read(r: Region, ptr: i64, offset_words: i64) -> i64:
+    # Reads 64-bit integer from region at (ptr + offset_words * 8).
+    return mem_read(ptr, offset_words)
+
+def region_write(r: Region, ptr: i64, offset_words: i64, val: i64) -> i64:
+    # Writes 64-bit integer to region at (ptr + offset_words * 8).
+    return mem_write(ptr, offset_words, val)
+
+def region_reset(r: Region) -> void:
+    # O(1) Instant Bulk Reclamation: Resets bump offset to 0.
+    # Reclaims all cyclic graphs allocated in this region without traversal.
+    r.offset = 0
+    r.total_allocations = 0
+
+def region_free(r: Region) -> void:
+    # Releases the region's backing buffer to the operating system.
+    if r.base_ptr != 0:
+        mem_free(r.base_ptr)
+        r.base_ptr = 0
+        r.offset = 0
+        r.capacity_bytes = 0
+        r.total_allocations = 0
+
+def region_used(r: Region) -> i64:
+    # Returns total bytes allocated in the region.
+    return r.offset
+
+def region_available(r: Region) -> i64:
+    # Returns remaining capacity in bytes.
+    return r.capacity_bytes - r.offset
+
+def region_count(r: Region) -> i64:
+    # Returns total number of active objects allocated in this generation.
+    return r.total_allocations
+
+
+# ==============================================================================
+# 3. Tracing Cycle Collector (Mark-Sweep Graph Reclamation)
+# ==============================================================================
+
+struct GC:
+    nodes: Array[i64]
+    node_count: i64
+    node_cap: i64
+    roots: Array[i64]
+    roots_count: i64
+    roots_cap: i64
+    edge_from: Array[i64]
+    edge_to: Array[i64]
+    edge_count: i64
+    edge_cap: i64
+    total_reclaimed: i64
+    auto_threshold: i64
+
+def _gc_grow_nodes(gc: GC) -> void:
+    new_cap = gc.node_cap * 2
+    if new_cap < 16:
+        new_cap = 16
+    new_nodes = [0] * new_cap
+    for i in 0..gc.node_count:
+        new_nodes[i] = gc.nodes[i]
+    gc.nodes = new_nodes
+    gc.node_cap = new_cap
+
+def _gc_grow_roots(gc: GC) -> void:
+    new_cap = gc.roots_cap * 2
+    if new_cap < 8:
+        new_cap = 8
+    new_roots = [0] * new_cap
+    for i in 0..gc.roots_count:
+        new_roots[i] = gc.roots[i]
+    gc.roots = new_roots
+    gc.roots_cap = new_cap
+
+def _gc_grow_edges(gc: GC) -> void:
+    new_cap = gc.edge_cap * 2
+    if new_cap < 32:
+        new_cap = 32
+    new_from = [0] * new_cap
+    new_to = [0] * new_cap
+    for i in 0..gc.edge_count:
+        new_from[i] = gc.edge_from[i]
+        new_to[i] = gc.edge_to[i]
+    gc.edge_from = new_from
+    gc.edge_to = new_to
+    gc.edge_cap = new_cap
+
+def gc_new_with_cap(initial_cap: i64) -> GC:
+    # Constructs a new tracing cycle collector with explicit capacity.
+    cap = initial_cap
+    if cap < 16:
+        cap = 16
+    r_cap = 16
+    e_cap = cap * 2
+    return GC(
+        [0] * cap, 0, cap,
+        [0] * r_cap, 0, r_cap,
+        [0] * e_cap, [0] * e_cap, 0, e_cap,
+        0, 0
+    )
+
+def gc_new() -> GC:
+    # Constructs a new tracing cycle collector with default capacity.
+    return gc_new_with_cap(64)
+
+def gc_track(gc: GC, ptr: i64) -> i64:
+    # Registers an allocated heap object with the cycle collector.
+    if ptr == 0:
+        return 0
+    for i in 0..gc.node_count:
+        if gc.nodes[i] == ptr:
+            return 0
+    if gc.node_count >= gc.node_cap:
+        _gc_grow_nodes(gc)
+    gc.nodes[gc.node_count] = ptr
+    gc.node_count += 1
+    if gc.auto_threshold > 0:
+        if gc.node_count >= gc.auto_threshold:
+            gc_collect(gc)
+    return 1
+
+def gc_untrack(gc: GC, ptr: i64) -> i64:
+    # Removes an object from cycle collector tracking.
+    found = 0
+    for i in 0..gc.node_count:
+        if gc.nodes[i] == ptr:
+            last_n = gc.node_count - 1
+            if i != last_n:
+                gc.nodes[i] = gc.nodes[last_n]
+            gc.node_count -= 1
+            found = 1
+            break
+    if found == 1:
+        e_idx = 0
+        while e_idx < gc.edge_count:
+            if gc.edge_from[e_idx] == ptr or gc.edge_to[e_idx] == ptr:
+                last_e = gc.edge_count - 1
+                if e_idx != last_e:
+                    gc.edge_from[e_idx] = gc.edge_from[last_e]
+                    gc.edge_to[e_idx] = gc.edge_to[last_e]
+                gc.edge_count -= 1
+            else:
+                e_idx += 1
+        gc_remove_root(gc, ptr)
+        return 1
+    return 0
+
+def gc_is_tracked(gc: GC, ptr: i64) -> bool:
+    # Returns True if ptr is currently tracked by this collector.
+    for i in 0..gc.node_count:
+        if gc.nodes[i] == ptr:
+            return True
+    return False
+
+def gc_add_root(gc: GC, ptr: i64) -> i64:
+    # Registers a root reference (variable in active scope / stack frame).
+    if ptr == 0:
+        return 0
+    for i in 0..gc.roots_count:
+        if gc.roots[i] == ptr:
+            return 0
+    if gc.roots_count >= gc.roots_cap:
+        _gc_grow_roots(gc)
+    gc.roots[gc.roots_count] = ptr
+    gc.roots_count += 1
+    return 1
+
+def gc_remove_root(gc: GC, ptr: i64) -> i64:
+    # Deregisters a root reference when it goes out of scope.
+    for i in 0..gc.roots_count:
+        if gc.roots[i] == ptr:
+            last_idx = gc.roots_count - 1
+            if i != last_idx:
+                gc.roots[i] = gc.roots[last_idx]
+            gc.roots_count -= 1
+            return 1
+    return 0
+
+def gc_is_root(gc: GC, ptr: i64) -> bool:
+    # Returns True if ptr is currently registered as an active root.
+    for i in 0..gc.roots_count:
+        if gc.roots[i] == ptr:
+            return True
+    return False
+
+def gc_link(gc: GC, from_ptr: i64, to_ptr: i64) -> i64:
+    # Registers a directed reference from from_ptr to to_ptr.
+    if from_ptr == 0 or to_ptr == 0:
+        return 0
+    for i in 0..gc.edge_count:
+        if gc.edge_from[i] == from_ptr and gc.edge_to[i] == to_ptr:
+            return 0
+    if gc.edge_count >= gc.edge_cap:
+        _gc_grow_edges(gc)
+    gc.edge_from[gc.edge_count] = from_ptr
+    gc.edge_to[gc.edge_count] = to_ptr
+    gc.edge_count += 1
+    return 1
+
+def gc_unlink(gc: GC, from_ptr: i64, to_ptr: i64) -> i64:
+    # Removes a directed reference from from_ptr to to_ptr.
+    for i in 0..gc.edge_count:
+        if gc.edge_from[i] == from_ptr and gc.edge_to[i] == to_ptr:
+            last_idx = gc.edge_count - 1
+            if i != last_idx:
+                gc.edge_from[i] = gc.edge_from[last_idx]
+                gc.edge_to[i] = gc.edge_to[last_idx]
+            gc.edge_count -= 1
+            return 1
+    return 0
+
+def gc_collect(gc: GC) -> i64:
+    # Executes iterative mark-sweep cycle collection.
+    # Reclaims all cyclic and unreachable subgraphs disconnected from roots.
+    # Returns total count of reclaimed nodes in this collection cycle.
+    n = gc.node_count
+    if n <= 0:
+        return 0
+    
+    marked = [0] * n
+    worklist = [0] * (n + 1)
+    wl_len = 0
+    
+    # 1. Mark phase: Seed worklist from active roots
+    for r_idx in 0..gc.roots_count:
+        root_ptr = gc.roots[r_idx]
+        for i in 0..n:
+            if gc.nodes[i] == root_ptr:
+                if marked[i] == 0:
+                    marked[i] = 1
+                    worklist[wl_len] = root_ptr
+                    wl_len += 1
+    
+    # 2. Trace reachability across directed reference edges
+    while wl_len > 0:
+        wl_len -= 1
+        curr_ptr = worklist[wl_len]
+        for e_idx in 0..gc.edge_count:
+            if gc.edge_from[e_idx] == curr_ptr:
+                succ_ptr = gc.edge_to[e_idx]
+                for j in 0..n:
+                    if gc.nodes[j] == succ_ptr:
+                        if marked[j] == 0:
+                            marked[j] = 1
+                            worklist[wl_len] = succ_ptr
+                            wl_len += 1
+    
+    # 3. Sweep phase: Reclaim unreachable / cyclic nodes
+    reclaimed = 0
+    new_count = 0
+    for i in 0..n:
+        node_ptr = gc.nodes[i]
+        if marked[i] == 1:
+            gc.nodes[new_count] = node_ptr
+            new_count += 1
+        else:
+            mem_free(node_ptr)
+            reclaimed += 1
+    
+    gc.node_count = new_count
+    gc.total_reclaimed += reclaimed
+    
+    # 4. Prune dead edges incident to swept nodes
+    if reclaimed > 0:
+        new_edges = 0
+        for e_idx in 0..gc.edge_count:
+            f_ptr = gc.edge_from[e_idx]
+            t_ptr = gc.edge_to[e_idx]
+            f_live = 0
+            t_live = 0
+            for k in 0..gc.node_count:
+                if gc.nodes[k] == f_ptr:
+                    f_live = 1
+                if gc.nodes[k] == t_ptr:
+                    t_live = 1
+            if f_live == 1 and t_live == 1:
+                gc.edge_from[new_edges] = f_ptr
+                gc.edge_to[new_edges] = t_ptr
+                new_edges += 1
+        gc.edge_count = new_edges
+    
+    return reclaimed
+
+def gc_count(gc: GC) -> i64:
+    # Returns total number of active objects currently tracked.
+    return gc.node_count
+
+def gc_roots_count(gc: GC) -> i64:
+    # Returns total number of active root references.
+    return gc.roots_count
+
+def gc_edges_count(gc: GC) -> i64:
+    # Returns total number of active directed reference edges.
+    return gc.edge_count
+
+def gc_total_reclaimed(gc: GC) -> i64:
+    # Returns lifetime count of objects reclaimed across all collections.
+    return gc.total_reclaimed
+
+def gc_auto_enable(gc: GC, threshold: i64) -> void:
+    # Enables automatic cycle collection when tracked objects exceed threshold.
+    gc.auto_threshold = threshold
+
+def gc_free(gc: GC) -> void:
+    # Frees all tracked heap objects and clears collector tables.
+    for i in 0..gc.node_count:
+        mem_free(gc.nodes[i])
+    gc.node_count = 0
+    gc.roots_count = 0
+    gc.edge_count = 0

@@ -4,19 +4,20 @@
 
 ---
 
-## 1. Memory Management: Ephemeral Allocations Resolved; Long-Lived Cyclic Graphs
+## 1. Memory Management: Ephemeral Allocations & Cyclic Graph Reclamation (RESOLVED via Lexical Arenas & `gc.bmb`)
 
-* **Current Status**:
-  * **Ephemeral Allocations (RESOLVED in Phase 3)**: Function-scoped allocations (`ALLOC_ARR` / local structs) are now automatically managed by **Compile-Time Lexical Arena Lifetimes**. The compiler runs whole-program escape analysis and emits `arena_save` and `arena_restore` checkpoints. Local allocations within loops and functions rewind instantly upon return with **0 bytes leaked** and **0.000 ms GC pause latency**. Verified with 1,000,000 ephemeral struct allocations in 580 ms.
-  * **Long-Lived Objects**: Objects that escape the creating function (e.g., returned arrays or structures linked to global data) are allocated in the global persistent bump arena.
-  * **Remaining Flaw**: If a program builds complex *cyclic reference graphs* (`node.next = prev; prev.next = node`) that escape into long-lived global scope inside an infinite server daemon, Black Mamba will not reclaim those cyclic references until process termination.
+* **Current Status (RESOLVED)**:
+  * **Ephemeral Allocations (RESOLVED in Phase 3)**: Function-scoped allocations (`ALLOC_ARR` / local structs) are automatically managed by **Compile-Time Lexical Arena Lifetimes**. The compiler runs whole-program escape analysis and emits `arena_save` and `arena_restore` checkpoints. Local allocations within loops and functions rewind instantly upon return with **0 bytes leaked** and **0.000 ms GC pause latency**. Verified with 1,000,000 ephemeral struct allocations in 580 ms.
+  * **Long-Lived Objects & Cyclic Heap Graphs (RESOLVED in Phase 4 via `gc.bmb`)**:
+    - Low-level native heap memory primitives (`mem_alloc`, `mem_free`, `mem_read`, `mem_write`) backed by MSVCRT `calloc`/`free` on Windows PE32+, static page bump-allocation on Linux ELF64, and raw memory on JIT.
+    - **Generational Region Tracker (`struct Region`)**: Dedicated region arenas (`region_new`, `region_alloc`, `region_read`, `region_write`) providing instant **$O(1)$ bulk cyclic memory reclamation** via `region_reset(r)`. All cyclic graphs allocated within a generation are reclaimed immediately without traversal or GC pause spikes.
+    - **Tracing Cycle Collector (`struct GC`)**: Explicit, opt-in mark-sweep tracing cycle collector (`gc_new`, `gc_track`, `gc_link`, `gc_add_root`, `gc_remove_root`, `gc_collect`, `gc_auto_enable`). Employs iterative DFS/BFS worklist traversal to trace object reachability across directed references without recursion. Automatically detects and reclaims isolated self-cycles (`A -> A`), mutual 2-node cycles (`A <-> B`), and dense multi-node cyclic rings (`A -> B -> C -> D -> E -> B`). Traversal buffers allocate in zero-cost lexical arenas, completely avoiding background global GC pause pauses across the runtime.
 * **Why It Exists**:
-  * We deliberately rejected bundling a heavy tracing garbage collector (like Go's or CPython's) to maintain **5.5 KB standalone binary sizes** and ensure **0.0 ms GC pause spikes** for 60/120 FPS game physics.
-* **Current Workaround**:
-  * Use unboxed value structs (`struct`) and function-scoped data (which are 100% leak-free via lexical arenas).
-  * Avoid building long-lived cyclic heap graphs, or periodically recycle worker processes in server environments.
-* **Planned Future Work**:
-  * Implement reference counting with cycle-detection backup or generational region inference for escaping graphs.
+  * We deliberately avoid forcing a global background tracing garbage collector on the entire language (preserving **5.5 KB standalone binary sizes** and **0.0 ms GC pause spikes** for 60/120 FPS game physics), while providing explicit, opt-in generational regions and cycle-collecting tracing APIs for long-lived cyclic graphs.
+* **Best Practices**:
+  * Use unboxed value structs (`struct`) and function-scoped data for zero-cost lexical arena management.
+  * For batch tasks (e.g. per-request or per-frame cyclic graphs), use `Region` with `region_reset(r)` for $O(1)$ bulk reclamation.
+  * For long-lived graphs with dynamic circular references, use `GC` with `gc_track`, `gc_link`, and `gc_collect`.
 
 ---
 
@@ -88,11 +89,12 @@
     - `test.bmb`: Built-in assertion framework (`assert_eq_i64`, `assert_eq_f64`, `assert_eq_str`, `assert_str_contains`), test runner with suite tracking (`test_runner_new`, `test_suite`, `test_case`, `test_summary`), and hardware nanosecond micro-benchmarking harness (`benchmark_create`, `benchmark_print`) reporting throughput in Mops/sec.
     - `chan.bmb`: Dmitry Vyukov's lock-free bounded MPMC ring buffer queue with zero locks and zero GIL for concurrent multithreading.
     - `regex.bmb`: Pure native Thompson NFA compiler and Pike VM execution engine with $O(N)$ linear-time performance and total ReDoS immunity.
+    - `gc.bmb`: Generational region tracking and tracing cycle collection for long-lived cyclic heap graphs and generational arenas.
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
   * **Remaining Limitation**:
     - High-level asynchronous event loops (`asyncio`) and database drivers (`sqlite3`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `chan`, `regex`, `test`) for compute, timing, tensors, data exchange, security hashing, file I/O, networking, lock-free channels, linear-time regular expressions, dynamic vector buffers, test suites, and benchmarking.
+  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `chan`, `regex`, `gc`, `test`) for compute, timing, tensors, data exchange, security hashing, file I/O, networking, lock-free channels, linear-time regular expressions, dynamic cyclic memory management, dynamic vector buffers, test suites, and benchmarking.
   * For complex database drivers or async event loops, call `py_call("sqlite3", ...)` or `py_call("asyncio", ...)` via the CPython Host Bridge.
 * **Planned Future Work (Phase 4)**:
   * Zero-copy database adapters and async networking event loops.

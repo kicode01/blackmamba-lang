@@ -79,6 +79,7 @@ STDLIB_MODULES = [
     ("thread", "Hardware multithreading, atomics, Mutex, par_for, par_map"),
     ("chan", "Lock-free bounded MPMC ring buffer channels for hardware threads"),
     ("regex", "Pure native linear-time regular expressions (Thompson NFA / Pike VM)"),
+    ("gc", "Generational region tracking and tracing cycle collection for cyclic heap graphs"),
     ("test", "Assertion framework and hardware benchmarking harness"),
 ]
 

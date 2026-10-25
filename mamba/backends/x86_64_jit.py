@@ -14,6 +14,7 @@ import math
 import os
 import socket
 import struct
+import sys
 import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
@@ -530,8 +531,13 @@ class X86_64CodeBuffer:
                 self.store_slot_rax(var_slots[vname], vname)
 
         # Frame size must satisfy (56 + frame_size) % 16 == 0 so rsp is 16-byte aligned before `call`
+        max_call_args = 4
+        for ins in instrs:
+            if ins.op == "CALL":
+                max_call_args = max(max_call_args, len(ins.extra))
+        outgoing_arg_space = max(32, max_call_args * 8)
         spilled_bytes = 8 * len(var_slots)
-        min_sub = 40 + spilled_bytes  # 32B Win64 shadow space + spilled locals
+        min_sub = outgoing_arg_space + 8 + spilled_bytes  # Win64 outgoing arg space + spilled locals
         # Make (56 + frame_size) a multiple of 16 -> frame_size % 16 == 8
         aligned_16 = (min_sub + 15) & ~15
         frame_size = aligned_16 + 8
@@ -1414,6 +1420,44 @@ class NativeJITModule:
             ctypes.windll.kernel32.Sleep(int(ms))
             return 0
 
+        # Native Heap Allocation Primitives
+        if sys.platform == "win32":
+            _c_alloc = ctypes.cdll.msvcrt.calloc
+            _c_free = ctypes.cdll.msvcrt.free
+        else:
+            _libc = ctypes.CDLL(None)
+            _c_alloc = _libc.calloc
+            _c_free = _libc.free
+        _c_alloc.restype = ctypes.c_void_p
+        _c_alloc.argtypes = [ctypes.c_size_t, ctypes.c_size_t]
+        _c_free.argtypes = [ctypes.c_void_p]
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_alloc(size_bytes: int) -> int:
+            sz = max(1, int(size_bytes))
+            ptr = _c_alloc(sz, 1)
+            return int(ptr) if ptr else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_free(ptr: int) -> int:
+            if ptr:
+                _c_free(ctypes.c_void_p(ptr))
+            return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_read(ptr: int, offset: int) -> int:
+            if not ptr:
+                return 0
+            addr = ptr + int(offset) * 8
+            return int(ctypes.c_int64.from_address(addr).value)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_write(ptr: int, offset: int, val: int) -> int:
+            if ptr:
+                addr = ptr + int(offset) * 8
+                ctypes.c_int64.from_address(addr).value = int(val)
+            return 0
+
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
@@ -1428,6 +1472,7 @@ class NativeJITModule:
             rt_bmb_socket_close,
             rt_bmb_thread_concurrency, rt_bmb_thread_spawn, rt_bmb_thread_join,
             rt_bmb_thread_id, rt_bmb_thread_yield, rt_bmb_thread_sleep,
+            rt_bmb_mem_alloc, rt_bmb_mem_free, rt_bmb_mem_read, rt_bmb_mem_write,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1476,6 +1521,10 @@ class NativeJITModule:
         self.addr_bmb_thread_id = ctypes.cast(rt_bmb_thread_id, ctypes.c_void_p).value
         self.addr_bmb_thread_yield = ctypes.cast(rt_bmb_thread_yield, ctypes.c_void_p).value
         self.addr_bmb_thread_sleep = ctypes.cast(rt_bmb_thread_sleep, ctypes.c_void_p).value
+        self.addr_bmb_mem_alloc = ctypes.cast(rt_bmb_mem_alloc, ctypes.c_void_p).value
+        self.addr_bmb_mem_free = ctypes.cast(rt_bmb_mem_free, ctypes.c_void_p).value
+        self.addr_bmb_mem_read = ctypes.cast(rt_bmb_mem_read, ctypes.c_void_p).value
+        self.addr_bmb_mem_write = ctypes.cast(rt_bmb_mem_write, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -1586,6 +1635,10 @@ class NativeJITModule:
             ("__bmb_thread_id", self.addr_bmb_thread_id),
             ("__bmb_thread_yield", self.addr_bmb_thread_yield),
             ("__bmb_thread_sleep", self.addr_bmb_thread_sleep),
+            ("__bmb_mem_alloc", self.addr_bmb_mem_alloc),
+            ("__bmb_mem_free", self.addr_bmb_mem_free),
+            ("__bmb_mem_read", self.addr_bmb_mem_read),
+            ("__bmb_mem_write", self.addr_bmb_mem_write),
         ]
         for name, addr in os_trampolines:
             self.code_buf.mark_label(f"fn__{name}")

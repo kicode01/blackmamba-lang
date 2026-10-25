@@ -217,7 +217,7 @@ class PE32PlusExecutableBuilder:
             (
                 "msvcrt.dll",
                 [
-                    "printf", "calloc", "pow", "fflush",
+                    "printf", "calloc", "free", "pow", "fflush",
                     "fopen", "fread", "fwrite", "fclose", "fseek", "ftell",
                     "remove", "_getcwd", "getenv", "sprintf",
                 ],
@@ -1776,6 +1776,50 @@ class PE32PlusExecutableBuilder:
         buf.ret()
         self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
+        # Native Heap Allocation Primitives
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_mem_alloc")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x85\xC9", "test rcx, rcx")
+        buf.jcc_rel32(0x8F, "g", "rt__bmb_mem_alloc_size_ok")
+        buf.emit(b"\x48\xC7\xC1\x01\x00\x00\x00", "mov rcx, 1")
+        buf.mark_label("rt__bmb_mem_alloc_size_ok")
+        buf.emit(b"\x48\xC7\xC2\x01\x00\x00\x00", "mov rdx, 1")
+        self._emit_call_iat(self.iat_rvas["calloc"], "msvcrt!calloc")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_mem_free")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x30)
+        buf.emit(b"\x48\x85\xC9", "test rcx, rcx")
+        buf.jcc_rel32(0x84, "e", "rt__bmb_mem_free_done")
+        self._emit_call_iat(self.iat_rvas["free"], "msvcrt!free")
+        buf.mark_label("rt__bmb_mem_free_done")
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_mem_read")
+        buf.emit(b"\x48\x8B\x04\xD1", "mov rax, [rcx + rdx*8]")
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_mem_write")
+        buf.emit(b"\x4C\x89\x04\xD1", "mov [rcx + rdx*8], r8")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
@@ -1788,6 +1832,7 @@ class PE32PlusExecutableBuilder:
             "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
         ])
 
         # Compile MIR functions

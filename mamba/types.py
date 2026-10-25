@@ -463,6 +463,7 @@ class TypeInferencer:
                 "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
                 "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
                 "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
+                "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
             ):
                 if expr.func in ("abs", "min", "max") and any(t == "f64" for t in arg_types):
                     expr.inferred_type = "f64"
