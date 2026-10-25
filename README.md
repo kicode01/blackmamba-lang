@@ -308,12 +308,13 @@ Try it yourself: open [`examples/web_game_canvas.html`](examples/web_game_canvas
 
 ---
 
-## 📦 Pure Native Standard Library (18 Modules)
+## 📦 Pure Native Standard Library (19 Modules)
 
 Black Mamba includes a comprehensive standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**:
 
 | Module | Description | Key Capabilities |
 | :--- | :--- | :--- |
+| [`simd.bmb`](mamba/stdlib/simd.bmb) | Hardware SIMD & AVX2 Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), `Vec4i`, FMA, 8-way unrolled bulk array kernels, GEMM tiling, audio DSP. |
 | [`http.bmb`](mamba/stdlib/http.bmb) | High-Throughput HTTP & WebSockets | Complete HTTP/1.1 parser, query parameters, response builders, router dispatch, RFC 6455 WebSocket handshake & framing (8.2M req/s). |
 | [`math.bmb`](mamba/stdlib/math.bmb) | High-Precision Minimax Math | 7-term Chebyshev/Taylor trig (`sin`, `cos`, `tan`, `atan2`), hyperbolic, exp/log, `hypot`, `clamp`, `lerp`. |
 | [`time.bmb`](mamba/stdlib/time.bmb) | Nanosecond Hardware Timing | Nanosecond monotonic clock (`clock_ns`), float seconds (`clock_sec`), high-precision sleep primitives (`sleep_ms`, `sleep_ns`). |

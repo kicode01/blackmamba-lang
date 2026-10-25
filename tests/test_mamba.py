@@ -2210,6 +2210,79 @@ def main() -> i64:
         if os.path.exists(pe_exe_path):
             os.remove(pe_exe_path)
 
+    def test_stdlib_simd_vectorization(self):
+        simd_code = '''from simd import (
+    Vec4f, Vec8f, Vec4i,
+    vec4f_set, vec4f_splat, vec4f_add, vec4f_mul, vec4f_fma, vec4f_hsum, vec4f_dot,
+    vec8f_set, vec8f_splat, vec8f_mul, vec8f_hsum,
+    vec4i_set, vec4i_add, vec4i_hsum,
+    simd_add_f64, simd_fma_f64, simd_dot_f64, simd_sum_f64
+)
+
+def main() -> i64:
+    # 1. Vec4f operations
+    v1 = vec4f_set(1.0, 2.0, 3.0, 4.0)
+    v2 = vec4f_splat(2.0)
+    v_fma = vec4f_fma(v1, v2, vec4f_splat(1.0))
+    hsum4 = vec4f_hsum(v_fma) # (1*2+1) + (2*2+1) + (3*2+1) + (4*2+1) = 3 + 5 + 7 + 9 = 24.0
+    dot4 = vec4f_dot(v1, v2)   # 2 + 4 + 6 + 8 = 20.0
+    print(f"SIMD_TEST4F: hsum={hsum4} dot={dot4}")
+
+    # 2. Vec8f operations
+    w1 = vec8f_set(1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0)
+    w2 = vec8f_splat(3.0)
+    w_mul = vec8f_mul(w1, w2)
+    hsum8 = vec8f_hsum(w_mul) # (1+2+3+4+5+6+7+8)*3 = 36 * 3 = 108.0
+    print(f"SIMD_TEST8F: hsum={hsum8}")
+
+    # 3. Vec4i operations
+    i1 = vec4i_set(10, 20, 30, 40)
+    i2 = vec4i_set(1, 2, 3, 4)
+    i_add = vec4i_add(i1, i2)
+    i_sum = vec4i_hsum(i_add) # 11 + 22 + 33 + 44 = 110
+    print(f"SIMD_TEST4I: isum={i_sum}")
+
+    # 4. Bulk 8-way unrolled SIMD kernels
+    n = 16
+    a = [2.0] * n
+    b = [3.0] * n
+    c = [1.0] * n
+    out = [0.0] * n
+    simd_fma_f64(a, b, c, out, n)
+    bulk_sum = simd_sum_f64(out, n) # 16 * (2*3 + 1) = 16 * 7 = 112.0
+    bulk_dot = simd_dot_f64(a, b, n) # 16 * (2*3) = 96.0
+    print(f"SIMD_BULK: sum={bulk_sum} dot={bulk_dot}")
+    return 0
+'''
+        mod = Parser.from_source(simd_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+
+        # JIT verification
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("SIMD_TEST4F: hsum=24.0 dot=20.0", out)
+        self.assertIn("SIMD_TEST8F: hsum=108.0", out)
+        self.assertIn("SIMD_TEST4I: isum=110", out)
+        self.assertIn("SIMD_BULK: sum=112.0 dot=96.0", out)
+
+        # Standalone PE32+ executable verification
+        pe_exe_path = os.path.abspath("build/test_phase4_simd.exe")
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("SIMD_TEST4F: hsum=24 dot=20", pe_res.stdout)
+        self.assertIn("SIMD_TEST8F: hsum=108", pe_res.stdout)
+        self.assertIn("SIMD_TEST4I: isum=110", pe_res.stdout)
+        self.assertIn("SIMD_BULK: sum=112 dot=96", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
 
 if __name__ == "__main__":
     unittest.main()
