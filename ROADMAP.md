@@ -11,9 +11,9 @@
 │                          BLACK MAMBA ROADMAP PHASES                         │
 ├───────────────┬─────────────────────────────────────────────────────────────┤
 │ Phase 1 [DONE]│ Core Multi-Target Compiler, x86-64 JIT, 5KB PE, 1.7KB WASM  │
-│ Phase 2 [NEXT]│ Cross-Platform Expansion: Linux ELF64 & Apple Silicon ARM64 │
-│ Phase 3       │ Memory Architecture: Lexical Arena Lifetimes & SSO Strings  │
-│ Phase 4       │ Native Standard Library & Zero-Copy NumPy/Tensor Bridge     │
+│ Phase 2 [DONE]│ Cross-Platform Expansion: Linux ELF64 & Apple Silicon ARM64 │
+│ Phase 3 [DONE]│ Memory Architecture: Lexical Arena Lifetimes & SSO Strings  │
+│ Phase 4 [DONE]│ Native Standard Library & Zero-Copy NumPy/Tensor Bridge     │
 │ Phase 5 [DONE]│ Developer Tooling: VS Code LSP, REPL, Package Manager & Doc │
 └───────────────┴─────────────────────────────────────────────────────────────┘
 ```
@@ -35,7 +35,7 @@
 
 ---
 
-## Phase 2: Cross-Platform Native Expansion 🎯 *(CURRENT FOCUS)*
+## Phase 2: Cross-Platform Native Expansion ✅ *(COMPLETED & VERIFIED)*
 
 Expand native binary generation beyond Windows x86-64 so developers on Linux and macOS can build standalone executables without external C compilers.
 
@@ -54,7 +54,7 @@ Expand native binary generation beyond Windows x86-64 so developers on Linux and
 
 ---
 
-## Phase 3: Memory Resilience & String Optimization ⚡ *(IN PROGRESS)*
+## Phase 3: Memory Resilience & String Optimization ✅ *(COMPLETED & VERIFIED)*
 
 Eliminate memory leaks on cyclic graphs while keeping zero GC pause latency for real-time game loops and audio.
 
@@ -80,7 +80,7 @@ Eliminate memory leaks on cyclic graphs while keeping zero GC pause latency for 
 
 ---
 
-## Phase 4: Native Standard Library & Zero-Copy Tensor Bridge ⚡ *(IN PROGRESS)*
+## Phase 4: Native Standard Library & Zero-Copy Tensor Bridge ✅ *(COMPLETED & VERIFIED)*
 
 Reduce reliance on the host Python runtime by providing high-speed, native implementations of routine modules.
 
@@ -158,9 +158,9 @@ For full architectural transparency, every known limitation, missing feature, an
 2. **Platform Coverage**: Windows PE32+, Linux ELF64 (3.9 KB), and macOS ARM64 shipped; WebAssembly 1.0 standalone.
 3. **Strings**: Small String Optimization (SSO), zero-copy slicing, and dynamic operations resolved; complex Unicode normalization & regex engine in progress.
 4. **Hardware Exceptions**: Zero-cost SEH `.pdata`/`.xdata` unwind tables and VEH handler shipped in PE32+ linker.
-5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, and `test` are pure native `.bmb`.
+5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, and `test` are pure native `.bmb`.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
-7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, and `par_map` shipped in `thread.bmb`; async channels in progress.
+7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, `par_map`, and lock-free bounded MPMC channels (`chan.bmb`) shipped; actor event loops (`select`) in progress.
 8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`), VS Code extension, REPL (`bmb repl`), package manager (`bmb pkg`), and doc generator (`bmb doc`) shipped; central web registry in progress.
 
 ---
