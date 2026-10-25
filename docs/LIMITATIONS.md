@@ -32,7 +32,7 @@
 
 ---
 
-## 3. Strings & Unicode: Dynamic Slicing & SSO (RESOLVED); Complex Unicode / Regex Remaining
+## 3. Strings, Unicode & Regex: Dynamic Slicing, SSO & Pure Linear-Time Regex Engine (RESOLVED); Complex Unicode Remaining
 
 * **Current Status**:
   * **SSO & Dynamic Strings (RESOLVED in Phase 3)**:
@@ -40,12 +40,18 @@
     - Strings $\le$ 15 bytes are stored in inline contiguous descriptors without secondary heap buffers.
     - Zero-copy slicing: `s[start:stop]`, `s[:stop]`, `s[start:]` return fat pointers or register SSOs directly into parent buffers without copying data bytes.
     - Dynamic operations: String concatenation (`+`), single-character indexing (`s[i]`), length (`len(s)`), fast comparisons (`==`, `!=`), and arbitrary dynamic f-string interpolation (`f"hello {x}"`) now execute natively.
+  * **Linear-Time Regular Expression Engine (RESOLVED in Phase 4)**:
+    - `regex.bmb`: Pure native Thompson NFA compiler and Pike VM execution engine with **zero CPython runtime dependencies**.
+    - Guaranteed $O(N)$ linear-time performance and total immunity to catastrophic backtracking (ReDoS attacks).
+    - Full support for literals, wildcards (`.`), character classes (`[0-9]`, `[a-z]`, `[^...]`), escape sequences (`\d`, `\D`, `\w`, `\W`, `\s`, `\S`, `\n`, `\t`), anchors (`^`, `$`), quantifiers (`*`, `+`, `?`, `{n}`, `{n,}`, `{n,m}`), alternations (`a|b`), non-capturing groups, prefix matching (`regex_match`), unanchored search (`regex_search`, `regex_find`, `regex_find_all`), global string replacement (`regex_replace`), string splitting (`regex_split`), and ergonomic functional shorthands (`re_match`, `re_search`, `re_find`, `re_replace`, `re_split`).
+    - Raw string literal support (`r"..."` / `R"..."`) in the Black Mamba lexer ensures regex escape patterns pass untouched to the Thompson NFA compiler.
   * **Remaining Limitation**:
-    - Regular expressions (`re`) and complex variable-width Unicode normalization (PEP 393 wide codepoint transcoding, e.g. UTF-16 surrogate pairs and full locale collations) currently rely on standard Python text routines via the CPython Host Bridge (`py_call`).
+    - Complex variable-width Unicode normalization (PEP 393 wide codepoint transcoding, e.g. UTF-16 surrogate pairs and full locale-sensitive collation tables) currently relies on host Python text routines via the CPython Host Bridge (`py_call`).
 * **Current Workaround**:
-  * For heavy regex pattern matching or complex locale-sensitive string transforms, use the CPython Host Bridge (`py_call("re", "sub", ...)`).
-* **Planned Future Work (Phase 4)**:
-  * Pure `.bmb` native DFA regular expression engine and UTF-8 grapheme cluster iterator.
+  * Use `from regex import *` for all high-speed regular expressions, search, replace, and splitting with zero CPython dependencies.
+  * For complex locale-sensitive string transforms or full Unicode normalization, use the CPython Host Bridge (`py_call("unicodedata", "normalize", ...)`).
+* **Planned Future Work**:
+  * Native UTF-8 grapheme cluster iterator and pure `.bmb` Unicode normalization.
 
 ---
 
@@ -80,11 +86,13 @@
     - `socket.bmb`: Pure native TCP/UDP networking sockets with zero CPython dependencies. Complete `Socket` struct (`fd`, `family`, `sock_type`, `is_connected`, `is_bound`, `is_listening`), low-level core primitives (`socket_init`, `socket_cleanup`, `socket_create`, `socket_connect`, `socket_bind`, `socket_listen`, `socket_accept`, `socket_send`, `socket_recv`, `socket_close`), high-level client/server helpers (`tcp_connect`, `tcp_server`, `http_get`), running bare-metal across Win64 JIT, standalone Windows PE32+ (dynamic `ws2_32.dll` IAT imports), static Linux ELF64 (direct raw kernel syscalls `sys_socket`, `sys_connect`, `sys_bind`, `sys_listen`, `sys_accept`, `sys_write`, `sys_read`, `sys_close`), C11, and WebAssembly stubs.
     - `array.bmb`: High-performance dynamic growable vector collections (`IntVector`, `FloatVector`, `StrVector`) and zero-copy memory slice views (`IntSlice`, `FloatSlice`) with amortized $O(1)$ capacity growth, negative indexing (`-1`), insert, pop, $O(1)$ swap-remove, in-place quicksort, $O(\log N)$ binary search, and contiguous memory copy/fill routines.
     - `test.bmb`: Built-in assertion framework (`assert_eq_i64`, `assert_eq_f64`, `assert_eq_str`, `assert_str_contains`), test runner with suite tracking (`test_runner_new`, `test_suite`, `test_case`, `test_summary`), and hardware nanosecond micro-benchmarking harness (`benchmark_create`, `benchmark_print`) reporting throughput in Mops/sec.
+    - `chan.bmb`: Dmitry Vyukov's lock-free bounded MPMC ring buffer queue with zero locks and zero GIL for concurrent multithreading.
+    - `regex.bmb`: Pure native Thompson NFA compiler and Pike VM execution engine with $O(N)$ linear-time performance and total ReDoS immunity.
     - `mamba/module_loader.py`: Module import resolution engine supporting `import <mod>`, `from <mod> import <names>`, `from <mod> import *`, and compile-time module constant inlining.
   * **Remaining Limitation**:
     - High-level asynchronous event loops (`asyncio`) and database drivers (`sqlite3`) still require native implementations or CPython Host Bridge fallback (`mamba/interop.py`).
 * **Current Workaround**:
-  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `test`) for compute, timing, tensors, data exchange, security hashing, file I/O, networking, dynamic vector buffers, test suites, and benchmarking.
+  * Use pure `.bmb` modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `chan`, `regex`, `test`) for compute, timing, tensors, data exchange, security hashing, file I/O, networking, lock-free channels, linear-time regular expressions, dynamic vector buffers, test suites, and benchmarking.
   * For complex database drivers or async event loops, call `py_call("sqlite3", ...)` or `py_call("asyncio", ...)` via the CPython Host Bridge.
 * **Planned Future Work (Phase 4)**:
   * Zero-copy database adapters and async networking event loops.

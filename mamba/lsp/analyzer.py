@@ -78,6 +78,7 @@ STDLIB_MODULES = [
     ("array", "Growable vector collections (IntVector) and slice views"),
     ("thread", "Hardware multithreading, atomics, Mutex, par_for, par_map"),
     ("chan", "Lock-free bounded MPMC ring buffer channels for hardware threads"),
+    ("regex", "Pure native linear-time regular expressions (Thompson NFA / Pike VM)"),
     ("test", "Assertion framework and hardware benchmarking harness"),
 ]
 

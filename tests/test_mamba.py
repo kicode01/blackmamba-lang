@@ -1589,6 +1589,87 @@ fn main() -> i64:
         if os.path.exists(pe_exe_path):
             os.remove(pe_exe_path)
 
+    def test_stdlib_regex_module(self):
+        regex_code = """
+from regex import *
+
+fn main() -> i64:
+    # 1. Literals, Wildcard, Alternation & Quantifiers
+    r1 = regex_compile("cat|dog")
+    print(f"LIT: cat={regex_match(r1, 'cat')} dog={regex_match(r1, 'dog')} cow={regex_match(r1, 'cow')}")
+
+    r_dot = regex_compile("c.t")
+    print(f"DOT: cat={regex_match(r_dot, 'cat')} cut={regex_match(r_dot, 'cut')} ct={regex_match(r_dot, 'ct')}")
+
+    r_star = regex_compile("ab*c")
+    print(f"STAR: ac={regex_match(r_star, 'ac')} abc={regex_match(r_star, 'abc')} abbbc={regex_match(r_star, 'abbbc')}")
+
+    r_rep = regex_compile("^a{2,4}$")
+    print(f"REP: a={regex_match(r_rep, 'a')} aa={regex_match(r_rep, 'aa')} aaaa={regex_match(r_rep, 'aaaa')} aaaaa={regex_match(r_rep, 'aaaaa')}")
+
+    # 2. Character Classes & Escape Shorthands
+    r_cls = regex_compile(r"\\d+")
+    print(f"DIGIT: 99={regex_search(r_cls, 'Price is 99 dollars')} none={regex_search(r_cls, 'No numbers here')}")
+
+    r_neg = regex_compile("[^0-9]+")
+    print(f"NEG_CLS: abc={regex_match(r_neg, 'abc')} 123={regex_match(r_neg, '123')}")
+
+    # 3. Anchors & Structural Pattern
+    r_mail = regex_compile(r"^[a-z]+@[a-z]+\\.[a-z]+$")
+    print(f"EMAIL: valid={regex_match(r_mail, 'alice@example.com')} invalid={regex_match(r_mail, 'not-an-email')}")
+
+    # 4. Global Replacement
+    r_sub = regex_compile(r"\\d+")
+    rep = regex_replace(r_sub, "Route 66 to Area 51", "XXX")
+    print(f"REPLACE: {rep}")
+
+    # 5. String Splitting
+    r_sp = regex_compile("[,;]+")
+    parts = regex_split(r_sp, "apple,banana;;cherry,dates")
+    print(f"SPLIT: 0={parts[0]} 1={parts[1]} 2={parts[2]} 3={parts[3]}")
+
+    # 6. Shorthand Functional API
+    sh_m = re_match("[a-z]+", "mamba")
+    sh_s = re_search(r"\\d+", "Agent 007")
+    sh_r = re_replace(r"\\s+", "hello   world   fast", " ")
+    print(f"SHORTHAND: match={sh_m} search={sh_s} replace={sh_r}")
+
+    return 0
+"""
+        mod = Parser.from_source(regex_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("LIT: cat=1 dog=1 cow=0", out)
+        self.assertIn("DOT: cat=1 cut=1 ct=0", out)
+        self.assertIn("STAR: ac=1 abc=1 abbbc=1", out)
+        self.assertIn("REP: a=0 aa=1 aaaa=1 aaaaa=0", out)
+        self.assertIn("DIGIT: 99=1 none=0", out)
+        self.assertIn("NEG_CLS: abc=1 123=0", out)
+        self.assertIn("EMAIL: valid=1 invalid=0", out)
+        self.assertIn("REPLACE: Route XXX to Area XXX", out)
+        self.assertIn("SPLIT: 0=apple 1=banana 2=cherry 3=dates", out)
+        self.assertIn("SHORTHAND: match=1 search=1 replace=hello world fast", out)
+
+        # Standalone PE32+ Executable Compilation & Execution
+        pe_exe_path = os.path.abspath("build/test_phase4_regex.exe")
+        os.makedirs("build", exist_ok=True)
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("LIT: cat=1 dog=1 cow=0", pe_res.stdout)
+        self.assertIn("REPLACE: Route XXX to Area XXX", pe_res.stdout)
+        self.assertIn("SPLIT: 0=apple 1=banana 2=cherry 3=dates", pe_res.stdout)
+        self.assertIn("SHORTHAND: match=1 search=1 replace=hello world fast", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
 
 if __name__ == "__main__":
     unittest.main()

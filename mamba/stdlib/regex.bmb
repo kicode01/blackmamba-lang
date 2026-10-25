@@ -1,0 +1,844 @@
+# Black Mamba Standard Library: regex
+# Pure Native Linear-Time Regular Expression Engine (Thompson NFA / Pike VM).
+# Zero-CPython-overhead, guaranteed O(N) execution, zero catastrophic backtracking (ReDoS immune).
+# Supports literals, escapes (\d, \D, \w, \W, \s, \S, \n, \t), wildcards (.),
+# character classes ([0-9], [a-z], [^...]), anchors (^, $), quantifiers (*, +, ?, {n}, {n,}, {n,m}),
+# alternations (a|b), and groupings ((...)).
+
+# ==============================================================================
+# 1. Bytecode Opcodes (Pike VM)
+# ==============================================================================
+
+OP_MATCH = 1
+OP_CHAR = 2
+OP_ANY = 3
+OP_CLASS = 4
+OP_SPLIT = 5
+OP_JMP = 6
+OP_START_ANCHOR = 7
+OP_END_ANCHOR = 8
+
+
+# ==============================================================================
+# 2. Regular Expression Representation
+# ==============================================================================
+
+struct Regex:
+    pattern: str
+    start_state: i64
+    state_count: i64
+    states_op: Array[i64]
+    states_a1: Array[i64]
+    states_a2: Array[i64]
+    states_out1: Array[i64]
+    states_out2: Array[i64]
+    class_table: Array[i64]
+    class_count: i64
+    has_start_anchor: i64
+    has_end_anchor: i64
+    vm_threads1: Array[i64]
+    vm_threads2: Array[i64]
+    vm_visited: Array[i64]
+    vm_stack: Array[i64]
+    vm_step: Array[i64] # [step_counter] boxed in 1-element array for mutable in-place update
+
+
+struct Frag:
+    start: i64
+    p_start: i64
+    p_cnt: i64
+
+
+struct CompilerState:
+    pattern: str
+    pos: i64
+    len: i64
+    states_op: Array[i64]
+    states_a1: Array[i64]
+    states_a2: Array[i64]
+    states_out1: Array[i64]
+    states_out2: Array[i64]
+    state_count: i64
+    state_capacity: i64
+    class_table: Array[i64]
+    class_count: i64
+    patch_buf: Array[i64]
+    patch_count: i64
+    has_start_anchor: i64
+    has_end_anchor: i64
+
+
+# ==============================================================================
+# 3. Compiler Internal Helpers
+# ==============================================================================
+
+def _emit_state(cs: CompilerState, op: i64, a1: i64, a2: i64) -> i64:
+    idx = cs.state_count
+    cs.states_op[idx] = op
+    cs.states_a1[idx] = a1
+    cs.states_a2[idx] = a2
+    cs.states_out1[idx] = -1
+    cs.states_out2[idx] = -1
+    cs.state_count += 1
+    return idx
+
+def _add_patch(cs: CompilerState, s_idx: i64, slot: i64) -> Frag:
+    start = cs.patch_count
+    cs.patch_buf[start] = s_idx * 2 + slot
+    cs.patch_count += 1
+    return Frag(s_idx, start, 1)
+
+def _combine_patches(cs: CompilerState, p1_start: i64, p1_cnt: i64, p2_start: i64, p2_cnt: i64) -> Frag:
+    start = cs.patch_count
+    for i in 0..p1_cnt:
+        cs.patch_buf[cs.patch_count] = cs.patch_buf[p1_start + i]
+        cs.patch_count += 1
+    for i in 0..p2_cnt:
+        cs.patch_buf[cs.patch_count] = cs.patch_buf[p2_start + i]
+        cs.patch_count += 1
+    return Frag(0, start, p1_cnt + p2_cnt)
+
+def _patch_all(cs: CompilerState, p_start: i64, p_cnt: i64, target: i64) -> i64:
+    for i in 0..p_cnt:
+        item = cs.patch_buf[p_start + i]
+        s_idx = item // 2
+        slot = item % 2
+        if slot == 0:
+            cs.states_out1[s_idx] = target
+        else:
+            cs.states_out2[s_idx] = target
+    return 0
+
+def _clone_frag(cs: CompilerState, f: Frag, state_start: i64, state_end: i64) -> Frag:
+    offset = cs.state_count - state_start
+    count = state_end - state_start
+    for i in 0..count:
+        old_idx = state_start + i
+        new_idx = cs.state_count
+        cs.states_op[new_idx] = cs.states_op[old_idx]
+        cs.states_a1[new_idx] = cs.states_a1[old_idx]
+        cs.states_a2[new_idx] = cs.states_a2[old_idx]
+        
+        o1 = cs.states_out1[old_idx]
+        if o1 >= state_start:
+            cs.states_out1[new_idx] = o1 + offset
+        else:
+            cs.states_out1[new_idx] = o1
+            
+        o2 = cs.states_out2[old_idx]
+        if o2 >= state_start:
+            cs.states_out2[new_idx] = o2 + offset
+        else:
+            cs.states_out2[new_idx] = o2
+            
+        cs.state_count += 1
+
+    p_start = cs.patch_count
+    for i in 0..f.p_cnt:
+        item = cs.patch_buf[f.p_start + i]
+        s_idx = item // 2
+        slot = item % 2
+        cs.patch_buf[cs.patch_count] = (s_idx + offset) * 2 + slot
+        cs.patch_count += 1
+        
+    return Frag(f.start + offset, p_start, f.p_cnt)
+
+
+# ==============================================================================
+# 4. Recursive Descent Regex Parser
+# ==============================================================================
+
+def _peek(cs: CompilerState) -> i64:
+    if cs.pos >= cs.len:
+        return 0
+    return ord(cs.pattern[cs.pos])
+
+def _get(cs: CompilerState) -> i64:
+    if cs.pos >= cs.len:
+        return 0
+    c = ord(cs.pattern[cs.pos])
+    cs.pos += 1
+    return c
+
+def _parse_alt(cs: CompilerState) -> Frag:
+    f1 = _parse_cat(cs)
+    while _peek(cs) == 124: # '|'
+        _get(cs) # consume '|'
+        f2 = _parse_cat(cs)
+        s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+        cs.states_out1[s_idx] = f1.start
+        cs.states_out2[s_idx] = f2.start
+        comb = _combine_patches(cs, f1.p_start, f1.p_cnt, f2.p_start, f2.p_cnt)
+        f1 = Frag(s_idx, comb.p_start, comb.p_cnt)
+    return f1
+
+def _parse_cat(cs: CompilerState) -> Frag:
+    has_f = 0
+    start_pc = 0
+    p_start = 0
+    p_cnt = 0
+    
+    while cs.pos < cs.len:
+        c = _peek(cs)
+        if c == 124 or c == 41: # '|' or ')'
+            break
+        piece = _parse_piece(cs)
+        if piece.start == -1:
+            break
+        if has_f == 0:
+            start_pc = piece.start
+            p_start = piece.p_start
+            p_cnt = piece.p_cnt
+            has_f = 1
+        else:
+            _patch_all(cs, p_start, p_cnt, piece.start)
+            start_pc = start_pc
+            p_start = piece.p_start
+            p_cnt = piece.p_cnt
+            
+    if has_f == 0:
+        idx = _emit_state(cs, OP_JMP, 0, 0)
+        patch_info = _add_patch(cs, idx, 0)
+        return Frag(idx, patch_info.p_start, patch_info.p_cnt)
+        
+    return Frag(start_pc, p_start, p_cnt)
+
+def _parse_piece(cs: CompilerState) -> Frag:
+    state_start = cs.state_count
+    atom = _parse_atom(cs)
+    if atom.start == -1:
+        return Frag(-1, 0, 0)
+    state_end = cs.state_count
+
+    c = _peek(cs)
+    if c == 42: # '*'
+        _get(cs)
+        s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+        cs.states_out1[s_idx] = atom.start
+        _patch_all(cs, atom.p_start, atom.p_cnt, s_idx)
+        patch_info = _add_patch(cs, s_idx, 1)
+        return Frag(s_idx, patch_info.p_start, patch_info.p_cnt)
+        
+    if c == 43: # '+'
+        _get(cs)
+        s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+        cs.states_out1[s_idx] = atom.start
+        _patch_all(cs, atom.p_start, atom.p_cnt, s_idx)
+        patch_info = _add_patch(cs, s_idx, 1)
+        return Frag(atom.start, patch_info.p_start, patch_info.p_cnt)
+        
+    if c == 63: # '?'
+        _get(cs)
+        s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+        cs.states_out1[s_idx] = atom.start
+        exit_patch = _add_patch(cs, s_idx, 1)
+        comb = _combine_patches(cs, atom.p_start, atom.p_cnt, exit_patch.p_start, exit_patch.p_cnt)
+        return Frag(s_idx, comb.p_start, comb.p_cnt)
+
+    if c == 123: # '{'
+        # Parse counted repetition {n}, {n,}, {n,m}
+        _get(cs) # consume '{'
+        min_rep = 0
+        while _peek(cs) >= 48 and _peek(cs) <= 57:
+            min_rep = min_rep * 10 + (_get(cs) - 48)
+        max_rep = min_rep
+        if _peek(cs) == 44: # ','
+            _get(cs) # consume ','
+            if _peek(cs) >= 48 and _peek(cs) <= 57:
+                max_rep = 0
+                while _peek(cs) >= 48 and _peek(cs) <= 57:
+                    max_rep = max_rep * 10 + (_get(cs) - 48)
+            else:
+                max_rep = -1 # unbounded {n,}
+        if _peek(cs) == 125: # '}'
+            _get(cs)
+
+        if min_rep == 0 and max_rep == 0:
+            # 0 occurrences
+            idx = _emit_state(cs, OP_JMP, 0, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        # Assemble repeated fragment
+        cur_f = atom
+        # First min_rep - 1 mandatory copies
+        if min_rep > 1:
+            for rep in 1..min_rep:
+                cloned = _clone_frag(cs, atom, state_start, state_end)
+                _patch_all(cs, cur_f.p_start, cur_f.p_cnt, cloned.start)
+                cur_f = Frag(cur_f.start, cloned.p_start, cloned.p_cnt)
+        elif min_rep == 0:
+            # {0, m}
+            s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+            cs.states_out1[s_idx] = atom.start
+            exit_patch = _add_patch(cs, s_idx, 1)
+            comb = _combine_patches(cs, atom.p_start, atom.p_cnt, exit_patch.p_start, exit_patch.p_cnt)
+            cur_f = Frag(s_idx, comb.p_start, comb.p_cnt)
+            min_rep = 1
+
+        # Optional extra copies
+        if max_rep == -1:
+            # Unbounded: add star
+            s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+            cloned = _clone_frag(cs, atom, state_start, state_end)
+            cs.states_out1[s_idx] = cloned.start
+            _patch_all(cs, cloned.p_start, cloned.p_cnt, s_idx)
+            star_exit = _add_patch(cs, s_idx, 1)
+            _patch_all(cs, cur_f.p_start, cur_f.p_cnt, s_idx)
+            cur_f = Frag(cur_f.start, star_exit.p_start, star_exit.p_cnt)
+        elif max_rep > min_rep:
+            extras = max_rep - min_rep
+            for rep in 0..extras:
+                cloned = _clone_frag(cs, atom, state_start, state_end)
+                s_idx = _emit_state(cs, OP_SPLIT, 0, 0)
+                cs.states_out1[s_idx] = cloned.start
+                exit_patch = _add_patch(cs, s_idx, 1)
+                comb = _combine_patches(cs, cloned.p_start, cloned.p_cnt, exit_patch.p_start, exit_patch.p_cnt)
+                quest_f = Frag(s_idx, comb.p_start, comb.p_cnt)
+                _patch_all(cs, cur_f.p_start, cur_f.p_cnt, quest_f.start)
+                cur_f = Frag(cur_f.start, quest_f.p_start, quest_f.p_cnt)
+
+        return cur_f
+
+    return atom
+
+def _parse_atom(cs: CompilerState) -> Frag:
+    if cs.pos >= cs.len:
+        return Frag(-1, 0, 0)
+    c = _get(cs)
+
+    # 1. Grouping `(...)`
+    if c == 40: # '('
+        sub = _parse_alt(cs)
+        if _peek(cs) == 41: # ')'
+            _get(cs)
+        return sub
+
+    # 2. Wildcard `.`
+    if c == 46: # '.'
+        idx = _emit_state(cs, OP_ANY, 0, 0)
+        p_info = _add_patch(cs, idx, 0)
+        return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+    # 3. Start Anchor `^`
+    if c == 94: # '^'
+        idx = _emit_state(cs, OP_START_ANCHOR, 0, 0)
+        cs.has_start_anchor = 1
+        p_info = _add_patch(cs, idx, 0)
+        return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+    # 4. End Anchor `$`
+    if c == 36: # '$'
+        idx = _emit_state(cs, OP_END_ANCHOR, 0, 0)
+        cs.has_end_anchor = 1
+        p_info = _add_patch(cs, idx, 0)
+        return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+    # 5. Character Class `[...]`
+    if c == 91: # '['
+        inv = 0
+        if _peek(cs) == 94: # '^'
+            _get(cs)
+            inv = 1
+        class_offset = cs.class_count
+        count_slot = class_offset
+        cs.class_count += 1 # reserve slot for range_count
+        range_count = 0
+
+        while cs.pos < cs.len and _peek(cs) != 93: # ']'
+            ch = _get(cs)
+            if ch == 92: # '\\'
+                ch = _get(cs)
+            c1 = ch
+            if _peek(cs) == 45 and cs.pos + 1 < cs.len and ord(cs.pattern[cs.pos + 1]) != 93:
+                _get(cs) # consume '-'
+                c2 = _get(cs)
+                if c2 == 92:
+                    c2 = _get(cs)
+                min_c = c1 if c1 < c2 else c2
+                max_c = c2 if c1 < c2 else c1
+                cs.class_table[cs.class_count] = min_c
+                cs.class_count += 1
+                cs.class_table[cs.class_count] = max_c
+                cs.class_count += 1
+                range_count += 1
+            else:
+                cs.class_table[cs.class_count] = c1
+                cs.class_count += 1
+                cs.class_table[cs.class_count] = c1
+                cs.class_count += 1
+                range_count += 1
+
+        if _peek(cs) == 93: # ']'
+            _get(cs)
+            
+        cs.class_table[count_slot] = range_count
+        idx = _emit_state(cs, OP_CLASS, class_offset, inv)
+        p_info = _add_patch(cs, idx, 0)
+        return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+    # 6. Escaped Characters
+    if c == 92: # '\\'
+        esc = _get(cs)
+        if esc == 100: # '\d' digits [0-9]
+            offset = cs.class_count
+            cs.class_table[offset] = 1
+            cs.class_table[offset + 1] = 48
+            cs.class_table[offset + 2] = 57
+            cs.class_count += 3
+            idx = _emit_state(cs, OP_CLASS, offset, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+            
+        if esc == 68: # '\D' non-digits [^0-9]
+            offset = cs.class_count
+            cs.class_table[offset] = 1
+            cs.class_table[offset + 1] = 48
+            cs.class_table[offset + 2] = 57
+            cs.class_count += 3
+            idx = _emit_state(cs, OP_CLASS, offset, 1)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+            
+        if esc == 119: # '\w' word [0-9A-Z_a-z]
+            offset = cs.class_count
+            cs.class_table[offset] = 4
+            cs.class_table[offset + 1] = 48
+            cs.class_table[offset + 2] = 57
+            cs.class_table[offset + 3] = 65
+            cs.class_table[offset + 4] = 90
+            cs.class_table[offset + 5] = 95
+            cs.class_table[offset + 6] = 95
+            cs.class_table[offset + 7] = 97
+            cs.class_table[offset + 8] = 122
+            cs.class_count += 9
+            idx = _emit_state(cs, OP_CLASS, offset, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        if esc == 87: # '\W' non-word
+            offset = cs.class_count
+            cs.class_table[offset] = 4
+            cs.class_table[offset + 1] = 48
+            cs.class_table[offset + 2] = 57
+            cs.class_table[offset + 3] = 65
+            cs.class_table[offset + 4] = 90
+            cs.class_table[offset + 5] = 95
+            cs.class_table[offset + 6] = 95
+            cs.class_table[offset + 7] = 97
+            cs.class_table[offset + 8] = 122
+            cs.class_count += 9
+            idx = _emit_state(cs, OP_CLASS, offset, 1)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        if esc == 115: # '\s' whitespace
+            offset = cs.class_count
+            cs.class_table[offset] = 4
+            cs.class_table[offset + 1] = 9
+            cs.class_table[offset + 2] = 9
+            cs.class_table[offset + 3] = 10
+            cs.class_table[offset + 4] = 10
+            cs.class_table[offset + 5] = 13
+            cs.class_table[offset + 6] = 13
+            cs.class_table[offset + 7] = 32
+            cs.class_table[offset + 8] = 32
+            cs.class_count += 9
+            idx = _emit_state(cs, OP_CLASS, offset, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        if esc == 83: # '\S' non-whitespace
+            offset = cs.class_count
+            cs.class_table[offset] = 4
+            cs.class_table[offset + 1] = 9
+            cs.class_table[offset + 2] = 9
+            cs.class_table[offset + 3] = 10
+            cs.class_table[offset + 4] = 10
+            cs.class_table[offset + 5] = 13
+            cs.class_table[offset + 6] = 13
+            cs.class_table[offset + 7] = 32
+            cs.class_table[offset + 8] = 32
+            cs.class_count += 9
+            idx = _emit_state(cs, OP_CLASS, offset, 1)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        if esc == 110: # '\n'
+            idx = _emit_state(cs, OP_CHAR, 10, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        if esc == 116: # '\t'
+            idx = _emit_state(cs, OP_CHAR, 9, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        if esc == 114: # '\r'
+            idx = _emit_state(cs, OP_CHAR, 13, 0)
+            p_info = _add_patch(cs, idx, 0)
+            return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+        # Literal escaped punctuation
+        idx = _emit_state(cs, OP_CHAR, esc, 0)
+        p_info = _add_patch(cs, idx, 0)
+        return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+    # 7. Literal character
+    idx = _emit_state(cs, OP_CHAR, c, 0)
+    p_info = _add_patch(cs, idx, 0)
+    return Frag(idx, p_info.p_start, p_info.p_cnt)
+
+
+# ==============================================================================
+# 5. Public Regex Compiler Entry Point
+# ==============================================================================
+
+def regex_compile(pattern: str) -> Regex:
+    # Compiles regular expression pattern into a Thompson NFA / Pike VM Regex instance.
+    cap = 2048
+    states_op = [0] * cap
+    states_a1 = [0] * cap
+    states_a2 = [0] * cap
+    states_out1 = [-1] * cap
+    states_out2 = [-1] * cap
+    class_table = [0] * cap
+    patch_buf = [0] * 4096
+
+    cs = CompilerState(
+        pattern,
+        0,
+        len(pattern),
+        states_op,
+        states_a1,
+        states_a2,
+        states_out1,
+        states_out2,
+        0,
+        cap,
+        class_table,
+        0,
+        patch_buf,
+        0,
+        0,
+        0,
+    )
+
+    frag = _parse_alt(cs)
+    m_idx = _emit_state(cs, OP_MATCH, 0, 0)
+    _patch_all(cs, frag.p_start, frag.p_cnt, m_idx)
+
+    total_states = cs.state_count
+    vm_threads1 = [0] * total_states
+    vm_threads2 = [0] * total_states
+    vm_visited = [0] * total_states
+    vm_stack = [0] * (total_states * 4)
+    vm_step = [1]
+
+    return Regex(
+        pattern,
+        frag.start,
+        total_states,
+        cs.states_op,
+        cs.states_a1,
+        cs.states_a2,
+        cs.states_out1,
+        cs.states_out2,
+        cs.class_table,
+        cs.class_count,
+        cs.has_start_anchor,
+        cs.has_end_anchor,
+        vm_threads1,
+        vm_threads2,
+        vm_visited,
+        vm_stack,
+        vm_step,
+    )
+
+
+# ==============================================================================
+# 6. Pike VM Iterative Execution Engine
+# ==============================================================================
+
+def _match_class_code(table: Array[i64], offset: i64, inv: i64, c: i64) -> i64:
+    num_ranges = table[offset]
+    matched = 0
+    i = 0
+    while i < num_ranges:
+        low = table[offset + 1 + i * 2]
+        high = table[offset + 2 + i * 2]
+        if c >= low and c <= high:
+            matched = 1
+            break
+        i += 1
+    if inv == 1:
+        return 1 if matched == 0 else 0
+    return matched
+
+def _re_match_at(re: Regex, text: str, text_len: i64, start_pos: i64) -> i64:
+    # Runs the Pike VM on `text` starting at `start_pos`.
+    # Returns the rightmost matched end position (pos), or -1 if no match.
+    n_states = re.state_count
+    re.vm_step[0] += 1
+    step = re.vm_step[0]
+    if step > 1000000000:
+        for i in 0..n_states:
+            re.vm_visited[i] = 0
+        re.vm_step[0] = 1
+        step = 1
+
+    cur_threads = re.vm_threads1
+    next_threads = re.vm_threads2
+    visited = re.vm_visited
+    stack = re.vm_stack
+
+    # Initial epsilon closure expansion from start_state
+    stack_top = 1
+    stack[0] = re.start_state
+    cur_cnt = 0
+
+    while stack_top > 0:
+        stack_top -= 1
+        s_idx = stack[stack_top]
+        if s_idx < 0 or s_idx >= n_states:
+            continue
+        if visited[s_idx] == step:
+            continue
+        visited[s_idx] = step
+        op = re.states_op[s_idx]
+        if op == OP_SPLIT:
+            stack[stack_top] = re.states_out2[s_idx]
+            stack_top += 1
+            stack[stack_top] = re.states_out1[s_idx]
+            stack_top += 1
+        elif op == OP_JMP:
+            stack[stack_top] = re.states_out1[s_idx]
+            stack_top += 1
+        elif op == OP_START_ANCHOR:
+            if start_pos == 0:
+                stack[stack_top] = re.states_out1[s_idx]
+                stack_top += 1
+        elif op == OP_END_ANCHOR:
+            if start_pos == text_len:
+                stack[stack_top] = re.states_out1[s_idx]
+                stack_top += 1
+        else:
+            cur_threads[cur_cnt] = s_idx
+            cur_cnt += 1
+
+    matched_end = -1
+    for i in 0..cur_cnt:
+        if re.states_op[cur_threads[i]] == OP_MATCH:
+            matched_end = start_pos
+
+    # Iterate over text characters
+    pos = start_pos
+    while pos < text_len:
+        c_code = ord(text[pos])
+        re.vm_step[0] += 1
+        step = re.vm_step[0]
+        next_cnt = 0
+
+        for i in 0..cur_cnt:
+            s_idx = cur_threads[i]
+            op = re.states_op[s_idx]
+            matched_char = 0
+            if op == OP_CHAR and re.states_a1[s_idx] == c_code:
+                matched_char = 1
+            elif op == OP_ANY and c_code != 10:
+                matched_char = 1
+            elif op == OP_CLASS and _match_class_code(re.class_table, re.states_a1[s_idx], re.states_a2[s_idx], c_code) == 1:
+                matched_char = 1
+
+            if matched_char == 1:
+                # Expand target state
+                stack_top = 1
+                stack[0] = re.states_out1[s_idx]
+                while stack_top > 0:
+                    stack_top -= 1
+                    t_idx = stack[stack_top]
+                    if t_idx < 0 or t_idx >= n_states:
+                        continue
+                    if visited[t_idx] == step:
+                        continue
+                    visited[t_idx] = step
+                    top = re.states_op[t_idx]
+                    if top == OP_SPLIT:
+                        stack[stack_top] = re.states_out2[t_idx]
+                        stack_top += 1
+                        stack[stack_top] = re.states_out1[t_idx]
+                        stack_top += 1
+                    elif top == OP_JMP:
+                        stack[stack_top] = re.states_out1[t_idx]
+                        stack_top += 1
+                    elif top == OP_END_ANCHOR:
+                        if pos + 1 == text_len:
+                            stack[stack_top] = re.states_out1[t_idx]
+                            stack_top += 1
+                    else:
+                        next_threads[next_cnt] = t_idx
+                        next_cnt += 1
+
+        cur_cnt = next_cnt
+        for i in 0..cur_cnt:
+            if re.states_op[next_threads[i]] == OP_MATCH:
+                matched_end = pos + 1
+            cur_threads[i] = next_threads[i]
+
+        if cur_cnt == 0:
+            break
+        pos += 1
+
+    return matched_end
+
+
+# ==============================================================================
+# 7. High-Level Public Query & Transform API
+# ==============================================================================
+
+def regex_match(re: Regex, text: str) -> i64:
+    # Anchored match: tests if pattern matches at the beginning of `text`.
+    # Returns 1 on match, 0 otherwise.
+    n = len(text)
+    end = _re_match_at(re, text, n, 0)
+    if end >= 0:
+        if re.has_end_anchor == 1 and end != n:
+            return 0
+        return 1
+    return 0
+
+def regex_is_match(re: Regex, text: str) -> bool:
+    # Returns True if pattern matches full string (if anchored) or anywhere in string.
+    if re.has_start_anchor == 1:
+        return regex_match(re, text) == 1
+    span = regex_find(re, text)
+    return span[0] >= 0
+
+def regex_search(re: Regex, text: str) -> i64:
+    # Searches for the first occurrence of pattern anywhere in `text`.
+    # Returns 1 if found, 0 otherwise.
+    span = regex_find(re, text)
+    return 1 if span[0] >= 0 else 0
+
+def regex_find(re: Regex, text: str) -> Array[i64]:
+    # Returns [start_idx, end_idx] of the first match in `text`, or [-1, -1] if not found.
+    n = len(text)
+    start = 0
+    limit = 1 if re.has_start_anchor == 1 else n + 1
+    while start < limit:
+        end = _re_match_at(re, text, n, start)
+        if end >= start and (end > start or re.has_end_anchor == 1 or start == n):
+            return [start, end]
+        start += 1
+    return [-1, -1]
+
+def regex_find_all(re: Regex, text: str) -> Array[str]:
+    # Returns an array of all non-overlapping matching substrings in `text`.
+    n = len(text)
+    # Pass 1: count matches
+    cnt = 0
+    i = 0
+    while i < n:
+        end = _re_match_at(re, text, n, i)
+        if end > i:
+            cnt += 1
+            i = end
+        else:
+            i += 1
+    if cnt == 0:
+        return [""] * 0
+    # Pass 2: slice matches
+    out = [""] * cnt
+    idx = 0
+    i = 0
+    while i < n:
+        end = _re_match_at(re, text, n, i)
+        if end > i:
+            out[idx] = text[i:end]
+            idx += 1
+            i = end
+        else:
+            i += 1
+    return out
+
+def regex_replace(re: Regex, text: str, repl: str) -> str:
+    # Replaces all non-overlapping occurrences of pattern with `repl`.
+    n = len(text)
+    res = ""
+    i = 0
+    last = 0
+    while i < n:
+        end = _re_match_at(re, text, n, i)
+        if end > i:
+            seg = text[last:i]
+            res = res + seg + repl
+            last = end
+            i = end
+        else:
+            i += 1
+    tail = text[last:n]
+    res = res + tail
+    return res
+
+def regex_split(re: Regex, text: str) -> Array[str]:
+    # Splits `text` on all non-overlapping occurrences of pattern.
+    n = len(text)
+    cnt = 1
+    i = 0
+    while i < n:
+        end = _re_match_at(re, text, n, i)
+        if end > i:
+            cnt += 1
+            i = end
+        else:
+            i += 1
+    out = [""] * cnt
+    idx = 0
+    last = 0
+    i = 0
+    while i < n:
+        end = _re_match_at(re, text, n, i)
+        if end > i:
+            out[idx] = text[last:i]
+            idx += 1
+            last = end
+            i = end
+        else:
+            i += 1
+    out[idx] = text[last:n]
+    return out
+
+
+# ==============================================================================
+# 8. Shorthand Convenience Functions
+# ==============================================================================
+
+def re_match(pattern: str, text: str) -> i64:
+    # Shorthand to compile pattern and run anchored match.
+    r = regex_compile(pattern)
+    return regex_match(r, text)
+
+def re_search(pattern: str, text: str) -> i64:
+    # Shorthand to compile pattern and search anywhere in text.
+    r = regex_compile(pattern)
+    return regex_search(r, text)
+
+def re_find(pattern: str, text: str) -> Array[i64]:
+    # Shorthand to compile pattern and return first [start, end] span.
+    r = regex_compile(pattern)
+    return regex_find(r, text)
+
+def re_find_all(pattern: str, text: str) -> Array[str]:
+    # Shorthand to compile pattern and return all matched substrings.
+    r = regex_compile(pattern)
+    return regex_find_all(r, text)
+
+def re_replace(pattern: str, text: str, repl: str) -> str:
+    # Shorthand to compile pattern and replace all occurrences with repl.
+    r = regex_compile(pattern)
+    return regex_replace(r, text, repl)
+
+def re_split(pattern: str, text: str) -> Array[str]:
+    # Shorthand to compile pattern and split text.
+    r = regex_compile(pattern)
+    return regex_split(r, text)

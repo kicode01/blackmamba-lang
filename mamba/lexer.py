@@ -357,8 +357,21 @@ class Lexer:
                     self.tokens.append(Token(TokenType.INT, int(raw_num), line_num, col))
                 continue
 
-            # Identifiers & Keywords (also handle f-strings f"..." as string/interpolated)
+            # Identifiers & Keywords (also handle f-strings f"..." and raw strings r"...")
             if ch.isalpha() or ch == "_":
+                if ch in ("r", "R") and i + 1 < n and line[i + 1] in ('"', "'"):
+                    quote = line[i + 1]
+                    i += 2
+                    chars = []
+                    while i < n and line[i] != quote:
+                        chars.append(line[i])
+                        i += 1
+                    if i >= n or line[i] != quote:
+                        raise LexerError("Unterminated raw string literal", line_num, col)
+                    i += 1
+                    self.tokens.append(Token(TokenType.STRING, "".join(chars), line_num, col))
+                    continue
+
                 if ch in ("f", "F") and i + 1 < n and line[i + 1] in ('"', "'"):
                     # Parse f-string into concatenation of expressions or string
                     quote = line[i + 1]
