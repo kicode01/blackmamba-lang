@@ -19,6 +19,9 @@ def degrees(rad: f64) -> f64:
 def radians(deg: f64) -> f64:
     return deg_to_rad(deg)
 
+def sqrt(x: f64) -> f64:
+    return sqrt(x)
+
 def clamp(val: f64, low: f64, high: f64) -> f64:
     if val < low:
         return low

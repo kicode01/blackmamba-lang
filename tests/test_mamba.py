@@ -2490,5 +2490,126 @@ def main() -> i64:
                 os.remove(exe_path)
 
 
+    def test_columnar_series_engine(self):
+        """Vector 5: Test Columnar Data & Embedded Analytics Engine (series.bmb)."""
+        src = """
+from series import (
+    series_i64, series_i64_range, series_i64_sum, series_i64_mean, series_i64_min, series_i64_max,
+    series_i64_filter_gt, series_i64_sort,
+    series_f64, series_f64_linspace, series_f64_sum, series_f64_mean, series_f64_dot,
+    series_str, series_str_filter_eq, series_str_unique_count,
+    df_new, df_add_i64, df_add_f64, df_add_str, df_shape_rows, df_shape_cols,
+    df_get_i64, df_get_f64, df_get_str,
+    df_filter_i64_gt, df_filter_f64_gt, df_filter_str_eq,
+    df_sort_by_f64, df_groupby_i64_sum_f64, df_inner_join_i64
+)
+
+def run_tests() -> i64:
+    # 1. SeriesInt
+    let s: SeriesInt = series_i64_range("id", 10, 50, 10) # 10, 20, 30, 40
+    if s.len != 4 or series_i64_sum(s) != 100:
+        return 1
+    if series_i64_min(s) != 10 or series_i64_max(s) != 40:
+        return 2
+    let s_gt: SeriesInt = series_i64_filter_gt(s, 20)
+    if s_gt.len != 2 or s_gt.data[0] != 30:
+        return 3
+
+    # 2. SeriesFloat
+    let sf: SeriesFloat = series_f64_linspace("x", 1.0, 4.0, 4)
+    if sf.len != 4:
+        return 4
+    let sf_tot: f64 = series_f64_sum(sf)
+    if sf_tot < 9.99 or sf_tot > 10.01:
+        return 5
+    let dot: f64 = series_f64_dot(sf, sf) # 1 + 4 + 9 + 16 = 30
+    if dot < 29.99 or dot > 30.01:
+        return 6
+
+    # 3. SeriesStr
+    let names = ["A", "B", "A", "C"]
+    let ss: SeriesStr = series_str("tags", names, 4)
+    if series_str_unique_count(ss) != 3:
+        return 7
+    let matched: SeriesStr = series_str_filter_eq(ss, "A")
+    if matched.len != 2:
+        return 8
+
+    # 4. DataFrame
+    let df: DataFrame = df_new(4)
+    let ids = [101, 102, 103, 104]
+    let vals = [10.0, 50.0, 30.0, 70.0]
+    let tags = ["X", "Y", "X", "Y"]
+    df_add_i64(df, series_i64("id", ids, 4))
+    df_add_f64(df, series_f64("val", vals, 4))
+    df_add_str(df, series_str("tag", tags, 4))
+
+    if df_shape_rows(df) != 4 or df_shape_cols(df) != 3:
+        return 9
+
+    # Filter val > 25.0 (rows: 102 [50], 103 [30], 104 [70])
+    let f_df: DataFrame = df_filter_f64_gt(df, "val", 25.0)
+    if f_df.num_rows != 3:
+        return 10
+    let f_ids: SeriesInt = df_get_i64(f_df, "id")
+    if f_ids.data[0] != 102 or f_ids.data[1] != 103 or f_ids.data[2] != 104:
+        return 11
+
+    # Sort DataFrame by val ascending: 10.0 (101), 30.0 (103), 50.0 (102), 70.0 (104)
+    let s_df: DataFrame = df_sort_by_f64(df, "val", True)
+    let sorted_ids: SeriesInt = df_get_i64(s_df, "id")
+    if sorted_ids.data[0] != 101 or sorted_ids.data[1] != 103 or sorted_ids.data[3] != 104:
+        return 12
+
+    # GroupBy
+    let grp: DataFrame = df_groupby_i64_sum_f64(df, "id", "val")
+    if grp.num_rows != 4:
+        return 13
+
+    # Hash Join
+    let right_df: DataFrame = df_new(2)
+    let r_ids = [101, 103]
+    let r_scores = [99.0, 88.0]
+    df_add_i64(right_df, series_i64("id", r_ids, 2))
+    df_add_f64(right_df, series_f64("score", r_scores, 2))
+
+    let j_df: DataFrame = df_inner_join_i64(df, right_df, "id", "id")
+    if j_df.num_rows != 2 or df_shape_cols(j_df) != 4:
+        return 14
+
+    print("SERIES_TEST_SUCCESS")
+    return 0
+"""
+        import mamba
+        mod = mamba.compile(src)
+        res = mod.run_tests()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("SERIES_TEST_SUCCESS", out)
+
+        # Standalone PE32+ build
+        if sys.platform == "win32":
+            exe_src = src + """
+def main() -> i64:
+    return run_tests()
+"""
+            mod_ast = Parser.from_source(exe_src).parse_module()
+            mir = MIRBuilder().build(mod_ast)
+            builder = PE32PlusExecutableBuilder(mir)
+            exe_bytes = builder.build_bytes()
+            self.assertGreater(len(exe_bytes), 0)
+
+            exe_path = os.path.abspath("test_series_pe.exe")
+            with open(exe_path, "wb") as f:
+                f.write(exe_bytes)
+            
+            proc = subprocess.run([exe_path], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("SERIES_TEST_SUCCESS", proc.stdout)
+            
+            if os.path.exists(exe_path):
+                os.remove(exe_path)
+
+
 if __name__ == "__main__":
     unittest.main()

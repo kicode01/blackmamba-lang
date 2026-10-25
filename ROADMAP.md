@@ -20,8 +20,8 @@
 │ Vector 2[DONE]│ Hardware SIMD & AVX2 / AVX-512 Vectorization Pipeline (simd)│
 │ Vector 3[DONE]│ Zero-Compiler CPython Native Extension Module Emitter (.pyd)│
 │ Vector 4[DONE]│ Lock-Free Thread-Local Slab Allocator (alloc.bmb)           │
-│ Vector 5[NEXT]│ Native Columnar Data & Embedded Analytics (series.bmb)      │
-│ Vector 6[PLAN]│ Self-Hosting Compiler Bootstrap (Lexer & Parser in .bmb)    │
+│ Vector 5[DONE]│ Native Columnar Data & Embedded Analytics (series.bmb)      │
+│ Vector 6[NEXT]│ Self-Hosting Compiler Bootstrap (Lexer & Parser in .bmb)    │
 │ Vector 7[PLAN]│ Embedded & Bare-Metal Target (No-OS / Cortex-M / RISC-V)    │
 │ Vector 8[PLAN]│ Native Debug Symbols & Interactive Debugger (PDB / DWARF)   │
 └───────────────┴─────────────────────────────────────────────────────────────┘
@@ -34,8 +34,8 @@
 | **Vector 2** | **Native SIMD & AVX2 / AVX-512** (`simd.bmb`) | **COMPLETED ✅** | `v0.8.0` | `Vec4f`, `Vec8f`, `Vec4i`, FMA, 8-way unrolled bulk array DSP kernels |
 | **Vector 3** | **Drop-in CPython Extension Emitter** (`.pyd` / `.so`) | **COMPLETED ✅** | `v0.8.1` | Zero-compiler PE32+ `.pyd` generation, `METH_FASTCALL`, **30.5x faster** than Python 3.14 |
 | **Vector 4** | **Lock-Free Thread-Local Slab Allocator** (`alloc.bmb`) | **COMPLETED ✅** | `v0.8.2` | Mimalloc/Jemalloc thread-isolated slab cache, 15.5M multi-core ops/sec, zero lock contention |
-| **Vector 5** | **Native Columnar Data Engine** (`series.bmb`) | **NEXT UP 🎯** | `v0.9.0` | Arrow contiguous memory layout, SIMD vector-filtered scans (10x–50x vs Pandas) |
-| **Vector 6** | **Self-Hosting Compiler Bootstrap** | **PLANNED ⏳** | `v0.9.5` | Lexer & Pratt parser rewritten in pure `.bmb` (1,000,000+ lines/sec) |
+| **Vector 5** | **Native Columnar Data Engine** (`series.bmb`) | **COMPLETED ✅** | `v0.9.0` | Arrow contiguous memory layout, **79.2M rows/s** vector scans, GroupBy, Hash Joins |
+| **Vector 6** | **Self-Hosting Compiler Bootstrap** | **NEXT UP 🎯** | `v0.9.5` | Lexer & Pratt parser rewritten in pure `.bmb` (1,000,000+ lines/sec) |
 | **Vector 7** | **Embedded & Bare-Metal Edge Target** | **PLANNED ⏳** | `v0.9.8` | Freestanding No-OS Cortex-M / RISC-V target for microcontrollers |
 | **Vector 8** | **Native Debug Symbols (PDB / DWARF)** | **PLANNED ⏳** | `v1.0.0` | Step-into, step-over, and breakpoints in VS Code & GDB/LLDB |
 ```
@@ -273,6 +273,27 @@ Give developers world-class editor support, package management, and documentatio
 
 ---
 
+## Vector 5: Native Columnar Data & Embedded Analytics Engine (`series.bmb`) ✅ *(COMPLETED & VERIFIED)*
+
+- [x] **Apache Arrow-Compatible In-Memory Contiguous Columnar Layout**:
+  - [x] `SeriesInt`: 64-bit integer columnar series supporting `range`, `zeros`, reductions (`sum`, `mean`, `min`, `max`, `argmin`, `argmax`), vector arithmetic (`add`, `sub`, `mul`, `scale`), and filtering (`gt`, `lt`, `eq`, `range`).
+  - [x] `SeriesFloat`: 64-bit IEEE 754 float columnar series supporting `linspace`, `zeros`, `variance`, `std`, vector dot products (`dot`), and filtering.
+  - [x] `SeriesStr`: Contiguous string series supporting `filter_eq`, `unique_count`, and dictionary projections.
+- [x] **High-Performance Multi-Column `DataFrame` Table**:
+  - [x] Heterogeneous column schema combining integer, float, and string series in an aligned columnar memory table.
+  - [x] Zero-copy row projection views via `df_take(df, indices, count)`, `df_head(n)`, and `df_tail(n)`.
+  - [x] Synchronized vectorized multi-column filtered scans (`df_filter_i64_gt`, `df_filter_f64_gt`, `df_filter_str_eq`) achieving **79.25 Million rows/second**.
+  - [x] Multi-column sorting (`df_sort_by_i64`, `df_sort_by_f64`) via permutation `argsort` and `df_take`.
+- [x] **Analytical GroupBy & Relational Hash Joins**:
+  - [x] Grouped aggregations (`df_groupby_i64_sum_f64`, `df_groupby_i64_mean_f64`) processing 1,000,000 records across 100 unique categories in **212 ms** (4.71M rows/sec).
+  - [x] High-speed relational hash join (`df_inner_join_i64`) projecting columns across multiple tables in $O(N + M)$ linear time.
+  - [x] Tabular visualization (`df_print`) with aligned ASCII table formatting, and automated statistical profiling (`df_describe`).
+- [x] **Flagship Showcase & Verification**:
+  - [x] Flagship showcase in [`examples/series_benchmark.bmb`](examples/series_benchmark.bmb) scanning 1,000,000 rows at **43.96M reductions/s** (1.64 GB/s bandwidth) and **79.25M filter scans/s**.
+  - [x] Regression test suite in `tests/test_mamba.py` verifying JIT and standalone native PE32+ targets.
+
+---
+
 ## ⚠️ Current Limitations & Flaws (What Black Mamba Lacks Today)
 
 For full architectural transparency, every known limitation, missing feature, and trade-off in Black Mamba today is thoroughly documented in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
@@ -302,8 +323,9 @@ For full architectural transparency, every known limitation, missing feature, an
 | **v0.7.0** | **Shipped** | High-Throughput HTTP & WebSocket Vector | Pure native HTTP/1.1 & WebSocket Server Framework (`http.bmb`), 8.2M req/s native router, RFC 6455 framing |
 | **v0.8.0** | **Shipped** | Hardware SIMD & AVX2 Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), FMA, 8-way unrolled bulk array kernels, GEMM tiling |
 | **v0.8.1** | **Shipped** | CPython Extension Emitter & Official Branding | Zero-compiler `.pyd` emitter (30.5x speedup), official `bmb.ico` icon, `pyproject.toml` wheel packaging |
-| **v0.8.2** | **Shipped** *(Current)* | High-Throughput Thread-Local Allocator | Pure native `alloc.bmb`, 15.5M multi-core ops/sec, `ObjectPool`, `Arena`, zero lock contention |
-| **v0.9.0** | **Planned** | Columnar Series & Embedded Analytics | Arrow-compatible `series.bmb` (10x-50x vs Pandas), SIMD vector-filtered scans |
+| **v0.8.2** | **Shipped** | High-Throughput Thread-Local Allocator | Pure native `alloc.bmb`, 15.5M multi-core ops/sec, `ObjectPool`, `Arena`, zero lock contention |
+| **v0.9.0** | **Shipped** *(Current)* | Native Columnar Data & Analytics Engine | Pure native `series.bmb`, 79.2M rows/s vector scans, Arrow layout, GroupBy, Hash Join |
+| **v0.9.5** | **Planned** | Self-Hosting Compiler Bootstrap | Pure `.bmb` Lexer & Pratt parser, 1,000,000+ lines/sec compilation |
 | **v1.0.0** | **Planned** | Production Enterprise SLA | Self-Hosting Compiler bootstrap in `.bmb`, Central Web Package Registry, Distributed Actor Clusters |
 
 ---

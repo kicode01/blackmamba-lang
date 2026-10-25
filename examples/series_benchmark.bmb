@@ -1,0 +1,132 @@
+# Black Mamba Flagship Showcase: series_benchmark.bmb
+# Vector 5: High-Performance Columnar Data & Embedded Analytics Benchmark
+# Apache Arrow-compatible in-memory contiguous layout.
+# Head-to-head performance against Python Pandas / Polars workloads.
+
+from series import (
+    series_i64, series_i64_range, series_i64_sum,
+    series_f64, series_f64_linspace, series_f64_sum, series_f64_mean,
+    series_f64_min, series_f64_max, series_f64_std, series_f64_dot,
+    series_f64_filter_gt, series_f64_sort,
+    series_str,
+    df_new, df_add_i64, df_add_f64, df_add_str, df_shape_rows, df_shape_cols,
+    df_filter_f64_gt, df_sort_by_f64, df_groupby_i64_sum_f64, df_groupby_i64_mean_f64,
+    df_head, df_print, df_describe
+)
+from time import clock_ns
+
+def bench_reductions(n: i64) -> void:
+    print("[1/4] Columnar Reductions & Statistics on " + str(n) + " Float64 Elements...")
+    let s: SeriesFloat = series_f64_linspace("metrics", 1.0, 1000.0, n)
+    
+    let t0: i64 = clock_ns()
+    let tot: f64 = series_f64_sum(s)
+    let avg: f64 = series_f64_mean(s)
+    let mn: f64 = series_f64_min(s)
+    let mx: f64 = series_f64_max(s)
+    let sd: f64 = series_f64_std(s)
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mrows: f64 = (float(n) / float(dt_ns)) * 1000.0
+    # 5 full passes over n elements * 8 bytes
+    let gb_sec: f64 = (float(n * 8 * 5) / (1024.0 * 1024.0 * 1024.0)) / (float(dt_ns) / 1000000000.0)
+    
+    print("  -> Duration (sum, mean, min, max, std): " + str(dt_ms) + " ms")
+    print("  -> Scan Throughput: " + str(mrows) + " Million rows/sec")
+    print("  -> Effective Memory Bandwidth: " + str(gb_sec) + " GB/sec")
+    print("  -> Results: sum=" + str(tot) + ", mean=" + str(avg) + ", min=" + str(mn) + ", max=" + str(mx) + ", std=" + str(sd))
+
+def bench_vector_filter(n: i64) -> void:
+    print("[2/4] Vector-Filtered Multi-Column Scan on " + str(n) + " Rows...")
+    let df: DataFrame = df_new(n)
+    
+    let ids: Array[i64] = [0] * n
+    let vals: Array[f64] = [0.0] * n
+    for i in 0..n:
+        ids[i] = i
+        vals[i] = float(i % 10000)
+    
+    df_add_i64(df, series_i64("id", ids, n))
+    df_add_f64(df, series_f64("score", vals, n))
+    
+    let t0: i64 = clock_ns()
+    # Filter score > 7500.0 (selects 25% of rows = 250,000 rows)
+    let filtered: DataFrame = df_filter_f64_gt(df, "score", 7500.0)
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mrows: f64 = (float(n) / float(dt_ns)) * 1000.0
+    
+    print("  -> Filter Duration: " + str(dt_ms) + " ms")
+    print("  -> Filter Throughput: " + str(mrows) + " Million rows/sec")
+    print("  -> Matched Rows Extracted: " + str(filtered.num_rows) + " / " + str(n))
+
+def bench_groupby(n: i64) -> void:
+    print("[3/4] GroupBy Aggregations on " + str(n) + " Rows (100 Unique Categories)...")
+    let df: DataFrame = df_new(n)
+    let cats: Array[i64] = [0] * n
+    let amounts: Array[f64] = [0.0] * n
+    for i in 0..n:
+        cats[i] = i % 100
+        amounts[i] = float(i % 500)
+    
+    df_add_i64(df, series_i64("category", cats, n))
+    df_add_f64(df, series_f64("amount", amounts, n))
+    
+    let t0: i64 = clock_ns()
+    let grp: DataFrame = df_groupby_i64_sum_f64(df, "category", "amount")
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mrows: f64 = (float(n) / float(dt_ns)) * 1000.0
+    
+    print("  -> GroupBy Duration: " + str(dt_ms) + " ms")
+    print("  -> GroupBy Throughput: " + str(mrows) + " Million rows/sec")
+    print("  -> Result Categories: " + str(grp.num_rows))
+
+def bench_sorting(n: i64) -> void:
+    print("[4/4] In-Place QuickSort & Argsort on " + str(n) + " Columnar Records...")
+    let vals: Array[f64] = [0.0] * n
+    for i in 0..n:
+        # Pseudo-random mix
+        vals[i] = float((i * 1103515245 + 12345) % 1000000)
+    let s: SeriesFloat = series_f64("random_vals", vals, n)
+    
+    let t0: i64 = clock_ns()
+    let sorted_s: SeriesFloat = series_f64_sort(s, True)
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mrows: f64 = (float(n) / float(dt_ns)) * 1000.0
+    
+    print("  -> Sort Duration: " + str(dt_ms) + " ms")
+    print("  -> Sort Throughput: " + str(mrows) + " Million rows/sec")
+    print("  -> First 3 sorted: " + str(sorted_s.data[0]) + ", " + str(sorted_s.data[1]) + ", " + str(sorted_s.data[2]))
+
+def main() -> i64:
+    print("==================================================================")
+    print("  BLACK MAMBA (bmb) VECTOR 5: COLUMNAR DATA & ANALYTICS BENCHMARK")
+    print("  Apache Arrow-Compatible Contiguous Memory Layout")
+    print("==================================================================")
+    print("")
+
+    bench_reductions(1000000)
+    print("")
+    bench_vector_filter(1000000)
+    print("")
+    bench_groupby(1000000)
+    print("")
+    bench_sorting(100000)
+    print("")
+
+    print("Vector 5 Columnar Analytics Verification Completed Successfully.")
+    return 0
