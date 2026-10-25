@@ -2690,5 +2690,148 @@ def main() -> i64:
                 os.remove(exe_path)
 
 
+
+    def test_embedded_baremetal_target(self):
+        """Vector 7: Embedded & Bare-Metal Target (Freestanding No-OS & MMIO HAL)."""
+        src = r"""from embedded import (
+    mmio_read32, mmio_write32, mmio_read8, mmio_write8,
+    mmio_set_bits32, mmio_clear_bits32, mmio_toggle_bits32,
+    mmio_poll_bit32, mmio_get_bitfield32, mmio_set_bitfield32,
+    GpioPort, gpio_port_new, gpio_set_mode, gpio_write, gpio_read, gpio_toggle,
+    UartDevice, uart_new, uart_init, uart_putc, uart_puts,
+    InterruptTable, ivt_new, ivt_register, ivt_dispatch, ivt_get_count,
+    PIDController, pid_new, pid_update,
+    RingBuffer, ring_new, ring_push, ring_pop, ring_len
+)
+
+def run_embedded_tests() -> i64:
+    # 1. MMIO & Register Bitfields
+    let p = __bmb_mem_alloc(1024)
+    mmio_write32(p + 32, 0)
+    mmio_set_bits32(p + 32, 273)
+    if mmio_read32(p + 32) != 273:
+        return 1
+    
+    mmio_clear_bits32(p + 32, 16)
+    if mmio_read32(p + 32) != 257:
+        return 2
+    
+    let bf = mmio_get_bitfield32(p + 32, 8, 4)
+    if bf != 1:
+        return 3
+    
+    mmio_set_bitfield32(p + 32, 12, 4, 10)
+    if mmio_get_bitfield32(p + 32, 12, 4) != 10:
+        return 4
+    
+    let poll = mmio_poll_bit32(p + 32, 256, 256, 100)
+    if not poll:
+        return 5
+    
+    # 2. GPIO Controller
+    let port = gpio_port_new(p + 128)
+    gpio_set_mode(port, 7, 1)
+    gpio_write(port, 7, 1)
+    if gpio_read(port, 7) != 1:
+        return 6
+    
+    let tog = gpio_toggle(port, 7)
+    if tog != 0 or gpio_read(port, 7) != 0:
+        return 7
+    
+    # 3. Real-Time PID Controller
+    let pid = pid_new(2.0, 0.5, 0.1, 100.0, 0.0, 255.0)
+    let current = 20.0
+    for i in 0..100:
+        let out = pid_update(pid, current, 0.01)
+        current = current + (out - current) * 0.05
+    
+    if current < 60.0 or current > 120.0:
+        return 8
+    
+    # 4. Freestanding Ring Buffer
+    let r = ring_new(16)
+    ring_push(r, 65)
+    ring_push(r, 66)
+    if ring_len(r) != 2:
+        return 9
+    let b1 = ring_pop(r)
+    let b2 = ring_pop(r)
+    if b1 != 65 or b2 != 66:
+        return 10
+    
+    # 5. Interrupt Vector Table
+    let ivt = ivt_new(8)
+    ivt_register(ivt, 3, 1)
+    ivt_dispatch(ivt, 3)
+    ivt_dispatch(ivt, 3)
+    if ivt_get_count(ivt, 3) != 2:
+        return 11
+    
+    print("EMBEDDED_HAL_SUCCESS")
+    return 0
+"""
+        import mamba
+        import struct
+        from mamba.backends.embedded import EmbeddedBareMetalBuilder, to_intel_hex
+
+        mod = mamba.compile(src)
+        res = mod.run_embedded_tests()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("EMBEDDED_HAL_SUCCESS", out)
+
+        # Test Embedded Binary Emitter (.bin, .hex, .elf)
+        exe_src = src + """
+def main() -> i64:
+    return run_embedded_tests()
+"""
+        mod_ast = Parser.from_source(exe_src).parse_module()
+        mir = MIRBuilder().build(mod_ast)
+        builder = EmbeddedBareMetalBuilder(mir, base_addr=0x08000000)
+
+        # 1. Flat binary (.bin)
+        raw_bin = builder.build_raw_binary()
+        self.assertGreater(len(raw_bin), 64)
+        # Check initial stack pointer at offset 0 (0x20010000)
+        sp_val = struct.unpack("<Q", raw_bin[:8])[0]
+        self.assertEqual(sp_val, 0x20010000)
+        # Check reset handler pointer at offset 8 (points to Flash code @ 0x08000040)
+        reset_val = struct.unpack("<Q", raw_bin[8:16])[0]
+        self.assertEqual(reset_val, 0x08000040)
+
+        # 2. Intel HEX (.hex)
+        hex_text = to_intel_hex(raw_bin, 0x08000000)
+        self.assertTrue(hex_text.startswith(":020000040800F2"))
+        self.assertTrue(hex_text.strip().endswith(":00000001FF"))
+
+        # 3. Freestanding Bare-Metal ELF (.elf)
+        tmp_elf = os.path.abspath("test_embedded.elf")
+        try:
+            builder.write_freestanding_elf(tmp_elf)
+            self.assertTrue(os.path.exists(tmp_elf))
+            with open(tmp_elf, "rb") as ef:
+                elf_data = ef.read()
+            self.assertTrue(elf_data.startswith(b"\x7fELF\x02\x01\x01"))
+        finally:
+            if os.path.exists(tmp_elf):
+                os.remove(tmp_elf)
+
+        # 4. Standalone PE32+ build
+        if sys.platform == "win32":
+            pe_builder = PE32PlusExecutableBuilder(mir)
+            exe_bytes = pe_builder.build_bytes()
+            exe_path = os.path.abspath("test_embedded_pe.exe")
+            with open(exe_path, "wb") as f:
+                f.write(exe_bytes)
+            try:
+                proc = subprocess.run([exe_path], capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 0)
+                self.assertIn("EMBEDDED_HAL_SUCCESS", proc.stdout)
+            finally:
+                if os.path.exists(exe_path):
+                    os.remove(exe_path)
+
+
 if __name__ == "__main__":
     unittest.main()

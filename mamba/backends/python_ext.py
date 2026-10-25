@@ -102,6 +102,28 @@ class PE32PlusExtensionBuilder:
         while len(code) % 16 != 0:
             emit(b"\x90")
 
+        labels["fn____bmb_mem_read32"] = len(code)
+        emit(b"\x8B\x04\x91\xC3")          # mov eax, [rcx + rdx*4]; ret
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
+        labels["fn____bmb_mem_write32"] = len(code)
+        emit(b"\x44\x89\x04\x91")          # mov [rcx + rdx*4], r8d
+        emit(b"\x48\x31\xC0\xC3")          # xor rax, rax; ret
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
+        labels["fn____bmb_mem_read8"] = len(code)
+        emit(b"\x0F\xB6\x04\x11\xC3")      # movzx eax, byte ptr [rcx + rdx]; ret
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
+        labels["fn____bmb_mem_write8"] = len(code)
+        emit(b"\x44\x88\x04\x11")          # mov [rcx + rdx], r8b
+        emit(b"\x48\x31\xC0\xC3")          # xor rax, rax; ret
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
         labels["rt__bmb_alloc_root"] = len(code)
         emit(b"\x00" * 8)
         while len(code) % 16 != 0:
@@ -143,7 +165,7 @@ class PE32PlusExtensionBuilder:
         # ----------------------------------------------------
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
-            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
             "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 

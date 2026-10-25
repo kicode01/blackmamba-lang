@@ -22,6 +22,7 @@ from .backends.arm64_macho import MachOARM64ExecutableBuilder
 from .backends.wasm_emitter import WasmBackend
 from .backends.c_emitter import C11Backend, LLVMIRBackend
 from .backends.python_ext import PE32PlusExtensionBuilder, C11ExtensionEmitter
+from .backends.embedded import EmbeddedBareMetalBuilder, DEFAULT_BASE_ADDR
 
 
 def compile_source_to_mir(source: str, filename: str = "<input.bmb>", base_dir: str = "") -> MIRModule:
@@ -118,6 +119,24 @@ def cmd_build(args: argparse.Namespace) -> int:
                 out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.c")
                 path = C11ExtensionEmitter(mir, mod_name=base_name).write_c_extension(out_path)
                 print(f"[Black Mamba] Built portable CPython Extension C source (.c)  -> {path}")
+        elif tgt in ("embedded", "bin", "no-os", "baremetal"):
+            base_addr = int(args.base_addr, 0) if getattr(args, "base_addr", None) else DEFAULT_BASE_ADDR
+            builder = EmbeddedBareMetalBuilder(mir, base_addr=base_addr)
+            if args.output and args.output.endswith(".elf"):
+                path = builder.write_freestanding_elf(args.output)
+                print(f"[Black Mamba] Built freestanding bare-metal ELF binary        -> {path} ({os.path.getsize(path)} bytes)")
+            elif args.output and args.output.endswith(".hex"):
+                path = builder.write_hex(args.output)
+                print(f"[Black Mamba] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes)")
+            else:
+                out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.bin")
+                path = builder.write_bin(out_path)
+                print(f"[Black Mamba] Built freestanding flat binary image (.bin)     -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
+        elif tgt == "hex":
+            base_addr = int(args.base_addr, 0) if getattr(args, "base_addr", None) else DEFAULT_BASE_ADDR
+            out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.hex")
+            path = EmbeddedBareMetalBuilder(mir, base_addr=base_addr).write_hex(out_path)
+            print(f"[Black Mamba] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
     return 0
 
 
@@ -332,11 +351,19 @@ def main(argv: Optional[list] = None) -> int:
     p_build.add_argument(
         "--target",
         "-t",
-        choices=["exe", "elf", "linux", "macho", "arm64", "macos", "wasm", "wat", "c", "llvm", "ext", "pyd", "all"],
+        choices=[
+            "exe", "elf", "linux", "macho", "arm64", "macos", "wasm", "wat", "c", "llvm", "ext", "pyd",
+            "embedded", "bin", "hex", "no-os", "baremetal", "all",
+        ],
         default="exe",
         help="Target output format (default: exe)",
     )
     p_build.add_argument("--output", "-o", help="Output file path")
+    p_build.add_argument(
+        "--base-addr",
+        default="0x08000000",
+        help="Base Flash/ROM load address for embedded targets (e.g. 0x08000000 or 0x00100000)",
+    )
 
     p_inspect = sub.add_parser("inspect", help="Inspect inferred types, optimized MIR, and native x86-64 disassembly")
     p_inspect.add_argument("file", help="Path to .bmb source file")

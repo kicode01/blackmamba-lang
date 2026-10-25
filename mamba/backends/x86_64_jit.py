@@ -1459,6 +1459,34 @@ class NativeJITModule:
                 ctypes.c_int64.from_address(addr).value = int(val)
             return 0
 
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_read32(ptr: int, offset: int) -> int:
+            if not ptr:
+                return 0
+            addr = ptr + int(offset) * 4
+            return int(ctypes.c_uint32.from_address(addr).value)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_write32(ptr: int, offset: int, val: int) -> int:
+            if ptr:
+                addr = ptr + int(offset) * 4
+                ctypes.c_uint32.from_address(addr).value = int(val) & 0xFFFFFFFF
+            return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_read8(ptr: int, offset: int) -> int:
+            if not ptr:
+                return 0
+            addr = ptr + int(offset)
+            return int(ctypes.c_uint8.from_address(addr).value)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_mem_write8(ptr: int, offset: int, val: int) -> int:
+            if ptr:
+                addr = ptr + int(offset)
+                ctypes.c_uint8.from_address(addr).value = int(val) & 0xFF
+            return 0
+
         _alloc_root_holder = [0]
 
         @ctypes.CFUNCTYPE(ctypes.c_int64)
@@ -1485,6 +1513,7 @@ class NativeJITModule:
             rt_bmb_thread_concurrency, rt_bmb_thread_spawn, rt_bmb_thread_join,
             rt_bmb_thread_id, rt_bmb_thread_yield, rt_bmb_thread_sleep,
             rt_bmb_mem_alloc, rt_bmb_mem_free, rt_bmb_mem_read, rt_bmb_mem_write,
+            rt_bmb_mem_read32, rt_bmb_mem_write32, rt_bmb_mem_read8, rt_bmb_mem_write8,
             rt_bmb_alloc_root_get, rt_bmb_alloc_root_set,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
@@ -1538,6 +1567,10 @@ class NativeJITModule:
         self.addr_bmb_mem_free = ctypes.cast(rt_bmb_mem_free, ctypes.c_void_p).value
         self.addr_bmb_mem_read = ctypes.cast(rt_bmb_mem_read, ctypes.c_void_p).value
         self.addr_bmb_mem_write = ctypes.cast(rt_bmb_mem_write, ctypes.c_void_p).value
+        self.addr_bmb_mem_read32 = ctypes.cast(rt_bmb_mem_read32, ctypes.c_void_p).value
+        self.addr_bmb_mem_write32 = ctypes.cast(rt_bmb_mem_write32, ctypes.c_void_p).value
+        self.addr_bmb_mem_read8 = ctypes.cast(rt_bmb_mem_read8, ctypes.c_void_p).value
+        self.addr_bmb_mem_write8 = ctypes.cast(rt_bmb_mem_write8, ctypes.c_void_p).value
         self.addr_bmb_alloc_root_get = ctypes.cast(rt_bmb_alloc_root_get, ctypes.c_void_p).value
         self.addr_bmb_alloc_root_set = ctypes.cast(rt_bmb_alloc_root_set, ctypes.c_void_p).value
 
@@ -1654,6 +1687,10 @@ class NativeJITModule:
             ("__bmb_mem_free", self.addr_bmb_mem_free),
             ("__bmb_mem_read", self.addr_bmb_mem_read),
             ("__bmb_mem_write", self.addr_bmb_mem_write),
+            ("__bmb_mem_read32", self.addr_bmb_mem_read32),
+            ("__bmb_mem_write32", self.addr_bmb_mem_write32),
+            ("__bmb_mem_read8", self.addr_bmb_mem_read8),
+            ("__bmb_mem_write8", self.addr_bmb_mem_write8),
             ("__bmb_alloc_root_get", self.addr_bmb_alloc_root_get),
             ("__bmb_alloc_root_set", self.addr_bmb_alloc_root_set),
         ]

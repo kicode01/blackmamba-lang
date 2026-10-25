@@ -1575,6 +1575,20 @@ class ELF64ExecutableBuilder:
         buf.emit(b"\x4C\x89\x04\xD1", "mov [rcx + rdx*8], r8")
         buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
 
+        buf.mark_label("fn____bmb_mem_read32")
+        buf.emit(b"\x8B\x04\x91\xC3", "mov eax, [rcx + rdx*4]; ret")
+
+        buf.mark_label("fn____bmb_mem_write32")
+        buf.emit(b"\x44\x89\x04\x91", "mov [rcx + rdx*4], r8d")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
+        buf.mark_label("fn____bmb_mem_read8")
+        buf.emit(b"\x0F\xB6\x04\x11\xC3", "movzx eax, byte ptr [rcx + rdx]; ret")
+
+        buf.mark_label("fn____bmb_mem_write8")
+        buf.emit(b"\x44\x88\x04\x11", "mov [rcx + rdx], r8b")
+        buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
+
         buf.mark_label("rt__bmb_alloc_root")
         buf.emit(b"\x00\x00\x00\x00\x00\x00\x00\x00", "dq 0 (alloc_root)")
 
@@ -1628,7 +1642,7 @@ class ELF64ExecutableBuilder:
             "__bmb_atomic_cas", "__bmb_atomic_fence", "__bmb_cpu_pause",
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
-            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+            "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
             "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 
