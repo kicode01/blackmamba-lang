@@ -463,7 +463,7 @@ python bmb.py bench
 
 We believe in 100% engineering honesty. Every design trade-off, hardware boundary, and roadmap milestone is documented:
 
-* 📋 [**`ROADMAP.md`**](ROADMAP.md): Detailed 5-phase engineering milestones, feature checklist, and release schedule.
+* 📋 [**`ROADMAP.md`**](ROADMAP.md): Detailed engineering milestones, Tier 1 runtime frontiers, feature checklist, and release schedule.
 * ⚠️ [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md): Transparent, complete inventory of every current architectural trade-off, memory model detail, and active enhancement.
 * 🔍 [**`docs/REVERSE_ENGINEERING_REPORT.md`**](docs/REVERSE_ENGINEERING_REPORT.md): Deep-dive technical analysis of CPython 3.14 evaluation frame disassembly vs. Black Mamba JIT machine code.
 

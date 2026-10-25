@@ -15,6 +15,7 @@
 │ Phase 3 [DONE]│ Memory Architecture: Lexical Arena Lifetimes & SSO Strings  │
 │ Phase 4 [DONE]│ Native Standard Library & Zero-Copy NumPy/Tensor Bridge     │
 │ Phase 5 [DONE]│ Developer Tooling: VS Code LSP, REPL, Package Manager & Doc │
+│ Tier 1  [DONE]│ Unicode Engine, Async Reactor, KV Store & Standalone bmb.exe│
 └───────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -192,13 +193,15 @@ For full architectural transparency, every known limitation, missing feature, an
 
 ## 📈 Release Milestones
 
-| Version | Target Date | Milestone Focus |
-| :--- | :--- | :--- |
-| **v0.1.0** | **Q4 2026** | Initial Release: Win64 JIT, PE32+ EXE, WebAssembly 1.0, Host FFI *(Current)* |
-| **v0.2.0** | **Q1 2027** | Linux ELF64 + macOS ARM64 Native Backends + Arena Memory Lifetimes |
-| **v0.3.0** | **Q2 2027** | Small String Optimization (SSO) + Pure Native Standard Library (Math, JSON, OS) |
-| **v0.4.0** | **Q3 2027** | Multithreading & Parallel SIMD (`par for`) + VS Code LSP Server |
-| **v1.0.0** | **Q4 2027** | Production-Grade Stability, Package Manager (`bmb pkg`), Enterprise SLA |
+| Version | Status | Milestone Focus | Deliverables |
+| :--- | :--- | :--- | :--- |
+| **v0.1.0** | **Shipped** | Foundational Compiler & JIT | Win64 JIT, 5.5 KB PE32+ EXE, 1.7 KB WebAssembly 1.0, CPython Host FFI |
+| **v0.2.0** | **Shipped** | Cross-Platform Native Expansion | Linux ELF64 (3.9 KB static), macOS Apple Silicon ARM64 Mach-O, Lexical Arena Lifetimes |
+| **v0.3.0** | **Shipped** | High-Performance Strings & Core Stdlib | SSO Strings ($\le$ 7B register, $\le$ 15B inline), zero-copy slicing, `math`, `time`, `random`, `json`, `os`, `hash` |
+| **v0.4.0** | **Shipped** | Hardware Concurrency & Linear Regex | Zero-GIL multithreading (`thread.bmb`, `par_for`), lock-free MPMC channels & Actors (`chan.bmb`), Thompson NFA (`regex.bmb`) |
+| **v0.5.0** | **Shipped** | Developer Experience & Tooling | Full LSP 3.17 daemon (`bmb-lsp`), VS Code extension, JIT REPL (`bmb repl`), Package Manager (`bmb pkg`), Doc Generator (`bmb doc`) |
+| **v0.6.0** | **Shipped** *(Current)* | Tier 1 Runtime Frontiers & Standalone Bundle | Pure Native Unicode (`unicode.bmb`), Async Reactor (`async.bmb`), Embedded KV Store (`kv.bmb`), Standalone `bmb.exe` |
+| **v1.0.0** | **Planned** | Production Enterprise SLA | Central Web Package Registry, Self-Hosting Compiler, Distributed Actor Clusters |
 
 ---
 

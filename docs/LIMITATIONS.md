@@ -173,15 +173,33 @@
 
 ---
 
+## 9. Asynchronous Runtime & Embedded Storage: Cooperative Event Loop & Embedded KV Engine (RESOLVED)
+
+* **Current Status (RESOLVED in Tier 1 via `async.bmb` & `kv.bmb`)**:
+  * **Asynchronous Reactor & Scheduler (`async.bmb`)**:
+    - Cooperative, non-blocking single-threaded event loop (`async_loop_new`, `async_spawn`, `async_delay`, `async_tick`, `async_run_until_complete`, `async_run_all`, `async_stop`).
+    - Monotonic hardware clock task scheduling (`async_delay`) executing tasks with microsecond precision.
+    - Yield-based task multiplexing without thread contention or OS context-switch overhead.
+  * **Embedded Persistent Key-Value Storage (`kv.bmb`)**:
+    - High-performance, zero-dependency embedded database backed by an append-only write-ahead log (WAL) and memory index.
+    - Full CRUD API: `kv_open`, `kv_put`, `kv_put_int`, `kv_get`, `kv_get_int`, `kv_has`, and tombstoning via `kv_delete`.
+    - Compact and durable: atomic disk synchronization (`kv_sync`), WAL compaction purging dead keys (`kv_compact`), and durable recovery on restart.
+  * **Standalone Single-Binary Toolchain (`dist/bmb.exe`)**:
+    - Single self-contained binary packaging the complete Black Mamba compiler, native linkers, LSP daemon, REPL, package manager, and doc generator with zero host Python requirement.
+
+---
+
 ### Summary Checklist of All Flaws
 
 | Category | Flaw / Capability | Severity | Status |
 | :--- | :--- | :--- | :--- |
 | **Memory** | Ephemeral arenas + `gc.bmb` generational regions & cycle collector | Low | Resolved |
 | **Platform** | Windows PE32+, Linux ELF64, macOS ARM64, WASM 1.0 shipped | Low | Complete |
-| **Strings** | SSO, zero-copy slicing, and Thompson NFA `regex.bmb` engine shipped | Low | Complete |
+| **Strings** | SSO, zero-copy slicing, `regex.bmb`, and pure native `unicode.bmb` engine | Low | Complete |
 | **Exceptions** | Hardware SEH unwinding tables (.pdata / .xdata) & VEH shipped | Low | Complete |
-| **Stdlib** | Core 13 modules (math, time, random, tensor, json, hash, os, socket, array, thread, chan, regex, gc, test) pure native | Low | Complete |
+| **Stdlib** | Core 16 modules (`math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`) pure native | Low | Complete |
+| **Storage** | Embedded log-structured Key-Value engine (`kv.bmb`) with WAL & compaction | Low | Complete |
+| **Async** | Cooperative reactor & scheduler (`async.bmb`) with monotonic timers | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| Atomics, threads, par_for, lock-free MPMC channels, Select multiplexer & Actors | Low | Complete |
-| **Tooling** | VS Code extension, LSP daemon, REPL, package manager (`bmb pkg`) & doc generator shipped | Low | Complete |
+| **Tooling** | VS Code extension, LSP daemon, REPL, package manager (`bmb pkg`), doc generator & standalone `bmb.exe` | Low | Complete |
