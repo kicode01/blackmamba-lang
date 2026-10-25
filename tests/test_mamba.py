@@ -14,6 +14,7 @@ from mamba.backends.pe_exe import PE32PlusExecutableBuilder
 from mamba.backends.wasm_emitter import WasmBackend
 from mamba.backends.c_emitter import C11Backend, LLVMIRBackend
 import io
+from mamba.repl import ReplSession, ReplResult
 from mamba.lsp import (
     LanguageServer,
     DocumentAnalyzer,
@@ -1189,6 +1190,97 @@ fn main() -> i64:
         shut_res = responses.get(7, {})
         self.assertIn("result", shut_res)
         self.assertIsNone(shut_res["result"])
+
+    def test_interactive_repl(self):
+        sess = ReplSession()
+
+        # 1. Expression evaluation across types
+        r_i64 = sess.execute("10 + 20")
+        self.assertEqual(r_i64.result, 30)
+        self.assertEqual(r_i64.result_type, "i64")
+        self.assertTrue(r_i64.is_expression)
+
+        r_f64 = sess.execute("3.14 * 2.0")
+        self.assertAlmostEqual(r_f64.result, 6.28, places=4)
+        self.assertEqual(r_f64.result_type, "f64")
+
+        r_bool = sess.execute("10 > 5")
+        self.assertEqual(r_bool.result, True)
+        self.assertEqual(r_bool.result_type, "bool")
+
+        r_str = sess.execute("'Black ' + 'Mamba'")
+        self.assertEqual(r_str.result, "Black Mamba")
+        self.assertEqual(r_str.result_type, "str")
+
+        # 2. Variable assignments & persistent state across turns
+        sess.execute("x = 10")
+        sess.execute("y = 20")
+        r_sum = sess.execute("x + y")
+        self.assertEqual(r_sum.result, 30)
+
+        sess.execute("x += 5")
+        r_sum2 = sess.execute("x + y")
+        self.assertEqual(r_sum2.result, 35)
+
+        # 3. User function declaration and invocation
+        fn_code = "fn power(base: i64, exp: i64) -> i64:\n    res = 1\n    for i in 0..exp:\n        res *= base\n    return res"
+        r_def = sess.execute(fn_code)
+        self.assertIn("Defined function power", r_def.message)
+
+        r_pow = sess.execute("power(2, 8)")
+        self.assertEqual(r_pow.result, 256)
+        self.assertEqual(r_pow.result_type, "i64")
+
+        # 4. User struct definition and field access
+        st_code = "struct Vector2D:\n    x: f64\n    y: f64"
+        r_st = sess.execute(st_code)
+        self.assertIn("Defined struct Vector2D", r_st.message)
+
+        sess.execute("v = Vector2D(3.0, 4.0)")
+        r_norm = sess.execute("v.x * v.x + v.y * v.y")
+        self.assertAlmostEqual(r_norm.result, 25.0, places=4)
+        self.assertEqual(r_norm.result_type, "f64")
+
+        # 5. Standard library import
+        r_imp = sess.execute("from math import sin, PI")
+        self.assertIn("Imported", r_imp.message)
+        r_sin = sess.execute("sin(PI / 2.0)")
+        self.assertAlmostEqual(r_sin.result, 1.0, places=4)
+
+        # 6. Meta commands
+        r_help = sess.execute(":help")
+        self.assertIn("Black Mamba (.bmb) Interactive REPL Commands", r_help.message)
+
+        r_vars = sess.execute(":vars")
+        self.assertIn("x: i64 = 15", r_vars.message)
+        self.assertIn("y: i64 = 20", r_vars.message)
+
+        r_funcs = sess.execute(":funcs")
+        self.assertIn("power", r_funcs.message)
+
+        r_structs = sess.execute(":structs")
+        self.assertIn("Vector2D", r_structs.message)
+
+        r_mir = sess.execute(":mir")
+        self.assertIn("MIR", r_mir.message)
+
+        r_asm = sess.execute(":asm")
+        self.assertIn("x86-64", r_asm.message)
+
+        r_exit = sess.execute(":exit")
+        self.assertEqual(r_exit.message, "EXIT")
+
+        # 7. Syntax error recovery
+        r_err = sess.execute("10 + * 5")
+        self.assertIsNotNone(r_err.error)
+        # Verify subsequent statement still works cleanly without corruption
+        r_ok = sess.execute("x + 1")
+        self.assertEqual(r_ok.result, 16)
+
+        # 8. Reset command
+        r_reset = sess.execute(":reset")
+        self.assertIn("reset", r_reset.message)
+        self.assertEqual(len(sess.assigned_vars), 0)
 
 
 if __name__ == "__main__":

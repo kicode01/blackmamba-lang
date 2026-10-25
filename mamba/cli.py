@@ -299,6 +299,11 @@ def cmd_lsp(args: argparse.Namespace) -> int:
     return run_stdio_server()
 
 
+def cmd_repl(_args: Optional[argparse.Namespace] = None) -> int:
+    from .repl import run_repl
+    return run_repl()
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bmb",
@@ -331,6 +336,8 @@ def main(argv: Optional[list] = None) -> int:
     p_lsp.add_argument("--tcp", type=int, metavar="PORT", help="Run over TCP socket on PORT")
     p_lsp.add_argument("--host", type=str, default="127.0.0.1", help="TCP host to bind to (default: 127.0.0.1)")
 
+    sub.add_parser("repl", help="Start the interactive Black Mamba native JIT REPL")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -342,9 +349,15 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_bench(args)
     if args.command == "lsp":
         return cmd_lsp(args)
+    if args.command == "repl":
+        return cmd_repl(args)
 
-    parser.print_help()
-    return 0
+    # If no subcommand is provided and running interactively, start REPL
+    if args.command is None:
+        if sys.stdin.isatty():
+            return cmd_repl()
+        parser.print_help()
+        return 0
 
 
 if __name__ == "__main__":

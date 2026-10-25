@@ -124,11 +124,17 @@ Give developers world-class editor support and package management.
   - [x] Document Symbol Outline & Breadcrumbs (`textDocument/documentSymbol`) building a hierarchical tree of structs, fields, and functions.
   - [x] Canonical 4-space code formatter (`textDocument/formatting`) normalizing indentation, operators, and parameters.
   - [x] VS Code extension package (`editors/vscode/`) with syntax highlighting grammar (`syntaxes/bmb.tmLanguage.json`), language configuration (`language-configuration.json`), client launcher (`extension.js`), and package manifest (`package.json`).
+- [x] **Interactive Native JIT REPL (`bmb repl` / `mamba.repl`)**:
+  - [x] Bare-metal incremental JIT compilation executing single-line expressions and multi-line statements in < 1 ms.
+  - [x] Live variable state persistence across turns (`x = 10`, `y = 20`, `x + y`, `x += 5`) with runtime value inspection.
+  - [x] Dynamic expression evaluation with automatic type inference printing values with colorized type tags (`30 (i64)`, `6.28 (f64)`, `True (bool)`, `'hello' (str)`).
+  - [x] Full support for user-defined structs (`struct Point:`), functions (`fn mult:`), and standard library modules (`from math import sin, PI`).
+  - [x] Compiler inspection meta-commands: `:help`, `:vars` (active state), `:funcs`, `:structs`, `:mir` (SSA IR dump), `:asm` (native x86-64 disassembly), `:reset`, `:exit`.
+  - [x] Resilient syntax error recovery and multi-line block detection (`bmb >>> ` vs `bmb ... `).
+  - [x] Default CLI fallback: running `bmb` with no arguments in a terminal launches the interactive REPL.
 - [ ] **Black Mamba Package Manager (`bmb pkg`)**:
   - Decentralized package manifest (`mamba.toml`).
   - Git-based dependency resolution with cryptographic lockfiles (`mamba.lock`).
-- [ ] **Interactive REPL**:
-  - Immediate execution of single-line Black Mamba statements in terminal with instant JIT compilation.
 - [ ] **Documentation Generator (`bmb doc`)**:
   - Automatic extraction of docstrings into static HTML API references.
 

@@ -122,9 +122,9 @@
 
 ---
 
-## 8. Tooling: Language Server Protocol (LSP) Shipped; Package Registry in Progress
+## 8. Tooling: LSP & Interactive REPL Shipped; Package Registry in Progress
 
-* **Current Status (RESOLVED in Phase 5 for LSP)**:
+* **Current Status (RESOLVED in Phase 5 for LSP & REPL)**:
   * **VS Code Extension & LSP Daemon (`bmb-lsp`)**:
     - Full Language Server Protocol (LSP 3.17) daemon running over JSON-RPC 2.0 via stdio (`bmb lsp --stdio`) or TCP socket (`bmb lsp --tcp <port>`).
     - Real-time syntax diagnostics and error squiggles with exact line and character positions for lexer and parser errors.
@@ -132,6 +132,11 @@
     - Dot-triggered struct field autocompletion (`p.x`, `p.y`) resilient under typing and syntax disruption.
     - Go to Definition (`F12`), Document Symbol Outline (breadcrumbs), and canonical 4-space code formatting (`Shift+Alt+F`).
     - Dedicated VS Code extension bundled in `editors/vscode/` (`package.json`, `extension.js`, `syntaxes/bmb.tmLanguage.json`).
+  * **Interactive Native JIT REPL (`bmb repl` / `mamba.repl`)**:
+    - Immediate expression evaluation and statement execution in terminal via instant x86-64 native JIT (< 1 ms latency).
+    - Live variable state persistence across turns with automatic type deduction (`30 (i64)`, `6.28 (f64)`, `True (bool)`, `'hello' (str)`).
+    - Compiler inspection meta-commands: `:help`, `:vars` (active variables and live values), `:funcs`, `:structs`, `:mir` (SSA IR dump), `:asm` (native machine code disassembly), `:reset`, `:exit`.
+    - Support for multi-line blocks (`bmb >>> ` vs `bmb ... `), structs, functions, and standard library imports (`from math import sin, PI`).
 * **Remaining Limitation**:
   * There is no official package manager CLI (`bmb install <pkg>`) or central package registry yet.
 * **Current Workaround**:
@@ -152,4 +157,4 @@
 | **Stdlib** | Core (math, time, random, tensor, json, hash, os, socket, array, test) pure native | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| Hardware atomics, Mutex, threads & par_for shipped in thread.bmb | Low | Complete |
-| **Tooling** | VS Code extension & LSP daemon shipped; package registry in progress | Low | Complete (LSP) |
+| **Tooling** | VS Code extension, LSP daemon & interactive REPL shipped | Low | Complete (LSP & REPL) |
