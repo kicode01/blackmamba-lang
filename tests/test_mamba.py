@@ -2611,5 +2611,84 @@ def main() -> i64:
                 os.remove(exe_path)
 
 
+    def test_self_host_compiler_bootstrap(self):
+        """Vector 6: Self-Hosting Compiler Bootstrap (Phase A: Lexer & Pratt Parser in pure .bmb)."""
+        src = r"""
+from compiler import (
+    compile_source, tokenize_source, ast_node_count,
+    lexer_new, lexer_next_token,
+    Token, ASTNode, TokenStream,
+    TOK_EOF, TOK_DEF, TOK_IDENT, TOK_INT, TOK_INDENT, TOK_DEDENT,
+    AST_MODULE, AST_FN_DEF, AST_STRUCT_DEF, AST_BIN_OP
+)
+
+def run_tests() -> i64:
+    # 1. Test Lexer
+    let snippet = "def add(x: i64, y: i64) -> i64:\n    return x + y * 2\n"
+    let lex = lexer_new(snippet)
+    let tok_count = 0
+    let has_indent = False
+    let has_dedent = False
+    while True:
+        let t = lexer_next_token(lex)
+        tok_count += 1
+        if t.type_id == TOK_INDENT:
+            has_indent = True
+        elif t.type_id == TOK_DEDENT:
+            has_dedent = True
+        elif t.type_id == TOK_EOF:
+            break
+    
+    if tok_count != 25 or not has_indent or not has_dedent:
+        return 1
+
+    # 2. Test Pratt Parser Operator Precedence
+    let math_code = "def calc() -> f64:\n    return a + b * c - (d / e ** 2 |> norm)\n"
+    let math_ast = compile_source(math_code)
+    let m_nodes = ast_node_count(math_ast)
+    if m_nodes != 17:
+        return 2
+
+    # 3. Test Multi-Paradigm Constructs (Structs, Functions, Loops, Control Flow)
+    let full_code = "struct Point:\n    x: i64\n    y: i64\n\ndef process(p: Point, limit: i64) -> i64:\n    let total: i64 = 0\n    for i in 0..limit:\n        total = total + p.x + p.y\n        if total > 1000:\n            return 1000\n    return total\n"
+    let full_ast = compile_source(full_code)
+    let full_nodes = ast_node_count(full_ast)
+    if full_nodes != 32:
+        return 3
+
+    print("COMPILER_BOOTSTRAP_SUCCESS")
+    return 0
+"""
+        import mamba
+        mod = mamba.compile(src)
+        res = mod.run_tests()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("COMPILER_BOOTSTRAP_SUCCESS", out)
+
+        # Standalone PE32+ build
+        if sys.platform == "win32":
+            exe_src = src + """
+def main() -> i64:
+    return run_tests()
+"""
+            mod_ast = Parser.from_source(exe_src).parse_module()
+            mir = MIRBuilder().build(mod_ast)
+            builder = PE32PlusExecutableBuilder(mir)
+            exe_bytes = builder.build_bytes()
+            self.assertGreater(len(exe_bytes), 0)
+
+            exe_path = os.path.abspath("test_compiler_bootstrap_pe.exe")
+            with open(exe_path, "wb") as f:
+                f.write(exe_bytes)
+            
+            proc = subprocess.run([exe_path], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("COMPILER_BOOTSTRAP_SUCCESS", proc.stdout)
+            
+            if os.path.exists(exe_path):
+                os.remove(exe_path)
+
+
 if __name__ == "__main__":
     unittest.main()

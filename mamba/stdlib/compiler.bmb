@@ -1,0 +1,1240 @@
+# Black Mamba Standard Library: compiler.bmb
+# Vector 6: Self-Hosting Compiler Bootstrap (Phase A: Lexer & Pratt Parser)
+# 100% Pure Native Black Mamba (.bmb) with Zero CPython Runtime Dependencies.
+# Indentation-Aware Lexer, Top-Down Operator Precedence (Pratt) Parser, Unified AST.
+
+# ==============================================================================
+# 1. Token Type Constants
+# ==============================================================================
+
+TOK_EOF = 0
+TOK_IDENT = 1
+TOK_INT = 2
+TOK_FLOAT = 3
+TOK_STRING = 4
+TOK_BOOL = 5
+
+# Keywords
+TOK_DEF = 10
+TOK_FN = 11
+TOK_STRUCT = 12
+TOK_CLASS = 13
+TOK_RETURN = 14
+TOK_IF = 15
+TOK_ELIF = 16
+TOK_ELSE = 17
+TOK_WHILE = 18
+TOK_FOR = 19
+TOK_PAR = 20
+TOK_IN = 21
+TOK_BREAK = 22
+TOK_CONTINUE = 23
+TOK_PASS = 24
+TOK_MATCH = 25
+TOK_CASE = 26
+TOK_LET = 27
+TOK_CONST = 28
+TOK_MUT = 29
+TOK_AND = 30
+TOK_OR = 31
+TOK_NOT = 32
+TOK_TRUE = 33
+TOK_FALSE = 34
+TOK_IMPORT = 35
+TOK_FROM = 36
+TOK_AS = 37
+
+# Operators
+TOK_PLUS = 40       # +
+TOK_MINUS = 41      # -
+TOK_STAR = 42       # *
+TOK_SLASH = 43      # /
+TOK_DSLASH = 44     # //
+TOK_PERCENT = 45    # %
+TOK_POW = 46        # **
+TOK_PIPE_GT = 47    # |>
+TOK_ARROW = 48      # ->
+TOK_RANGE = 49      # ..
+TOK_RANGE_INC = 50  # ..=
+TOK_AMP = 51        # &
+TOK_PIPE = 52       # |
+TOK_CARET = 53      # ^
+TOK_TILDE = 54      # ~
+TOK_LSHIFT = 55     # <<
+TOK_RSHIFT = 56     # >>
+
+# Comparisons
+TOK_EQ = 60         # ==
+TOK_NE = 61         # !=
+TOK_LT = 62         # <
+TOK_LE = 63         # <=
+TOK_GT = 64         # >
+TOK_GE = 65         # >=
+
+# Assignments
+TOK_ASSIGN = 70     # =
+TOK_WALRUS = 71     # :=
+TOK_PLUS_EQ = 72    # +=
+TOK_MINUS_EQ = 73   # -=
+TOK_STAR_EQ = 74    # *=
+TOK_SLASH_EQ = 75   # /=
+
+# Delimiters
+TOK_LPAREN = 80     # (
+TOK_RPAREN = 81     # )
+TOK_LBRACKET = 82   # [
+TOK_RBRACKET = 83   # ]
+TOK_LBRACE = 84     # {
+TOK_RBRACE = 85     # }
+TOK_COLON = 86      # :
+TOK_COMMA = 87      # ,
+TOK_DOT = 88        # .
+TOK_SEMI = 89       # ;
+TOK_AT = 90         # @
+
+# Indentation Structure
+TOK_NEWLINE = 95
+TOK_INDENT = 96
+TOK_DEDENT = 97
+
+# ==============================================================================
+# 2. AST Node Kinds & Precedence Levels
+# ==============================================================================
+
+AST_MODULE = 100
+AST_FN_DEF = 101
+AST_STRUCT_DEF = 102
+AST_PARAM = 103
+AST_STRUCT_FIELD = 104
+AST_IF = 105
+AST_WHILE = 106
+AST_FOR = 107
+AST_RETURN = 108
+AST_ASSIGN = 109
+AST_EXPR_STMT = 110
+AST_BLOCK = 111
+AST_IMPORT = 112
+AST_PASS = 113
+AST_BREAK = 114
+AST_CONTINUE = 115
+
+AST_BIN_OP = 200
+AST_UNARY_OP = 201
+AST_CALL = 202
+AST_INDEX = 203
+AST_FIELD_ACCESS = 204
+AST_RANGE = 205
+AST_PIPE = 206
+AST_ARRAY_LIT = 207
+
+AST_IDENT = 300
+AST_INT_LIT = 301
+AST_FLOAT_LIT = 302
+AST_STR_LIT = 303
+AST_BOOL_LIT = 304
+
+# Pratt Precedence Hierarchy (higher binds tighter)
+PREC_NONE = 0
+PREC_PIPE = 15       # |>
+PREC_ASSIGN = 20     # =
+PREC_OR = 30         # or
+PREC_AND = 35        # and
+PREC_EQUALITY = 40   # ==, !=
+PREC_RELATIONAL = 50 # <, <=, >, >=
+PREC_RANGE = 55      # .., ..=
+PREC_BIT_OR = 56     # |
+PREC_BIT_XOR = 57    # ^
+PREC_BIT_AND = 58    # &
+PREC_SHIFT = 59      # <<, >>
+PREC_TERM = 60       # +, -
+PREC_FACTOR = 70     # *, /, //, %
+PREC_UNARY = 80      # -, +, ~, not
+PREC_POWER = 85      # **
+PREC_POSTFIX = 90    # (), [], .
+
+# ==============================================================================
+# 3. Core Data Structures: Token & ASTNode
+# ==============================================================================
+
+struct Token:
+    type_id: i64
+    value: str
+    int_val: i64
+    float_val: f64
+    line: i64
+    col: i64
+
+def token_new(type_id: i64, val: str, i_val: i64, f_val: f64, line: i64, col: i64) -> Token:
+    return Token(type_id, val, i_val, f_val, line, col)
+
+struct ASTNode:
+    kind: i64
+    name: str
+    int_val: i64
+    float_val: f64
+    str_val: str
+    op: str
+    children: Array[ASTNode]
+    child_count: i64
+    child_cap: i64
+    line: i64
+
+def ast_dummy() -> ASTNode:
+    let empty_children = [ASTNode(0, "", 0, 0.0, "", "", [], 0, 0, 0)]
+    return ASTNode(0, "", 0, 0.0, "", "", empty_children, 0, 0, 0)
+
+def node_new(kind: i64, name: str, int_val: i64, float_val: f64, str_val: str, op: str, line: i64) -> ASTNode:
+    let c = [ast_dummy()] * 4
+    return ASTNode(kind, name, int_val, float_val, str_val, op, c, 0, 4, line)
+
+def node_add_child(parent: ASTNode, child: ASTNode) -> i64:
+    if parent.child_count >= parent.child_cap:
+        let new_cap = parent.child_cap * 2
+        let new_arr = [ast_dummy()] * new_cap
+        for i in 0..parent.child_count:
+            new_arr[i] = parent.children[i]
+        parent.children = new_arr
+        parent.child_cap = new_cap
+    parent.children[parent.child_count] = child
+    parent.child_count += 1
+    return parent.child_count
+
+def ast_node_count(node: ASTNode) -> i64:
+    let count = 1
+    for i in 0..node.child_count:
+        count += ast_node_count(node.children[i])
+    return count
+
+def token_name(type_id: i64) -> str:
+    if type_id == TOK_EOF:
+        return "EOF"
+    if type_id == TOK_IDENT:
+        return "IDENT"
+    if type_id == TOK_INT:
+        return "INT"
+    if type_id == TOK_FLOAT:
+        return "FLOAT"
+    if type_id == TOK_STRING:
+        return "STRING"
+    if type_id == TOK_DEF:
+        return "DEF"
+    if type_id == TOK_FN:
+        return "FN"
+    if type_id == TOK_STRUCT:
+        return "STRUCT"
+    if type_id == TOK_CLASS:
+        return "CLASS"
+    if type_id == TOK_RETURN:
+        return "RETURN"
+    if type_id == TOK_IF:
+        return "IF"
+    if type_id == TOK_ELIF:
+        return "ELIF"
+    if type_id == TOK_ELSE:
+        return "ELSE"
+    if type_id == TOK_WHILE:
+        return "WHILE"
+    if type_id == TOK_FOR:
+        return "FOR"
+    if type_id == TOK_PAR:
+        return "PAR"
+    if type_id == TOK_IN:
+        return "IN"
+    if type_id == TOK_BREAK:
+        return "BREAK"
+    if type_id == TOK_CONTINUE:
+        return "CONTINUE"
+    if type_id == TOK_PASS:
+        return "PASS"
+    if type_id == TOK_LET:
+        return "LET"
+    if type_id == TOK_CONST:
+        return "CONST"
+    if type_id == TOK_MUT:
+        return "MUT"
+    if type_id == TOK_AND:
+        return "AND"
+    if type_id == TOK_OR:
+        return "OR"
+    if type_id == TOK_NOT:
+        return "NOT"
+    if type_id == TOK_TRUE:
+        return "TRUE"
+    if type_id == TOK_FALSE:
+        return "FALSE"
+    if type_id == TOK_IMPORT:
+        return "IMPORT"
+    if type_id == TOK_FROM:
+        return "FROM"
+    if type_id == TOK_AS:
+        return "AS"
+    if type_id == TOK_PLUS:
+        return "PLUS"
+    if type_id == TOK_MINUS:
+        return "MINUS"
+    if type_id == TOK_STAR:
+        return "STAR"
+    if type_id == TOK_SLASH:
+        return "SLASH"
+    if type_id == TOK_DSLASH:
+        return "DSLASH"
+    if type_id == TOK_PERCENT:
+        return "PERCENT"
+    if type_id == TOK_POW:
+        return "POW"
+    if type_id == TOK_PIPE_GT:
+        return "PIPE_GT"
+    if type_id == TOK_ARROW:
+        return "ARROW"
+    if type_id == TOK_RANGE:
+        return "RANGE"
+    if type_id == TOK_RANGE_INC:
+        return "RANGE_INC"
+    if type_id == TOK_EQ:
+        return "EQ"
+    if type_id == TOK_NE:
+        return "NE"
+    if type_id == TOK_LT:
+        return "LT"
+    if type_id == TOK_LE:
+        return "LE"
+    if type_id == TOK_GT:
+        return "GT"
+    if type_id == TOK_GE:
+        return "GE"
+    if type_id == TOK_ASSIGN:
+        return "ASSIGN"
+    if type_id == TOK_PLUS_EQ:
+        return "PLUS_EQ"
+    if type_id == TOK_MINUS_EQ:
+        return "MINUS_EQ"
+    if type_id == TOK_STAR_EQ:
+        return "STAR_EQ"
+    if type_id == TOK_SLASH_EQ:
+        return "SLASH_EQ"
+    if type_id == TOK_LPAREN:
+        return "LPAREN"
+    if type_id == TOK_RPAREN:
+        return "RPAREN"
+    if type_id == TOK_LBRACKET:
+        return "LBRACKET"
+    if type_id == TOK_RBRACKET:
+        return "RBRACKET"
+    if type_id == TOK_LBRACE:
+        return "LBRACE"
+    if type_id == TOK_RBRACE:
+        return "RBRACE"
+    if type_id == TOK_COLON:
+        return "COLON"
+    if type_id == TOK_COMMA:
+        return "COMMA"
+    if type_id == TOK_DOT:
+        return "DOT"
+    if type_id == TOK_SEMI:
+        return "SEMI"
+    if type_id == TOK_AT:
+        return "AT"
+    if type_id == TOK_NEWLINE:
+        return "NEWLINE"
+    if type_id == TOK_INDENT:
+        return "INDENT"
+    if type_id == TOK_DEDENT:
+        return "DEDENT"
+    return "TOK_" + str(type_id)
+
+def ast_kind_name(kind: i64) -> str:
+    if kind == AST_MODULE:
+        return "Module"
+    if kind == AST_FN_DEF:
+        return "FnDef"
+    if kind == AST_STRUCT_DEF:
+        return "StructDef"
+    if kind == AST_PARAM:
+        return "Param"
+    if kind == AST_STRUCT_FIELD:
+        return "StructField"
+    if kind == AST_IF:
+        return "If"
+    if kind == AST_WHILE:
+        return "While"
+    if kind == AST_FOR:
+        return "For"
+    if kind == AST_RETURN:
+        return "Return"
+    if kind == AST_ASSIGN:
+        return "Assign"
+    if kind == AST_EXPR_STMT:
+        return "ExprStmt"
+    if kind == AST_BLOCK:
+        return "Block"
+    if kind == AST_BIN_OP:
+        return "BinOp"
+    if kind == AST_UNARY_OP:
+        return "UnaryOp"
+    if kind == AST_CALL:
+        return "Call"
+    if kind == AST_INDEX:
+        return "Index"
+    if kind == AST_FIELD_ACCESS:
+        return "FieldAccess"
+    if kind == AST_RANGE:
+        return "Range"
+    if kind == AST_PIPE:
+        return "Pipe"
+    if kind == AST_ARRAY_LIT:
+        return "ArrayLit"
+    if kind == AST_IDENT:
+        return "Ident"
+    if kind == AST_INT_LIT:
+        return "IntLit"
+    if kind == AST_FLOAT_LIT:
+        return "FloatLit"
+    if kind == AST_STR_LIT:
+        return "StrLit"
+    if kind == AST_BOOL_LIT:
+        return "BoolLit"
+    return "Kind(" + str(kind) + ")"
+
+def ast_print(node: ASTNode, depth: i64) -> i64:
+    let prefix = ""
+    for i in 0..depth:
+        prefix = prefix + "  "
+    
+    let info = prefix + "(" + ast_kind_name(node.kind)
+    if len(node.name) > 0:
+        info = info + " name=" + node.name
+    if len(node.op) > 0:
+        info = info + " op=" + node.op
+    if node.kind == AST_INT_LIT:
+        info = info + " val=" + str(node.int_val)
+    elif node.kind == AST_FLOAT_LIT:
+        info = info + " val=" + str(node.float_val)
+    elif node.kind == AST_STR_LIT:
+        info = info + " val=\"" + node.str_val + "\""
+    elif node.kind == AST_BOOL_LIT:
+        info = info + " val=" + str(node.int_val != 0)
+    
+    if node.child_count == 0:
+        info = info + ")"
+        print(info)
+    else:
+        print(info)
+        for i in 0..node.child_count:
+            ast_print(node.children[i], depth + 1)
+        print(prefix + ")")
+    return 0
+
+# ==============================================================================
+# 4. Black Mamba Native Lexer
+# ==============================================================================
+
+struct Lexer:
+    source: str
+    src_len: i64
+    pos: i64
+    line: i64
+    col: i64
+    indent_stack: Array[i64]
+    indent_depth: i64
+    pending_dedents: i64
+    at_line_start: bool
+
+def lexer_new(source: str) -> Lexer:
+    let s = [0] * 64
+    s[0] = 0
+    return Lexer(source, len(source), 0, 1, 1, s, 1, 0, True)
+
+def is_alpha(c: i64) -> bool:
+    return (c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95
+
+def is_digit(c: i64) -> bool:
+    return c >= 48 and c <= 57
+
+def is_alnum(c: i64) -> bool:
+    return is_alpha(c) or is_digit(c)
+
+def get_keyword_type_fast(s: str, klen: i64) -> i64:
+    if klen == 2:
+        if s == "fn":
+            return TOK_FN
+        if s == "if":
+            return TOK_IF
+        if s == "in":
+            return TOK_IN
+        if s == "as":
+            return TOK_AS
+        if s == "or":
+            return TOK_OR
+    elif klen == 3:
+        if s == "def":
+            return TOK_DEF
+        if s == "for":
+            return TOK_FOR
+        if s == "par":
+            return TOK_PAR
+        if s == "let":
+            return TOK_LET
+        if s == "mut":
+            return TOK_MUT
+        if s == "and":
+            return TOK_AND
+        if s == "not":
+            return TOK_NOT
+    elif klen == 4:
+        if s == "else":
+            return TOK_ELSE
+        if s == "elif":
+            return TOK_ELIF
+        if s == "case":
+            return TOK_CASE
+        if s == "pass":
+            return TOK_PASS
+        if s == "True":
+            return TOK_TRUE
+        if s == "from":
+            return TOK_FROM
+    elif klen == 5:
+        if s == "while":
+            return TOK_WHILE
+        if s == "break":
+            return TOK_BREAK
+        if s == "match":
+            return TOK_MATCH
+        if s == "const":
+            return TOK_CONST
+        if s == "False":
+            return TOK_FALSE
+    elif klen == 6:
+        if s == "struct":
+            return TOK_STRUCT
+        if s == "return":
+            return TOK_RETURN
+        if s == "import":
+            return TOK_IMPORT
+        if s == "class":
+            return TOK_CLASS
+    elif klen == 8:
+        if s == "continue":
+            return TOK_CONTINUE
+    return TOK_IDENT
+
+def lexer_next_token(lex: Lexer) -> Token:
+    # 1. Any pending dedents?
+    if lex.pending_dedents > 0:
+        lex.pending_dedents -= 1
+        return token_new(TOK_DEDENT, "", 0, 0.0, lex.line, lex.col)
+
+    # 2. Check indentation at line start
+    while lex.at_line_start and lex.pos < lex.src_len:
+        let indent_spaces = 0
+        let p = lex.pos
+        while p < lex.src_len:
+            let c = ord(lex.source[p])
+            if c == 32:
+                indent_spaces += 1
+                p += 1
+            elif c == 9:
+                indent_spaces += 4
+                p += 1
+            else:
+                break
+        
+        if p >= lex.src_len:
+            lex.pos = p
+            break
+        
+        let c_lead = ord(lex.source[p])
+        if c_lead == 10 or c_lead == 13 or c_lead == 35:
+            # Blank line or comment
+            lex.pos = p
+            while lex.pos < lex.src_len:
+                let ch = ord(lex.source[lex.pos])
+                if ch == 10:
+                    lex.pos += 1
+                    lex.line += 1
+                    lex.col = 1
+                    break
+                elif ch == 13:
+                    lex.pos += 1
+                    if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 10:
+                        lex.pos += 1
+                    lex.line += 1
+                    lex.col = 1
+                    break
+                else:
+                    lex.pos += 1
+            continue
+        
+        lex.pos = p
+        lex.col = indent_spaces + 1
+        lex.at_line_start = False
+        
+        let current_indent = lex.indent_stack[lex.indent_depth - 1]
+        if indent_spaces > current_indent:
+            if lex.indent_depth < 64:
+                lex.indent_stack[lex.indent_depth] = indent_spaces
+                lex.indent_depth += 1
+            return token_new(TOK_INDENT, "", indent_spaces, 0.0, lex.line, lex.col)
+        elif indent_spaces < current_indent:
+            let target_depth = 1
+            for d in 0..lex.indent_depth:
+                let idx = lex.indent_depth - 1 - d
+                if lex.indent_stack[idx] == indent_spaces:
+                    target_depth = idx + 1
+                    break
+            let dedent_count = lex.indent_depth - target_depth
+            if dedent_count > 0:
+                lex.indent_depth = target_depth
+                lex.pending_dedents = dedent_count - 1
+                return token_new(TOK_DEDENT, "", indent_spaces, 0.0, lex.line, lex.col)
+
+    # 3. Skip horizontal whitespace inside line
+    while lex.pos < lex.src_len:
+        let c = ord(lex.source[lex.pos])
+        if c == 32 or c == 9:
+            lex.pos += 1
+            lex.col += 1
+        elif c == 35:
+            while lex.pos < lex.src_len and ord(lex.source[lex.pos]) != 10 and ord(lex.source[lex.pos]) != 13:
+                lex.pos += 1
+        else:
+            break
+
+    # 4. End of source?
+    if lex.pos >= lex.src_len:
+        if lex.indent_depth > 1:
+            lex.indent_depth -= 1
+            return token_new(TOK_DEDENT, "", 0, 0.0, lex.line, lex.col)
+        return token_new(TOK_EOF, "<eof>", 0, 0.0, lex.line, lex.col)
+
+    # 5. Newline?
+    let c = ord(lex.source[lex.pos])
+    if c == 10 or c == 13:
+        let start_line = lex.line
+        let start_col = lex.col
+        if c == 13 and lex.pos + 1 < lex.src_len and ord(lex.source[lex.pos + 1]) == 10:
+            lex.pos += 2
+        else:
+            lex.pos += 1
+        lex.line += 1
+        lex.col = 1
+        lex.at_line_start = True
+        return token_new(TOK_NEWLINE, "\n", 0, 0.0, start_line, start_col)
+
+    let tok_line = lex.line
+    let tok_col = lex.col
+
+    # 6. Identifiers and Keywords
+    if is_alpha(c):
+        let start = lex.pos
+        while lex.pos < lex.src_len and is_alnum(ord(lex.source[lex.pos])):
+            lex.pos += 1
+            lex.col += 1
+        let text = lex.source[start:lex.pos]
+        let kw_type = get_keyword_type_fast(text, lex.pos - start)
+        if kw_type != TOK_IDENT:
+            let i_val = 0
+            if kw_type == TOK_TRUE:
+                i_val = 1
+            return token_new(kw_type, text, i_val, 0.0, tok_line, tok_col)
+        return token_new(TOK_IDENT, text, 0, 0.0, tok_line, tok_col)
+
+    # 7. Numbers (int / float)
+    if is_digit(c):
+        let start = lex.pos
+        let int_val = 0
+        while lex.pos < lex.src_len and is_digit(ord(lex.source[lex.pos])):
+            int_val = int_val * 10 + (ord(lex.source[lex.pos]) - 48)
+            lex.pos += 1
+            lex.col += 1
+        
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 46: # '.'
+            if lex.pos + 1 < lex.src_len and ord(lex.source[lex.pos + 1]) == 46:
+                return token_new(TOK_INT, lex.source[start:lex.pos], int_val, 0.0, tok_line, tok_col)
+            elif lex.pos + 1 < lex.src_len and is_digit(ord(lex.source[lex.pos + 1])):
+                lex.pos += 1
+                lex.col += 1
+                let frac_val = 0.0
+                let frac_div = 10.0
+                while lex.pos < lex.src_len and is_digit(ord(lex.source[lex.pos])):
+                    frac_val = frac_val + (float(ord(lex.source[lex.pos]) - 48)) / frac_div
+                    frac_div = frac_div * 10.0
+                    lex.pos += 1
+                    lex.col += 1
+                let f_total = float(int_val) + frac_val
+                return token_new(TOK_FLOAT, lex.source[start:lex.pos], int_val, f_total, tok_line, tok_col)
+        
+        return token_new(TOK_INT, lex.source[start:lex.pos], int_val, 0.0, tok_line, tok_col)
+
+    # 8. Strings ("..." or '...')
+    if c == 34 or c == 39:
+        let quote = c
+        lex.pos += 1
+        lex.col += 1
+        let start = lex.pos
+        while lex.pos < lex.src_len:
+            let sc = ord(lex.source[lex.pos])
+            if sc == quote:
+                break
+            elif sc == 92:
+                lex.pos += 2
+                lex.col += 2
+            else:
+                lex.pos += 1
+                lex.col += 1
+        let end_p = lex.pos
+        if lex.pos < lex.src_len:
+            lex.pos += 1
+            lex.col += 1
+        let s_val = lex.source[start:end_p]
+        return token_new(TOK_STRING, s_val, 0, 0.0, tok_line, tok_col)
+
+    # 9. Multi-character operators
+    if c == 61: # '=' or '=='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_EQ, "==", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_ASSIGN, "=", 0, 0.0, tok_line, tok_col)
+
+    if c == 33: # '!='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_NE, "!=", 0, 0.0, tok_line, tok_col)
+
+    if c == 60: # '<' or '<=' or '<<'
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_LE, "<=", 0, 0.0, tok_line, tok_col)
+        elif lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 60:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_LSHIFT, "<<", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_LT, "<", 0, 0.0, tok_line, tok_col)
+
+    if c == 62: # '>' or '>=' or '>>'
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_GE, ">=", 0, 0.0, tok_line, tok_col)
+        elif lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 62:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_RSHIFT, ">>", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_GT, ">", 0, 0.0, tok_line, tok_col)
+
+    if c == 45: # '-' or '->' or '-='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 62:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_ARROW, "->", 0, 0.0, tok_line, tok_col)
+        elif lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_MINUS_EQ, "-=", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_MINUS, "-", 0, 0.0, tok_line, tok_col)
+
+    if c == 43: # '+' or '+='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_PLUS_EQ, "+=", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_PLUS, "+", 0, 0.0, tok_line, tok_col)
+
+    if c == 42: # '*' or '**' or '*='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 42:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_POW, "**", 0, 0.0, tok_line, tok_col)
+        elif lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_STAR_EQ, "*=", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_STAR, "*", 0, 0.0, tok_line, tok_col)
+
+    if c == 47: # '/' or '//' or '/='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 47:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_DSLASH, "//", 0, 0.0, tok_line, tok_col)
+        elif lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_SLASH_EQ, "/=", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_SLASH, "/", 0, 0.0, tok_line, tok_col)
+
+    if c == 124: # '|' or '|>'
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 62:
+            lex.pos += 1
+            lex.col += 1
+            return token_new(TOK_PIPE_GT, "|>", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_PIPE, "|", 0, 0.0, tok_line, tok_col)
+
+    if c == 46: # '.' or '..' or '..='
+        lex.pos += 1
+        lex.col += 1
+        if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 46:
+            lex.pos += 1
+            lex.col += 1
+            if lex.pos < lex.src_len and ord(lex.source[lex.pos]) == 61:
+                lex.pos += 1
+                lex.col += 1
+                return token_new(TOK_RANGE_INC, "..=", 0, 0.0, tok_line, tok_col)
+            return token_new(TOK_RANGE, "..", 0, 0.0, tok_line, tok_col)
+        return token_new(TOK_DOT, ".", 0, 0.0, tok_line, tok_col)
+
+    # 10. Delimiters
+    lex.pos += 1
+    lex.col += 1
+    if c == 40:
+        return token_new(TOK_LPAREN, "(", 0, 0.0, tok_line, tok_col)
+    if c == 41:
+        return token_new(TOK_RPAREN, ")", 0, 0.0, tok_line, tok_col)
+    if c == 91:
+        return token_new(TOK_LBRACKET, "[", 0, 0.0, tok_line, tok_col)
+    if c == 93:
+        return token_new(TOK_RBRACKET, "]", 0, 0.0, tok_line, tok_col)
+    if c == 123:
+        return token_new(TOK_LBRACE, "{", 0, 0.0, tok_line, tok_col)
+    if c == 125:
+        return token_new(TOK_RBRACE, "}", 0, 0.0, tok_line, tok_col)
+    if c == 58:
+        return token_new(TOK_COLON, ":", 0, 0.0, tok_line, tok_col)
+    if c == 44:
+        return token_new(TOK_COMMA, ",", 0, 0.0, tok_line, tok_col)
+    if c == 59:
+        return token_new(TOK_SEMI, ";", 0, 0.0, tok_line, tok_col)
+    if c == 64:
+        return token_new(TOK_AT, "@", 0, 0.0, tok_line, tok_col)
+    if c == 37:
+        return token_new(TOK_PERCENT, "%", 0, 0.0, tok_line, tok_col)
+    if c == 38:
+        return token_new(TOK_AMP, "&", 0, 0.0, tok_line, tok_col)
+    if c == 94:
+        return token_new(TOK_CARET, "^", 0, 0.0, tok_line, tok_col)
+    if c == 126:
+        return token_new(TOK_TILDE, "~", 0, 0.0, tok_line, tok_col)
+
+    return token_new(TOK_EOF, "<unknown>", 0, 0.0, tok_line, tok_col)
+
+struct TokenStream:
+    tokens: Array[Token]
+    count: i64
+
+def tokenize_source(source: str) -> TokenStream:
+    let lex = lexer_new(source)
+    let dummy = token_new(0, "", 0, 0.0, 0, 0)
+    let est_cap = len(source) // 4 + 64
+    let tokens = [dummy] * est_cap
+    let tok_count = 0
+    let cap = est_cap
+    while True:
+        let t = lexer_next_token(lex)
+        if tok_count >= cap:
+            let new_cap = cap * 2
+            let new_arr = [dummy] * new_cap
+            for i in 0..tok_count:
+                new_arr[i] = tokens[i]
+            tokens = new_arr
+            cap = new_cap
+        tokens[tok_count] = t
+        tok_count += 1
+        if t.type_id == TOK_EOF:
+            break
+    return TokenStream(tokens, tok_count)
+
+# ==============================================================================
+# 5. Black Mamba Pratt Parser
+# ==============================================================================
+
+struct Parser:
+    tokens: Array[Token]
+    tok_count: i64
+    pos: i64
+
+def parser_new(tokens: Array[Token], tok_count: i64) -> Parser:
+    return Parser(tokens, tok_count, 0)
+
+def cur_tok(p: Parser) -> Token:
+    if p.pos < p.tok_count:
+        return p.tokens[p.pos]
+    return p.tokens[p.tok_count - 1]
+
+def peek_tok(p: Parser) -> Token:
+    if p.pos + 1 < p.tok_count:
+        return p.tokens[p.pos + 1]
+    return p.tokens[p.tok_count - 1]
+
+def advance_tok(p: Parser) -> Token:
+    let t = cur_tok(p)
+    if p.pos < p.tok_count:
+        p.pos += 1
+    return t
+
+def match_tok(p: Parser, type_id: i64) -> bool:
+    if cur_tok(p).type_id == type_id:
+        advance_tok(p)
+        return True
+    return False
+
+def expect_tok(p: Parser, type_id: i64) -> Token:
+    let t = cur_tok(p)
+    if t.type_id == type_id:
+        advance_tok(p)
+        return t
+    print("PARSE ERROR: expected token " + token_name(type_id) + ", got " + token_name(t.type_id) + " ('" + t.value + "') at line " + str(t.line))
+    return t
+
+def skip_newlines(p: Parser) -> i64:
+    let count = 0
+    while cur_tok(p).type_id == TOK_NEWLINE:
+        advance_tok(p)
+        count += 1
+    return count
+
+def get_infix_bp(type_id: i64) -> i64:
+    if type_id == TOK_PIPE_GT:
+        return PREC_PIPE
+    if type_id == TOK_ASSIGN:
+        return PREC_ASSIGN
+    if type_id == TOK_EQ or type_id == TOK_NE:
+        return PREC_EQUALITY
+    if type_id == TOK_LT or type_id == TOK_LE or type_id == TOK_GT or type_id == TOK_GE:
+        return PREC_RELATIONAL
+    if type_id == TOK_RANGE or type_id == TOK_RANGE_INC:
+        return PREC_RANGE
+    if type_id == TOK_PIPE:
+        return PREC_BIT_OR
+    if type_id == TOK_CARET:
+        return PREC_BIT_XOR
+    if type_id == TOK_AMP:
+        return PREC_BIT_AND
+    if type_id == TOK_LSHIFT or type_id == TOK_RSHIFT:
+        return PREC_SHIFT
+    if type_id == TOK_PLUS or type_id == TOK_MINUS:
+        return PREC_TERM
+    if type_id == TOK_STAR or type_id == TOK_SLASH or type_id == TOK_DSLASH or type_id == TOK_PERCENT:
+        return PREC_FACTOR
+    if type_id == TOK_POW:
+        return PREC_POWER
+    if type_id == TOK_LPAREN or type_id == TOK_LBRACKET or type_id == TOK_DOT:
+        return PREC_POSTFIX
+    return PREC_NONE
+
+def parse_expr(p: Parser, min_bp: i64) -> ASTNode:
+    let t = advance_tok(p)
+    let left = ast_dummy()
+
+    # Prefix expressions
+    if t.type_id == TOK_INT:
+        left = node_new(AST_INT_LIT, "", t.int_val, 0.0, "", "", t.line)
+    elif t.type_id == TOK_FLOAT:
+        left = node_new(AST_FLOAT_LIT, "", t.int_val, t.float_val, "", "", t.line)
+    elif t.type_id == TOK_STRING:
+        left = node_new(AST_STR_LIT, "", 0, 0.0, t.value, "", t.line)
+    elif t.type_id == TOK_BOOL:
+        left = node_new(AST_BOOL_LIT, "", t.int_val, 0.0, "", "", t.line)
+    elif t.type_id == TOK_IDENT:
+        left = node_new(AST_IDENT, t.value, 0, 0.0, "", "", t.line)
+    elif t.type_id == TOK_LPAREN:
+        left = parse_expr(p, PREC_NONE)
+        expect_tok(p, TOK_RPAREN)
+    elif t.type_id == TOK_LBRACKET:
+        left = node_new(AST_ARRAY_LIT, "", 0, 0.0, "", "", t.line)
+        if cur_tok(p).type_id != TOK_RBRACKET:
+            while True:
+                let elem = parse_expr(p, PREC_NONE)
+                node_add_child(left, elem)
+                if not match_tok(p, TOK_COMMA):
+                    break
+                if cur_tok(p).type_id == TOK_RBRACKET:
+                    break
+        expect_tok(p, TOK_RBRACKET)
+    elif t.type_id == TOK_MINUS or t.type_id == TOK_TILDE or t.type_id == TOK_NOT:
+        let op_name = t.value
+        let operand = parse_expr(p, PREC_UNARY)
+        left = node_new(AST_UNARY_OP, "", 0, 0.0, "", op_name, t.line)
+        node_add_child(left, operand)
+    else:
+        print("PARSE ERROR: unexpected prefix token " + token_name(t.type_id) + " ('" + t.value + "') at line " + str(t.line))
+        return left
+
+    # Infix operator loop
+    while True:
+        let next_t = cur_tok(p)
+        let bp = get_infix_bp(next_t.type_id)
+        if bp <= min_bp:
+            break
+        
+        let op_tok = advance_tok(p)
+
+        if op_tok.type_id == TOK_LPAREN: # Call: func(...)
+            let call_node = node_new(AST_CALL, left.name, 0, 0.0, "", "", op_tok.line)
+            node_add_child(call_node, left)
+            if cur_tok(p).type_id != TOK_RPAREN:
+                while True:
+                    let arg = parse_expr(p, PREC_NONE)
+                    node_add_child(call_node, arg)
+                    if not match_tok(p, TOK_COMMA):
+                        break
+                    if cur_tok(p).type_id == TOK_RPAREN:
+                        break
+            expect_tok(p, TOK_RPAREN)
+            left = call_node
+        elif op_tok.type_id == TOK_LBRACKET: # Index: arr[...]
+            let idx_node = node_new(AST_INDEX, "", 0, 0.0, "", "", op_tok.line)
+            node_add_child(idx_node, left)
+            let idx_expr = parse_expr(p, PREC_NONE)
+            node_add_child(idx_node, idx_expr)
+            expect_tok(p, TOK_RBRACKET)
+            left = idx_node
+        elif op_tok.type_id == TOK_DOT: # Field access: obj.field
+            let field_tok = expect_tok(p, TOK_IDENT)
+            let fa_node = node_new(AST_FIELD_ACCESS, field_tok.value, 0, 0.0, "", "", op_tok.line)
+            node_add_child(fa_node, left)
+            left = fa_node
+        elif op_tok.type_id == TOK_PIPE_GT: # Pipe: left |> right
+            let rhs = parse_expr(p, bp)
+            let pipe_node = node_new(AST_PIPE, "", 0, 0.0, "", "|>", op_tok.line)
+            node_add_child(pipe_node, left)
+            node_add_child(pipe_node, rhs)
+            left = pipe_node
+        elif op_tok.type_id == TOK_RANGE or op_tok.type_id == TOK_RANGE_INC: # Range: start..end
+            let rhs = parse_expr(p, bp)
+            let r_node = node_new(AST_RANGE, "", 0, 0.0, "", op_tok.value, op_tok.line)
+            node_add_child(r_node, left)
+            node_add_child(r_node, rhs)
+            left = r_node
+        else: # Standard Binary Operator (+, -, *, /, ==, etc.)
+            let right_bp = bp
+            if op_tok.type_id == TOK_POW:
+                right_bp = bp - 1 # right-associative
+            let right = parse_expr(p, right_bp)
+            let bin_node = node_new(AST_BIN_OP, "", 0, 0.0, "", op_tok.value, op_tok.line)
+            node_add_child(bin_node, left)
+            node_add_child(bin_node, right)
+            left = bin_node
+
+    return left
+
+def parse_block(p: Parser) -> ASTNode:
+    expect_tok(p, TOK_INDENT)
+    let block = node_new(AST_BLOCK, "", 0, 0.0, "", "", cur_tok(p).line)
+    skip_newlines(p)
+    while cur_tok(p).type_id != TOK_DEDENT and cur_tok(p).type_id != TOK_EOF:
+        let stmt = parse_stmt(p)
+        node_add_child(block, stmt)
+        skip_newlines(p)
+    expect_tok(p, TOK_DEDENT)
+    return block
+
+def parse_fn_def(p: Parser) -> ASTNode:
+    let def_tok = advance_tok(p) # def or fn
+    let name_tok = expect_tok(p, TOK_IDENT)
+    let fn_node = node_new(AST_FN_DEF, name_tok.value, 0, 0.0, "", "", def_tok.line)
+    
+    # Parameters
+    expect_tok(p, TOK_LPAREN)
+    if cur_tok(p).type_id != TOK_RPAREN:
+        while True:
+            let param_name = expect_tok(p, TOK_IDENT)
+            let param_type = ""
+            if match_tok(p, TOK_COLON):
+                let type_tok = expect_tok(p, TOK_IDENT)
+                param_type = type_tok.value
+            let p_node = node_new(AST_PARAM, param_name.value, 0, 0.0, param_type, "", param_name.line)
+            node_add_child(fn_node, p_node)
+            if not match_tok(p, TOK_COMMA):
+                break
+            if cur_tok(p).type_id == TOK_RPAREN:
+                break
+    expect_tok(p, TOK_RPAREN)
+    
+    # Return type
+    let ret_type = "void"
+    if match_tok(p, TOK_ARROW):
+        let rt_tok = expect_tok(p, TOK_IDENT)
+        ret_type = rt_tok.value
+    fn_node.str_val = ret_type
+    
+    expect_tok(p, TOK_COLON)
+    skip_newlines(p)
+    let body = parse_block(p)
+    node_add_child(fn_node, body)
+    return fn_node
+
+def parse_struct_def(p: Parser) -> ASTNode:
+    let st_tok = advance_tok(p) # struct or class
+    let name_tok = expect_tok(p, TOK_IDENT)
+    let s_node = node_new(AST_STRUCT_DEF, name_tok.value, 0, 0.0, "", "", st_tok.line)
+    expect_tok(p, TOK_COLON)
+    skip_newlines(p)
+    expect_tok(p, TOK_INDENT)
+    skip_newlines(p)
+    while cur_tok(p).type_id != TOK_DEDENT and cur_tok(p).type_id != TOK_EOF:
+        let field_name = expect_tok(p, TOK_IDENT)
+        expect_tok(p, TOK_COLON)
+        let field_type = expect_tok(p, TOK_IDENT)
+        let f_node = node_new(AST_STRUCT_FIELD, field_name.value, 0, 0.0, field_type.value, "", field_name.line)
+        node_add_child(s_node, f_node)
+        skip_newlines(p)
+    expect_tok(p, TOK_DEDENT)
+    return s_node
+
+def parse_if(p: Parser) -> ASTNode:
+    let if_tok = advance_tok(p) # if
+    let cond = parse_expr(p, PREC_NONE)
+    expect_tok(p, TOK_COLON)
+    skip_newlines(p)
+    let then_body = parse_block(p)
+    let if_node = node_new(AST_IF, "", 0, 0.0, "", "", if_tok.line)
+    node_add_child(if_node, cond)
+    node_add_child(if_node, then_body)
+    skip_newlines(p)
+    if match_tok(p, TOK_ELSE):
+        if cur_tok(p).type_id == TOK_IF:
+            let else_if = parse_if(p)
+            node_add_child(if_node, else_if)
+        else:
+            expect_tok(p, TOK_COLON)
+            skip_newlines(p)
+            let else_body = parse_block(p)
+            node_add_child(if_node, else_body)
+    return if_node
+
+def parse_while(p: Parser) -> ASTNode:
+    let w_tok = advance_tok(p) # while
+    let cond = parse_expr(p, PREC_NONE)
+    expect_tok(p, TOK_COLON)
+    skip_newlines(p)
+    let body = parse_block(p)
+    let w_node = node_new(AST_WHILE, "", 0, 0.0, "", "", w_tok.line)
+    node_add_child(w_node, cond)
+    node_add_child(w_node, body)
+    return w_node
+
+def parse_for(p: Parser) -> ASTNode:
+    let for_tok = advance_tok(p) # for
+    let var_tok = expect_tok(p, TOK_IDENT)
+    expect_tok(p, TOK_IN)
+    let iter_expr = parse_expr(p, PREC_NONE)
+    expect_tok(p, TOK_COLON)
+    skip_newlines(p)
+    let body = parse_block(p)
+    let for_node = node_new(AST_FOR, var_tok.value, 0, 0.0, "", "", for_tok.line)
+    node_add_child(for_node, iter_expr)
+    node_add_child(for_node, body)
+    return for_node
+
+def parse_return(p: Parser) -> ASTNode:
+    let ret_tok = advance_tok(p) # return
+    let ret_node = node_new(AST_RETURN, "", 0, 0.0, "", "", ret_tok.line)
+    if cur_tok(p).type_id != TOK_NEWLINE and cur_tok(p).type_id != TOK_DEDENT and cur_tok(p).type_id != TOK_EOF:
+        let val = parse_expr(p, PREC_NONE)
+        node_add_child(ret_node, val)
+    return ret_node
+
+def parse_stmt(p: Parser) -> ASTNode:
+    skip_newlines(p)
+    let t = cur_tok(p)
+    if t.type_id == TOK_DEF or t.type_id == TOK_FN:
+        return parse_fn_def(p)
+    if t.type_id == TOK_STRUCT or t.type_id == TOK_CLASS:
+        return parse_struct_def(p)
+    if t.type_id == TOK_IF:
+        return parse_if(p)
+    if t.type_id == TOK_WHILE:
+        return parse_while(p)
+    if t.type_id == TOK_FOR:
+        return parse_for(p)
+    if t.type_id == TOK_RETURN:
+        return parse_return(p)
+    if t.type_id == TOK_BREAK:
+        advance_tok(p)
+        return node_new(AST_BREAK, "", 0, 0.0, "", "", t.line)
+    if t.type_id == TOK_CONTINUE:
+        advance_tok(p)
+        return node_new(AST_CONTINUE, "", 0, 0.0, "", "", t.line)
+    if t.type_id == TOK_PASS:
+        advance_tok(p)
+        return node_new(AST_PASS, "", 0, 0.0, "", "", t.line)
+    
+    # Let / Const / Mut bindings
+    if t.type_id == TOK_LET or t.type_id == TOK_CONST or t.type_id == TOK_MUT:
+        advance_tok(p)
+        let name_tok = expect_tok(p, TOK_IDENT)
+        let type_ann = ""
+        if match_tok(p, TOK_COLON):
+            type_ann = expect_tok(p, TOK_IDENT).value
+        expect_tok(p, TOK_ASSIGN)
+        let val = parse_expr(p, PREC_NONE)
+        let assign_node = node_new(AST_ASSIGN, name_tok.value, 0, 0.0, type_ann, "=", name_tok.line)
+        node_add_child(assign_node, val)
+        return assign_node
+
+    # Simple variable assignment or augmented assignment
+    if t.type_id == TOK_IDENT:
+        let next_t = peek_tok(p)
+        if next_t.type_id == TOK_ASSIGN or next_t.type_id == TOK_PLUS_EQ or next_t.type_id == TOK_MINUS_EQ or next_t.type_id == TOK_STAR_EQ or next_t.type_id == TOK_SLASH_EQ:
+            let name_tok = advance_tok(p)
+            let op_tok = advance_tok(p)
+            let val = parse_expr(p, PREC_NONE)
+            let assign_node = node_new(AST_ASSIGN, name_tok.value, 0, 0.0, "", op_tok.value, name_tok.line)
+            node_add_child(assign_node, val)
+            return assign_node
+
+    # Import statement: import <name> or from <mod> import <name>
+    if t.type_id == TOK_IMPORT:
+        advance_tok(p)
+        let mod_tok = expect_tok(p, TOK_IDENT)
+        return node_new(AST_IMPORT, mod_tok.value, 0, 0.0, "", "", t.line)
+    if t.type_id == TOK_FROM:
+        advance_tok(p)
+        let mod_tok = expect_tok(p, TOK_IDENT)
+        expect_tok(p, TOK_IMPORT)
+        let name_tok = expect_tok(p, TOK_IDENT)
+        return node_new(AST_IMPORT, mod_tok.value, 0, 0.0, name_tok.value, "from", t.line)
+
+    # Expression statement
+    let expr = parse_expr(p, PREC_NONE)
+    let es_node = node_new(AST_EXPR_STMT, "", 0, 0.0, "", "", expr.line)
+    node_add_child(es_node, expr)
+    return es_node
+
+def parse_module(p: Parser) -> ASTNode:
+    let mod = node_new(AST_MODULE, "main", 0, 0.0, "", "", 1)
+    skip_newlines(p)
+    while cur_tok(p).type_id != TOK_EOF:
+        let stmt = parse_stmt(p)
+        node_add_child(mod, stmt)
+        skip_newlines(p)
+    return mod
+
+# ==============================================================================
+# 6. High-Level Convenience APIs
+# ==============================================================================
+
+def compile_source(source: str) -> ASTNode:
+    let stream = tokenize_source(source)
+    let p = parser_new(stream.tokens, stream.count)
+    return parse_module(p)
