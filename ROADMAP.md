@@ -45,10 +45,12 @@ Expand native binary generation beyond Windows x86-64 so developers on Linux and
   - [x] Direct Linux raw kernel `syscall` integration (`sys_write`=1, `sys_exit`=60).
   - [x] Emits zero-dependency 3.9 KB static Linux binaries with 0 external C compiler dependencies.
   - [x] Cross-compilation support: compile Linux ELF64 executables directly on Windows or macOS via `bmb build --target elf` or `--target all`.
-- [ ] **Apple Silicon & ARM64 Emitter**:
-  - AArch64 instruction encoder (`MOV`, `ADD`, `SUB`, `LDR`, `STR`, `B`, `BL`).
-  - macOS Mach-O 64-bit binary packaging with code signing stubs.
-  - Native performance parity on M1/M2/M3/M4 chips.
+- [x] **Apple Silicon & ARM64 Emitter** (`mamba/backends/arm64_macho.py`):
+  - [x] Fixed-width 32-bit AArch64 instruction encoder (`MOV`, `ADD`, `SUB`, `MUL`, `SDIV`, `LDR`, `STR`, `B`, `BL`, `B.cond`, `ADR`, `FADD`, `FSUB`, `FMUL`, `FDIV`, `FCMP`, `SCVTF`, `FCVTZS`).
+  - [x] macOS Mach-O 64-bit binary linker (`MH_MAGIC_64`, `CPU_TYPE_ARM64`, `__PAGEZERO`, `__TEXT`, `LC_BUILD_VERSION`, `LC_MAIN`, `LC_LOAD_DYLINKER`).
+  - [x] Direct Darwin raw kernel `svc #0x80` syscall integration (`sys_write`=0x2000004, `sys_exit`=0x2000001, `sys_open`, `sys_read`, `sys_close`, `sys_unlink`).
+  - [x] Native hardware cycle timing via `cntvct_el0` and `cntfrq_el0`.
+  - [x] Cross-compilation support: build standalone Apple Silicon macOS executables directly on Windows or Linux via `bmb build --target macho`, `--target arm64`, or `--target all`.
 
 ---
 

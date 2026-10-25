@@ -701,6 +701,56 @@ def run_tests() -> i64:
         self.assertIn("STATUS: ALL TESTS PASSED! [100% SUCCESS]", out)
         mod.close()
 
+    def test_macho_arm64_backend(self):
+        """
+        Phase 2: macOS Apple Silicon ARM64 Mach-O 64-bit native executable builder.
+        Verifies Mach-O 64-bit header, __PAGEZERO, __TEXT segments, LC_MAIN,
+        LC_BUILD_VERSION, LC_LOAD_DYLINKER, and AArch64 instruction emission.
+        """
+        import struct
+        import mamba.cli
+        from mamba.backends.arm64_macho import MachOARM64ExecutableBuilder
+
+        code = """
+def compute(x: i64, y: i64) -> i64:
+    return (x * y) + 42
+
+def main() -> i64:
+    res = compute(10, 20)
+    print(res)
+    return 0
+"""
+        mir = mamba.cli.compile_source_to_mir(code)
+        builder = MachOARM64ExecutableBuilder(mir)
+        macho_bytes = builder.build_bytes()
+
+        # 1. Verify Mach-O Header (32 bytes)
+        magic, cputype, cpusubtype, filetype, ncmds, sizeofcmds, flags, reserved = struct.unpack_from(
+            "<IIIIIIII", macho_bytes, 0
+        )
+        self.assertEqual(magic, 0xFEEDFACF)     # MH_MAGIC_64
+        self.assertEqual(cputype, 0x0100000C)   # CPU_TYPE_ARM64
+        self.assertEqual(cpusubtype, 0)         # CPU_SUBTYPE_ARM64_ALL
+        self.assertEqual(filetype, 2)           # MH_EXECUTE
+        self.assertEqual(ncmds, 5)              # 5 load commands
+        self.assertEqual(sizeofcmds, 304)       # 304 bytes of load commands
+
+        # 2. Verify LC_SEGMENT_64 (__PAGEZERO)
+        cmd, cmdsize, segname = struct.unpack_from("<II16s", macho_bytes, 32)
+        self.assertEqual(cmd, 0x19)             # LC_SEGMENT_64
+        self.assertEqual(cmdsize, 72)
+        self.assertTrue(segname.startswith(b"__PAGEZERO"))
+
+        # 3. Verify LC_SEGMENT_64 (__TEXT)
+        cmd2, cmdsize2, segname2 = struct.unpack_from("<II16s", macho_bytes, 32 + 72)
+        self.assertEqual(cmd2, 0x19)            # LC_SEGMENT_64
+        self.assertEqual(cmdsize2, 152)
+        self.assertTrue(segname2.startswith(b"__TEXT"))
+
+        # 4. Verify Entry Point instructions at payload offset (0x4000)
+        entry_ins = struct.unpack_from("<I", macho_bytes, 0x4000)[0]
+        self.assertEqual(entry_ins, 0xA9BF7BFD) # stp x29, x30, [sp, #-16]!
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,16 +20,15 @@
 
 ---
 
-## 2. Platform Architecture: macOS Apple Silicon (ARM64)
+## 2. Platform Architecture: Complete Cross-Platform Tri-Arch Parity (RESOLVED in Phase 2)
 
-* **Current Status**:
-  * **Windows x86-64**: Full native support via PE32+ linker (`bmb build --target exe`, 5.5 KB).
-  * **Linux x86-64**: Full native support via direct ELF64 linker (`bmb build --target elf`, 3.9 KB static binary using direct `sys_write` and `sys_exit` syscalls).
-  * **macOS / Apple Silicon**: Native standalone binary generation (`.dylib` / Mach-O ARM64) is currently in progress.
-* **Current Workaround on macOS**:
-  * Compile via the portable C11 backend (`bmb build script.bmb --target c` and `clang -O3 script.c`), or compile to WebAssembly (`--target wasm`) and run via Node.js / Wasmtime.
-* **Planned Fix (Phase 2)**:
-  * Implement an AArch64 machine-code emitter and 64-bit Mach-O binary packaging for Apple Silicon M1/M2/M3/M4 chips.
+* **Current Status (RESOLVED in Phase 2)**:
+  * **Windows x86-64**: Full native support via direct PE32+ linker (`bmb build --target exe`, 5.5 KB standalone executable with dynamic MSVCRT/WinSock IAT imports).
+  * **Linux x86-64**: Full native support via direct ELF64 linker (`bmb build --target elf`, 3.9 KB static binary using direct raw Linux kernel `syscall` integration).
+  * **macOS Apple Silicon (ARM64)**: Full native support via direct 64-bit Mach-O linker (`bmb build --target macho` / `--target arm64`, emitting 32-bit fixed-width AArch64 machine code for Apple Silicon M1/M2/M3/M4 chips with raw Darwin `svc #0x80` syscall integration).
+  * **WebAssembly 1.0**: Full standalone support (`bmb build --target wasm`, 1.7 KB `.wasm` running in HTML5 Canvas).
+  * **Portable C11**: Full ANSI C11 + OpenMP SIMD emitter (`bmb build --target c`).
+  * **Cross-Compilation**: Any host machine (Windows, Linux, or macOS) can cross-compile to any or all targets via `bmb build --target all` with **zero external C compiler dependencies**.
 
 ---
 
