@@ -1,4 +1,4 @@
-# 🐍 Black Mamba (`.bmb`)
+# Black Mamba (`.bmb`)
 
 <div align="center">
 
