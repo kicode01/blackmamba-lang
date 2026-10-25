@@ -14,7 +14,7 @@
 │ Phase 2 [NEXT]│ Cross-Platform Expansion: Linux ELF64 & Apple Silicon ARM64 │
 │ Phase 3       │ Memory Architecture: Lexical Arena Lifetimes & SSO Strings  │
 │ Phase 4       │ Native Standard Library & Zero-Copy NumPy/Tensor Bridge     │
-│ Phase 5       │ Developer Experience: VS Code LSP (`bmb-lsp`) & Package CLI │
+│ Phase 5 [DONE]│ Developer Tooling: VS Code LSP, REPL, Package Manager & Doc │
 └───────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -110,9 +110,9 @@ Reduce reliance on the host Python runtime by providing high-speed, native imple
 
 ---
 
-## Phase 5: Developer Experience, Tooling & Ecosystem ⚡ *(IN PROGRESS)*
+## Phase 5: Developer Experience, Tooling & Ecosystem ✅ *(COMPLETED & VERIFIED)*
 
-Give developers world-class editor support and package management.
+Give developers world-class editor support, package management, and documentation tooling.
 
 - [x] **VS Code Extension & Language Server Protocol Daemon (`bmb-lsp`)**:
   - [x] Standard LSP 3.17 daemon (`mamba/lsp/server.py`) running over JSON-RPC 2.0 via standard I/O (`bmb lsp --stdio`) and TCP socket (`bmb lsp --tcp <port>`).
@@ -139,8 +139,12 @@ Give developers world-class editor support and package management.
   - [x] Local filesystem path dependencies (`--path`) with automated vendoring into `.mamba/packages/`.
   - [x] Seamless module loader integration in `mamba/module_loader.py` resolving vendored packages (`import <pkg>` or `from <pkg> import ...`).
   - [x] Complete CLI workflow: `bmb pkg init [--lib|--bin]`, `bmb pkg add`, `bmb pkg remove`, `bmb pkg install [--frozen]`, `bmb pkg update`, `bmb pkg list`, `bmb pkg build`, `bmb pkg run`.
-- [ ] **Documentation Generator (`bmb doc`)**:
-  - Automatic extraction of docstrings into static HTML API references.
+- [x] **Static HTML API Documentation Generator (`bmb doc` / `mamba.doc`)**:
+  - [x] Automatic extraction of docstrings, comments, type annotations, and module structures into static HTML API references.
+  - [x] Modern responsive dark/light developer theme with syntax highlighting and copy-to-clipboard.
+  - [x] Pre-computed client-side live search index with keyboard shortcut `/` and instant navigation.
+  - [x] 100% self-contained HTML/CSS/JS with zero external runtime or server requirements (open directly in browser).
+  - [x] CLI command: `bmb doc [file_or_dir] [-o output_dir] [--open]`.
 
 ---
 
@@ -156,7 +160,7 @@ For full architectural transparency, every known limitation, missing feature, an
 5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, and `test` are pure native `.bmb`.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
 7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, and `par_map` shipped in `thread.bmb`; async channels in progress.
-8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`), VS Code extension, REPL (`bmb repl`), and package manager (`bmb pkg`) shipped; central web registry in progress.
+8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`), VS Code extension, REPL (`bmb repl`), package manager (`bmb pkg`), and doc generator (`bmb doc`) shipped; central web registry in progress.
 
 ---
 

@@ -19,6 +19,7 @@ import tempfile
 import shutil
 from mamba.pkg import PackageManager, PackageManifest, PackageLock, Dependency
 from mamba.module_loader import resolve_imports
+from mamba.doc import DocGenerator, extract_module_doc, extract_package_doc
 from mamba.lsp import (
     LanguageServer,
     DocumentAnalyzer,
@@ -1376,6 +1377,86 @@ fn main() -> i64:
             recs_empty = mgr_app.list_dependencies()
             self.assertEqual(len(recs_empty), 0)
             self.assertFalse(os.path.exists(os.path.join(mgr_app.vendor_dir, "mylib")))
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+
+    def test_documentation_generator(self):
+        tmp_dir = tempfile.mkdtemp(prefix="bmb_doc_test_")
+        try:
+            # 1. Create a documented .bmb file
+            mod_file = os.path.join(tmp_dir, "geometry.bmb")
+            with open(mod_file, "w", encoding="utf-8") as f:
+                f.write("""# 2D and 3D Geometry Utilities for Black Mamba.
+# Provides point, vector, and polygon transformation routines.
+
+# Golden ratio constant
+PHI = 1.618033988749895
+
+# 2D Point structure
+struct Point2D:
+    x: f64
+    y: f64
+
+    fn distance_to(other: Point2D) -> f64:
+        # Computes Euclidean distance to another point.
+        dx = other.x - self.x
+        dy = other.y - self.y
+        return dx * dx + dy * dy
+
+def make_origin() -> Point2D:
+    # Constructs a Point2D initialized at the coordinate origin (0, 0).
+    return Point2D(0.0, 0.0)
+
+def dot_product(x1: f64, y1: f64, x2: f64, y2: f64) -> f64:
+    # Computes 2D vector dot product.
+    return x1 * x2 + y1 * y2
+""")
+
+            # 2. Extract documentation metadata
+            doc = extract_module_doc(mod_file)
+            self.assertEqual(doc.name, "geometry")
+            self.assertIn("Geometry Utilities", doc.doc)
+            self.assertEqual(len(doc.structs), 1)
+            self.assertEqual(doc.structs[0].name, "Point2D")
+            self.assertEqual(len(doc.structs[0].fields), 2)
+            self.assertEqual(len(doc.structs[0].methods), 1)
+            self.assertEqual(doc.structs[0].methods[0].name, "distance_to")
+            self.assertEqual(len(doc.funcs), 2)
+            fn_names = [fn.name for fn in doc.funcs]
+            self.assertIn("make_origin", fn_names)
+            self.assertIn("dot_product", fn_names)
+            self.assertEqual(len(doc.constants), 1)
+            self.assertEqual(doc.constants[0].name, "PHI")
+
+            # 3. Generate static HTML documentation site
+            out_docs_dir = os.path.join(tmp_dir, "docs")
+            gen = DocGenerator(output_dir=out_docs_dir)
+            index_path = gen.generate_file(mod_file)
+
+            self.assertTrue(os.path.exists(index_path))
+            with open(index_path, "r", encoding="utf-8") as hf:
+                html_text = hf.read()
+
+            # 4. Verify HTML contents and client-side search index
+            self.assertIn("geometry", html_text)
+            self.assertIn("Point2D", html_text)
+            self.assertIn("distance_to", html_text)
+            self.assertIn("make_origin", html_text)
+            self.assertIn("dot_product", html_text)
+            self.assertIn("PHI", html_text)
+            self.assertIn("SEARCH_INDEX", html_text)
+            self.assertIn("initSearch", html_text)
+            self.assertIn("<style>", html_text)
+
+            # 5. CLI invocation test via bmb doc
+            cli_res = subprocess.run(
+                ["python", "bmb.py", "doc", mod_file, "-o", os.path.join(tmp_dir, "cli_docs")],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertIn("[bmb doc] Generated static HTML documentation", cli_res.stdout)
+            self.assertTrue(os.path.exists(os.path.join(tmp_dir, "cli_docs", "index.html")))
         finally:
             shutil.rmtree(tmp_dir, ignore_errors=True)
 

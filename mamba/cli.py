@@ -341,6 +341,11 @@ def main(argv: Optional[list] = None) -> int:
     from .pkg.cli import register_pkg_subparsers, handle_pkg_command
     register_pkg_subparsers(sub)
 
+    p_doc = sub.add_parser("doc", help="Generate static HTML API documentation from .bmb docstrings")
+    p_doc.add_argument("target", nargs="?", default=".", help="Target .bmb file or project directory (default: current dir)")
+    p_doc.add_argument("--output", "-o", help="Output directory (default: build/docs)")
+    p_doc.add_argument("--open", dest="open_browser", action="store_true", help="Open generated documentation in default web browser")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -356,6 +361,9 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_repl(args)
     if args.command == "pkg":
         return handle_pkg_command(args)
+    if args.command == "doc":
+        from .doc.cli import cmd_doc
+        return cmd_doc(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

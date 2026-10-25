@@ -122,9 +122,9 @@
 
 ---
 
-## 8. Tooling: LSP, REPL & Package Manager Shipped; Central Web Registry in Progress
+## 8. Tooling: LSP, REPL, Package Manager & Doc Generator Shipped; Central Web Registry in Progress
 
-* **Current Status (RESOLVED in Phase 5 for LSP, REPL & Package Manager)**:
+* **Current Status (RESOLVED in Phase 5 for LSP, REPL, PKG & Docs)**:
   * **VS Code Extension & LSP Daemon (`bmb-lsp`)**:
     - Full Language Server Protocol (LSP 3.17) daemon running over JSON-RPC 2.0 via stdio (`bmb lsp --stdio`) or TCP socket (`bmb lsp --tcp <port>`).
     - Real-time syntax diagnostics and error squiggles with exact line and character positions for lexer and parser errors.
@@ -143,6 +143,9 @@
     - Support for Git repositories (`--git`, `--tag`, `--branch`, `--rev`) and local filesystem paths (`--path`) vendored into `.mamba/packages/`.
     - Integrated with `mamba/module_loader.py` for zero-configuration `import <pkg>`.
     - CLI commands: `init`, `add`, `remove`, `install`, `update`, `list`, `build`, `run`.
+  * **Static HTML API Documentation Generator (`bmb doc` / `mamba.doc`)**:
+    - Automatic extraction of docstrings, type annotations, and module structures into static HTML API references.
+    - Self-contained responsive HTML/CSS/JS with client-side live search and `/` keyboard shortcut.
 * **Remaining Limitation**:
   * There is no central web package registry (like crates.io / PyPI) yet; dependencies are resolved decentrally via Git repositories and local filesystem paths.
 * **Current Workaround**:
@@ -163,4 +166,4 @@
 | **Stdlib** | Core (math, time, random, tensor, json, hash, os, socket, array, test) pure native | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| Hardware atomics, Mutex, threads & par_for shipped in thread.bmb | Low | Complete |
-| **Tooling** | VS Code extension, LSP, interactive REPL & package manager shipped | Low | Complete (LSP, REPL, PKG) |
+| **Tooling** | VS Code extension, LSP, REPL, package manager & doc generator shipped | Low | Complete (LSP, REPL, PKG, DOC) |
