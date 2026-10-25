@@ -292,6 +292,13 @@ def tail_sum(n, acc):
     return 0
 
 
+def cmd_lsp(args: argparse.Namespace) -> int:
+    from .lsp import run_stdio_server, run_tcp_server
+    if args.tcp:
+        return run_tcp_server(host=args.host, port=args.tcp)
+    return run_stdio_server()
+
+
 def main(argv: Optional[list] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="bmb",
@@ -319,6 +326,11 @@ def main(argv: Optional[list] = None) -> int:
 
     sub.add_parser("bench", help="Run head-to-head benchmark suite against CPython 3.14")
 
+    p_lsp = sub.add_parser("lsp", help="Run the Black Mamba Language Server Protocol (LSP 3.17) daemon")
+    p_lsp.add_argument("--stdio", action="store_true", default=True, help="Run over stdio (default)")
+    p_lsp.add_argument("--tcp", type=int, metavar="PORT", help="Run over TCP socket on PORT")
+    p_lsp.add_argument("--host", type=str, default="127.0.0.1", help="TCP host to bind to (default: 127.0.0.1)")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -328,6 +340,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_inspect(args)
     if args.command == "bench":
         return cmd_bench(args)
+    if args.command == "lsp":
+        return cmd_lsp(args)
 
     parser.print_help()
     return 0

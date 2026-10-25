@@ -122,17 +122,22 @@
 
 ---
 
-## 8. Tooling: No Language Server Protocol (LSP) or Package Registry
+## 8. Tooling: Language Server Protocol (LSP) Shipped; Package Registry in Progress
 
-* **The Limitation**:
-  * Developers currently edit `.bmb` files using standard Python syntax highlighting in VS Code.
-  * There is no dedicated VS Code extension, inline diagnostic squiggles, or auto-complete for struct fields.
+* **Current Status (RESOLVED in Phase 5 for LSP)**:
+  * **VS Code Extension & LSP Daemon (`bmb-lsp`)**:
+    - Full Language Server Protocol (LSP 3.17) daemon running over JSON-RPC 2.0 via stdio (`bmb lsp --stdio`) or TCP socket (`bmb lsp --tcp <port>`).
+    - Real-time syntax diagnostics and error squiggles with exact line and character positions for lexer and parser errors.
+    - Type hover hints powered by `mamba/types.py` showing Markdown signatures, struct layouts, and builtin documentation.
+    - Dot-triggered struct field autocompletion (`p.x`, `p.y`) resilient under typing and syntax disruption.
+    - Go to Definition (`F12`), Document Symbol Outline (breadcrumbs), and canonical 4-space code formatting (`Shift+Alt+F`).
+    - Dedicated VS Code extension bundled in `editors/vscode/` (`package.json`, `extension.js`, `syntaxes/bmb.tmLanguage.json`).
+* **Remaining Limitation**:
   * There is no official package manager CLI (`bmb install <pkg>`) or central package registry yet.
 * **Current Workaround**:
-  * Use Python language mode in your IDE.
-  * Manage dependencies via Git submodules or local files.
-* **Planned Fix (Phase 5)**:
-  * Wrap `mamba/types.py` into a Language Server Protocol daemon (`bmb-lsp`) and build the `bmb pkg` decentralized package manager.
+  * Manage external `.bmb` library dependencies via Git submodules or local vendor directories.
+* **Planned Future Work (Phase 5)**:
+  * Build the `bmb pkg` decentralized package manager with `mamba.toml` manifests and cryptographic lockfiles.
 
 ---
 
@@ -147,4 +152,4 @@
 | **Stdlib** | Core (math, time, random, tensor, json, hash, os, socket, array, test) pure native | Low | Complete |
 | **OOP** | No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching | Low | By Design (Fast Path) |
 | **Concurrency**| Hardware atomics, Mutex, threads & par_for shipped in thread.bmb | Low | Complete |
-| **Tooling** | No dedicated VS Code extension or LSP daemon | Medium | Phase 5 Target |
+| **Tooling** | VS Code extension & LSP daemon shipped; package registry in progress | Low | Complete (LSP) |

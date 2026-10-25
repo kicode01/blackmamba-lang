@@ -13,6 +13,17 @@ from mamba.backends.x86_64_jit import NativeJITModule
 from mamba.backends.pe_exe import PE32PlusExecutableBuilder
 from mamba.backends.wasm_emitter import WasmBackend
 from mamba.backends.c_emitter import C11Backend, LLVMIRBackend
+import io
+from mamba.lsp import (
+    LanguageServer,
+    DocumentAnalyzer,
+    format_source,
+    read_message,
+    write_message,
+    DiagnosticSeverity,
+    CompletionItemKind,
+    SymbolKind,
+)
 
 
 class TestBlackMamba(unittest.TestCase):
@@ -948,6 +959,236 @@ def main() -> i64:
 
         if os.path.exists(out_exe):
             os.remove(out_exe)
+
+    def test_language_server_protocol(self):
+        # 1. Framing: read_message and write_message
+        buf = io.BytesIO()
+        test_payload = {"jsonrpc": "2.0", "id": 42, "result": {"ready": True}}
+        write_message(buf, test_payload)
+        buf.seek(0)
+        raw_bytes = buf.getvalue()
+        self.assertTrue(raw_bytes.startswith(b"Content-Length: "))
+        self.assertIn(b"\r\n\r\n", raw_bytes)
+        decoded = read_message(buf)
+        self.assertEqual(decoded, test_payload)
+
+        # 2. Formatter
+        messy_code = "fn   add(a:i64,b:i64)->i64:\n  return   a+b\n"
+        formatted = format_source(messy_code)
+        self.assertIn("fn add(a: i64, b: i64) -> i64:", formatted)
+        self.assertIn("    return a + b", formatted)
+
+        # 3. DocumentAnalyzer direct unit tests
+        doc_uri = "file:///sample.bmb"
+        doc_src = """struct Vector:
+    x: f64
+    y: f64
+
+fn norm_sq(v: Vector) -> f64:
+    return v.x * v.x + v.y * v.y
+
+fn main() -> i64:
+    vec = Vector(3.0, 4.0)
+    ans = norm_sq(vec)
+    return 0
+"""
+        analyzer = DocumentAnalyzer(doc_uri, doc_src)
+        diags = analyzer.analyze()
+        self.assertEqual(len(diags), 0, "Clean document should have 0 diagnostics")
+
+        # Hover on function name 'norm_sq'
+        hover = analyzer.get_hover(4, 5)
+        self.assertIsNotNone(hover)
+        self.assertIn("def norm_sq(v: Vector) -> f64", hover["contents"]["value"])
+
+        # Hover on struct name 'Vector'
+        hover_struct = analyzer.get_hover(0, 8)
+        self.assertIsNotNone(hover_struct)
+        self.assertIn("struct Vector", hover_struct["contents"]["value"])
+
+        # Completion on dot 'vec.' at line 11
+        analyzer.update_source(doc_src + "    vec.\n")
+        analyzer.analyze()
+        dot_items = analyzer.get_completions(11, 8)["items"]
+        labels = [item["label"] for item in dot_items]
+        self.assertIn("x", labels)
+        self.assertIn("y", labels)
+        analyzer.update_source(doc_src)
+        analyzer.analyze()
+
+        # Definition of 'norm_sq' called on line 9
+        defn = analyzer.get_definition(9, 12)
+        self.assertIsNotNone(defn)
+        self.assertEqual(defn["range"]["start"]["line"], 4)
+
+        # Document symbols
+        symbols = analyzer.get_document_symbols()
+        sym_names = [s["name"] for s in symbols]
+        self.assertIn("Vector", sym_names)
+        self.assertIn("norm_sq", sym_names)
+        self.assertIn("main", sym_names)
+
+        # 4. Full LanguageServer JSON-RPC Daemon Session
+        in_stream = io.BytesIO()
+        out_stream = io.BytesIO()
+
+        # Step 4a: initialize request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {"capabilities": {}},
+        })
+        # Step 4b: initialized notification
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "method": "initialized",
+            "params": {},
+        })
+        # Step 4c: didOpen notification
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": doc_uri,
+                    "languageId": "bmb",
+                    "version": 1,
+                    "text": doc_src,
+                }
+            },
+        })
+        # Step 4d: hover request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "textDocument/hover",
+            "params": {"textDocument": {"uri": doc_uri}, "position": {"line": 4, "character": 4}},
+        })
+        # Step 4e: completion request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 3,
+            "method": "textDocument/completion",
+            "params": {"textDocument": {"uri": doc_uri}, "position": {"line": 5, "character": 13}},
+        })
+        # Step 4f: definition request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 4,
+            "method": "textDocument/definition",
+            "params": {"textDocument": {"uri": doc_uri}, "position": {"line": 9, "character": 11}},
+        })
+        # Step 4g: documentSymbol request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 5,
+            "method": "textDocument/documentSymbol",
+            "params": {"textDocument": {"uri": doc_uri}},
+        })
+        # Step 4h: formatting request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 6,
+            "method": "textDocument/formatting",
+            "params": {"textDocument": {"uri": doc_uri}, "options": {"tabSize": 4, "insertSpaces": True}},
+        })
+        # Step 4i: didChange with syntax error -> trigger diagnostic publication
+        bad_uri = "file:///syntax_err.bmb"
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "method": "textDocument/didOpen",
+            "params": {
+                "textDocument": {
+                    "uri": bad_uri,
+                    "languageId": "bmb",
+                    "version": 1,
+                    "text": "fn broken_fn(x:\n    return x\n",
+                }
+            },
+        })
+        # Step 4j: shutdown request
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "id": 7,
+            "method": "shutdown",
+            "params": {},
+        })
+        # Step 4k: exit notification
+        write_message(in_stream, {
+            "jsonrpc": "2.0",
+            "method": "exit",
+            "params": {},
+        })
+
+        in_stream.seek(0)
+        server = LanguageServer(in_stream, out_stream)
+        server.run()
+
+        out_stream.seek(0)
+        responses = {}
+        notifications = []
+        while True:
+            msg = read_message(out_stream)
+            if msg is None:
+                break
+            if "id" in msg and msg["id"] is not None:
+                responses[msg["id"]] = msg
+            elif "method" in msg:
+                notifications.append(msg)
+
+        # Verify initialize response capabilities
+        init_res = responses.get(1, {}).get("result", {})
+        caps = init_res.get("capabilities", {})
+        self.assertTrue(caps.get("hoverProvider"))
+        self.assertTrue(caps.get("definitionProvider"))
+        self.assertTrue(caps.get("documentSymbolProvider"))
+        self.assertTrue(caps.get("documentFormattingProvider"))
+        self.assertIn(".", caps.get("completionProvider", {}).get("triggerCharacters", []))
+
+        # Verify didOpen clean diagnostics (empty list)
+        clean_diag_notifs = [n for n in notifications if n.get("params", {}).get("uri") == doc_uri]
+        self.assertTrue(len(clean_diag_notifs) >= 1)
+        self.assertEqual(len(clean_diag_notifs[0]["params"]["diagnostics"]), 0)
+
+        # Verify syntax error diagnostics notification
+        err_diag_notifs = [n for n in notifications if n.get("params", {}).get("uri") == bad_uri]
+        self.assertTrue(len(err_diag_notifs) >= 1)
+        err_diags = err_diag_notifs[0]["params"]["diagnostics"]
+        self.assertTrue(len(err_diags) >= 1)
+        self.assertEqual(err_diags[0]["severity"], DiagnosticSeverity.Error)
+        self.assertIn("ParseError", err_diags[0]["message"])
+
+        # Verify hover response
+        hover_res = responses.get(2, {}).get("result", {})
+        self.assertIn("norm_sq", hover_res.get("contents", {}).get("value", ""))
+
+        # Verify completion response
+        comp_res = responses.get(3, {}).get("result", {})
+        items = comp_res.get("items", [])
+        field_labels = [it["label"] for it in items]
+        self.assertTrue("x" in field_labels and "y" in field_labels)
+
+        # Verify definition response
+        def_res = responses.get(4, {}).get("result", {})
+        self.assertEqual(def_res.get("range", {}).get("start", {}).get("line"), 4)
+
+        # Verify documentSymbol response
+        sym_res = responses.get(5, {}).get("result", [])
+        top_names = [s["name"] for s in sym_res]
+        self.assertIn("Vector", top_names)
+        self.assertIn("norm_sq", top_names)
+        self.assertIn("main", top_names)
+
+        # Verify formatting response
+        fmt_res = responses.get(6, {}).get("result", [])
+        self.assertTrue(len(fmt_res) > 0)
+        self.assertIn("newText", fmt_res[0])
+
+        # Verify shutdown response
+        shut_res = responses.get(7, {})
+        self.assertIn("result", shut_res)
+        self.assertIsNone(shut_res["result"])
 
 
 if __name__ == "__main__":

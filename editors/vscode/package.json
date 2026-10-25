@@ -1,0 +1,70 @@
+{
+  "name": "vscode-black-mamba",
+  "displayName": "Black Mamba Language Support",
+  "description": "Rich language support and Language Server Protocol client for the Black Mamba (.bmb) programming language",
+  "version": "0.5.0",
+  "publisher": "black-mamba",
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "mamba",
+    "bmb",
+    "compiler",
+    "native",
+    "jit"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:bmb"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "bmb",
+        "aliases": [
+          "Black Mamba",
+          "bmb"
+        ],
+        "extensions": [
+          ".bmb"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "bmb",
+        "scopeName": "source.bmb",
+        "path": "./syntaxes/bmb.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Black Mamba",
+      "properties": {
+        "bmb.lsp.path": {
+          "type": "string",
+          "default": "bmb",
+          "description": "Path to the Black Mamba executable (bmb) or Python runner"
+        },
+        "bmb.lsp.tcpPort": {
+          "type": "number",
+          "default": 0,
+          "description": "Optional TCP port to connect to an external bmb-lsp daemon (0 uses stdio)"
+        },
+        "bmb.format.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable formatting documents via Black Mamba canonical 4-space formatter"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.1.0"
+  }
+}

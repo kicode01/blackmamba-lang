@@ -110,14 +110,20 @@ Reduce reliance on the host Python runtime by providing high-speed, native imple
 
 ---
 
-## Phase 5: Developer Experience, Tooling & Ecosystem
+## Phase 5: Developer Experience, Tooling & Ecosystem ⚡ *(IN PROGRESS)*
 
 Give developers world-class editor support and package management.
 
-- [ ] **VS Code Extension & LSP (`bmb-lsp`)**:
-  - Language Server Protocol server powered by `mamba/types.py`.
-  - Real-time syntax diagnostics, error squiggles, and hover tooltips for inferred types.
-  - Struct field auto-completion.
+- [x] **VS Code Extension & Language Server Protocol Daemon (`bmb-lsp`)**:
+  - [x] Standard LSP 3.17 daemon (`mamba/lsp/server.py`) running over JSON-RPC 2.0 via standard I/O (`bmb lsp --stdio`) and TCP socket (`bmb lsp --tcp <port>`).
+  - [x] Document synchronization (`textDocument/didOpen`, `textDocument/didChange`, `textDocument/didClose`) with resilient AST parsing and error recovery under typing.
+  - [x] Real-time diagnostic error squiggles (`textDocument/publishDiagnostics`) with precise line and character offsets for lexer and parser errors.
+  - [x] Inferred type hover tooltips (`textDocument/hover`) powered by `mamba/types.py` showing Markdown signatures, struct layouts, and builtin documentation.
+  - [x] Intelligent dot-triggered autocompletion (`textDocument/completion`) listing member fields and methods of inferred struct types, plus scope-aware keywords, builtins, and standard modules.
+  - [x] Go to Definition (`textDocument/definition`) mapping symbols directly to function, struct, and variable declaration sites.
+  - [x] Document Symbol Outline & Breadcrumbs (`textDocument/documentSymbol`) building a hierarchical tree of structs, fields, and functions.
+  - [x] Canonical 4-space code formatter (`textDocument/formatting`) normalizing indentation, operators, and parameters.
+  - [x] VS Code extension package (`editors/vscode/`) with syntax highlighting grammar (`syntaxes/bmb.tmLanguage.json`), language configuration (`language-configuration.json`), client launcher (`extension.js`), and package manifest (`package.json`).
 - [ ] **Black Mamba Package Manager (`bmb pkg`)**:
   - Decentralized package manifest (`mamba.toml`).
   - Git-based dependency resolution with cryptographic lockfiles (`mamba.lock`).
@@ -140,7 +146,7 @@ For full architectural transparency, every known limitation, missing feature, an
 5. **Standard Library**: Core `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, and `test` are pure native `.bmb`.
 6. **Dynamic OOP**: No dynamic multiple inheritance (C3 MRO) or runtime monkey-patching (`setattr` on classes).
 7. **High-Level Concurrency**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, and `par_map` shipped in `thread.bmb`; async channels in progress.
-8. **Developer Tooling**: No dedicated VS Code LSP server daemon or package registry yet.
+8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`) & VS Code extension shipped; package registry (`bmb pkg`) in progress.
 
 ---
 
