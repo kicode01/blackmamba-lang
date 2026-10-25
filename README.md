@@ -2,6 +2,9 @@
 
 <div align="center">
 
+<img src="assets/logo.png" alt="Black Mamba Logo" width="220" />
+<br/>
+
 ```
   ____  _             _      __  __                 _           
  |  _ \| |           | |    |  \/  |               | |          

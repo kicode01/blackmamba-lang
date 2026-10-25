@@ -328,8 +328,10 @@
     (local $t_t42 i64)
     (local $t_t43 i64)
     (local $t_t44 i64)
+    (local $t_arena_sp_main i64)
     (local $__pc i32)
     ;; __tco_entry:
+    ;; %arena_sp_main:i64 = arena_save None
     ;; %t1:str = const_str 4
     ;; print(%t1:str)
     ;; %t2:str = const_str 5
@@ -399,6 +401,7 @@
     ;; %t43:str = const_str 4
     ;; print(%t43:str)
     ;; %t44:i64 = const_i64 0
+    ;; arena_restore %arena_sp_main
     ;; ret %t44
     (i64.const 0)
   )

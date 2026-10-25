@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 110" width="512" height="512">
+  <defs>
+    <!-- Top Snake: Sleek Obsidian Carbon Black Mamba -->
+    <linearGradient id="mambaDarkGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#323644" />
+      <stop offset="40%" stop-color="#1F212D" />
+      <stop offset="100%" stop-color="#0F1017" />
+    </linearGradient>
+    <!-- Bottom Snake: Iconic Python Speed Gold -->
+    <linearGradient id="mambaGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE873" />
+      <stop offset="50%" stop-color="#FFD43B" />
+      <stop offset="100%" stop-color="#E5A823" />
+    </linearGradient>
+    <!-- Subtle drop shadow -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="1" dy="2" stdDeviation="2" flood-opacity="0.35" flood-color="#000000" />
+    </filter>
+  </defs>
+
+  <g filter="url(#dropShadow)">
+    <!-- Top Snake: Obsidian Black Mamba -->
+    <path fill="url(#mambaDarkGrad)" d="M 54.42 8.7 C 46.12 8.7 39.46 9.42 34.34 10.74 C 29.22 12.06 25.7 14.18 24.38 18.02 C 23.3 21.14 23.3 24.62 23.3 29.42 L 23.3 39.86 L 47.9 39.86 L 47.9 43.46 L 14.54 43.46 C 10.1 43.46 6.86 44.78 4.46 47.42 C 2.06 50.06 0.86 54.02 0.86 59.3 C 0.86 64.34 2.06 68.3 4.46 71.18 C 6.86 74.06 10.46 75.5 15.26 75.5 L 21.5 75.5 L 21.5 64.94 C 21.5 60.14 22.7 56.42 25.1 53.78 C 27.5 51.14 31.1 49.82 35.9 49.82 L 59.9 49.82 C 64.22 49.82 67.46 48.5 69.62 45.86 C 71.78 43.22 72.86 39.26 72.86 34 L 72.86 23.54 C 72.86 18.98 71.78 15.26 69.62 12.38 C 67.46 9.5 62.38 8.7 54.42 8.7 Z" />
+    <!-- Top Eye: Piercing Gold -->
+    <circle cx="37.82" cy="21.74" r="3.96" fill="#FFD43B" />
+
+    <!-- Bottom Snake: Python Speed Gold (180 deg rotation) -->
+    <g transform="rotate(180 55 55)">
+      <path fill="url(#mambaGoldGrad)" d="M 54.42 8.7 C 46.12 8.7 39.46 9.42 34.34 10.74 C 29.22 12.06 25.7 14.18 24.38 18.02 C 23.3 21.14 23.3 24.62 23.3 29.42 L 23.3 39.86 L 47.9 39.86 L 47.9 43.46 L 14.54 43.46 C 10.1 43.46 6.86 44.78 4.46 47.42 C 2.06 50.06 0.86 54.02 0.86 59.3 C 0.86 64.34 2.06 68.3 4.46 71.18 C 6.86 74.06 10.46 75.5 15.26 75.5 L 21.5 75.5 L 21.5 64.94 C 21.5 60.14 22.7 56.42 25.1 53.78 C 27.5 51.14 31.1 49.82 35.9 49.82 L 59.9 49.82 C 64.22 49.82 67.46 48.5 69.62 45.86 C 71.78 43.22 72.86 39.26 72.86 34 L 72.86 23.54 C 72.86 18.98 71.78 15.26 69.62 12.38 C 67.46 9.5 62.38 8.7 54.42 8.7 Z" />
+      <!-- Bottom Eye: Obsidian Dark -->
+      <circle cx="37.82" cy="21.74" r="3.96" fill="#181926" />
+    </g>
+  </g>
+</svg>

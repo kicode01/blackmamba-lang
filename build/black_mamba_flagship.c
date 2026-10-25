@@ -6,7 +6,240 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <math.h>
+#if defined(_WIN32)
+#include <direct.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <unistd.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
+
+static inline int64_t bmb___bmb_file_exists(const char* path) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return 0;
+    fclose(f);
+    return 1;
+}
+
+static inline int64_t bmb___bmb_file_size(const char* path) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fclose(f);
+    return (int64_t)sz;
+}
+
+static inline const char* bmb___bmb_file_read(const char* path) {
+    FILE* f = fopen(path, "rb");
+    if (!f) return "";
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    char* buf = (char*)malloc((size_t)sz + 1);
+    if (!buf) { fclose(f); return ""; }
+    size_t nr = fread(buf, 1, (size_t)sz, f);
+    buf[nr] = '\0';
+    fclose(f);
+    return buf;
+}
+
+static inline int64_t bmb___bmb_file_write(const char* path, const char* content, int64_t mode) {
+    FILE* f = fopen(path, mode == 1 ? "ab" : "wb");
+    if (!f) return -1;
+    size_t len = strlen(content);
+    size_t nw = fwrite(content, 1, len, f);
+    fclose(f);
+    return (int64_t)nw;
+}
+
+static inline int64_t bmb___bmb_file_remove(const char* path) {
+    return remove(path) == 0 ? 1 : 0;
+}
+
+static inline const char* bmb___bmb_get_cwd(void) {
+    char* buf = (char*)malloc(1024);
+#if defined(_WIN32)
+    if (_getcwd(buf, 1024)) return buf;
+#else
+    if (getcwd(buf, 1024)) return buf;
+#endif
+    return "";
+}
+
+static inline const char* bmb___bmb_get_env(const char* key) {
+    const char* v = getenv(key);
+    return v ? v : "";
+}
+
+static inline int64_t bmb___bmb_socket_init(void) {
+#if defined(_WIN32)
+    WSADATA wsa;
+    return (int64_t)WSAStartup(MAKEWORD(2, 2), &wsa);
+#else
+    return 0;
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_cleanup(void) {
+#if defined(_WIN32)
+    return (int64_t)WSACleanup();
+#else
+    return 0;
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_create(int64_t family, int64_t type, int64_t proto) {
+#if defined(_WIN32)
+    SOCKET s = socket((int)family, (int)type, (int)proto);
+    return (int64_t)s;
+#else
+    int s = socket((int)family, (int)type, (int)proto);
+    return (int64_t)s;
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_connect(int64_t sockfd, const char* host, int64_t port) {
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((uint16_t)port);
+    addr.sin_addr.s_addr = inet_addr(host);
+#if defined(_WIN32)
+    return (int64_t)connect((SOCKET)sockfd, (struct sockaddr*)&addr, sizeof(addr));
+#else
+    return (int64_t)connect((int)sockfd, (struct sockaddr*)&addr, sizeof(addr));
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_bind(int64_t sockfd, const char* host, int64_t port) {
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons((uint16_t)port);
+    if (!host || strlen(host) == 0 || strcmp(host, "0.0.0.0") == 0) {
+        addr.sin_addr.s_addr = INADDR_ANY;
+    } else {
+        addr.sin_addr.s_addr = inet_addr(host);
+    }
+#if defined(_WIN32)
+    return (int64_t)bind((SOCKET)sockfd, (struct sockaddr*)&addr, sizeof(addr));
+#else
+    return (int64_t)bind((int)sockfd, (struct sockaddr*)&addr, sizeof(addr));
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_listen(int64_t sockfd, int64_t backlog) {
+#if defined(_WIN32)
+    return (int64_t)listen((SOCKET)sockfd, (int)backlog);
+#else
+    return (int64_t)listen((int)sockfd, (int)backlog);
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_accept(int64_t sockfd) {
+#if defined(_WIN32)
+    SOCKET c = accept((SOCKET)sockfd, NULL, NULL);
+    return (int64_t)c;
+#else
+    int c = accept((int)sockfd, NULL, NULL);
+    return (int64_t)c;
+#endif
+}
+
+static inline int64_t bmb___bmb_socket_send(int64_t sockfd, const char* data) {
+    size_t len = strlen(data);
+#if defined(_WIN32)
+    return (int64_t)send((SOCKET)sockfd, data, (int)len, 0);
+#else
+    return (int64_t)send((int)sockfd, data, len, 0);
+#endif
+}
+
+static inline const char* bmb___bmb_socket_recv(int64_t sockfd, int64_t max_bytes) {
+    if (max_bytes <= 0) return "";
+    char* buf = (char*)malloc((size_t)max_bytes + 1);
+    if (!buf) return "";
+#if defined(_WIN32)
+    int n = recv((SOCKET)sockfd, buf, (int)max_bytes, 0);
+#else
+    ssize_t n = recv((int)sockfd, buf, (size_t)max_bytes, 0);
+#endif
+    if (n <= 0) {
+        free(buf);
+        return "";
+    }
+    buf[n] = '\0';
+    return buf;
+}
+
+static inline int64_t bmb___bmb_socket_close(int64_t sockfd) {
+#if defined(_WIN32)
+    return (int64_t)closesocket((SOCKET)sockfd);
+#else
+    return (int64_t)close((int)sockfd);
+#endif
+}
+
+static inline int64_t bmb_str_len(const char* s) {
+    return (int64_t)strlen(s);
+}
+
+static inline const char* bmb_str_concat(const char* s1, const char* s2) {
+    size_t l1 = strlen(s1);
+    size_t l2 = strlen(s2);
+    char* buf = (char*)malloc(l1 + l2 + 1);
+    memcpy(buf, s1, l1);
+    memcpy(buf + l1, s2, l2);
+    buf[l1 + l2] = '\0';
+    return buf;
+}
+
+static inline const char* bmb_str_slice(const char* s, int64_t start, int64_t stop) {
+    int64_t len = (int64_t)strlen(s);
+    if (start < 0) start = (len + start > 0) ? (len + start) : 0;
+    if (stop < 0) stop = len;
+    if (start > len) start = len;
+    if (stop < start) stop = start;
+    if (stop > len) stop = len;
+    int64_t slice_len = stop - start;
+    char* buf = (char*)malloc((size_t)slice_len + 1);
+    memcpy(buf, s + start, (size_t)slice_len);
+    buf[slice_len] = '\0';
+    return buf;
+}
+
+static inline const char* bmb_str_index(const char* s, int64_t idx) {
+    int64_t len = (int64_t)strlen(s);
+    if (idx < 0) idx += len;
+    if (idx < 0 || idx >= len) return "";
+    char* buf = (char*)malloc(2);
+    buf[0] = s[idx];
+    buf[1] = '\0';
+    return buf;
+}
+
+static inline const char* bmb_str_from_i64(int64_t v) {
+    char* buf = (char*)malloc(32);
+    snprintf(buf, 32, "%lld", (long long)v);
+    return buf;
+}
+
+static inline const char* bmb_str_from_f64(double v) {
+    char* buf = (char*)malloc(32);
+    snprintf(buf, 32, "%.6g", v);
+    return buf;
+}
+
+static inline const char* bmb_str_from_bool(int64_t v) {
+    return v ? "True" : "False";
+}
 
 static inline int64_t* __bmb_alloc_i64(int64_t n, int64_t init_val) {
     int64_t* p = (int64_t*)calloc((size_t)(n > 0 ? n : 1), sizeof(int64_t));
@@ -14,10 +247,147 @@ static inline int64_t* __bmb_alloc_i64(int64_t n, int64_t init_val) {
     return p;
 }
 
+static inline int64_t bmb___bmb_atomic_load(int64_t* ptr) {
+#if defined(_MSC_VER)
+    return *ptr;
+#else
+    return __atomic_load_n(ptr, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static inline int64_t bmb___bmb_atomic_store(int64_t* ptr, int64_t val) {
+#if defined(_MSC_VER)
+    return _InterlockedExchange64((volatile __int64*)ptr, val);
+#else
+    return __atomic_exchange_n(ptr, val, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static inline int64_t bmb___bmb_atomic_add(int64_t* ptr, int64_t delta) {
+#if defined(_MSC_VER)
+    return _InterlockedExchangeAdd64((volatile __int64*)ptr, delta);
+#else
+    return __atomic_fetch_add(ptr, delta, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static inline int64_t bmb___bmb_atomic_sub(int64_t* ptr, int64_t delta) {
+#if defined(_MSC_VER)
+    return _InterlockedExchangeAdd64((volatile __int64*)ptr, -delta);
+#else
+    return __atomic_fetch_sub(ptr, delta, __ATOMIC_SEQ_CST);
+#endif
+}
+
+static inline int64_t bmb___bmb_atomic_cas(int64_t* ptr, int64_t expected, int64_t desired) {
+#if defined(_MSC_VER)
+    return _InterlockedCompareExchange64((volatile __int64*)ptr, desired, expected);
+#else
+    int64_t exp = expected;
+    __atomic_compare_exchange_n(ptr, &exp, desired, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+    return exp;
+#endif
+}
+
+static inline int64_t bmb___bmb_atomic_fence(void) {
+#if defined(_MSC_VER)
+    MemoryBarrier();
+#else
+    __atomic_thread_fence(__ATOMIC_SEQ_CST);
+#endif
+    return 0;
+}
+
+static inline int64_t bmb___bmb_cpu_pause(void) {
+#if defined(_MSC_VER) || defined(_WIN32)
+    YieldProcessor();
+#elif defined(__x86_64__) || defined(_M_X64)
+    __builtin_ia32_pause();
+#endif
+    return 0;
+}
+
+#if defined(_WIN32)
+#include <windows.h>
+static inline int64_t bmb___bmb_thread_concurrency(void) {
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    return (int64_t)si.dwNumberOfProcessors;
+}
+static inline int64_t bmb___bmb_thread_spawn(int64_t fn_ptr, int64_t arg) {
+    HANDLE h = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)(uintptr_t)fn_ptr, (LPVOID)(uintptr_t)arg, 0, NULL);
+    return (int64_t)(uintptr_t)h;
+}
+static inline int64_t bmb___bmb_thread_join(int64_t handle) {
+    HANDLE h = (HANDLE)(uintptr_t)handle;
+    WaitForSingleObject(h, INFINITE);
+    DWORD code = 0;
+    GetExitCodeThread(h, &code);
+    CloseHandle(h);
+    return (int64_t)code;
+}
+static inline int64_t bmb___bmb_thread_id(void) {
+    return (int64_t)GetCurrentThreadId();
+}
+static inline int64_t bmb___bmb_thread_yield(void) {
+    Sleep(0);
+    return 0;
+}
+static inline int64_t bmb___bmb_thread_sleep(int64_t ms) {
+    Sleep((DWORD)ms);
+    return 0;
+}
+#else
+#include <pthread.h>
+#include <unistd.h>
+static inline int64_t bmb___bmb_thread_concurrency(void) {
+    long n = sysconf(_SC_NPROCESSORS_ONLN);
+    return n > 0 ? (int64_t)n : 1;
+}
+static inline int64_t bmb___bmb_thread_spawn(int64_t fn_ptr, int64_t arg) {
+    pthread_t th;
+    pthread_create(&th, NULL, (void* (*)(void*))(uintptr_t)fn_ptr, (void*)(uintptr_t)arg);
+    return (int64_t)(uintptr_t)th;
+}
+static inline int64_t bmb___bmb_thread_join(int64_t handle) {
+    void* ret = NULL;
+    pthread_join((pthread_t)(uintptr_t)handle, &ret);
+    return (int64_t)(uintptr_t)ret;
+}
+static inline int64_t bmb___bmb_thread_id(void) {
+    return (int64_t)(uintptr_t)pthread_self();
+}
+static inline int64_t bmb___bmb_thread_yield(void) {
+    sched_yield();
+    return 0;
+}
+static inline int64_t bmb___bmb_thread_sleep(int64_t ms) {
+    usleep((useconds_t)(ms * 1000));
+    return 0;
+}
+#endif
+
 static inline double* __bmb_alloc_f64(int64_t n, double init_val) {
     double* p = (double*)calloc((size_t)(n > 0 ? n : 1), sizeof(double));
     if (init_val != 0.0) { for (int64_t i = 0; i < n; ++i) p[i] = init_val; }
     return p;
+}
+
+static inline int64_t bmb___bmb_mem_alloc(int64_t size_bytes) {
+    void* p = calloc((size_t)(size_bytes > 0 ? size_bytes : 1), 1);
+    return (int64_t)(uintptr_t)p;
+}
+static inline int64_t bmb___bmb_mem_free(int64_t ptr) {
+    if (ptr) free((void*)(uintptr_t)ptr);
+    return 0;
+}
+static inline int64_t bmb___bmb_mem_read(int64_t ptr, int64_t offset) {
+    if (!ptr) return 0;
+    return ((int64_t*)(uintptr_t)ptr)[offset];
+}
+static inline int64_t bmb___bmb_mem_write(int64_t ptr, int64_t offset, int64_t val) {
+    if (ptr) ((int64_t*)(uintptr_t)ptr)[offset] = val;
+    return 0;
 }
 
 static const char* __bmb_str_pool[] = {
@@ -365,7 +735,9 @@ int main(int argc, char** argv) {
     const char* _t_t42 = 0;
     const char* _t_t43 = 0;
     int64_t _t_t44 = 0;
+    int64_t _t_arena_sp_main = 0;
   __tco_entry: ;
+    _t_arena_sp_main = 0; /* lexical arena checkpoint */
     _t_t1 = __bmb_str_pool[4];
     printf("%s", _t_t1);
     printf("\n");
@@ -453,5 +825,6 @@ int main(int argc, char** argv) {
     printf("%s", _t_t43);
     printf("\n");
     _t_t44 = 0LL;
+    /* auto-reclaim lexical arena */
     return (int)(_t_t44);
 }

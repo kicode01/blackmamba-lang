@@ -4,6 +4,7 @@
   "description": "Rich language support and Language Server Protocol client for the Black Mamba (.bmb) programming language",
   "version": "0.5.0",
   "publisher": "black-mamba",
+  "icon": "icon.png",
   "engines": {
     "vscode": "^1.75.0"
   },

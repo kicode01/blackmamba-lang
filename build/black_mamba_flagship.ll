@@ -481,9 +481,11 @@ entry:
   %t42.slot = alloca ptr, align 8
   %t43.slot = alloca ptr, align 8
   %t44.slot = alloca i64, align 8
+  %arena_sp_main.slot = alloca i64, align 8
   br label %__tco_entry
   br label %__tco_entry
 __tco_entry:
+  ; %arena_sp_main:i64 = arena_save None
   ; %t1:str = const_str 4
   ; print(%t1:str)
   ; %t2:str = const_str 5
@@ -561,6 +563,7 @@ __tco_entry:
   ; %t43:str = const_str 4
   ; print(%t43:str)
   store i64 0, ptr %t44.slot, align 8
+  ; arena_restore %arena_sp_main
   %r9 = load i64, ptr %t44.slot, align 8
   ret i64 %r9
 ret_cont_9:
