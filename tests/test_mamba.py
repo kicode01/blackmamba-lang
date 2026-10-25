@@ -2146,6 +2146,70 @@ def main() -> i64:
         if os.path.exists(db_path):
             os.remove(db_path)
 
+    def test_stdlib_http_websocket_framework(self):
+        http_code = '''from http import (
+    HttpRequest, HttpResponse, HttpServer, WsFrame,
+    http_server_create, http_add_route, http_dispatch,
+    http_parse_request, http_format_response, http_get_header, http_get_query_param,
+    response_json, ws_accept_key, ws_handshake_response, ws_decode_frame, ws_encode_text_frame
+)
+
+def main() -> i64:
+    # 1. Test Request Parsing
+    crlf = chr(13) + chr(10)
+    raw = "GET /api/v1/users?page=3&sort=asc HTTP/1.1" + crlf + "Host: api.blackmamba.dev" + crlf + crlf
+    req = http_parse_request(raw)
+    host = http_get_header(req.headers_raw, "Host")
+    page = http_get_query_param(req.query, "page")
+    print(f"HTTP_TEST: meth={req.method} path={req.path} host={host} page={page}")
+
+    # 2. Test Router Dispatch
+    srv = http_server_create("127.0.0.1", 8080, 8)
+    http_add_route(srv, "GET", "/api/v1/users", 200, "application/json", '{"total": 42}')
+    resp = http_dispatch(srv, req)
+    print(f"ROUTER_TEST: st={resp.status} ct={resp.content_type} body={resp.body}")
+
+    # 3. Test WebSocket RFC 6455
+    key = "dGhlIHNhbXBsZSBub25jZQ=="
+    accept_val = ws_accept_key(key)
+    print(f"WS_ACCEPT: {accept_val}")
+
+    # 4. Test WebSocket Frame Round-Trip
+    msg = "Ping WebSocket Test"
+    frame = ws_encode_text_frame(msg)
+    decoded = ws_decode_frame(frame)
+    print(f"WS_FRAME: op={decoded.opcode} payload={decoded.payload}")
+    return 0
+'''
+        mod = Parser.from_source(http_code).parse_module()
+        mod = resolve_imports(mod, ".")
+        mir = MIRBuilder().build(mod)
+
+        # JIT verification
+        jit = NativeJITModule(mir)
+        jit.run_main()
+        out = "".join(jit.printed_lines)
+        jit.close()
+
+        self.assertIn("HTTP_TEST: meth=GET path=/api/v1/users host=api.blackmamba.dev page=3", out)
+        self.assertIn('ROUTER_TEST: st=200 ct=application/json body={"total": 42}', out)
+        self.assertIn("WS_ACCEPT: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", out)
+        self.assertIn("WS_FRAME: op=1 payload=Ping WebSocket Test", out)
+
+        # Standalone PE32+ executable verification
+        pe_exe_path = os.path.abspath("build/test_phase4_http.exe")
+        PE32PlusExecutableBuilder(mir).write_executable(pe_exe_path)
+        self.assertTrue(os.path.exists(pe_exe_path))
+
+        pe_res = subprocess.run([pe_exe_path], capture_output=True, text=True, check=True)
+        self.assertIn("HTTP_TEST: meth=GET path=/api/v1/users host=api.blackmamba.dev page=3", pe_res.stdout)
+        self.assertIn('ROUTER_TEST: st=200 ct=application/json body={"total": 42}', pe_res.stdout)
+        self.assertIn("WS_ACCEPT: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", pe_res.stdout)
+        self.assertIn("WS_FRAME: op=1 payload=Ping WebSocket Test", pe_res.stdout)
+
+        if os.path.exists(pe_exe_path):
+            os.remove(pe_exe_path)
+
 
 if __name__ == "__main__":
     unittest.main()

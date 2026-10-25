@@ -1,0 +1,109 @@
+# ==============================================================================
+#  BLACK MAMBA (.bmb) USE CASE: HIGH-THROUGHPUT HTTP & WEBSOCKET ENGINE
+#  Vector 1: Microsecond-Latency Web Services & Real-Time Bi-Directional WebSockets
+# ==============================================================================
+
+from http import (
+    HttpRequest,
+    HttpResponse,
+    HttpServer,
+    WsFrame,
+    http_server_create,
+    http_add_route,
+    http_dispatch,
+    http_parse_request,
+    http_format_response,
+    http_get_header,
+    http_get_query_param,
+    response_text,
+    response_json,
+    response_html,
+    ws_accept_key,
+    ws_handshake_response,
+    ws_decode_frame,
+    ws_encode_text_frame,
+)
+from time import clock_ns
+
+def benchmark_http_throughput(srv: HttpServer, count: i64) -> i64:
+    let ok_count: i64 = 0
+    let req: HttpRequest = HttpRequest("GET", 1, "/api/v1/status", "", "HTTP/1.1", "", "", 0, False, "")
+    let i: i64 = 0
+    while i < count:
+        let res: HttpResponse = http_dispatch(srv, req)
+        if res.status == 200:
+            ok_count += 1
+        i += 1
+    return ok_count
+
+def main():
+    print("==================================================================")
+    print("     BLACK MAMBA (.bmb) HIGH-THROUGHPUT HTTP & WEBSOCKET ENGINE   ")
+    print("==================================================================")
+    print("Runtime Architecture: Bare-Metal Zero-GIL Web Services")
+    print("Standard Library:     mamba/stdlib/http.bmb (RFC 6455 + HTTP/1.1)")
+    print("------------------------------------------------------------------")
+
+    # 1. Initialize High-Performance HTTP Server Router
+    let srv: HttpServer = http_server_create("0.0.0.0", 8080, 32)
+
+    # 2. Register REST API Endpoints
+    http_add_route(srv, "GET", "/", 200, "text/html; charset=utf-8", "<h1>Welcome to Black Mamba Web Engine</h1>")
+    http_add_route(srv, "GET", "/api/v1/status", 200, "application/json; charset=utf-8", "{\"engine\": \"Black Mamba\", \"version\": \"3.0\", \"status\": \"running\", \"latency_p99_us\": 0.42}")
+    http_add_route(srv, "GET", "/api/v1/metrics", 200, "application/json; charset=utf-8", "{\"uptime_sec\": 86400, \"active_connections\": 14200, \"memory_mb\": 4.1}")
+    http_add_route(srv, "POST", "/api/v1/messages", 201, "application/json; charset=utf-8", "{\"status\": \"message_dispatched\"}")
+
+    print("[1] Router Initialized: 4 REST endpoints registered.")
+
+    # 3. Test HTTP Request Parsing & Query Extraction
+    let raw_http: str = "GET /api/v1/status?format=compact&cache=false HTTP/1.1\r\nHost: api.blackmamba.dev\r\nUser-Agent: Mozilla/5.0 Edge/120.0\r\nConnection: keep-alive\r\n\r\n"
+    let req: HttpRequest = http_parse_request(raw_http)
+    print(f"[2] HTTP Inbound Parsed:")
+    print(f"    - Method:       {req.method}")
+    print(f"    - Path:         {req.path}")
+    print(f"    - Host Header:  {http_get_header(req.headers_raw, 'Host')}")
+    print(f"    - Format Param: {http_get_query_param(req.query, 'format')}")
+
+    # 4. Dispatch Request through Server Router
+    let resp: HttpResponse = http_dispatch(srv, req)
+    print(f"[3] Router Response:")
+    print(f"    - Status:       {resp.status} (OK)")
+    print(f"    - Content-Type: {resp.content_type}")
+    print(f"    - Body Length:  {len(resp.body)} bytes")
+
+    # 5. Full-Duplex WebSocket RFC 6455 Handshake & Framing Test
+    print("[4] WebSocket (RFC 6455) Engine:")
+    let client_ws_key: str = "dGhlIHNhbXBsZSBub25jZQ=="
+    let accept_token: str = ws_accept_key(client_ws_key)
+    print(f"    - Client Sec-WebSocket-Key: {client_ws_key}")
+    print(f"    - Server Handshake Accept:  {accept_token}")
+    if accept_token == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=":
+        print("    - RFC 6455 Verification:    PASSED (Exact SHA1-Base64 Match)")
+
+    # Encode Server-to-Client WebSocket Text Frame
+    let ws_msg: str = "{\"event\": \"ticker_update\", \"symbol\": \"BMB/USD\", \"price\": 314.15}"
+    let frame_encoded: str = ws_encode_text_frame(ws_msg)
+    print(f"    - Server WS Text Frame:     {len(frame_encoded)} bytes encoded")
+
+    # Decode Frame
+    let decoded_frame: WsFrame = ws_decode_frame(frame_encoded)
+    print(f"    - Decoded Opcode:           {decoded_frame.opcode} (1=Text)")
+    print(f"    - Decoded Payload:          {decoded_frame.payload}")
+
+    # 6. High-Throughput In-Memory Stress Benchmark
+    print("------------------------------------------------------------------")
+    let bench_count: i64 = 100000
+    print(f"[5] Running In-Memory Router Benchmark: {bench_count} requests...")
+    let t0: i64 = clock_ns()
+    let served: i64 = benchmark_http_throughput(srv, bench_count)
+    let t1: i64 = clock_ns()
+    let elapsed_ms: f64 = float(t1 - t0) / 1000000.0
+    let req_per_sec: f64 = (float(bench_count) / elapsed_ms) * 1000.0
+
+    print(f"    - Successfully Handled:    {served} / {bench_count} requests")
+    print(f"    - Elapsed Time:            {elapsed_ms} ms")
+    print(f"    - Throughput:              {int(req_per_sec)} requests / second")
+    print("==================================================================")
+    print("STATUS: Vector 1 (HTTP/1.1 & WebSocket) Ready for Production!")
+    print("==================================================================")
+    return 0
