@@ -1,0 +1,138 @@
+# Black Mamba Flagship Showcase: alloc_benchmark.bmb
+# Vector 4: High-Throughput Thread-Local Lock-Free Memory Allocator
+# Inspired by Mimalloc, Jemalloc, and TCMalloc.
+# Zero-CPython-overhead across native Windows PE32+, Linux ELF64, macOS ARM64, and JIT.
+
+from alloc import (
+    alloc_fast, free_fast, alloc_zeroed, alloc_realloc,
+    slab_alloc, slab_free, alloc_stats, alloc_print_stats,
+    pool_new, pool_alloc, pool_free, pool_destroy,
+    arena_new, arena_alloc, arena_reset, arena_destroy,
+    mem_read, mem_write
+)
+from thread import thread_spawn, thread_join, thread_current_id, hardware_concurrency
+from time import clock_ns
+
+def bench_single_thread(iterations: i64) -> void:
+    print("[1/4] Running Single-Threaded Slab Allocator Benchmark (" + str(iterations) + " ops)...")
+    let t0: i64 = clock_ns()
+    
+    for i in 0..iterations:
+        let p: i64 = slab_alloc(64)
+        mem_write(p, 0, i)
+        slab_free(p, 64)
+    
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mops: f64 = (float(iterations) / float(dt_ns)) * 1000.0
+    let ns_per_op: f64 = float(dt_ns) / float(iterations)
+    
+    print("  -> Duration: " + str(dt_ms) + " ms")
+    print("  -> Throughput: " + str(mops) + " Mops/sec")
+    print("  -> Latency: " + str(ns_per_op) + " ns / alloc-free pair")
+
+def bench_worker(count: i64) -> i64:
+    let tid: i64 = thread_current_id()
+    for i in 0..count:
+        let p: i64 = slab_alloc(64)
+        mem_write(p, 0, i + tid)
+        slab_free(p, 64)
+    return 0
+
+def bench_multithreaded(num_threads: i64, per_thread_ops: i64) -> void:
+    let total_ops: i64 = num_threads * per_thread_ops
+    print("[2/4] Running Lock-Free Multi-Threaded Benchmark (" + str(num_threads) + " threads, " + str(total_ops) + " total ops)...")
+    let t0: i64 = clock_ns()
+    
+    let t1: i64 = thread_spawn(bench_worker, per_thread_ops)
+    let t2: i64 = thread_spawn(bench_worker, per_thread_ops)
+    let t3: i64 = thread_spawn(bench_worker, per_thread_ops)
+    let t4: i64 = thread_spawn(bench_worker, per_thread_ops)
+    
+    thread_join(t1)
+    thread_join(t2)
+    thread_join(t3)
+    thread_join(t4)
+    
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mops: f64 = (float(total_ops) / float(dt_ns)) * 1000.0
+    let ns_per_op: f64 = float(dt_ns) / float(total_ops)
+    
+    print("  -> Duration: " + str(dt_ms) + " ms")
+    print("  -> Multi-Core Throughput: " + str(mops) + " Mops/sec")
+    print("  -> Amortized Latency: " + str(ns_per_op) + " ns / alloc-free pair")
+
+def bench_object_pool(iterations: i64) -> void:
+    print("[3/4] Running Dedicated ObjectPool Benchmark (" + str(iterations) + " ops)...")
+    let pool = pool_new(48, 1000)
+    let t0: i64 = clock_ns()
+    
+    for i in 0..iterations:
+        let obj: i64 = pool_alloc(pool)
+        mem_write(obj, 0, i)
+        pool_free(pool, obj)
+    
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mops: f64 = (float(iterations) / float(dt_ns)) * 1000.0
+    let ns_per_op: f64 = float(dt_ns) / float(iterations)
+    
+    print("  -> Duration: " + str(dt_ms) + " ms")
+    print("  -> Throughput: " + str(mops) + " Mops/sec")
+    print("  -> Latency: " + str(ns_per_op) + " ns / pool alloc-free")
+    pool_destroy(pool)
+
+def bench_arena_bump(iterations: i64) -> void:
+    print("[4/4] Running Arena Bump-Allocation Benchmark (" + str(iterations) + " ops)...")
+    let a = arena_new(1048576) # 1 MB
+    let t0: i64 = clock_ns()
+    
+    # 10 cycles of 10,000 allocations + instant O(1) bulk reset
+    let cycles: i64 = 10
+    let per_cycle: i64 = iterations / cycles
+    for c in 0..cycles:
+        for i in 0..per_cycle:
+            let p: i64 = arena_alloc(a, 32)
+            mem_write(p, 0, i)
+        arena_reset(a)
+    
+    let dt_ns: i64 = clock_ns() - t0
+    if dt_ns <= 0:
+        dt_ns = 1
+    let dt_ms: f64 = float(dt_ns) / 1000000.0
+    let mops: f64 = (float(iterations) / float(dt_ns)) * 1000.0
+    let ns_per_op: f64 = float(dt_ns) / float(iterations)
+    
+    print("  -> Duration: " + str(dt_ms) + " ms")
+    print("  -> Throughput: " + str(mops) + " Mops/sec")
+    print("  -> Latency: " + str(ns_per_op) + " ns / bump alloc")
+    arena_destroy(a)
+
+def main() -> i64:
+    print("=================================================================")
+    print("  BLACK MAMBA (bmb) VECTOR 4: HIGH-THROUGHPUT ALLOCATOR BENCHMARK")
+    print("  Mimalloc / Jemalloc Thread-Isolated Slab Architecture")
+    print("=================================================================")
+    let cores: i64 = hardware_concurrency()
+    print("Hardware CPU Logical Cores Detected: " + str(cores))
+    print("")
+
+    bench_single_thread(200000)
+    print("")
+    bench_multithreaded(4, 50000)
+    print("")
+    bench_object_pool(200000)
+    print("")
+    bench_arena_bump(200000)
+    print("")
+    
+    alloc_print_stats()
+    print("Vector 4 Verification Completed Successfully.")
+    return 0

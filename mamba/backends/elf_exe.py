@@ -1575,6 +1575,19 @@ class ELF64ExecutableBuilder:
         buf.emit(b"\x4C\x89\x04\xD1", "mov [rcx + rdx*8], r8")
         buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
 
+        buf.mark_label("rt__bmb_alloc_root")
+        buf.emit(b"\x00\x00\x00\x00\x00\x00\x00\x00", "dq 0 (alloc_root)")
+
+        buf.mark_label("fn____bmb_alloc_root_get")
+        buf.emit(b"\x48\x8B\x05\x00\x00\x00\x00", "mov rax, [rip + rt__bmb_alloc_root]")
+        buf.rel32_fixups.append((len(buf.code) - 4, "rt__bmb_alloc_root"))
+        buf.ret()
+
+        buf.mark_label("fn____bmb_alloc_root_set")
+        buf.emit(b"\x48\x89\x0D\x00\x00\x00\x00", "mov [rip + rt__bmb_alloc_root], rcx")
+        buf.rel32_fixups.append((len(buf.code) - 4, "rt__bmb_alloc_root"))
+        buf.emit(b"\x48\x89\xC8\xC3", "mov rax, rcx; ret")
+
         # Native Threading & Concurrency Functions
         buf.mark_label("fn____bmb_thread_concurrency")
         buf.emit(b"\x48\xC7\xC0\x04\x00\x00\x00\xC3", "mov rax, 4; ret")
@@ -1616,6 +1629,7 @@ class ELF64ExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 
         for fn in self.mir_module.functions:

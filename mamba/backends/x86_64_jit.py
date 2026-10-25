@@ -1459,6 +1459,17 @@ class NativeJITModule:
                 ctypes.c_int64.from_address(addr).value = int(val)
             return 0
 
+        _alloc_root_holder = [0]
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_alloc_root_get() -> int:
+            return _alloc_root_holder[0]
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_alloc_root_set(val: int) -> int:
+            _alloc_root_holder[0] = int(val)
+            return int(val)
+
         self._callbacks.extend([
             rt_print_item, rt_alloc_arr, rt_pow_i64, rt_pow_f64, rt_arena_save, rt_arena_restore,
             rt_str_len, rt_str_concat, rt_str_slice, rt_str_index, rt_str_cmp_eq, rt_str_cmp_ne,
@@ -1474,6 +1485,7 @@ class NativeJITModule:
             rt_bmb_thread_concurrency, rt_bmb_thread_spawn, rt_bmb_thread_join,
             rt_bmb_thread_id, rt_bmb_thread_yield, rt_bmb_thread_sleep,
             rt_bmb_mem_alloc, rt_bmb_mem_free, rt_bmb_mem_read, rt_bmb_mem_write,
+            rt_bmb_alloc_root_get, rt_bmb_alloc_root_set,
         ])
         self.addr_print_item = ctypes.cast(rt_print_item, ctypes.c_void_p).value
         self.addr_alloc_arr = ctypes.cast(rt_alloc_arr, ctypes.c_void_p).value
@@ -1526,6 +1538,8 @@ class NativeJITModule:
         self.addr_bmb_mem_free = ctypes.cast(rt_bmb_mem_free, ctypes.c_void_p).value
         self.addr_bmb_mem_read = ctypes.cast(rt_bmb_mem_read, ctypes.c_void_p).value
         self.addr_bmb_mem_write = ctypes.cast(rt_bmb_mem_write, ctypes.c_void_p).value
+        self.addr_bmb_alloc_root_get = ctypes.cast(rt_bmb_alloc_root_get, ctypes.c_void_p).value
+        self.addr_bmb_alloc_root_set = ctypes.cast(rt_bmb_alloc_root_set, ctypes.c_void_p).value
 
         # Host CPython C-API Bridge Callbacks
         from ..interop import CPythonHostBridge
@@ -1640,6 +1654,8 @@ class NativeJITModule:
             ("__bmb_mem_free", self.addr_bmb_mem_free),
             ("__bmb_mem_read", self.addr_bmb_mem_read),
             ("__bmb_mem_write", self.addr_bmb_mem_write),
+            ("__bmb_alloc_root_get", self.addr_bmb_alloc_root_get),
+            ("__bmb_alloc_root_set", self.addr_bmb_alloc_root_set),
         ]
         for name, addr in os_trampolines:
             self.code_buf.mark_label(f"fn__{name}")

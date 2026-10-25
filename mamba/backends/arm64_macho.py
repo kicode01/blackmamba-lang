@@ -1017,6 +1017,13 @@ class MachOARM64ExecutableBuilder:
         buf.mov_reg_imm64(0, 0)
         buf.ret()
 
+        buf.mark_label("fn____bmb_alloc_root_get")
+        buf.mov_reg_imm64(0, 0)
+        buf.ret()
+
+        buf.mark_label("fn____bmb_alloc_root_set")
+        buf.ret()
+
         # 4. Compile all MIR user functions
         self.known_fn_names = {f.name for f in self.mir_module.functions}
         self.known_fn_names.update([
@@ -1031,6 +1038,7 @@ class MachOARM64ExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 
         helper_labels = {

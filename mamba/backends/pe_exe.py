@@ -292,6 +292,7 @@ class PE32PlusExecutableBuilder:
             ("str_wb", b"wb\x00"),
             ("str_ab", b"ab\x00"),
             ("str_empty", b"\x00"),
+            ("alloc_root", b"\x00" * 8),
             ("fmt_seh_div0", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Integer Divide By Zero (0xC0000094) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
             ("fmt_seh_access", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Access Violation (0xC0000005) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
             ("fmt_seh_stack", b"\n[Black Mamba SEH] Hardware Fault Intercepted: Stack Overflow (0xC00000FD) at RIP 0x%p\nCall stack unwound successfully via PE32+ .pdata / .xdata tables.\n\x00"),
@@ -1942,6 +1943,26 @@ class PE32PlusExecutableBuilder:
         buf.emit(b"\x48\x31\xC0\xC3", "xor rax, rax; ret")
         self.func_entries.append((f_start, len(buf.code), "leaf", 0))
 
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_alloc_root_get")
+        alloc_root_rva = self.builtin_rvas["alloc_root"]
+        off = len(buf.code)
+        next_rva = TEXT_RVA + off + 7
+        rel32 = alloc_root_rva - next_rva
+        buf.emit(b"\x48\x8B\x05" + struct.pack("<i", rel32), "mov rax, [rip + alloc_root]")
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_alloc_root_set")
+        alloc_root_rva = self.builtin_rvas["alloc_root"]
+        off = len(buf.code)
+        next_rva = TEXT_RVA + off + 7
+        rel32 = alloc_root_rva - next_rva
+        buf.emit(b"\x48\x89\x0D" + struct.pack("<i", rel32), "mov [rip + alloc_root], rcx")
+        buf.emit(b"\x48\x89\xC8\xC3", "mov rax, rcx; ret")
+        self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
@@ -1955,6 +1976,7 @@ class PE32PlusExecutableBuilder:
             "__bmb_thread_concurrency", "__bmb_thread_spawn", "__bmb_thread_join",
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 
         # Compile MIR functions

@@ -315,10 +315,12 @@ def cmd_repl(_args: Optional[argparse.Namespace] = None) -> int:
 
 
 def main(argv: Optional[list] = None) -> int:
+    from . import __version__
     parser = argparse.ArgumentParser(
         prog="bmb",
         description="Black Mamba (.bmb) — High-Performance Native Python Superset & Multi-Target Compiler",
     )
+    parser.add_argument("--version", "-v", action="version", version=f"Black Mamba {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     p_run = sub.add_parser("run", help="Compile and execute a .bmb file immediately via the native x86-64 JIT")

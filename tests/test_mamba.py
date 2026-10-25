@@ -3,6 +3,7 @@ Black Mamba (.bmb) Comprehensive Compiler & Runtime Test Suite.
 """
 
 import os
+import sys
 import subprocess
 import unittest
 from mamba.lexer import Lexer, TokenType
@@ -2345,6 +2346,148 @@ print("PYD_UNIT_TEST_OK")
 
             if os.path.exists(pyd_path):
                 os.remove(pyd_path)
+
+
+    def test_alloc_slab_allocator(self):
+        """Vector 4: Test Lock-Free Thread-Local Slab Allocator (alloc.bmb)."""
+        src = """
+from alloc import (
+    alloc_fast, free_fast, alloc_zeroed, alloc_realloc,
+    slab_alloc, slab_free, alloc_stats,
+    pool_new, pool_alloc, pool_free, pool_active, pool_destroy,
+    arena_new, arena_alloc, arena_reset, arena_destroy, arena_used,
+    thread_cache_new, thread_cache_alloc, thread_cache_free, thread_cache_destroy,
+    mem_read, mem_write
+)
+
+def run_tests() -> i64:
+    # 1. Size class slab tests
+    let p16: i64 = alloc_fast(16)
+    let p64: i64 = alloc_fast(64)
+    let p4096: i64 = alloc_fast(4096)
+    let plarge: i64 = alloc_fast(8192)
+    if p16 == 0 or p64 == 0 or p4096 == 0 or plarge == 0:
+        return 1
+
+    mem_write(p64, 0, 42)
+    mem_write(p64, 1, 99)
+    if mem_read(p64, 0) != 42 or mem_read(p64, 1) != 99:
+        return 2
+
+    free_fast(p16, 16)
+    free_fast(p64, 64)
+    free_fast(p4096, 4096)
+    free_fast(plarge, 8192)
+
+    # Freelist re-use
+    let p64_re: i64 = alloc_fast(64)
+    if p64_re != p64:
+        return 3
+    free_fast(p64_re, 64)
+
+    # 2. Zeroed and realloc
+    let pz: i64 = alloc_zeroed(64)
+    for i in 0..8:
+        if mem_read(pz, i) != 0:
+            return 4
+    mem_write(pz, 0, 777)
+    let pr: i64 = alloc_realloc(pz, 64, 128)
+    if mem_read(pr, 0) != 777:
+        return 5
+    free_fast(pr, 128)
+
+    # 3. ObjectPool
+    let pool = pool_new(32, 10)
+    let o1: i64 = pool_alloc(pool)
+    let o2: i64 = pool_alloc(pool)
+    if pool_active(pool) != 2:
+        return 6
+    pool_free(pool, o1)
+    pool_free(pool, o2)
+    if pool_active(pool) != 0:
+        return 7
+    pool_destroy(pool)
+
+    # 4. Arena
+    let a = arena_new(1024)
+    let a1: i64 = arena_alloc(a, 64)
+    let a2: i64 = arena_alloc(a, 128)
+    if arena_used(a) < 192:
+        return 8
+    arena_reset(a)
+    if arena_used(a) != 0:
+        return 9
+    arena_destroy(a)
+
+    # 5. ThreadCache
+    let tc = thread_cache_new()
+    let tcp: i64 = thread_cache_alloc(tc, 64)
+    if tcp == 0:
+        return 10
+    thread_cache_free(tc, tcp, 64)
+    thread_cache_destroy(tc)
+
+    # 6. High-throughput cycle
+    for i in 0..1000:
+        let p: i64 = slab_alloc(64)
+        mem_write(p, 0, i)
+        slab_free(p, 64)
+
+    let s = alloc_stats()
+    if s.active_bytes != 0:
+        return 11
+
+    print("ALLOC_TEST_SUCCESS")
+    return 0
+"""
+        # Test JIT execution
+        import mamba
+        mod = mamba.compile(src)
+        res = mod.run_tests()
+        self.assertEqual(res, 0)
+        out = mod.get_output()
+        self.assertIn("ALLOC_TEST_SUCCESS", out)
+
+        # Test Standalone PE32+ build
+        if sys.platform == "win32":
+            exe_src = src + """
+from thread import thread_spawn, thread_join
+
+def thread_worker(arg: i64) -> i64:
+    for i in 0..1000:
+        let p: i64 = slab_alloc(64)
+        mem_write(p, 0, i + arg)
+        slab_free(p, 64)
+    return 0
+
+def main() -> i64:
+    let r: i64 = run_tests()
+    if r != 0:
+        return r
+    let t1: i64 = thread_spawn(thread_worker, 1)
+    let t2: i64 = thread_spawn(thread_worker, 2)
+    thread_join(t1)
+    thread_join(t2)
+    print("MT_ALLOC_SUCCESS")
+    return 0
+"""
+            mod_ast = Parser.from_source(exe_src).parse_module()
+            mir = MIRBuilder().build(mod_ast)
+            builder = PE32PlusExecutableBuilder(mir)
+            exe_bytes = builder.build_bytes()
+            self.assertGreater(len(exe_bytes), 0)
+
+            exe_path = os.path.abspath("test_alloc_pe.exe")
+            with open(exe_path, "wb") as f:
+                f.write(exe_bytes)
+            
+            proc = subprocess.run([exe_path], capture_output=True, text=True)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("ALLOC_TEST_SUCCESS", proc.stdout)
+            self.assertIn("MT_ALLOC_SUCCESS", proc.stdout)
+            
+            if os.path.exists(exe_path):
+                os.remove(exe_path)
 
 
 if __name__ == "__main__":

@@ -102,6 +102,25 @@ class PE32PlusExtensionBuilder:
         while len(code) % 16 != 0:
             emit(b"\x90")
 
+        labels["rt__bmb_alloc_root"] = len(code)
+        emit(b"\x00" * 8)
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
+        labels["fn____bmb_alloc_root_get"] = len(code)
+        emit(b"\x48\x8B\x05")
+        reloc_rip.append((len(code), "rt__bmb_alloc_root", 4))
+        emit(b"\x00\x00\x00\x00\xC3")
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
+        labels["fn____bmb_alloc_root_set"] = len(code)
+        emit(b"\x48\x89\x0D")
+        reloc_rip.append((len(code), "rt__bmb_alloc_root", 4))
+        emit(b"\x00\x00\x00\x00\x48\x89\xC8\xC3")
+        while len(code) % 16 != 0:
+            emit(b"\x90")
+
         # Math pow primitives
         labels["rt__pow_i64"] = len(code)
         emit(b"\x48\x85\xD2")              # test rdx, rdx
@@ -125,6 +144,7 @@ class PE32PlusExtensionBuilder:
         known_fn_names = {f.name for f in self.mir_module.functions}
         known_fn_names.update([
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write",
+            "__bmb_alloc_root_get", "__bmb_alloc_root_set",
         ])
 
         helper_map = {
