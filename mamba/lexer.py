@@ -59,6 +59,10 @@ class TokenType(Enum):
     FINALLY = auto()
     RAISE = auto()
     EXTERN = auto()
+    WITH = auto()
+    ASYNC = auto()
+    AWAIT = auto()
+    YIELD = auto()
 
     # Operators
     PLUS = auto()          # +
@@ -157,6 +161,10 @@ KEYWORDS = {
     "finally": TokenType.FINALLY,
     "raise": TokenType.RAISE,
     "extern": TokenType.EXTERN,
+    "with": TokenType.WITH,
+    "async": TokenType.ASYNC,
+    "await": TokenType.AWAIT,
+    "yield": TokenType.YIELD,
 }
 
 

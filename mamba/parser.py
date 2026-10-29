@@ -15,6 +15,8 @@ from .ast_nodes import (
     Break,
     Call,
     Continue,
+    DictComp,
+    DictLit,
     ExceptHandler,
     Expr,
     ExprStmt,
@@ -32,6 +34,7 @@ from .ast_nodes import (
     IndexAugAssign,
     IndexExpr,
     IntLit,
+    ListComp,
     MatchCase,
     MatchStmt,
     MethodCall,
@@ -51,6 +54,9 @@ from .ast_nodes import (
     UnaryOp,
     Var,
     WhileStmt,
+    WithItem,
+    WithStmt,
+    YieldExpr,
 )
 
 
@@ -122,6 +128,16 @@ class Parser:
         tok = self.current()
         if tok.type == TokenType.EXTERN:
             return self.parse_extern_block()
+        if tok.type == TokenType.WITH:
+            return self.parse_with()
+        if tok.type == TokenType.ASYNC:
+            self.pos += 1
+            if self.current().type == TokenType.WITH:
+                w = self.parse_with()
+                w.is_async = True
+                return w
+            if self.current().type in (TokenType.DEF, TokenType.FN):
+                return self.parse_func_def(decorators)
         if tok.type in (TokenType.DEF, TokenType.FN):
             return self.parse_func_def(decorators)
         if tok.type in (TokenType.STRUCT, TokenType.CLASS):
@@ -157,7 +173,7 @@ class Parser:
             return PassStmt(line=tok.line, col=tok.col)
         if tok.type == TokenType.IMPORT:
             self.pos += 1
-            mod_tok = self.expect(TokenType.IDENT, "Expected module name after 'import'")
+            mod_tok = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected module name after 'import'")
             alias = None
             if self.match(TokenType.AS):
                 alias_tok = self.expect(TokenType.IDENT, "Expected alias name after 'as'")
@@ -166,7 +182,7 @@ class Parser:
             return ImportStmt(line=tok.line, col=tok.col, module_name=mod_tok.value, alias=alias)
         if tok.type == TokenType.FROM:
             self.pos += 1
-            mod_tok = self.expect(TokenType.IDENT, "Expected module name after 'from'")
+            mod_tok = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected module name after 'from'")
             self.expect(TokenType.IMPORT, "Expected 'import' after module name in from-import")
             names = []
             if self.match(TokenType.STAR):
@@ -176,7 +192,7 @@ class Parser:
                 while True:
                     if has_paren and self.current().type == TokenType.RPAREN:
                         break
-                    n_tok = self.expect(TokenType.IDENT, "Expected imported name")
+                    n_tok = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected imported name")
                     names.append(n_tok.value)
                     if not self.match(TokenType.COMMA):
                         break
@@ -574,6 +590,21 @@ class Parser:
             body=body,
         )
 
+    def parse_with(self) -> WithStmt:
+        start_tok = self.expect(TokenType.WITH)
+        items: List[WithItem] = []
+        while True:
+            ctx_expr = self.parse_expr()
+            opt_var = None
+            if self.match(TokenType.AS):
+                opt_var = self.expect(TokenType.IDENT, "Expected variable name after 'as'").value
+            items.append(WithItem(line=ctx_expr.line, col=ctx_expr.col, context_expr=ctx_expr, optional_vars=opt_var))
+            if not self.match(TokenType.COMMA):
+                break
+        self.expect(TokenType.COLON, "Expected ':' after with statement")
+        body = self.parse_block()
+        return WithStmt(line=start_tok.line, col=start_tok.col, items=items, body=body)
+
     def parse_match(self) -> MatchStmt:
         start_tok = self.expect(TokenType.MATCH)
         subject = self.parse_expr()
@@ -588,9 +619,12 @@ class Parser:
                 pat = None
             else:
                 pat = self.parse_expr()
+            guard = None
+            if self.match(TokenType.IF):
+                guard = self.parse_expr()
             self.expect(TokenType.COLON, "Expected ':' after case pattern")
             c_body = self.parse_block()
-            cases.append(MatchCase(pattern=pat, body=c_body))
+            cases.append(MatchCase(pattern=pat, body=c_body, guard=guard))
             self.skip_newlines()
         self.match(TokenType.DEDENT)
         return MatchStmt(line=start_tok.line, col=start_tok.col, subject=subject, cases=cases)
@@ -688,11 +722,31 @@ class Parser:
 
     def parse_ternary(self) -> Expr:
         expr = self.parse_or()
-        if self.match(TokenType.IF):
-            cond = self.parse_or()
-            self.expect(TokenType.ELSE, "Expected 'else' in conditional expression")
-            else_e = self.parse_ternary()
-            return TernaryIf(line=expr.line, col=expr.col, cond=cond, then_expr=expr, else_expr=else_e)
+        if self.current().type == TokenType.IF:
+            has_else = False
+            depth = 0
+            k = self.pos + 1
+            while k < len(self.tokens):
+                t = self.tokens[k].type
+                if t in (TokenType.LPAREN, TokenType.LBRACKET, TokenType.LBRACE):
+                    depth += 1
+                elif t in (TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE):
+                    if depth == 0:
+                        break
+                    depth -= 1
+                elif depth == 0:
+                    if t == TokenType.ELSE:
+                        has_else = True
+                        break
+                    if t in (TokenType.COLON, TokenType.NEWLINE, TokenType.EOF, TokenType.SEMI):
+                        break
+                k += 1
+            if has_else:
+                self.pos += 1
+                cond = self.parse_or()
+                self.expect(TokenType.ELSE, "Expected 'else' in conditional expression")
+                else_e = self.parse_ternary()
+                return TernaryIf(line=expr.line, col=expr.col, cond=cond, then_expr=expr, else_expr=else_e)
         return expr
 
     def parse_or(self) -> Expr:
@@ -915,15 +969,72 @@ class Parser:
             return expr
         if tok.type == TokenType.LBRACKET:
             self.pos += 1
-            elems: List[Expr] = []
-            if self.current().type != TokenType.RBRACKET:
-                while True:
-                    elems.append(self.parse_expr())
-                    if not self.match(TokenType.COMMA):
-                        break
-                    if self.current().type == TokenType.RBRACKET:
-                        break
+            if self.current().type == TokenType.RBRACKET:
+                self.pos += 1
+                return ArrayLit(line=tok.line, col=tok.col, elements=[])
+            first_expr = self.parse_expr()
+            if self.current().type == TokenType.FOR:
+                self.pos += 1
+                var_tok = self.expect(TokenType.IDENT, "Expected loop variable in comprehension")
+                self.expect(TokenType.IN, "Expected 'in' in comprehension")
+                iter_expr = self.parse_expr()
+                cond = None
+                if self.match(TokenType.IF):
+                    cond = self.parse_expr()
+                self.expect(TokenType.RBRACKET, "Expected ']' at end of list comprehension")
+                return ListComp(line=tok.line, col=tok.col, elt=first_expr, for_var=var_tok.value, iter_expr=iter_expr, cond=cond)
+            elems = [first_expr]
+            if self.match(TokenType.COMMA):
+                if self.current().type != TokenType.RBRACKET:
+                    while True:
+                        elems.append(self.parse_expr())
+                        if not self.match(TokenType.COMMA):
+                            break
+                        if self.current().type == TokenType.RBRACKET:
+                            break
             self.expect(TokenType.RBRACKET, "Expected ']'")
             return ArrayLit(line=tok.line, col=tok.col, elements=elems)
+
+        if tok.type == TokenType.LBRACE:
+            self.pos += 1
+            if self.current().type == TokenType.RBRACE:
+                self.pos += 1
+                return DictLit(line=tok.line, col=tok.col, keys=[], values=[])
+            first_key = self.parse_expr()
+            self.expect(TokenType.COLON, "Expected ':' after dictionary key")
+            first_val = self.parse_expr()
+            if self.current().type == TokenType.FOR:
+                self.pos += 1
+                var_tok = self.expect(TokenType.IDENT, "Expected loop variable in dict comprehension")
+                self.expect(TokenType.IN, "Expected 'in' in dict comprehension")
+                iter_expr = self.parse_expr()
+                cond = None
+                if self.match(TokenType.IF):
+                    cond = self.parse_expr()
+                self.expect(TokenType.RBRACE, "Expected '}' at end of dict comprehension")
+                return DictComp(line=tok.line, col=tok.col, key_expr=first_key, value_expr=first_val, for_var=var_tok.value, iter_expr=iter_expr, cond=cond)
+            keys = [first_key]
+            values = [first_val]
+            if self.match(TokenType.COMMA):
+                if self.current().type != TokenType.RBRACE:
+                    while True:
+                        k = self.parse_expr()
+                        self.expect(TokenType.COLON, "Expected ':' after dictionary key")
+                        v = self.parse_expr()
+                        keys.append(k)
+                        values.append(v)
+                        if not self.match(TokenType.COMMA):
+                            break
+                        if self.current().type == TokenType.RBRACE:
+                            break
+            self.expect(TokenType.RBRACE, "Expected '}'")
+            return DictLit(line=tok.line, col=tok.col, keys=keys, values=values)
+
+        if tok.type == TokenType.YIELD:
+            self.pos += 1
+            val = None
+            if self.current().type not in (TokenType.NEWLINE, TokenType.DEDENT, TokenType.EOF, TokenType.COLON, TokenType.RPAREN, TokenType.RBRACKET, TokenType.RBRACE, TokenType.COMMA, TokenType.SEMI):
+                val = self.parse_expr()
+            return YieldExpr(line=tok.line, col=tok.col, value=val)
 
         raise ParseError("Unexpected token in expression", tok)

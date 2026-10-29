@@ -15,6 +15,8 @@ from .ast_nodes import (
     AugAssign,
     BinOp,
     Call,
+    DictComp,
+    DictLit,
     Expr,
     ExprStmt,
     ExternBlock,
@@ -29,6 +31,7 @@ from .ast_nodes import (
     IndexAssign,
     IndexAugAssign,
     IndexExpr,
+    ListComp,
     MatchStmt,
     MethodCall,
     Module,
@@ -44,6 +47,9 @@ from .ast_nodes import (
     UnaryOp,
     Var,
     WhileStmt,
+    WithItem,
+    WithStmt,
+    YieldExpr,
 )
 from .parser import Parser
 
@@ -157,6 +163,22 @@ def _bind_dunder_name_expr(expr: Expr, mod_name: str, file_path: str) -> Expr:
         expr.start = _bind_dunder_name_expr(expr.start, mod_name, file_path)
         expr.stop = _bind_dunder_name_expr(expr.stop, mod_name, file_path)
         expr.step = _bind_dunder_name_expr(expr.step, mod_name, file_path)
+    elif isinstance(expr, ListComp):
+        expr.elt = _bind_dunder_name_expr(expr.elt, mod_name, file_path)
+        expr.iter_expr = _bind_dunder_name_expr(expr.iter_expr, mod_name, file_path)
+        if expr.cond:
+            expr.cond = _bind_dunder_name_expr(expr.cond, mod_name, file_path)
+    elif isinstance(expr, DictLit):
+        expr.keys = [_bind_dunder_name_expr(k, mod_name, file_path) for k in expr.keys]
+        expr.values = [_bind_dunder_name_expr(v, mod_name, file_path) for v in expr.values]
+    elif isinstance(expr, DictComp):
+        expr.key_expr = _bind_dunder_name_expr(expr.key_expr, mod_name, file_path)
+        expr.value_expr = _bind_dunder_name_expr(expr.value_expr, mod_name, file_path)
+        expr.iter_expr = _bind_dunder_name_expr(expr.iter_expr, mod_name, file_path)
+        if expr.cond:
+            expr.cond = _bind_dunder_name_expr(expr.cond, mod_name, file_path)
+    elif isinstance(expr, YieldExpr) and expr.value:
+        expr.value = _bind_dunder_name_expr(expr.value, mod_name, file_path)
     return expr
 
 
@@ -217,6 +239,11 @@ def _bind_dunder_name_stmt(stmt: Stmt, mod_name: str, file_path: str) -> None:
         for s in stmt.else_body:
             _bind_dunder_name_stmt(s, mod_name, file_path)
         for s in stmt.finally_body:
+            _bind_dunder_name_stmt(s, mod_name, file_path)
+    elif isinstance(stmt, WithStmt):
+        for it in stmt.items:
+            it.context_expr = _bind_dunder_name_expr(it.context_expr, mod_name, file_path)
+        for s in stmt.body:
             _bind_dunder_name_stmt(s, mod_name, file_path)
     elif isinstance(stmt, RaiseStmt) and stmt.exc:
         stmt.exc = _bind_dunder_name_expr(stmt.exc, mod_name, file_path)
@@ -400,6 +427,24 @@ def _collect_callees(fn: FuncDef) -> Set[str]:
                 scan_expr(e.repeat_value)
             if e.repeat_count:
                 scan_expr(e.repeat_count)
+        elif isinstance(e, ListComp):
+            scan_expr(e.elt)
+            scan_expr(e.iter_expr)
+            if e.cond:
+                scan_expr(e.cond)
+        elif isinstance(e, DictLit):
+            for k in e.keys:
+                scan_expr(k)
+            for v in e.values:
+                scan_expr(v)
+        elif isinstance(e, DictComp):
+            scan_expr(e.key_expr)
+            scan_expr(e.value_expr)
+            scan_expr(e.iter_expr)
+            if e.cond:
+                scan_expr(e.cond)
+        elif isinstance(e, YieldExpr) and e.value:
+            scan_expr(e.value)
 
     def scan_stmt(s: Stmt) -> None:
         if isinstance(s, ExprStmt):
@@ -451,6 +496,11 @@ def _collect_callees(fn: FuncDef) -> Set[str]:
             for b in s.else_body:
                 scan_stmt(b)
             for b in s.finally_body:
+                scan_stmt(b)
+        elif isinstance(s, WithStmt):
+            for it in s.items:
+                scan_expr(it.context_expr)
+            for b in s.body:
                 scan_stmt(b)
         elif isinstance(s, RaiseStmt) and s.exc:
             scan_expr(s.exc)

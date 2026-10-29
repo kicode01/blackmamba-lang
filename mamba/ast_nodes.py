@@ -79,6 +79,34 @@ class ArrayLit(Expr):
 
 
 @dataclass
+class DictLit(Expr):
+    keys: List[Expr] = field(default_factory=list)
+    values: List[Expr] = field(default_factory=list)
+
+
+@dataclass
+class ListComp(Expr):
+    elt: Expr = field(default_factory=Expr)
+    for_var: str = ""
+    iter_expr: Expr = field(default_factory=Expr)
+    cond: Optional[Expr] = None
+
+
+@dataclass
+class DictComp(Expr):
+    key_expr: Expr = field(default_factory=Expr)
+    value_expr: Expr = field(default_factory=Expr)
+    for_var: str = ""
+    iter_expr: Expr = field(default_factory=Expr)
+    cond: Optional[Expr] = None
+
+
+@dataclass
+class YieldExpr(Expr):
+    value: Optional[Expr] = None
+
+
+@dataclass
 class IndexExpr(Expr):
     target: Expr = field(default_factory=Expr)
     index: Expr = field(default_factory=Expr)
@@ -211,12 +239,26 @@ class ForRangeStmt(Stmt):
 class MatchCase:
     pattern: Optional[Expr]  # None represents wildcard `case _:`
     body: List[Stmt]
+    guard: Optional[Expr] = None
 
 
 @dataclass
 class MatchStmt(Stmt):
     subject: Expr = field(default_factory=Expr)
     cases: List[MatchCase] = field(default_factory=list)
+
+
+@dataclass
+class WithItem(Node):
+    context_expr: Expr = field(default_factory=Expr)
+    optional_vars: Optional[str] = None
+
+
+@dataclass
+class WithStmt(Stmt):
+    items: List[WithItem] = field(default_factory=list)
+    body: List[Stmt] = field(default_factory=list)
+    is_async: bool = False
 
 
 @dataclass

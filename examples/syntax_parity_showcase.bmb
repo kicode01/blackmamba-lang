@@ -1,0 +1,175 @@
+# Black Mamba (BMB) Phase 2 Feature Showcase: Full Python Syntactic Parity & Ergonomics
+# Demonstrates:
+# 1. First-Class Context Managers (`with` & `try ... finally` lowering)
+# 2. Inlined Zero-Overhead List Comprehensions (`[expr for var in iter if cond]`)
+# 3. Dynamic Dict Literals & Dict Comprehensions (`{k: v for var in iter if cond}`)
+# 4. Dunder Operator Overloading (`__add__`, `__sub__`, `__mul__`, `__getitem__`, `__len__`, `__str__`)
+# 5. Advanced Structural Pattern Matching with Pattern Alternatives & Guards (`case A | B if guard:`)
+
+from os import open, File
+
+# ==============================================================================
+# 1. Dunder Operator Overloading on Zero-Header Value Structs
+# ==============================================================================
+
+struct Vector2D:
+    x: i64
+    y: i64
+
+    def __add__(self, other: Vector2D) -> Vector2D:
+        return Vector2D(self.x + other.x, self.y + other.y)
+
+    def __sub__(self, other: Vector2D) -> Vector2D:
+        return Vector2D(self.x - other.x, self.y - other.y)
+
+    def __mul__(self, scalar: i64) -> Vector2D:
+        return Vector2D(self.x * scalar, self.y * scalar)
+
+    def __getitem__(self, idx: i64) -> i64:
+        if idx == 0:
+            return self.x
+        return self.y
+
+    def __len__(self) -> i64:
+        return 2
+
+    def __str__(self) -> str:
+        return f"Vector2D({self.x}, {self.y})"
+
+
+# ==============================================================================
+# 2. Custom Context Manager
+# ==============================================================================
+
+struct TransactionScope:
+    tx_id: i64
+    active: i64
+
+    def __enter__(self) -> i64:
+        print(f"[TX] Entering transaction #{self.tx_id}")
+        return self.tx_id
+
+    def __exit__(self) -> i64:
+        print(f"[TX] Committed and closed transaction #{self.tx_id}")
+        return 0
+
+
+# ==============================================================================
+# 3. Structural Pattern Matching with Guards & Alternatives
+# ==============================================================================
+
+def classify_event(code: i64, flag: i64) -> str:
+    match code:
+        case 1 | 2 if flag == 1:
+            return "NORMAL_HIGH_PRIORITY"
+        case 1 | 2:
+            return "NORMAL_STANDARD_PRIORITY"
+        case 100 | 200 if flag == 0:
+            return "SYSTEM_HALT"
+        case _:
+            return "UNKNOWN"
+
+
+# ==============================================================================
+# Main Verification Function
+# ==============================================================================
+
+def main() -> i64:
+    print("=== Black Mamba v1.3.0 Phase 2 Syntactic Parity Showcase ===")
+
+    # 1. Dunder Operator Overloading (1-cycle direct dispatch)
+    v1 = Vector2D(10, 20)
+    v2 = Vector2D(5, 8)
+    v_sum = v1 + v2
+    v_diff = v1 - v2
+    v_scaled = v1 * 3
+    x_val = v_sum[0]
+    y_val = v_sum[1]
+    dim = len(v1)
+    str_repr = str(v_sum)
+
+    print(f"V1: {v1.x}, {v1.y}")
+    print(f"V2: {v2.x}, {v2.y}")
+    print(f"SUM: {v_sum.x}, {v_sum.y} (str: {str_repr})")
+    print(f"DIFF: {v_diff.x}, {v_diff.y}")
+    print(f"SCALED: {v_scaled.x}, {v_scaled.y}")
+    print(f"INDEXING: sum[0]={x_val}, sum[1]={y_val}, len={dim}")
+
+    if v_sum.x != 15 or v_sum.y != 28 or x_val != 15 or y_val != 28 or dim != 2:
+        return 1
+
+    # 2. List Comprehensions
+    squares = [x * x for x in 0..8]
+    evens = [x for x in 0..20 if x % 2 == 0]
+    filtered_squares = [x * x for x in 0..10 if x % 2 == 1]
+
+    sum_sq = 0
+    for i in 0..len(squares):
+        sum_sq += squares[i]
+
+    sum_evens = 0
+    for j in 0..len(evens):
+        sum_evens += evens[j]
+
+    print(f"ListComps: len(squares)={len(squares)}, sum_sq={sum_sq}")
+    print(f"ListComps: len(evens)={len(evens)}, sum_evens={sum_evens}")
+    print(f"Filtered odd squares len={len(filtered_squares)}")
+
+    if len(squares) != 8 or sum_sq != 140 or len(evens) != 10 or sum_evens != 90:
+        return 2
+
+    # 3. Dict Literals and Dict Comprehensions
+    scores = {"alice": 95, "bob": 88, "charlie": 92}
+    scores["david"] = 100
+    a_score = scores["alice"]
+    d_score = scores["david"]
+    dict_sz = len(scores)
+
+    print(f"DictLit: alice={a_score}, david={d_score}, len={dict_sz}")
+    if a_score != 95 or d_score != 100 or dict_sz != 4:
+        return 3
+
+    powers = {x: x * 10 for x in 1..6 if x % 2 == 1}
+    p1 = powers[1]
+    p3 = powers[3]
+    p5 = powers[5]
+    print(f"DictComp: p1={p1}, p3={p3}, p5={p5}")
+    if p1 != 10 or p3 != 30 or p5 != 50:
+        return 4
+
+    # 4. Context Managers (`with` statement)
+    tx = TransactionScope(42, 1)
+    with tx as active_id:
+        print(f"[WORK] Executing inside transaction #{active_id}")
+        if active_id != 42:
+            return 5
+
+    # File open context manager from stdlib
+    with open("syntax_parity_test_output.tmp", "w") as f:
+        f.write("Black Mamba v1.3.0 Full Python Syntactic Parity!")
+
+    # Read back
+    with open("syntax_parity_test_output.tmp", "r") as f_in:
+        content = f_in.read()
+        print(f"File Readback: {content}")
+        if len(content) <= 0:
+            return 6
+
+    # 5. Pattern Matching with Alternatives and Guards
+    r1 = classify_event(1, 1)
+    r2 = classify_event(2, 0)
+    r3 = classify_event(100, 0)
+    r4 = classify_event(999, 1)
+
+    print(f"Match results: r1={r1}, r2={r2}, r3={r3}, r4={r4}")
+    if r1 != "NORMAL_HIGH_PRIORITY":
+        return 7
+    if r2 != "NORMAL_STANDARD_PRIORITY":
+        return 8
+    if r3 != "SYSTEM_HALT":
+        return 9
+    if r4 != "UNKNOWN":
+        return 10
+
+    print("=== All Phase 2 Syntactic Parity Checks PASSED (100%) ===")
+    return 0

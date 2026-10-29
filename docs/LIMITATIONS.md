@@ -220,10 +220,25 @@
 
 ---
 
+---
+
+## 11. Language Ergonomics: Full Python Syntactic Parity (RESOLVED in `v1.3.0`)
+
+* **Current Status (RESOLVED in `v1.3.0`)**:
+  * **First-Class Context Managers (`with` & `async with`)**: Supports `with expr [as var]:` clauses, desugaring to guaranteed `try ... finally` blocks that call `__enter__()` and `__exit__()` or `close()`.
+  * **Zero-Overhead Inlined Comprehensions**: List comprehensions (`[expr for var in iter if cond]`) and dict comprehensions (`{k: v for var in iter if cond}`) desugar directly into inlined native loops without superfluous heap reallocations.
+  * **Dynamic Dict Literals**: Native support for `{k: v, ...}` syntax backed by 3-slot dynamic objects with $O(1)$ fast paths.
+  * **Dunder Operator Overloading**: Full mapping of binary operators (`+`, `-`, `*`, `/`, `//`, `%`, `&`, `|`, `^`, `<<`, `>>`, `==`, `!=`, `<`, `<=`, `>`, `>=`) and collection indexing (`[]`, `[]=`, `len()`, `str()`) to corresponding dunder methods (`__add__`, `__sub__`, `__mul__`, `__truediv__`, `__floordiv__`, `__mod__`, `__and__`, `__or__`, `__xor__`, `__lshift__`, `__rshift__`, `__eq__`, `__ne__`, `__lt__`, `__le__`, `__gt__`, `__ge__`, `__getitem__`, `__setitem__`, `__len__`, `__str__`). Compiles value struct methods to 1-cycle direct dispatch and dynamic classes to virtual vtable dispatch.
+  * **Advanced Pattern Matching**: Structural `match ... case` statements with pattern alternatives (`case A | B:`) and match guards (`case pat if guard:`).
+  * **Instantaneous Array Length Tracking**: Array memory layout stores a 64-bit length header at index -1 (`[ptr - 8]`), enabling $O(1)$ length inspection (`len(arr)`) with 0-based element indexing completely preserved across JIT, PE, and C backends.
+
+---
+
 ### Summary Checklist of All Capabilities & Resolved Boundaries
 
 | Category | Capability / Milestone | Severity | Status |
 | :--- | :--- | :--- | :--- |
+| **Syntactic Parity** | Context managers (`with`), list/dict comprehensions, dict literals, dunder operator overloading, match guards & pattern alternatives | Low | Complete (v1.3.0) |
 | **Memory** | Ephemeral arenas + `gc.bmb` generational regions & cycle collector | Low | Complete |
 | **Platform** | Windows PE32+, Linux ELF64, macOS ARM64, `.pyd` C-Ext, Bare-Metal `.bin`/`.hex`, WASM 1.0, C11, LLVM | Low | Complete |
 | **Strings** | SSO, zero-copy slicing, `regex.bmb`, and pure native `unicode.bmb` engine | Low | Complete |

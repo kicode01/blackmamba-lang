@@ -17,6 +17,8 @@ from .ast_nodes import (
     BinOp,
     BoolLit,
     Call,
+    DictComp,
+    DictLit,
     Expr,
     ExprStmt,
     ExternBlock,
@@ -31,6 +33,7 @@ from .ast_nodes import (
     IndexAugAssign,
     IndexExpr,
     IntLit,
+    ListComp,
     MatchStmt,
     MethodCall,
     Module,
@@ -48,6 +51,9 @@ from .ast_nodes import (
     UnaryOp,
     Var,
     WhileStmt,
+    WithItem,
+    WithStmt,
+    YieldExpr,
 )
 
 
@@ -114,6 +120,28 @@ TYPE_ALIASES = {
     "ndarray[float]": "Array[f64]",
     "ndarray[i64]": "Array[i64]",
     "ndarray[int]": "Array[i64]",
+    "dict": "Dict",
+    "Dict": "Dict",
+}
+
+OP_TO_DUNDER = {
+    "+": "__add__",
+    "-": "__sub__",
+    "*": "__mul__",
+    "/": "__truediv__",
+    "//": "__floordiv__",
+    "%": "__mod__",
+    "&": "__and__",
+    "|": "__or__",
+    "^": "__xor__",
+    "<<": "__lshift__",
+    ">>": "__rshift__",
+    "==": "__eq__",
+    "!=": "__ne__",
+    "<": "__lt__",
+    "<=": "__le__",
+    ">": "__gt__",
+    ">=": "__ge__",
 }
 
 BUILTIN_EXCEPTION_SPECS: List[Tuple[str, List[str]]] = [
@@ -960,7 +988,17 @@ class TypeInferencer:
                 for c in stmt.cases:
                     if c.pattern is not None:
                         self._infer_expr(c.pattern, env)
+                    if c.guard is not None:
+                        self._infer_expr(c.guard, env)
                     self._infer_block(c.body, env, ret_candidates)
+            elif isinstance(stmt, WithStmt):
+                for it in stmt.items:
+                    ctx_t = self._infer_expr(it.context_expr, env)
+                    if it.optional_vars:
+                        enter_m = f"{ctx_t}____enter__"
+                        ret_t = self.signatures[enter_m].return_type if enter_m in self.signatures else ctx_t
+                        env[it.optional_vars] = ret_t
+                self._infer_block(stmt.body, env, ret_candidates)
             elif isinstance(stmt, ExprStmt):
                 self._infer_expr(stmt.expr, env)
 
@@ -997,6 +1035,12 @@ class TypeInferencer:
         if isinstance(expr, BinOp):
             lt = self._infer_expr(expr.left, env)
             rt = self._infer_expr(expr.right, env)
+            dunder = OP_TO_DUNDER.get(expr.op)
+            if dunder and lt in self.structs:
+                m_name = f"{lt}__{dunder}"
+                if m_name in self.signatures:
+                    expr.inferred_type = self.signatures[m_name].return_type
+                    return expr.inferred_type
             if expr.op in ("==", "!=", "<", "<=", ">", ">=", "and", "or"):
                 expr.inferred_type = "bool"
                 return "bool"
@@ -1038,6 +1082,12 @@ class TypeInferencer:
         if isinstance(expr, IndexExpr):
             tt = self._infer_expr(expr.target, env)
             self._infer_expr(expr.index, env)
+            if tt in self.structs and f"{tt}____getitem__" in self.signatures:
+                expr.inferred_type = self.signatures[f"{tt}____getitem__"].return_type
+                return expr.inferred_type
+            if tt == "Dict":
+                expr.inferred_type = "i64"
+                return "i64"
             if tt and tt.startswith("Array[") and tt.endswith("]"):
                 inner = tt[6:-1]
                 expr.inferred_type = inner
@@ -1045,6 +1095,50 @@ class TypeInferencer:
             if tt == "str":
                 expr.inferred_type = "str"
                 return "str"
+            expr.inferred_type = "i64"
+            return "i64"
+        if isinstance(expr, ListComp):
+            iter_t = self._infer_expr(expr.iter_expr, env)
+            sub_env = dict(env)
+            elem_var_t = "i64"
+            if iter_t and iter_t.startswith("Array[") and iter_t.endswith("]"):
+                elem_var_t = iter_t[6:-1]
+            elif iter_t == "str":
+                elem_var_t = "str"
+            sub_env[expr.for_var] = elem_var_t
+            if expr.cond:
+                self._infer_expr(expr.cond, sub_env)
+            elt_t = self._infer_expr(expr.elt, sub_env)
+            res_t = f"Array[{elt_t}]"
+            expr.inferred_type = res_t
+            return res_t
+        if isinstance(expr, DictLit):
+            for k in expr.keys:
+                self._infer_expr(k, env)
+            for v in expr.values:
+                self._infer_expr(v, env)
+            expr.inferred_type = "Dict"
+            return "Dict"
+        if isinstance(expr, DictComp):
+            iter_t = self._infer_expr(expr.iter_expr, env)
+            sub_env = dict(env)
+            elem_var_t = "i64"
+            if iter_t and iter_t.startswith("Array[") and iter_t.endswith("]"):
+                elem_var_t = iter_t[6:-1]
+            elif iter_t == "str":
+                elem_var_t = "str"
+            sub_env[expr.for_var] = elem_var_t
+            if expr.cond:
+                self._infer_expr(expr.cond, sub_env)
+            self._infer_expr(expr.key_expr, sub_env)
+            self._infer_expr(expr.value_expr, sub_env)
+            expr.inferred_type = "Dict"
+            return "Dict"
+        if isinstance(expr, YieldExpr):
+            if expr.value:
+                yt = self._infer_expr(expr.value, env)
+                expr.inferred_type = yt
+                return yt
             expr.inferred_type = "i64"
             return "i64"
         if isinstance(expr, SliceExpr):

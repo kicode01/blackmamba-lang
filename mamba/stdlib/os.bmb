@@ -112,3 +112,32 @@ def path_ext(path: str) -> str:
     if last_dot <= 0 or last_dot == n - 1:
         return ""
     return base[last_dot:n]
+
+# --- Standard Python File Object & Context Manager ---
+
+struct File:
+    path: str
+    mode: str
+    is_open: bool
+
+    def __enter__(self) -> File:
+        return self
+
+    def __exit__(self, exc_type: i64, exc_val: i64, exc_tb: i64) -> i64:
+        self.close()
+        return 0
+
+    def close(self) -> i64:
+        self.is_open = False
+        return 0
+
+    def write(self, content: str) -> i64:
+        if self.mode == "a":
+            return __bmb_file_write(self.path, content, 1)
+        return __bmb_file_write(self.path, content, 0)
+
+    def read(self) -> str:
+        return __bmb_file_read(self.path)
+
+def open(path: str, mode: str = "r") -> File:
+    return File(path, mode, True)

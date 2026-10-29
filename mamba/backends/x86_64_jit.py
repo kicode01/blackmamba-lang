@@ -1069,19 +1069,22 @@ class NativeJITModule:
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_alloc_arr(count: int, init_bits: int) -> int:
-            n = max(1, int(count))
-            alloc_bytes = (n * 8 + 15) & ~15
+            n = max(0, int(count))
+            alloc_bytes = ((n + 1) * 8 + 15) & ~15
             with alloc_lock:
                 if self.arena_offset + alloc_bytes > (64 * 1024 * 1024 - 1024):
                     self.arena_offset = 0
                 old_off = self.arena_offset
                 self.arena_offset += alloc_bytes
                 addr = ctypes.addressof(self.arena_mem) + old_off
+            p_i64 = ctypes.cast(addr, ctypes.POINTER(ctypes.c_int64))
+            p_i64[0] = n
+            data_addr = addr + 8
             if init_bits != 0:
-                p_i64 = ctypes.cast(addr, ctypes.POINTER(ctypes.c_int64))
+                p_data = ctypes.cast(data_addr, ctypes.POINTER(ctypes.c_int64))
                 for i in range(n):
-                    p_i64[i] = init_bits
-            return addr
+                    p_data[i] = init_bits
+            return data_addr
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
         def rt_pow_i64(base: int, exp: int) -> int:
