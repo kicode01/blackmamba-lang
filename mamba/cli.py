@@ -336,6 +336,23 @@ def cmd_repl(_args: Optional[argparse.Namespace] = None) -> int:
     return run_repl()
 
 
+def cmd_bindgen(args: argparse.Namespace) -> int:
+    from .bindgen import generate_bmb_bindings
+    if not os.path.exists(args.header):
+        print(f"Error: Header file not found: {args.header}", file=sys.stderr)
+        return 1
+    lib = args.lib or os.path.splitext(os.path.basename(args.header))[0]
+    bindings_code = generate_bmb_bindings(args.header, lib)
+    if args.output:
+        os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(bindings_code)
+        print(f"[Black Mamba Bindgen] Generated bindings in {args.output}")
+    else:
+        print(bindings_code)
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
     parser = argparse.ArgumentParser(
@@ -394,6 +411,11 @@ def main(argv: Optional[list] = None) -> int:
     p_doc.add_argument("--output", "-o", help="Output directory (default: build/docs)")
     p_doc.add_argument("--open", dest="open_browser", action="store_true", help="Open generated documentation in default web browser")
 
+    p_bindgen = sub.add_parser("bindgen", help="Generate Black Mamba FFI bindings from a C header file (.h)")
+    p_bindgen.add_argument("header", help="Path to C header file (.h)")
+    p_bindgen.add_argument("--lib", "-l", required=True, help="Target shared library name (e.g. msvcrt.dll, sqlite3.dll)")
+    p_bindgen.add_argument("--output", "-o", help="Output .bmb binding file path")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -412,6 +434,8 @@ def main(argv: Optional[list] = None) -> int:
     if args.command == "doc":
         from .doc.cli import cmd_doc
         return cmd_doc(args)
+    if args.command == "bindgen":
+        return cmd_bindgen(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

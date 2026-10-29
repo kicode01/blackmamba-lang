@@ -317,6 +317,29 @@ class PE32PlusExecutableBuilder:
             ),
         ]
 
+        # Dynamically append foreign DLLs and symbols from extern_functions
+        dll_map: Dict[str, List[str]] = {dll: list(funcs) for dll, funcs in imports_spec}
+        for fn_name, (abi, lib_name, params, ret_type, lib_sym) in getattr(self.mir_module, "extern_functions", {}).items():
+            sym = lib_sym or fn_name
+            norm_lib = (lib_name or "").lower().replace("\\", "/").split("/")[-1]
+            if not norm_lib or "msvcrt" in norm_lib or "libc" in norm_lib:
+                target_dll = "msvcrt.dll"
+            elif "kernel32" in norm_lib:
+                target_dll = "KERNEL32.dll"
+            elif "ws2_32" in norm_lib:
+                target_dll = "ws2_32.dll"
+            elif "user32" in norm_lib:
+                target_dll = "user32.dll"
+            else:
+                target_dll = lib_name if (lib_name.endswith(".dll") or "." in lib_name) else f"{lib_name}.dll"
+
+            if target_dll not in dll_map:
+                dll_map[target_dll] = []
+            if sym not in dll_map[target_dll]:
+                dll_map[target_dll].append(sym)
+
+        imports_spec = list(dll_map.items())
+
         idt_size = (len(imports_spec) + 1) * 20
         self.idt_size = idt_size
         cur_off = _align(idt_size, 8)
@@ -2315,6 +2338,73 @@ class PE32PlusExecutableBuilder:
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
             "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
         ])
+
+        # Emit IAT trampolines for foreign C-ABI functions
+        for fn_name, (abi, lib_name, params, ret_type, lib_sym) in getattr(self.mir_module, "extern_functions", {}).items():
+            sym = lib_sym or fn_name
+            iat_rva = self.iat_rvas.get(sym)
+            if iat_rva is None:
+                continue
+            f_start = len(buf.code)
+            buf.mark_label(f"fn__{fn_name}")
+            has_str_params = any(pt == "str" for _, pt in params)
+            if not has_str_params:
+                # Direct zero-overhead jump stub: jmp qword ptr [rip + rel32] (FF 25 rel32)
+                off = len(buf.code)
+                next_rva = TEXT_RVA + off + 6
+                rel32 = iat_rva - next_rva
+                buf.emit(b"\xFF\x25" + struct.pack("<i", rel32), f"jmp qword ptr [rip + 0x{rel32 & 0xFFFFFFFF:X}] ; {fn_name}")
+                self.func_entries.append((f_start, len(buf.code), "leaf", 0))
+            else:
+                buf.push_rbp()
+                buf.mov_rbp_rsp()
+                buf.sub_rsp_imm32(0x50)
+                buf.emit(b"\x48\x89\x4D\xF8", "mov [rbp - 0x08], rcx")
+                buf.emit(b"\x48\x89\x55\xF0", "mov [rbp - 0x10], rdx")
+                buf.emit(b"\x4C\x89\x45\xE8", "mov [rbp - 0x18], r8")
+                buf.emit(b"\x4C\x89\x4D\xE0", "mov [rbp - 0x20], r9")
+                for p_idx, (_, pt) in enumerate(params):
+                    if pt == "str":
+                        reg_map = {0: "rcx", 1: "rdx", 2: "r8", 3: "r9"}
+                        r_name = reg_map.get(p_idx)
+                        if r_name:
+                            skip_lbl = f"rt__ext_str_skip_{fn_name}_{p_idx}"
+                            if r_name == "rcx":
+                                buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+                            elif r_name == "rdx":
+                                buf.emit(b"\xF6\xC2\x01", "test dl, 1")
+                            elif r_name == "r8":
+                                buf.emit(b"\x41\xF6\xC0\x01", "test r8b, 1")
+                            elif r_name == "r9":
+                                buf.emit(b"\x41\xF6\xC1\x01", "test r9b, 1")
+                            buf.jcc_rel32(0x84, "z", skip_lbl)
+                            s_slot = 0x30 + p_idx * 16
+                            if r_name == "rcx":
+                                buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+                            elif r_name == "rdx":
+                                buf.emit(b"\x48\x89\xD0", "mov rax, rdx")
+                            elif r_name == "r8":
+                                buf.emit(b"\x4C\x89\xC0", "mov rax, r8")
+                            elif r_name == "r9":
+                                buf.emit(b"\x4C\x89\xC8", "mov rax, r9")
+                            buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+                            buf.emit(b"\x48\x89\x85" + struct.pack("<i", -s_slot), f"mov [rbp - {s_slot}], rax")
+                            buf.emit(b"\xC6\x85" + struct.pack("<i", -(s_slot - 8)) + b"\x00", f"mov byte ptr [rbp - {s_slot - 8}], 0")
+                            if r_name == "rcx":
+                                buf.emit(b"\x48\x8D\x8D" + struct.pack("<i", -s_slot), f"lea rcx, [rbp - {s_slot}]")
+                            elif r_name == "rdx":
+                                buf.emit(b"\x48\x8D\x95" + struct.pack("<i", -s_slot), f"lea rdx, [rbp - {s_slot}]")
+                            elif r_name == "r8":
+                                buf.emit(b"\x4C\x8D\x85" + struct.pack("<i", -s_slot), f"lea r8, [rbp - {s_slot}]")
+                            elif r_name == "r9":
+                                buf.emit(b"\x4C\x8D\x8D" + struct.pack("<i", -s_slot), f"lea r9, [rbp - {s_slot}]")
+                            buf.mark_label(skip_lbl)
+                self._emit_call_iat(iat_rva, f"{sym}")
+                buf.mov_rsp_rbp()
+                buf.pop_rbp()
+                buf.ret()
+                self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x50))
+            known_fn_names.add(fn_name)
 
         # Compile MIR functions
         for fn in self.mir_module.functions:

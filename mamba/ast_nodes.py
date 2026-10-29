@@ -284,5 +284,20 @@ class RaiseStmt(Stmt):
 
 
 @dataclass
+class ExternFuncDecl(Node):
+    name: str = ""
+    params: List[Param] = field(default_factory=list)
+    return_type: Optional[str] = "void"
+    lib_symbol: Optional[str] = None
+
+
+@dataclass
+class ExternBlock(Stmt):
+    abi: str = "c"
+    lib_name: Optional[str] = None
+    functions: List[ExternFuncDecl] = field(default_factory=list)
+
+
+@dataclass
 class Module(Node):
     statements: List[Stmt] = field(default_factory=list)

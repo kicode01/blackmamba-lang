@@ -19,6 +19,8 @@ from .ast_nodes import (
     Call,
     Expr,
     ExprStmt,
+    ExternBlock,
+    ExternFuncDecl,
     FieldAccess,
     FieldAssign,
     FloatLit,
@@ -66,6 +68,30 @@ TYPE_ALIASES = {
     "string": "str",
     "None": "void",
     "void": "void",
+    "ptr": "i64",
+    "pointer": "i64",
+    "void*": "i64",
+    "char*": "str",
+    "cstring": "str",
+    "c_char_p": "str",
+    "size_t": "i64",
+    "usize": "i64",
+    "uintptr": "i64",
+    "intptr": "i64",
+    "i8": "i64",
+    "u8": "i64",
+    "i16": "i64",
+    "u16": "i64",
+    "u32": "i64",
+    "uint32": "i64",
+    "int32": "i64",
+    "c_int": "i64",
+    "c_uint": "i64",
+    "c_long": "i64",
+    "c_ulong": "i64",
+    "double": "f64",
+    "c_float": "f64",
+    "c_double": "f64",
     "list[int]": "Array[i64]",
     "list[i64]": "Array[i64]",
     "List[int]": "Array[i64]",
@@ -209,6 +235,8 @@ class TypeInferencer:
         self.structs: Dict[str, StructDef] = {}
         self.funcs: Dict[str, FuncDef] = {}
         self.signatures: Dict[str, FunctionSignature] = {}
+        self.extern_blocks: List[ExternBlock] = []
+        self.extern_funcs: Dict[str, Tuple[str, Optional[str], List[Tuple[str, str]], str, str]] = {}
         self.specialized_funcs: List[FuncDef] = []
         self.global_vars: Dict[str, str] = {}
 
@@ -557,6 +585,28 @@ class TypeInferencer:
             elif isinstance(stmt, FuncDef):
                 self.funcs[stmt.name] = stmt
                 top_stmts.append(stmt)
+            elif isinstance(stmt, ExternBlock):
+                self.extern_blocks.append(stmt)
+                for fn in stmt.functions:
+                    p_types = [(p.name, normalize_type(p.type_ann) or "i64") for p in fn.params]
+                    r_type = normalize_type(fn.return_type) or "void"
+                    lib_sym = fn.lib_symbol or fn.name
+                    self.extern_funcs[fn.name] = (stmt.abi, stmt.lib_name, p_types, r_type, lib_sym)
+                    self.signatures[fn.name] = FunctionSignature(
+                        name=fn.name,
+                        param_types=[pt for _, pt in p_types],
+                        return_type=r_type,
+                    )
+                    dummy_params = [Param(name=pn, type_ann=pt) for pn, pt in p_types]
+                    self.funcs[fn.name] = FuncDef(
+                        line=fn.line,
+                        col=fn.col,
+                        name=fn.name,
+                        params=dummy_params,
+                        return_type=r_type,
+                        body=[],
+                    )
+                top_stmts.append(stmt)
             else:
                 top_stmts.append(stmt)
 
@@ -703,6 +753,8 @@ class TypeInferencer:
 
         # 2. Initial default signatures for declared functions
         for name, fn in self.funcs.items():
+            if name in self.signatures:
+                continue
             p_types = [normalize_type(p.type_ann) or self._infer_param_from_body(fn, p.name) for p in fn.params]
             r_type = normalize_type(fn.return_type) or "i64"
             self.signatures[name] = FunctionSignature(name=name, param_types=p_types, return_type=r_type)
@@ -724,6 +776,8 @@ class TypeInferencer:
         # 3. Fixed-point iteration across functions and top-level statements
         for _ in range(3):
             for name, fn in list(self.funcs.items()):
+                if name in self.extern_funcs:
+                    continue
                 sig = self.signatures[name]
                 env: Dict[str, str] = {}
                 for p, pt in zip(fn.params, sig.param_types):

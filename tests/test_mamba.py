@@ -3532,6 +3532,95 @@ def main() -> i64:
             self.assertIn("BMP_EXPORT_OK=True", proc.stdout)
             self.assertIn("SVG_EXPORT_OK=True", proc.stdout)
 
+    def test_v120_c_abi_ffi_and_dynamic_linking(self):
+        """
+        Verify Black Mamba v1.2.0 Universal C-ABI FFI & Native Shared Library Linking:
+        1. extern 'c' AST parsing & MIR lowering
+        2. JIT execution with msvcrt and kernel32
+        3. Standalone PE32+ dynamic IAT generation and execution
+        4. C11 and WebAssembly extern declarations
+        5. C Header Bindgen tool
+        """
+        code = """
+extern "c" from "msvcrt.dll":
+    def abs(n: i64) -> i64
+    def strlen(s: str) -> i64
+
+extern "c" from "kernel32.dll":
+    def GetCurrentProcessId() -> i32
+    def GetTickCount64() -> i64
+
+def main():
+    a = abs(-42)
+    sl = strlen("mamba_ffi")
+    pid = GetCurrentProcessId()
+    ticks = GetTickCount64()
+    print(f"FFI_ABS={a} FFI_STRLEN={sl} PID_GT_ZERO={pid > 0} TICKS_GT_ZERO={ticks > 0}")
+
+main()
+"""
+        # 1. AST & MIR Verification
+        ast = Parser.from_source(code, "test_v120_ffi.bmb").parse_module()
+        mir = MIRBuilder().build(ast, filename="test_v120_ffi.bmb")
+        self.assertIn("abs", mir.extern_functions)
+        self.assertIn("strlen", mir.extern_functions)
+        self.assertIn("GetCurrentProcessId", mir.extern_functions)
+        self.assertIn("GetTickCount64", mir.extern_functions)
+
+        # 2. Native JIT Execution
+        jit = NativeJITModule(mir)
+        rc = jit.run_main()
+        out = jit.get_output()
+        jit.close()
+        self.assertEqual(rc, 0)
+        self.assertIn("FFI_ABS=42", out)
+        self.assertIn("FFI_STRLEN=9", out)
+        self.assertIn("PID_GT_ZERO=True", out)
+        self.assertIn("TICKS_GT_ZERO=True", out)
+
+        # 3. Standalone PE32+ Binary Compilation & Subprocess Execution
+        with tempfile.TemporaryDirectory() as tmp:
+            exe_path = os.path.join(tmp, "test_v120_c_ffi.exe")
+            PE32PlusExecutableBuilder(mir).write_executable(exe_path)
+            self.assertTrue(os.path.exists(exe_path))
+            proc = subprocess.run([exe_path], capture_output=True, text=True, check=False)
+            self.assertEqual(proc.returncode, 0)
+            self.assertIn("FFI_ABS=42", proc.stdout)
+            self.assertIn("FFI_STRLEN=9", proc.stdout)
+            self.assertIn("PID_GT_ZERO=True", proc.stdout)
+            self.assertIn("TICKS_GT_ZERO=True", proc.stdout)
+
+        # 4. Multi-Target C11 & WASM Transpilation
+        c_code = C11Backend(mir).emit_c()
+        self.assertIn("extern int64_t abs(", c_code)
+        self.assertIn("extern int64_t strlen(", c_code)
+        self.assertIn("extern int64_t GetCurrentProcessId(", c_code)
+
+        wat_code = WasmBackend(mir).emit_wat()
+        self.assertIn('(import "env" "abs"', wat_code)
+        self.assertIn('(import "env" "strlen"', wat_code)
+
+        # 5. C Header Bindgen Verification
+        from mamba.bindgen import parse_c_header, generate_bmb_bindings
+        sample_h = """
+        // Math and C standard prototypes
+        int puts(const char *s);
+        double sqrt(double x);
+        int sqlite3_open(const char *filename, void **ppDb);
+        """
+        with tempfile.NamedTemporaryFile("w", suffix=".h", delete=False) as f:
+            f.write(sample_h)
+            h_name = f.name
+        try:
+            bindings = generate_bmb_bindings(h_name, "sqlite3.dll")
+            self.assertIn('extern "c" from "sqlite3.dll":', bindings)
+            self.assertIn('def puts(s: str) -> i32', bindings)
+            self.assertIn('def sqrt(x: f64) -> f64', bindings)
+            self.assertIn('def sqlite3_open(filename: str, ppDb: ptr) -> i32', bindings)
+        finally:
+            if os.path.exists(h_name):
+                os.remove(h_name)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,6 +17,8 @@ from .ast_nodes import (
     Call,
     Expr,
     ExprStmt,
+    ExternBlock,
+    ExternFuncDecl,
     FieldAccess,
     FieldAssign,
     ForRangeStmt,
@@ -555,6 +557,12 @@ def resolve_imports(
                             if s.name not in seen_defs:
                                 seen_defs.add(s.name)
                                 prepended_stmts.append(s)
+                        elif isinstance(s, ExternBlock):
+                            matching = [fn for fn in s.functions if fn.name in wanted]
+                            if matching:
+                                prepended_stmts.append(
+                                    ExternBlock(line=s.line, col=s.col, abi=s.abi, lib_name=s.lib_name, functions=matching)
+                                )
                         elif isinstance(s, Assign):
                             prepended_stmts.append(s)
             elif isinstance(stmt, ImportStmt):

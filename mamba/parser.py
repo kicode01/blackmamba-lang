@@ -18,6 +18,8 @@ from .ast_nodes import (
     ExceptHandler,
     Expr,
     ExprStmt,
+    ExternBlock,
+    ExternFuncDecl,
     FieldAccess,
     FieldAssign,
     FloatLit,
@@ -118,6 +120,8 @@ class Parser:
             decorators.append(dec_name)
 
         tok = self.current()
+        if tok.type == TokenType.EXTERN:
+            return self.parse_extern_block()
         if tok.type in (TokenType.DEF, TokenType.FN):
             return self.parse_func_def(decorators)
         if tok.type in (TokenType.STRUCT, TokenType.CLASS):
@@ -385,6 +389,95 @@ class Parser:
                 self.parse_expr()
         self.skip_newlines()
         return RaiseStmt(line=start_tok.line, col=start_tok.col, exc=exc)
+
+    def parse_extern_block(self) -> ExternBlock:
+        start_tok = self.expect(TokenType.EXTERN)
+        abi = "c"
+        if self.current().type == TokenType.STRING:
+            abi = self.expect(TokenType.STRING).value
+        elif self.current().type == TokenType.IDENT:
+            abi = self.expect(TokenType.IDENT).value
+
+        lib_name: Optional[str] = None
+        if self.match(TokenType.FROM):
+            if self.current().type == TokenType.STRING:
+                lib_name = self.expect(TokenType.STRING).value
+            elif self.current().type == TokenType.IDENT:
+                lib_name = self.expect(TokenType.IDENT).value
+            else:
+                raise ParseError("Expected library name after 'from' in extern block", self.current())
+
+        self.expect(TokenType.COLON, "Expected ':' after extern header")
+
+        functions: List[ExternFuncDecl] = []
+
+        def parse_single_decl() -> ExternFuncDecl:
+            fn_tok = self.current()
+            if self.match(TokenType.DEF, TokenType.FN):
+                pass
+            name = self.expect(TokenType.IDENT, "Expected function name in extern declaration").value
+            self.expect(TokenType.LPAREN, "Expected '(' after function name")
+            params: List[Param] = []
+            if self.current().type != TokenType.RPAREN:
+                while True:
+                    p_name = self.expect(TokenType.IDENT, "Expected parameter name").value
+                    p_type = None
+                    if self.match(TokenType.COLON):
+                        p_type = self.parse_type_annotation()
+                    p_default = None
+                    if self.match(TokenType.ASSIGN):
+                        p_default = self.parse_expr()
+                    params.append(Param(name=p_name, type_ann=p_type, default=p_default))
+                    if not self.match(TokenType.COMMA):
+                        break
+                    if self.current().type == TokenType.RPAREN:
+                        break
+            self.expect(TokenType.RPAREN, "Expected ')' after parameters")
+            ret_type = "void"
+            if self.match(TokenType.ARROW):
+                ret_type = self.parse_type_annotation()
+            lib_symbol = name
+            if self.match(TokenType.AS):
+                if self.current().type == TokenType.STRING:
+                    lib_symbol = self.expect(TokenType.STRING).value
+                else:
+                    lib_symbol = self.expect(TokenType.IDENT).value
+            if self.match(TokenType.COLON):
+                if self.match(TokenType.PASS):
+                    pass
+            self.skip_newlines()
+            return ExternFuncDecl(
+                line=fn_tok.line,
+                col=fn_tok.col,
+                name=name,
+                params=params,
+                return_type=ret_type,
+                lib_symbol=lib_symbol,
+            )
+
+        if self.current().type != TokenType.NEWLINE:
+            decl = parse_single_decl()
+            functions.append(decl)
+        else:
+            self.skip_newlines()
+            self.expect(TokenType.INDENT, "Expected indented block for extern declarations")
+            self.skip_newlines()
+            while self.current().type not in (TokenType.DEDENT, TokenType.EOF):
+                if self.match(TokenType.PASS):
+                    self.skip_newlines()
+                    continue
+                decl = parse_single_decl()
+                functions.append(decl)
+                self.skip_newlines()
+            self.match(TokenType.DEDENT)
+
+        return ExternBlock(
+            line=start_tok.line,
+            col=start_tok.col,
+            abi=abi,
+            lib_name=lib_name,
+            functions=functions,
+        )
 
     def parse_block(self) -> List[Stmt]:
         if self.current().type != TokenType.NEWLINE:

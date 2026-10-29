@@ -524,6 +524,17 @@ class C11Backend:
             "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
         }
 
+        # Foreign C declarations & forwarding stubs
+        for fn_name, (abi, lib_name, params, ret_type, lib_sym) in getattr(self.mir_module, "extern_functions", {}).items():
+            sym = lib_sym or fn_name
+            ret_c = _c_type(ret_type)
+            params_decl = ", ".join(f"{_c_type(pt)} {_c_ident(pn)}" for pn, pt in params) or "void"
+            params_call = ", ".join(_c_ident(pn) for pn, _ in params)
+            lines.append(f"extern {ret_c} {sym}({params_decl});")
+            ret_kw = "return " if ret_type != "void" else ""
+            lines.append(f"static inline {ret_c} bmb_{fn_name}({params_decl}) {{ {ret_kw}{sym}({params_call}); }}")
+            fn_names.add(fn_name)
+
         # Function bodies
         for fn in self.mir_module.functions:
             lines.append(self._emit_function(fn, fn_names, entry_fn))

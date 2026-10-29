@@ -17,7 +17,7 @@ import struct
 import sys
 import time
 from dataclasses import dataclass
-from typing import Callable, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union
 from ..mir import MIRFunction, MIRInstr, MIRModule
 
 
@@ -1827,6 +1827,105 @@ class NativeJITModule:
             "__bmb_mem_read8", "__bmb_mem_write8", "__bmb_alloc_root_get", "__bmb_alloc_root_set",
             "__bmb_rt_slot_get", "__bmb_rt_slot_set",
         ])
+
+        # Resolve foreign C-ABI symbols and emit trampolines
+        loaded_libs: Dict[str, Any] = {}
+        for fn_name, (abi, lib_name, params, ret_type, lib_sym) in getattr(self.mir_module, "extern_functions", {}).items():
+            sym_name = lib_sym or fn_name
+            target_lib = None
+            norm_lib = (lib_name or "").lower().replace("\\", "/").split("/")[-1]
+            if not norm_lib or "msvcrt" in norm_lib or "libc" in norm_lib:
+                target_lib = ctypes.cdll.msvcrt if sys.platform == "win32" else ctypes.CDLL(None)
+            elif "kernel32" in norm_lib:
+                target_lib = ctypes.windll.kernel32 if sys.platform == "win32" else ctypes.CDLL(None)
+            elif "user32" in norm_lib:
+                target_lib = ctypes.windll.user32 if sys.platform == "win32" else ctypes.CDLL(None)
+            else:
+                if norm_lib not in loaded_libs:
+                    try:
+                        loaded_libs[norm_lib] = ctypes.cdll.LoadLibrary(lib_name)
+                    except Exception:
+                        try:
+                            loaded_libs[norm_lib] = ctypes.windll.LoadLibrary(lib_name)
+                        except Exception as e:
+                            raise RuntimeError(f"Failed to load foreign library '{lib_name}': {e}")
+                target_lib = loaded_libs[norm_lib]
+
+            try:
+                foreign_fn = getattr(target_lib, sym_name)
+            except AttributeError:
+                raise RuntimeError(f"Foreign symbol '{sym_name}' not found in library '{lib_name}'")
+
+            def _map_c_type(t: str):
+                t_norm = (t or "i64").strip()
+                if t_norm in ("f64", "float", "double"):
+                    return ctypes.c_double
+                if t_norm == "str":
+                    return ctypes.c_char_p
+                if t_norm == "void":
+                    return None
+                return ctypes.c_int64
+
+            c_argtypes = [_map_c_type(pt) for _, pt in params]
+            c_restype = _map_c_type(ret_type)
+            try:
+                foreign_fn.argtypes = c_argtypes
+                foreign_fn.restype = c_restype
+            except Exception:
+                pass
+
+            has_str_params = any(pt == "str" for _, pt in params)
+            has_str_ret = ret_type == "str"
+            has_f64_params = any(pt in ("f64", "float", "double") for _, pt in params)
+            has_f64_ret = ret_type in ("f64", "float", "double")
+
+            cb_argtypes = [ctypes.c_int64] * len(params)
+            cb_restype = ctypes.c_int64
+
+            def make_wrapper(fn_to_call, p_specs, r_spec, has_str_p, has_str_r, has_f64_p, has_f64_r):
+                get_str = self._get_str_bytes
+                make_str = self._make_str_handle
+
+                def wrapper(*raw_args):
+                    converted_args = []
+                    for (pn, pt), arg in zip(p_specs, raw_args):
+                        if pt == "str":
+                            converted_args.append(get_str(arg))
+                        elif pt in ("f64", "float", "double"):
+                            flt = struct.unpack("<d", struct.pack("<q", arg))[0]
+                            converted_args.append(flt)
+                        else:
+                            converted_args.append(int(arg))
+                    res = fn_to_call(*converted_args)
+                    if has_str_r:
+                        if isinstance(res, (bytes, bytearray)):
+                            return make_str(res)
+                        elif isinstance(res, str):
+                            return make_str(res.encode("utf-8"))
+                        elif res:
+                            return make_str(ctypes.string_at(res))
+                        return make_str(b"")
+                    elif has_f64_r:
+                        flt_val = float(res) if res is not None else 0.0
+                        return struct.unpack("<q", struct.pack("<d", flt_val))[0]
+                    elif r_spec == "void":
+                        return 0
+                    else:
+                        return int(res) if res is not None else 0
+                return wrapper
+
+            py_wrapper = make_wrapper(foreign_fn, params, ret_type, has_str_params, has_str_ret, has_f64_params, has_f64_ret)
+            c_cb_type = ctypes.CFUNCTYPE(cb_restype, *cb_argtypes)
+            c_cb = c_cb_type(py_wrapper)
+            self._callbacks.append(c_cb)
+            cb_addr = ctypes.cast(c_cb, ctypes.c_void_p).value
+
+            self.code_buf.mark_label(f"fn__{fn_name}")
+            self.code_buf.emit(b"\x48\x83\xEC\x28", "sub rsp, 0x28")
+            self.code_buf.call_abs_addr(cb_addr, f"extern_{fn_name}")
+            self.code_buf.emit(b"\x48\x83\xC4\x28", "add rsp, 0x28")
+            self.code_buf.ret()
+            known_fn_names.add(fn_name)
 
         for fn in self.mir_module.functions:
             self.func_offsets[fn.name] = len(self.code_buf.code)

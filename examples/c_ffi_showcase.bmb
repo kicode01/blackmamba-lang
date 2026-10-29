@@ -1,0 +1,39 @@
+# ==============================================================================
+# Black Mamba (bmb) v1.2.0 Universal C-ABI FFI & Native Shared Library Linking
+# ==============================================================================
+# Demonstrates direct, zero-overhead C-ABI foreign function calls from .bmb
+# into native Windows DLLs (msvcrt.dll and kernel32.dll).
+
+extern "c" from "msvcrt.dll":
+    def puts(s: str) -> i32
+    def abs(n: i64) -> i64
+    def strlen(s: str) -> i64
+
+extern "c" from "kernel32.dll":
+    def GetCurrentProcessId() -> i32
+    def GetTickCount64() -> i64
+
+def main():
+    print("=== Black Mamba v1.2.0 Universal C-ABI FFI Showcase ===")
+    
+    # 1. Foreign calls to C standard library (msvcrt.dll)
+    puts("Hello from native msvcrt.dll puts() invoked via Black Mamba zero-overhead trampoline!")
+    
+    let neg_val: i64 = -1337
+    let pos_val: i64 = abs(neg_val)
+    print("abs(-1337) =", pos_val)
+    
+    let msg: str = "Black Mamba"
+    let len_c: i64 = strlen(msg)
+    print("strlen('Black Mamba') =", len_c)
+    
+    # 2. Foreign calls to Windows Win32 API (kernel32.dll)
+    let pid: i32 = GetCurrentProcessId()
+    print("Native Windows Process ID (GetCurrentProcessId):", pid)
+    
+    let ticks: i64 = GetTickCount64()
+    print("System Uptime Milliseconds (GetTickCount64):", ticks)
+    
+    print("=== C-ABI FFI Execution Completed Successfully ===")
+
+main()

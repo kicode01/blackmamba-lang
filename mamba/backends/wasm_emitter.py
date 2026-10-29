@@ -74,6 +74,11 @@ class WasmBackend:
             "  ;; Compiled by Black Mamba (.bmb) WebAssembly Backend",
             '  (memory (export "memory") 1)',
         ]
+        for fn_name, (abi, lib_name, params, ret_type, lib_sym) in getattr(self.mir_module, "extern_functions", {}).items():
+            sym = lib_sym or fn_name
+            p_str = " ".join(f"(param i64)" for _ in params)
+            r_str = "(result f64)" if ret_type == "f64" else ("(result i64)" if ret_type != "void" else "")
+            lines.append(f'  (import "env" "{sym}" (func ${fn_name} {p_str} {r_str}))')
         for fn in self.mir_module.functions:
             params_s = " ".join(
                 f"(param ${p_name} {'f64' if p_t == 'f64' else 'i64'})" for p_name, p_t in fn.params

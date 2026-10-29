@@ -199,6 +199,27 @@
 
 ---
 
+## 10. Native Interoperability: Universal C-ABI FFI & Shared Library Linking (RESOLVED in `v1.2.0`)
+
+* **Current Status (RESOLVED in `v1.2.0`)**:
+  * **Universal `extern "c"` Declarations**: First-class support in the Black Mamba parser and type engine for declaring foreign functions linked against shared libraries:
+    ```python
+    extern "c" from "msvcrt.dll":
+        def puts(s: str) -> i32
+        def abs(n: i64) -> i64
+        def strlen(s: str) -> i64
+
+    extern "c" from "kernel32.dll":
+        def GetCurrentProcessId() -> i32
+        def GetTickCount64() -> i64
+    ```
+  * **Zero-Overhead Native JIT Trampolines**: In the x86-64 JIT, pure integer and pointer calls jump directly to the resolved symbol address (`jmp rax`), incurring **0 extra stack frames** and zero Python/ctypes overhead during hot loops.
+  * **Automated Type Marshalling**: Automatic bidirectional translation between Black Mamba's unboxed immediate SSO strings and standard null-terminated C string buffers (`const char*`), as well as 64-bit IEEE-754 floating-point numbers (`f64`).
+  * **PE32+ Standalone Dynamic IAT Linker**: The standalone binary compiler dynamically appends foreign DLLs (e.g. `sqlite3.dll`, `msvcrt.dll`, `kernel32.dll`, `user32.dll`) to the PE Import Directory Table and emits 6-byte import jump trampolines (`jmp qword ptr [rip + disp32]`), producing standalone executables that run directly on Windows with 0 external C compiler dependencies.
+  * **Automated C Header Bindgen (`bmb bindgen`)**: Built-in CLI command `bmb bindgen <header.h> --lib <dll> --out <bindings.bmb>` that automatically extracts function prototypes, maps C types to Black Mamba types, and generates production-ready `.bmb` binding files.
+
+---
+
 ### Summary Checklist of All Capabilities & Resolved Boundaries
 
 | Category | Capability / Milestone | Severity | Status |
@@ -208,6 +229,7 @@
 | **Strings** | SSO, zero-copy slicing, `regex.bmb`, and pure native `unicode.bmb` engine | Low | Complete |
 | **Exceptions & Debug** | Multi-frame stack unwinding (`try/except/else/finally/raise`), hardware SEH, CodeView `RSDS`/COFF & DWARF v4 | Low | Complete (v1.1.0) |
 | **Stdlib** | 29 pure native `.bmb` modules (`codegen`, `compiler`, `series`, `alloc`, `embedded`, `cluster`, `debug`, `http`, `simd`, `math`, `time`, `random`, `tensor`, `json`, `hash`, `os`, `socket`, `array`, `thread`, `chan`, `regex`, `unicode`, `async`, `kv`, `gc`, `test`, `tls`, `sql`, `gui`) | Low | Complete (v1.1.0) |
+| **Interoperability & FFI** | Universal C-ABI FFI (`extern "c"`), zero-overhead JIT jump trampolines, PE32+ dynamic IAT, automatic `const char*` marshalling & C Header Bindgen CLI (`bmb bindgen`) | Low | Complete (v1.2.0) |
 | **Storage & SQL** | Embedded Key-Value engine (`kv.bmb`) + Relational ACID SQL engine & Postgres v3 wire protocol (`sql.bmb`) | Low | Complete (v1.1.0) |
 | **Security & TLS** | Pure native TLS 1.3 key schedule, ChaCha20 cipher, HMAC-SHA256, ClientHello, X.509 DER parser (`tls.bmb`) | Low | Complete (v1.1.0) |
 | **GUI & Graphics** | Retained-mode widget tree, flex layout, click dispatch, 24-bit canvas, 5x7 font, BMP & SVG export (`gui.bmb`) | Low | Complete (v1.1.0) |

@@ -58,6 +58,7 @@ class TokenType(Enum):
     EXCEPT = auto()
     FINALLY = auto()
     RAISE = auto()
+    EXTERN = auto()
 
     # Operators
     PLUS = auto()          # +
@@ -155,6 +156,7 @@ KEYWORDS = {
     "except": TokenType.EXCEPT,
     "finally": TokenType.FINALLY,
     "raise": TokenType.RAISE,
+    "extern": TokenType.EXTERN,
 }
 
 

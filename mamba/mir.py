@@ -23,6 +23,8 @@ from .ast_nodes import (
     Continue,
     Expr,
     ExprStmt,
+    ExternBlock,
+    ExternFuncDecl,
     FieldAccess,
     FieldAssign,
     FloatLit,
@@ -130,6 +132,7 @@ class MIRModule:
     structs: Dict[str, StructDef] = field(default_factory=dict)
     string_pool: List[str] = field(default_factory=list)
     filename: str = "<input.bmb>"
+    extern_functions: Dict[str, Tuple[str, Optional[str], List[Tuple[str, str]], str, str]] = field(default_factory=dict)
 
     def format(self) -> str:
         return "\n\n".join(fn.format() for fn in self.functions)
@@ -151,6 +154,7 @@ class MIRBuilder:
         self.func_return_types: Dict[str, str] = {}
         self.func_params: Dict[str, List[Param]] = {}
         self.string_pool: List[str] = []
+        self.extern_functions: Dict[str, Tuple[str, Optional[str], List[Tuple[str, str]], str, str]] = {}
 
         # Dynamic OOP & Exception state
         self.has_exceptions: bool = False
@@ -213,6 +217,7 @@ class MIRBuilder:
         self.vtable_methods = Inferencer.vtable_methods
         self.vtable_method_owners = Inferencer.vtable_method_owners
         self.dyn_attr_types = Inferencer.dyn_attr_types
+        self.extern_functions = Inferencer.extern_funcs
 
         for fname, sig in Inferencer.signatures.items():
             self.func_return_types[fname] = sig.return_type
@@ -230,7 +235,7 @@ class MIRBuilder:
         # Pre-check whether top-level statements exist so we know the exact entry function name
         has_user_main = any(isinstance(s, FuncDef) and s.name == "main" for s in module.statements)
         has_top_exec = any(
-            not isinstance(s, (StructDef, FuncDef))
+            not isinstance(s, (StructDef, FuncDef, ExternBlock))
             and not (isinstance(s, ExprStmt) and isinstance(s.expr, StringLit) and not s.expr.value.startswith("f:"))
             for s in module.statements
         )
@@ -239,7 +244,7 @@ class MIRBuilder:
         for stmt in module.statements:
             if isinstance(stmt, Assign) and isinstance(stmt.value, (FloatLit, IntLit, BoolLit, StringLit)):
                 self.constants[stmt.target] = stmt.value
-            if isinstance(stmt, StructDef):
+            if isinstance(stmt, (StructDef, ExternBlock)):
                 continue
             elif isinstance(stmt, FuncDef):
                 mir_funcs.append(self._lower_function(stmt))
@@ -253,7 +258,11 @@ class MIRBuilder:
         existing_main = next((f for f in mir_funcs if f.name == "main"), None)
         if top_stmts:
             body_stmts = list(top_stmts)
-            if existing_main:
+            calls_main = any(
+                isinstance(s, ExprStmt) and isinstance(s.expr, Call) and s.expr.func == "main"
+                for s in top_stmts
+            )
+            if existing_main and not calls_main:
                 body_stmts.append(ExprStmt(line=1, col=1, expr=Call(line=1, col=1, func="main", args=[])))
             body_stmts.append(Return(line=1, col=1, value=IntLit(value=0)))
             main_def = FuncDef(
@@ -278,7 +287,13 @@ class MIRBuilder:
             )
             mir_funcs.append(self._lower_function(main_def))
 
-        mir_mod = MIRModule(functions=mir_funcs, structs=self.structs, string_pool=self.string_pool, filename=filename)
+        mir_mod = MIRModule(
+            functions=mir_funcs,
+            structs=self.structs,
+            string_pool=self.string_pool,
+            filename=filename,
+            extern_functions=self.extern_functions,
+        )
         MIROptimizer().optimize_module(mir_mod)
         return mir_mod
 
