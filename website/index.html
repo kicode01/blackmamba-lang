@@ -907,11 +907,11 @@
           </div>
 
           <div class="workbench-tabs">
-            <button class="w-tab active" onclick="loadSnippet('fib')">fibonacci.bmb</button>
-            <button class="w-tab" onclick="loadSnippet('tco')">auto_tco.bmb</button>
-            <button class="w-tab" onclick="loadSnippet('fastapi')">web_fastapi.bmb</button>
-            <button class="w-tab" onclick="loadSnippet('container')">micro_container.bmb</button>
-            <button class="w-tab" onclick="loadSnippet('struct')">unboxed_struct.bmb</button>
+            <button class="w-tab active" data-snippet="fib" onclick="loadSnippet('fib', this)">fibonacci.bmb</button>
+            <button class="w-tab" data-snippet="tco" onclick="loadSnippet('tco', this)">auto_tco.bmb</button>
+            <button class="w-tab" data-snippet="fastapi" onclick="loadSnippet('fastapi', this)">web_fastapi.bmb</button>
+            <button class="w-tab" data-snippet="container" onclick="loadSnippet('container', this)">micro_container.bmb</button>
+            <button class="w-tab" data-snippet="struct" onclick="loadSnippet('struct', this)">unboxed_struct.bmb</button>
           </div>
 
           <div style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--brand);">
@@ -920,8 +920,17 @@
         </div>
 
         <div class="workbench-grid">
-          <!-- Code Editor Panel -->
-          <pre class="code-panel" id="codePanel"></pre>
+          <!-- Code Editor Panel (Pre-rendered for zero-delay visual display) -->
+          <pre class="code-panel" id="codePanel"><span class="k-cmt"># Recursive Fibonacci: 25.8x faster than CPython 3.14</span>
+<span class="k-def">def</span> <span class="k-fn">fib</span>(n: <span class="k-type">i64</span>) -&gt; <span class="k-type">i64</span>:
+    <span class="k-def">if</span> n &lt;= <span class="k-num">1</span>:
+        <span class="k-def">return</span> n
+    <span class="k-def">return</span> fib(n - <span class="k-num">1</span>) + fib(n - <span class="k-num">2</span>)
+
+<span class="k-def">def</span> <span class="k-fn">main</span>() -&gt; <span class="k-type">i64</span>:
+    res = fib(<span class="k-num">32</span>)
+    <span class="k-fn">print</span>(<span class="k-str">f"fib(32) = {res}"</span>)
+    <span class="k-def">return</span> <span class="k-num">0</span></pre>
 
           <!-- Real-Time Interactive Canvas Particle Physics -->
           <div class="canvas-panel">
@@ -933,7 +942,7 @@
               <span id="fpsMeter">120 FPS</span>
             </div>
 
-            <canvas id="heroCanvas"></canvas>
+            <canvas id="heroCanvas" width="550" height="320" style="width: 100%; height: 320px; display: block; background: #040508;"></canvas>
 
             <div class="canvas-controls">
               <span>Interactive: Hover or drag on canvas to apply vector field force</span>
@@ -1134,12 +1143,12 @@
 
       <div class="target-explorer">
         <div class="target-nav">
-          <button class="t-btn active" onclick="setTarget('jit')">Win64 JIT</button>
-          <button class="t-btn" onclick="setTarget('exe')">Windows PE32+ (.exe)</button>
-          <button class="t-btn" onclick="setTarget('elf')">Linux ELF64 (.elf)</button>
-          <button class="t-btn" onclick="setTarget('container')">OCI Container (.tar)</button>
-          <button class="t-btn" onclick="setTarget('wasm')">WebAssembly (.wasm)</button>
-          <button class="t-btn" onclick="setTarget('ext')">Python C-Ext (.pyd)</button>
+          <button class="t-btn active" data-target="jit" onclick="setTarget('jit', this)">Win64 JIT</button>
+          <button class="t-btn" data-target="exe" onclick="setTarget('exe', this)">Windows PE32+ (.exe)</button>
+          <button class="t-btn" data-target="elf" onclick="setTarget('elf', this)">Linux ELF64 (.elf)</button>
+          <button class="t-btn" data-target="container" onclick="setTarget('container', this)">OCI Container (.tar)</button>
+          <button class="t-btn" data-target="wasm" onclick="setTarget('wasm', this)">WebAssembly (.wasm)</button>
+          <button class="t-btn" data-target="ext" onclick="setTarget('ext', this)">Python C-Ext (.pyd)</button>
         </div>
 
         <div class="target-info-grid">
@@ -1175,12 +1184,12 @@
 
       <div class="stdlib-filter-bar">
         <div class="filter-pills">
-          <button class="f-pill active" onclick="filterCategory('all')">All (36)</button>
-          <button class="f-pill" onclick="filterCategory('web')">Web & Network</button>
-          <button class="f-pill" onclick="filterCategory('ai')">AI & Vector</button>
-          <button class="f-pill" onclick="filterCategory('sys')">Systems & OS</button>
-          <button class="f-pill" onclick="filterCategory('data')">Data & SQL</button>
-          <button class="f-pill" onclick="filterCategory('core')">Collections & Math</button>
+          <button class="f-pill active" data-cat="all" onclick="filterCategory('all', this)">All (36)</button>
+          <button class="f-pill" data-cat="web" onclick="filterCategory('web', this)">Web & Network</button>
+          <button class="f-pill" data-cat="ai" onclick="filterCategory('ai', this)">AI & Vector</button>
+          <button class="f-pill" data-cat="sys" onclick="filterCategory('sys', this)">Systems & OS</button>
+          <button class="f-pill" data-cat="data" onclick="filterCategory('data', this)">Data & SQL</button>
+          <button class="f-pill" data-cat="core" onclick="filterCategory('core', this)">Collections & Math</button>
         </div>
 
         <input type="text" class="search-input" id="searchBox" placeholder="Filter modules (e.g. http, tensor)..." onkeyup="searchModules()">
@@ -1304,12 +1313,19 @@ app = new_fastapi(<span class="k-str">"MambaAPI"</span>, <span class="k-str">"2.
     <span class="k-def">return</span> <span class="k-num">0</span>`
     };
 
-    function loadSnippet(key) {
+    function loadSnippet(key, btn) {
       document.querySelectorAll('.w-tab').forEach(t => t.classList.remove('active'));
-      event.target.classList.add('active');
-      document.getElementById('codePanel').innerHTML = snippets[key];
+      if (btn) {
+        btn.classList.add('active');
+      } else {
+        const defaultBtn = document.querySelector(`.w-tab[data-snippet="${key}"]`);
+        if (defaultBtn) defaultBtn.classList.add('active');
+      }
+      const el = document.getElementById('codePanel');
+      if (el && snippets[key]) {
+        el.innerHTML = snippets[key];
+      }
     }
-    loadSnippet('fib');
 
     // 2. Compilation Targets
     const targetsData = {
@@ -1381,16 +1397,28 @@ app = new_fastapi(<span class="k-str">"MambaAPI"</span>, <span class="k-str">"2.
       }
     };
 
-    function setTarget(key) {
+    function setTarget(key, btn) {
       document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
-      event.target.classList.add('active');
+      if (btn) {
+        btn.classList.add('active');
+      } else {
+        const defaultBtn = document.querySelector(`.t-btn[data-target="${key}"]`);
+        if (defaultBtn) defaultBtn.classList.add('active');
+      }
       const d = targetsData[key];
-      document.getElementById('targetHeading').textContent = d.title;
-      document.getElementById('targetBody').textContent = d.desc;
-      document.getElementById('targetCommand').textContent = d.cmd;
-      document.getElementById('targetSpecs').innerHTML = d.specs.map(([k, v]) => `
-        <div class="spec-line"><span class="spec-k">${k}</span><span class="spec-v">${v}</span></div>
-      `).join('');
+      if (!d) return;
+      const h = document.getElementById('targetHeading');
+      const b = document.getElementById('targetBody');
+      const c = document.getElementById('targetCommand');
+      const s = document.getElementById('targetSpecs');
+      if (h) h.textContent = d.title;
+      if (b) b.textContent = d.desc;
+      if (c) c.textContent = d.cmd;
+      if (s) {
+        s.innerHTML = d.specs.map(([k, v]) => `
+          <div class="spec-line"><span class="spec-k">${k}</span><span class="spec-v">${v}</span></div>
+        `).join('');
+      }
     }
 
     // 3. Standard Library Modules
@@ -1448,10 +1476,15 @@ app = new_fastapi(<span class="k-str">"MambaAPI"</span>, <span class="k-str">"2.
       `).join('');
     }
 
-    function filterCategory(cat) {
+    function filterCategory(cat, btn) {
       currentFilter = cat;
       document.querySelectorAll('.f-pill').forEach(p => p.classList.remove('active'));
-      event.target.classList.add('active');
+      if (btn) {
+        btn.classList.add('active');
+      } else {
+        const defaultBtn = document.querySelector(`.f-pill[data-cat="${cat}"]`);
+        if (defaultBtn) defaultBtn.classList.add('active');
+      }
       applyFilters();
     }
 
@@ -1477,12 +1510,21 @@ app = new_fastapi(<span class="k-str">"MambaAPI"</span>, <span class="k-str">"2.
       const canvas = document.getElementById('heroCanvas');
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
-      let width = canvas.width = canvas.offsetWidth;
-      let height = canvas.height = canvas.offsetHeight;
+      
+      function getDimensions() {
+        const w = canvas.offsetWidth || canvas.clientWidth || 550;
+        const h = canvas.offsetHeight || canvas.clientHeight || 320;
+        return { w: Math.max(w, 200), h: Math.max(h, 200) };
+      }
+
+      let { w: width, h: height } = getDimensions();
+      canvas.width = width;
+      canvas.height = height;
 
       window.addEventListener('resize', () => {
-        width = canvas.width = canvas.offsetWidth;
-        height = canvas.height = canvas.offsetHeight;
+        const d = getDimensions();
+        width = canvas.width = d.w;
+        height = canvas.height = d.h;
       });
 
       const particleCount = 180;
@@ -1533,6 +1575,12 @@ app = new_fastapi(<span class="k-str">"MambaAPI"</span>, <span class="k-str">"2.
           if (meter) meter.textContent = `${fps} FPS`;
           frames = 0;
           fpsTimer = 0;
+        }
+
+        if (width <= 10 || height <= 10 || canvas.width <= 10) {
+          const d = getDimensions();
+          width = canvas.width = d.w;
+          height = canvas.height = d.h;
         }
 
         ctx.fillStyle = 'rgba(4, 5, 8, 0.28)';
