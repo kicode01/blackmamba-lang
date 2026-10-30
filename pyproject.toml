@@ -40,9 +40,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/kicode01/blackmamba-lang"
+Homepage = "https://blackmamba-lang.vercel.app"
 Documentation = "https://github.com/kicode01/blackmamba-lang#readme"
 Repository = "https://github.com/kicode01/blackmamba-lang.git"
+"Web Arena" = "https://blackmamba-lang.vercel.app/arena.html"
 "Bug Tracker" = "https://github.com/kicode01/blackmamba-lang/issues"
 
 [project.scripts]
