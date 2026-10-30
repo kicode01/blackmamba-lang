@@ -4,30 +4,38 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Black Mamba Web Arena — 120 FPS Native Playground</title>
+  <link rel="icon" type="image/x-icon" href="assets/bmb.ico">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
   <style>
     :root {
-      --bg: #0b0f19;
-      --card-bg: #111827;
-      --border: #1f2937;
+      --bg: #070709;
+      --card-bg: #0e0e12;
+      --border: rgba(255, 255, 255, 0.08);
       --primary: #10b981;
       --primary-glow: rgba(16, 185, 129, 0.25);
       --accent: #f59e0b;
       --text: #f3f4f6;
-      --muted: #9ca3af;
-      --code-bg: #030712;
+      --muted: #8b8b99;
+      --code-bg: #030305;
+      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "JetBrains Mono", Menlo, Consolas, monospace;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font-sans);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
     header {
-      background: rgba(17, 24, 39, 0.85);
-      backdrop-filter: blur(8px);
+      background: rgba(14, 14, 18, 0.85);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
       padding: 14px 24px;
       display: flex;
@@ -38,18 +46,26 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 1.25rem;
+      font-size: 1.15rem;
       font-weight: 700;
       color: #fff;
+      text-decoration: none;
+    }
+    .logo-img {
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
     }
     .logo-badge {
-      background: linear-gradient(135deg, #10b981, #059669);
-      color: #000;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
       font-size: 0.75rem;
-      font-weight: 800;
+      font-weight: 700;
+      font-family: var(--font-mono);
       padding: 3px 8px;
       border-radius: 999px;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.03em;
     }
     .stats-bar {
       display: flex;
@@ -60,11 +76,13 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      color: var(--muted);
+      font-size: 0.82rem;
     }
     .stat-val {
       color: var(--primary);
       font-weight: 700;
-      font-family: monospace;
+      font-family: var(--font-mono);
     }
     .main-grid {
       display: grid;
@@ -72,6 +90,9 @@
       gap: 16px;
       padding: 16px;
       flex: 1;
+    }
+    @media (max-width: 900px) {
+      .main-grid { grid-template-columns: 1fr; }
     }
     .panel {
       background: var(--card-bg);
@@ -91,12 +112,13 @@
       background: rgba(255, 255, 255, 0.02);
     }
     .panel-title {
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       font-weight: 600;
       color: #e5e7eb;
       display: flex;
       align-items: center;
       gap: 8px;
+      font-family: var(--font-mono);
     }
     .select-preset {
       background: var(--bg);
@@ -200,14 +222,16 @@
 </head>
 <body>
   <header>
-    <div class="logo">
-      <span>🐍 Black Mamba Arena</span>
+    <a href="index.html" class="logo">
+      <img src="assets/logo.png" alt="Black Mamba" class="logo-img">
+      <span>Black Mamba Arena</span>
       <span class="logo-badge">v2.0.0 NATIVE</span>
-    </div>
+    </a>
     <div class="stats-bar">
       <div class="stat-item">Binary: <span class="stat-val">1.7 KB WASM</span></div>
       <div class="stat-item">Engine: <span class="stat-val">Zero-GC Arena</span></div>
       <div class="stat-item">FPS: <span class="stat-val" id="fps-counter">120.0</span></div>
+      <a href="index.html" style="color: var(--muted); text-decoration: none; font-size: 0.82rem; margin-left: 12px; font-weight: 500;">← Back to Docs</a>
     </div>
   </header>
 
@@ -215,7 +239,7 @@
     <!-- Left Column: Code Editor -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">💻 Source Code (.bmb / Python)</div>
+        <div class="panel-title">Source Code (.bmb / Python)</div>
         <select class="select-preset" id="preset-selector" onchange="loadPreset()">
           <option value="particles">120 FPS Particle Physics Simulation</option>
           <option value="fib">Recursive Fibonacci (Tail-Call Optimization)</option>
@@ -235,7 +259,7 @@
     <!-- Right Column: Interactive Canvas & Head-to-Head -->
     <div class="panel">
       <div class="panel-header">
-        <div class="panel-title">⚡ Interactive Execution Canvas</div>
+        <div class="panel-title">Interactive Execution Canvas</div>
         <div style="font-size: 0.8rem; color: #10b981; font-weight: 600;">● Active</div>
       </div>
       <div class="canvas-container">
@@ -255,13 +279,13 @@
           </thead>
           <tbody>
             <tr>
-              <td style="font-weight: 600; color: #10b981;">⚡ Black Mamba (.bmb)</td>
+              <td style="font-weight: 600; color: #10b981;">Black Mamba (.bmb)</td>
               <td id="mamba-time" style="font-family: monospace;">1.28 ms</td>
               <td>0.00 MB (Arena)</td>
               <td><span class="speedup-badge" id="mamba-speedup">26.8x Faster</span></td>
             </tr>
             <tr>
-              <td style="color: #9ca3af;">🐢 CPython 3.14 (Pyodide)</td>
+              <td style="color: #9ca3af;">CPython 3.14 (Pyodide)</td>
               <td id="python-time" style="font-family: monospace;">34.20 ms</td>
               <td>18.4 MB (Boxing)</td>
               <td style="color: var(--muted);">Baseline</td>
@@ -342,8 +366,9 @@ def main() -> f64:
     const NUM_PARTICLES = 160;
 
     function resizeCanvas() {
-      canvas.width = canvas.parentElement.clientWidth;
-      canvas.height = canvas.parentElement.clientHeight;
+      const p = canvas.parentElement;
+      canvas.width = (p && p.clientWidth > 0) ? p.clientWidth : 600;
+      canvas.height = (p && p.clientHeight > 0) ? p.clientHeight : 400;
     }
     window.addEventListener('resize', resizeCanvas);
 
