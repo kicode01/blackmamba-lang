@@ -50,58 +50,82 @@
       --radius-lg: 14px;
     }
 
+    html, body {
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
+      margin: 0;
+      padding: 0;
+    }
+
     body {
       background: var(--bg);
       color: var(--text);
       font-family: var(--font-sans);
-      min-height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow-x: hidden;
     }
 
-    /* Header */
+    /* Sleek Dark Scrollbars */
+    *::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    *::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    *::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.14);
+      border-radius: 999px;
+    }
+    *::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.28);
+    }
+    * {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+    }
+
+    /* Header (Fixed 48px) */
     header {
-      background: rgba(14, 14, 18, 0.9);
+      background: rgba(14, 14, 18, 0.95);
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
-      padding: 12px 24px;
+      padding: 8px 20px;
+      height: 48px;
+      flex-shrink: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      position: sticky;
-      top: 0;
-      z-index: 50;
       gap: 16px;
-      flex-wrap: wrap;
     }
 
     .brand-link {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
       text-decoration: none;
       color: #fff;
       font-weight: 700;
-      font-size: 1.05rem;
+      font-size: 1rem;
       letter-spacing: -0.02em;
     }
 
     .brand-logo {
-      width: 26px;
-      height: 26px;
-      border-radius: 6px;
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
     }
 
     .version-tag {
       background: rgba(16, 185, 129, 0.1);
       border: 1px solid rgba(16, 185, 129, 0.25);
       color: #34d399;
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       font-weight: 700;
       font-family: var(--font-mono);
-      padding: 2px 8px;
+      padding: 2px 7px;
       border-radius: 999px;
     }
 
@@ -109,10 +133,10 @@
       display: flex;
       gap: 16px;
       align-items: center;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
     }
 
-    @media (max-width: 960px) {
+    @media (max-width: 980px) {
       .stats-ribbon { display: none; }
     }
 
@@ -134,14 +158,14 @@
     .header-actions {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .back-btn {
       color: var(--text-muted);
-      font-size: 0.84rem;
+      font-size: 0.8rem;
       text-decoration: none;
-      padding: 6px 12px;
+      padding: 5px 10px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
       background: rgba(255, 255, 255, 0.03);
@@ -152,26 +176,27 @@
       border-color: var(--border-hover);
     }
 
-    /* Subheader Toolbar */
+    /* Subheader Toolbar (Fixed 42px) */
     .playground-toolbar {
       background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
-      padding: 10px 24px;
+      padding: 6px 20px;
+      height: 42px;
+      flex-shrink: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 16px;
-      flex-wrap: wrap;
+      gap: 14px;
     }
 
     .preset-selector-wrap {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .toolbar-label {
-      font-size: 0.82rem;
+      font-size: 0.76rem;
       color: var(--text-muted);
       font-family: var(--font-mono);
       text-transform: uppercase;
@@ -183,12 +208,13 @@
       border: 1px solid var(--border);
       color: #fff;
       font-family: var(--font-mono);
-      font-size: 0.84rem;
-      padding: 6px 12px;
+      font-size: 0.8rem;
+      padding: 5px 10px;
       border-radius: var(--radius-sm);
       outline: none;
       cursor: pointer;
-      min-width: 320px;
+      min-width: 300px;
+      max-width: 420px;
     }
     .preset-select:focus {
       border-color: var(--brand);
@@ -199,34 +225,40 @@
       color: #03120b;
       font-weight: 700;
       border: none;
-      padding: 7px 18px;
+      padding: 5px 15px;
       border-radius: var(--radius-sm);
-      font-size: 0.84rem;
+      font-size: 0.8rem;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       transition: all 0.15s;
       font-family: var(--font-sans);
     }
     .run-btn:hover {
       background: #34d399;
-      transform: translateY(-1px);
     }
 
-    /* Main Split Layout */
+    /* Main Split Layout: Fills 100% Remaining Height */
     .playground-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      padding: 14px 20px;
+      gap: 10px;
+      padding: 10px 16px;
       flex: 1;
       min-height: 0;
+      height: calc(100vh - 48px - 42px - 120px);
     }
 
-    @media (max-width: 980px) {
+    @media (max-width: 900px) {
       .playground-grid {
         grid-template-columns: 1fr;
+        height: auto;
+        overflow-y: auto;
+      }
+      html, body {
+        height: auto;
+        overflow-y: auto;
       }
     }
 
@@ -238,23 +270,38 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+      height: 100%;
+      min-height: 0;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
     }
 
     .panel-header-tabs {
-      background: rgba(14, 14, 18, 0.85);
+      background: rgba(14, 14, 18, 0.95);
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0 12px;
-      min-height: 42px;
+      padding: 0 10px;
+      height: 38px;
+      flex-shrink: 0;
       overflow-x: auto;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+
+    .panel-header-tabs::-webkit-scrollbar,
+    .tab-group::-webkit-scrollbar {
+      display: none !important;
+      width: 0 !important;
+      height: 0 !important;
     }
 
     .tab-group {
       display: flex;
       gap: 2px;
+      overflow-x: auto;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
     }
 
     .panel-tab {
@@ -263,14 +310,15 @@
       border-bottom: 2px solid transparent;
       color: var(--text-muted);
       font-family: var(--font-mono);
-      font-size: 0.8rem;
-      padding: 10px 14px;
+      font-size: 0.78rem;
+      padding: 8px 11px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
       transition: all 0.15s;
       white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .panel-tab:hover {
@@ -280,7 +328,7 @@
     .panel-tab.active {
       color: #fff;
       border-bottom-color: var(--brand);
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.04);
     }
 
     .panel-tab.active.tab-python {
@@ -290,16 +338,17 @@
     .panel-controls {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+      flex-shrink: 0;
     }
 
     .mini-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
       color: var(--text-muted);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       font-family: var(--font-mono);
-      padding: 4px 10px;
+      padding: 3px 8px;
       border-radius: var(--radius-sm);
       cursor: pointer;
       transition: all 0.15s;
@@ -312,34 +361,36 @@
     /* Editor View */
     .editor-wrapper {
       flex: 1;
+      min-height: 0;
       display: flex;
       background: var(--bg-code);
       overflow: hidden;
-      min-height: 400px;
     }
 
     .line-gutter {
-      width: 44px;
-      padding: 16px 8px;
+      width: 40px;
+      padding: 12px 6px;
       text-align: right;
       color: var(--text-dim);
       font-family: var(--font-mono);
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       line-height: 1.6;
       user-select: none;
       border-right: 1px solid rgba(255, 255, 255, 0.05);
       background: #020204;
+      flex-shrink: 0;
     }
 
     .code-textarea {
       flex: 1;
+      min-height: 0;
       background: transparent;
       border: none;
       color: #e2e8f0;
       font-family: var(--font-mono);
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       line-height: 1.6;
-      padding: 16px;
+      padding: 12px 14px;
       outline: none;
       resize: none;
       white-space: pre;
@@ -349,9 +400,10 @@
 
     .python-code-view {
       flex: 1;
-      padding: 16px;
+      min-height: 0;
+      padding: 12px 14px;
       font-family: var(--font-mono);
-      font-size: 0.84rem;
+      font-size: 0.82rem;
       line-height: 1.6;
       color: #94a3b8;
       overflow: auto;
@@ -363,16 +415,18 @@
     /* Right Panel Inspector Views */
     .inspector-body {
       flex: 1;
+      min-height: 0;
       display: flex;
       flex-direction: column;
-      overflow-y: auto;
-      min-height: 400px;
+      overflow: hidden;
     }
 
     .inspector-view {
       display: none;
       flex: 1;
+      min-height: 0;
       flex-direction: column;
+      overflow: hidden;
     }
     .inspector-view.active {
       display: flex;
@@ -383,24 +437,24 @@
       background: #020305;
       position: relative;
       flex: 1;
-      min-height: 280px;
+      min-height: 120px;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
 
     #simCanvas {
       width: 100%;
       height: 100%;
-      min-height: 280px;
       display: block;
       cursor: crosshair;
     }
 
     .canvas-overlay-bar {
       position: absolute;
-      top: 10px;
-      left: 12px;
-      right: 12px;
+      top: 8px;
+      left: 10px;
+      right: 10px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -411,16 +465,16 @@
       background: rgba(7, 7, 9, 0.85);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 4px 10px;
+      padding: 3px 8px;
       font-family: var(--font-mono);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       color: #34d399;
       pointer-events: auto;
     }
 
     .canvas-controls-inline {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       pointer-events: auto;
     }
 
@@ -429,8 +483,8 @@
       border: 1px solid var(--border);
       color: var(--text-muted);
       font-family: var(--font-mono);
-      font-size: 0.72rem;
-      padding: 3px 8px;
+      font-size: 0.7rem;
+      padding: 2px 7px;
       border-radius: var(--radius-sm);
       cursor: pointer;
     }
@@ -442,27 +496,28 @@
     .bench-card {
       background: var(--bg-surface-elevated);
       border-top: 1px solid var(--border);
-      padding: 16px;
+      padding: 10px 14px;
+      flex-shrink: 0;
     }
 
     .bench-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
     }
 
     .bench-table th {
       text-align: left;
       color: var(--text-dim);
       font-family: var(--font-mono);
-      font-size: 0.72rem;
+      font-size: 0.7rem;
       text-transform: uppercase;
-      padding: 6px 10px;
+      padding: 4px 8px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .bench-table td {
-      padding: 10px;
+      padding: 6px 8px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       font-family: var(--font-mono);
     }
@@ -474,67 +529,70 @@
     .speedup-badge {
       display: inline-flex;
       align-items: center;
-      padding: 2px 8px;
+      padding: 2px 7px;
       border-radius: 4px;
       background: rgba(16, 185, 129, 0.12);
       border: 1px solid rgba(16, 185, 129, 0.3);
       color: #34d399;
       font-weight: 700;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
     }
 
     /* View 2: Deep Difference Breakdown */
     .diff-view-content {
-      padding: 20px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 12px;
     }
 
     .diff-card-item {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 16px;
+      padding: 12px;
     }
 
     .diff-item-title {
-      font-size: 0.92rem;
+      font-size: 0.88rem;
       font-weight: 700;
       color: #fff;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .diff-item-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 10px;
-      font-size: 0.8rem;
+      gap: 10px;
+      margin-top: 8px;
+      font-size: 0.78rem;
     }
 
     .diff-box-cpython {
       background: rgba(239, 68, 68, 0.05);
       border: 1px solid rgba(239, 68, 68, 0.2);
       border-radius: var(--radius-sm);
-      padding: 10px 12px;
+      padding: 8px 10px;
     }
 
     .diff-box-bmb {
       background: rgba(16, 185, 129, 0.05);
       border: 1px solid rgba(16, 185, 129, 0.2);
       border-radius: var(--radius-sm);
-      padding: 10px 12px;
+      padding: 8px 10px;
     }
 
     .diff-tag-cpython {
       color: #f87171;
       font-weight: 700;
       font-family: var(--font-mono);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       margin-bottom: 4px;
     }
 
@@ -542,43 +600,47 @@
       color: #34d399;
       font-weight: 700;
       font-family: var(--font-mono);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       margin-bottom: 4px;
     }
 
     /* View 3: Disassembly / WASM Bytecode */
     .disasm-view-content {
       flex: 1;
-      padding: 16px;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 12px 14px;
       background: var(--bg-code);
       font-family: var(--font-mono);
-      font-size: 0.8rem;
+      font-size: 0.78rem;
       line-height: 1.6;
       color: #7dd3fc;
       white-space: pre;
-      overflow: auto;
     }
 
     /* View 4: Memory / Stack Layout */
     .memory-view-content {
-      padding: 24px;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 16px;
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 14px;
     }
 
     .memory-schema-box {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 18px;
+      padding: 14px;
     }
 
     .schema-title {
-      font-size: 0.88rem;
+      font-size: 0.84rem;
       font-weight: 700;
       color: #fff;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .schema-blocks {
@@ -589,43 +651,47 @@
     }
 
     .schema-block {
-      padding: 8px 12px;
+      padding: 6px 10px;
       border-radius: 4px;
       font-family: var(--font-mono);
-      font-size: 0.76rem;
+      font-size: 0.74rem;
       text-align: center;
     }
     .sb-red { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
     .sb-green { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #86efac; }
     .sb-blue { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: #bae6fd; }
 
-    /* Bottom Terminal */
+    /* Bottom Terminal (Fixed 120px) */
     .terminal-section {
       background: #020205;
       border-top: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      height: 150px;
+      height: 120px;
+      flex-shrink: 0;
     }
 
     .term-bar {
-      background: rgba(14, 14, 18, 0.9);
+      background: rgba(14, 14, 18, 0.95);
       border-bottom: 1px solid var(--border);
-      padding: 6px 16px;
+      padding: 4px 16px;
+      height: 26px;
+      flex-shrink: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-family: var(--font-mono);
-      font-size: 0.74rem;
+      font-size: 0.72rem;
       color: var(--text-muted);
     }
 
     .term-body {
       flex: 1;
-      padding: 12px 18px;
+      min-height: 0;
+      padding: 8px 16px;
       font-family: var(--font-mono);
-      font-size: 0.8rem;
-      line-height: 1.55;
+      font-size: 0.78rem;
+      line-height: 1.5;
       color: #34d399;
       overflow-y: auto;
       white-space: pre-wrap;
@@ -723,16 +789,16 @@
       <div class="panel-header-tabs">
         <div class="tab-group">
           <button class="panel-tab active" id="tabViewCanvas" onclick="switchInspectorTab('canvas')">
-            Interactive Canvas &amp; Telemetry
+            Canvas &amp; Simulation
           </button>
           <button class="panel-tab" id="tabViewDiff" onclick="switchInspectorTab('diff')">
-            Python vs BMB Difference
+            Language Diff
           </button>
           <button class="panel-tab" id="tabViewDisasm" onclick="switchInspectorTab('disasm')">
-            Machine Code / WASM
+            Machine Code
           </button>
           <button class="panel-tab" id="tabViewMemory" onclick="switchInspectorTab('memory')">
-            Memory &amp; Stack Layout
+            Memory Layout
           </button>
         </div>
 
@@ -1456,9 +1522,12 @@ External ML Dependencies: ZERO (Pure Native Execution)`
 
     function resizeCanvas() {
       const p = canvas.parentElement;
-      if (p && p.clientWidth > 0) {
+      if (p && p.clientWidth > 0 && p.clientHeight > 0) {
         width = canvas.width = Math.floor(p.clientWidth);
-        height = canvas.height = Math.max(Math.floor(p.clientHeight || 280), 280);
+        height = canvas.height = Math.floor(p.clientHeight);
+      } else if (p && p.clientWidth > 0) {
+        width = canvas.width = Math.floor(p.clientWidth);
+        height = canvas.height = 200;
       }
     }
 
@@ -1518,6 +1587,10 @@ External ML Dependencies: ZERO (Pure Native Execution)`
       lastTime = now;
       frameCount++;
       fpsTimer += delta;
+
+      if (frameCount < 5 || width <= 10 || height <= 10) {
+        resizeCanvas();
+      }
 
       if (fpsTimer >= 0.5) {
         const fps = Math.round(frameCount / fpsTimer);
