@@ -1297,6 +1297,25 @@ class ELF64ExecutableBuilder:
         buf.ret()
 
         # fn____bmb_file_remove(rcx=path) -> rax=bool (1 or 0)
+        # Process primitives stubs
+        buf.mark_label("fn____bmb_process_run")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.emit(b"\x48\x31\xC0", "xor rax, rax")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+
+        buf.mark_label("fn____bmb_process_stdout")
+        buf.emit(b"\x48\x8D\x05\x00\x00\x00\x00", "lea rax, [rip + lbl__rodata_empty]")
+        buf.rel32_fixups.append((len(buf.code) - 4, "lbl__rodata_empty"))
+        buf.ret()
+
+        buf.mark_label("fn____bmb_process_stderr")
+        buf.emit(b"\x48\x8D\x05\x00\x00\x00\x00", "lea rax, [rip + lbl__rodata_empty]")
+        buf.rel32_fixups.append((len(buf.code) - 4, "lbl__rodata_empty"))
+        buf.ret()
+
         buf.mark_label("fn____bmb_file_remove")
         buf.push_rbp()
         buf.mov_rbp_rsp()
@@ -1781,7 +1800,7 @@ class ELF64ExecutableBuilder:
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
             "__bmb_file_write_bytes", "__bmb_file_read_bytes",
-            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env", "__bmb_process_run", "__bmb_process_stdout", "__bmb_process_stderr",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
             "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",

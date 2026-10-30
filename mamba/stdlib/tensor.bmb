@@ -183,3 +183,88 @@ def tensor_add_bias(data: List[f64], bias: List[f64], rows: i64, cols: i64) -> i
         for c in 0..cols:
             data[row_off + c] = data[row_off + c] + bias[c]
     return rows * cols
+
+# --- Edge AI & LLM Transformer Primitives ---
+
+def tensor_rmsnorm(x: List[f64], out: List[f64], weight: List[f64], n: i64, eps: f64) -> i64:
+    ss = 0.0
+    for i in 0..n:
+        v = x[i]
+        ss = ss + v * v
+    rms = sqrt(ss / float(n) + eps)
+    for i in 0..n:
+        out[i] = (x[i] / rms) * weight[i]
+    return n
+
+def tensor_softmax(x: List[f64], out: List[f64], n: i64) -> i64:
+    if n <= 0:
+        return 0
+    m = tensor_max(x, n)
+    sum_exp = 0.0
+    for i in 0..n:
+        val = exp(x[i] - m)
+        out[i] = val
+        sum_exp = sum_exp + val
+    if sum_exp > 0.0:
+        inv = 1.0 / sum_exp
+        for i in 0..n:
+            out[i] = out[i] * inv
+    return n
+
+def tensor_silu(x: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        v = x[i]
+        sig = 1.0 / (1.0 + exp(0.0 - v))
+        out[i] = v * sig
+    return n
+
+def tensor_swiglu(gate: List[f64], up: List[f64], out: List[f64], n: i64) -> i64:
+    for i in 0..n:
+        v = gate[i]
+        sig = 1.0 / (1.0 + exp(0.0 - v))
+        silu = v * sig
+        out[i] = silu * up[i]
+    return n
+
+# --- Quantized Block Dot-Product GEMV Primitives (Q8_0 & Q4_0) ---
+
+def q8_0_dot(weights: List[i64], x: List[f64], n: i64, scale: f64) -> f64:
+    acc = 0.0
+    for i in 0..n:
+        w_val = float(weights[i])
+        acc = acc + w_val * x[i]
+    return acc * scale
+
+def q4_0_dot(packed_weights: List[i64], x: List[f64], n: i64, scale: f64) -> f64:
+    acc = 0.0
+    half_n = n / 2
+    for i in 0..half_n:
+        byte_val = packed_weights[i]
+        low = (byte_val & 15) - 8
+        high = ((byte_val >> 4) & 15) - 8
+        acc = acc + float(low) * x[i * 2]
+        acc = acc + float(high) * x[i * 2 + 1]
+    return acc * scale
+
+# --- GGUF Local Model File Format Primitives ---
+
+GGUF_MAGIC = 1179993927
+
+struct GGUFHeader:
+    magic: i64
+    version: i64
+    tensor_count: i64
+    metadata_kv_count: i64
+    valid: bool
+
+def gguf_validate_magic(magic: i64) -> bool:
+    return magic == GGUF_MAGIC or magic == 1195857222
+
+def gguf_parse_header(buf: List[i64], offset: i64) -> GGUFHeader:
+    magic = buf[offset]
+    is_valid = gguf_validate_magic(magic)
+    version = buf[offset + 1]
+    tensors = buf[offset + 2]
+    meta_kvs = buf[offset + 3]
+    return GGUFHeader(magic, version, tensors, meta_kvs, is_valid)
+

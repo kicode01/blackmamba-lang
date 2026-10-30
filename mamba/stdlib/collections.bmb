@@ -1,0 +1,263 @@
+# Black Mamba Standard Library: collections.bmb
+# High-performance collections: Deque, Counter, DefaultDict, OrderedDict
+# 100% pure native Black Mamba | Zero external dependencies | Cache-friendly contiguous storage
+
+struct Deque:
+    data: Array[i64]
+    head: i64
+    tail: i64
+    count: i64
+    capacity: i64
+
+    def push_back(self, val: i64) -> bool:
+        if self.count >= self.capacity:
+            return False
+        self.data[self.tail] = val
+        self.tail = (self.tail + 1) % self.capacity
+        self.count += 1
+        return True
+
+    def push_front(self, val: i64) -> bool:
+        if self.count >= self.capacity:
+            return False
+        self.head = (self.head - 1 + self.capacity) % self.capacity
+        self.data[self.head] = val
+        self.count += 1
+        return True
+
+    def pop_front(self) -> i64:
+        if self.count == 0:
+            return 0
+        val = self.data[self.head]
+        self.head = (self.head + 1) % self.capacity
+        self.count -= 1
+        return val
+
+    def pop_back(self) -> i64:
+        if self.count == 0:
+            return 0
+        self.tail = (self.tail - 1 + self.capacity) % self.capacity
+        val = self.data[self.tail]
+        self.count -= 1
+        return val
+
+    def peek_front(self) -> i64:
+        if self.count == 0:
+            return 0
+        return self.data[self.head]
+
+    def peek_back(self) -> i64:
+        if self.count == 0:
+            return 0
+        idx = (self.tail - 1 + self.capacity) % self.capacity
+        return self.data[idx]
+
+    def keys_in_order(self) -> Array[str]:
+        return self.keys
+
+    def len(self) -> i64:
+        return self.count
+
+    def is_empty(self) -> bool:
+        return self.count == 0
+
+    def clear(self) -> i64:
+        self.head = 0
+        self.tail = 0
+        self.count = 0
+        return 0
+
+    def get(self, idx: i64) -> i64:
+        if idx < 0 or idx >= self.count:
+            return 0
+        actual_idx = (self.head + idx) % self.capacity
+        return self.data[actual_idx]
+
+def new_deque(capacity: i64 = 64) -> Deque:
+    cap = capacity
+    if cap <= 0:
+        cap = 16
+    arr = [0] * cap
+    return Deque(arr, 0, 0, 0, cap)
+
+struct Counter:
+    keys: Array[str]
+    counts: Array[i64]
+    size: i64
+    capacity: i64
+
+    def inc(self, key: str, amount: i64 = 1) -> i64:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                self.counts[i] += amount
+                return self.counts[i]
+        if self.size < self.capacity:
+            idx = self.size
+            self.keys[idx] = key
+            self.counts[idx] = amount
+            self.size += 1
+            return amount
+        return 0
+
+    def get(self, key: str, default_val: i64 = 0) -> i64:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                return self.counts[i]
+        return default_val
+
+    def update(self, key: str) -> i64:
+        return self.inc(key, 1)
+
+    def total(self) -> i64:
+        tot = 0
+        for i in 0..self.size:
+            tot += self.counts[i]
+        return tot
+
+    def most_common_key(self) -> str:
+        if self.size == 0:
+            return ""
+        max_idx = 0
+        max_val = self.counts[0]
+        for i in 1..self.size:
+            if self.counts[i] > max_val:
+                max_val = self.counts[i]
+                max_idx = i
+        return self.keys[max_idx]
+
+    def most_common_count(self) -> i64:
+        if self.size == 0:
+            return 0
+        max_val = self.counts[0]
+        for i in 1..self.size:
+            if self.counts[i] > max_val:
+                max_val = self.counts[i]
+        return max_val
+
+    def keys_in_order(self) -> Array[str]:
+        return self.keys
+
+    def len(self) -> i64:
+        return self.size
+
+def new_counter(capacity: i64 = 64) -> Counter:
+    cap = capacity
+    if cap <= 0:
+        cap = 16
+    k_arr = [""] * cap
+    c_arr = [0] * cap
+    return Counter(k_arr, c_arr, 0, cap)
+
+struct DefaultDict:
+    keys: Array[str]
+    values: Array[i64]
+    default_val: i64
+    size: i64
+    capacity: i64
+
+    def get(self, key: str) -> i64:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                return self.values[i]
+        if self.size < self.capacity:
+            idx = self.size
+            self.keys[idx] = key
+            self.values[idx] = self.default_val
+            self.size += 1
+            return self.default_val
+        return self.default_val
+
+    def set(self, key: str, val: i64) -> bool:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                self.values[i] = val
+                return True
+        if self.size < self.capacity:
+            idx = self.size
+            self.keys[idx] = key
+            self.values[idx] = val
+            self.size += 1
+            return True
+        return False
+
+    def has(self, key: str) -> bool:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                return True
+        return False
+
+    def keys_in_order(self) -> Array[str]:
+        return self.keys
+
+    def len(self) -> i64:
+        return self.size
+
+def new_defaultdict(default_val: i64 = 0, capacity: i64 = 64) -> DefaultDict:
+    cap = capacity
+    if cap <= 0:
+        cap = 16
+    k_arr = [""] * cap
+    v_arr = [0] * cap
+    return DefaultDict(k_arr, v_arr, default_val, 0, cap)
+
+struct OrderedDict:
+    keys: Array[str]
+    values: Array[str]
+    size: i64
+    capacity: i64
+
+    def set(self, key: str, val: str) -> bool:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                self.values[i] = val
+                return True
+        if self.size < self.capacity:
+            idx = self.size
+            self.keys[idx] = key
+            self.values[idx] = val
+            self.size += 1
+            return True
+        return False
+
+    def get(self, key: str, default_val: str = "") -> str:
+        for i in 0..self.size:
+            if self.keys[i] == key:
+                return self.values[i]
+        return default_val
+
+    def key_at(self, idx: i64) -> str:
+        if idx < 0 or idx >= self.size:
+            return ""
+        return self.keys[idx]
+
+    def val_at(self, idx: i64) -> str:
+        if idx < 0 or idx >= self.size:
+            return ""
+        return self.values[idx]
+
+    def keys_in_order(self) -> Array[str]:
+        return self.keys
+
+    def len(self) -> i64:
+        return self.size
+
+def new_ordered_dict(capacity: i64 = 64) -> OrderedDict:
+    cap = capacity
+    if cap <= 0:
+        cap = 16
+    k_arr = [""] * cap
+    v_arr = [""] * cap
+    return OrderedDict(k_arr, v_arr, 0, cap)
+
+
+def deque_new(capacity: i64 = 64) -> Deque:
+    return new_deque(capacity)
+
+def counter_new(capacity: i64 = 64) -> Counter:
+    return new_counter(capacity)
+
+def default_dict_new(capacity: i64 = 64, default_val: i64 = 0) -> DefaultDict:
+    return new_defaultdict(default_val, capacity)
+
+def ordered_dict_new(capacity: i64 = 64) -> OrderedDict:
+    return new_ordered_dict(capacity)

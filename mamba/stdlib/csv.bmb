@@ -1,0 +1,150 @@
+# Black Mamba Standard Library: csv
+# High-performance, zero-overhead CSV/TSV parser and serializer
+# 100% pure native Black Mamba (.bmb)
+
+import os
+
+struct CsvDoc:
+    num_rows: i64
+    num_cols: i64
+    delimiter: str
+    cells: Array[str]
+    capacity: i64
+
+    def get(self, row: i64, col: i64) -> str:
+        if row < 0 or row >= self.num_rows or col < 0 or col >= self.num_cols:
+            return ""
+        return self.cells[row * self.num_cols + col]
+
+    def set(self, row: i64, col: i64, val: str) -> bool:
+        if row < 0 or row >= self.num_rows or col < 0 or col >= self.num_cols:
+            return False
+        self.cells[row * self.num_cols + col] = val
+        return True
+
+    def rows(self) -> i64:
+        return self.num_rows
+
+    def cols(self) -> i64:
+        return self.num_cols
+
+def csv_new(rows: i64, cols: i64, delimiter: str) -> CsvDoc:
+    cap = rows * cols
+    if cap <= 0:
+        cap = 1
+    arr = [""] * cap
+    return CsvDoc(rows, cols, delimiter, arr, cap)
+
+def csv_parse(text: str, delimiter: str) -> CsvDoc:
+    let tlen = len(text)
+    if tlen == 0:
+        return csv_new(0, 0, delimiter)
+
+    let delim_code = ord(delimiter[0])
+    let quote_code = 34
+    let nl_code = 10
+    let cr_code = 13
+
+    # Pass 1: Count rows and max columns
+    let row_count = 0
+    let max_cols = 0
+    let cur_cols = 1
+    let in_quote = False
+    let pos = 0
+
+    while pos < tlen:
+        let c = ord(text[pos])
+        if c == quote_code:
+            in_quote = not in_quote
+        elif not in_quote and c == delim_code:
+            cur_cols += 1
+        elif not in_quote and (c == nl_code or (c == cr_code and (pos + 1 == tlen or ord(text[pos + 1]) != nl_code))):
+            row_count += 1
+            if cur_cols > max_cols:
+                max_cols = cur_cols
+            cur_cols = 1
+        pos += 1
+
+    if pos > 0 and ord(text[pos - 1]) != nl_code and ord(text[pos - 1]) != cr_code:
+        row_count += 1
+        if cur_cols > max_cols:
+            max_cols = cur_cols
+
+    if row_count == 0:
+        return csv_new(0, 0, delimiter)
+    if max_cols == 0:
+        max_cols = 1
+
+    let doc = csv_new(row_count, max_cols, delimiter)
+
+    # Pass 2: Extract cells
+    pos = 0
+    let r = 0
+    let c = 0
+    let cell_start = 0
+    let cell_has_quotes = False
+    in_quote = False
+
+    while pos < tlen and r < row_count:
+        let ch = ord(text[pos])
+        if ch == quote_code:
+            in_quote = not in_quote
+            cell_has_quotes = True
+            pos += 1
+        elif not in_quote and ch == delim_code:
+            let cell_end = pos
+            let raw = text[cell_start:cell_end]
+            if cell_has_quotes and len(raw) >= 2 and ord(raw[0]) == quote_code and ord(raw[len(raw) - 1]) == quote_code:
+                raw = raw[1:len(raw) - 1]
+            if c < max_cols:
+                doc.set(r, c, raw)
+            c += 1
+            pos += 1
+            cell_start = pos
+            cell_has_quotes = False
+        elif not in_quote and (ch == nl_code or ch == cr_code):
+            let cell_end = pos
+            let raw = text[cell_start:cell_end]
+            if cell_has_quotes and len(raw) >= 2 and ord(raw[0]) == quote_code and ord(raw[len(raw) - 1]) == quote_code:
+                raw = raw[1:len(raw) - 1]
+            if c < max_cols:
+                doc.set(r, c, raw)
+            r += 1
+            c = 0
+            if ch == cr_code and pos + 1 < tlen and ord(text[pos + 1]) == nl_code:
+                pos += 2
+            else:
+                pos += 1
+            cell_start = pos
+            cell_has_quotes = False
+        else:
+            pos += 1
+
+    if r < row_count and cell_start <= tlen:
+        let raw = text[cell_start:tlen]
+        if cell_has_quotes and len(raw) >= 2 and ord(raw[0]) == quote_code and ord(raw[len(raw) - 1]) == quote_code:
+            raw = raw[1:len(raw) - 1]
+        if c < max_cols:
+            doc.set(r, c, raw)
+
+    return doc
+
+def csv_dumps(doc: CsvDoc) -> str:
+    let out = ""
+    for r in 0..doc.num_rows:
+        let line = ""
+        for c in 0..doc.num_cols:
+            let cell = doc.get(r, c)
+            if c > 0:
+                line = line + doc.delimiter
+            line = line + cell
+        out = out + line + "\n"
+    return out
+
+def csv_read_file(path: str, delimiter: str) -> CsvDoc:
+    let content = os.read_file(path)
+    return csv_parse(content, delimiter)
+
+def csv_write_file(path: str, doc: CsvDoc) -> i64:
+    let content = csv_dumps(doc)
+    return os.write_file(path, content)

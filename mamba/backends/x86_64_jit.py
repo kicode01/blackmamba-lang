@@ -1823,6 +1823,31 @@ class NativeJITModule:
             return make_str_handle(res.encode("utf-8"))
 
         self._exit_code_override: Optional[int] = None
+        self._last_process_stdout: str = ""
+        self._last_process_stderr: str = ""
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_bmb_process_run(cmd_val: int) -> int:
+            cmd_bytes = get_str_bytes(cmd_val)
+            cmd = cmd_bytes.decode("utf-8", errors="replace")
+            import subprocess
+            try:
+                res = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+                self._last_process_stdout = res.stdout
+                self._last_process_stderr = res.stderr
+                return int(res.returncode)
+            except Exception as e:
+                self._last_process_stdout = ""
+                self._last_process_stderr = str(e)
+                return -1
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_process_stdout() -> int:
+            return make_str_handle(self._last_process_stdout.encode("utf-8"))
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64)
+        def rt_bmb_process_stderr() -> int:
+            return make_str_handle(self._last_process_stderr.encode("utf-8"))
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
         def rt_bmb_exit(code: int) -> int:
@@ -1835,6 +1860,7 @@ class NativeJITModule:
             rt_py_import, rt_py_getattr, rt_py_setattr,
             rt_py_to_i64, rt_py_to_f64, rt_py_to_str,
             rt_bmb_exit,
+            rt_bmb_process_run, rt_bmb_process_stdout, rt_bmb_process_stderr,
         ])
         self.addr_py_call_f64 = ctypes.cast(rt_py_call_f64, ctypes.c_void_p).value
         self.addr_py_call_str = ctypes.cast(rt_py_call_str, ctypes.c_void_p).value
@@ -1851,6 +1877,9 @@ class NativeJITModule:
         self.addr_py_to_f64 = ctypes.cast(rt_py_to_f64, ctypes.c_void_p).value
         self.addr_py_to_str = ctypes.cast(rt_py_to_str, ctypes.c_void_p).value
         self.addr_bmb_exit = ctypes.cast(rt_bmb_exit, ctypes.c_void_p).value
+        self.addr_bmb_process_run = ctypes.cast(rt_bmb_process_run, ctypes.c_void_p).value
+        self.addr_bmb_process_stdout = ctypes.cast(rt_bmb_process_stdout, ctypes.c_void_p).value
+        self.addr_bmb_process_stderr = ctypes.cast(rt_bmb_process_stderr, ctypes.c_void_p).value
 
     def _write_out(self, text: str) -> None:
         self.printed_lines.append(text)
@@ -1947,6 +1976,9 @@ class NativeJITModule:
             ("__bmb_mem_alloc", self.addr_bmb_mem_alloc),
             ("__bmb_mem_free", self.addr_bmb_mem_free),
             ("__bmb_exit", self.addr_bmb_exit),
+            ("__bmb_process_run", self.addr_bmb_process_run),
+            ("__bmb_process_stdout", self.addr_bmb_process_stdout),
+            ("__bmb_process_stderr", self.addr_bmb_process_stderr),
         ]
         for name, addr in os_trampolines:
             self.code_buf.mark_label(f"fn__{name}")

@@ -1238,6 +1238,7 @@ class TypeInferencer:
                 "py_getattr", "__bmb_py_getattr", "py_setattr", "__bmb_py_setattr",
                 "py_call_method", "__bmb_py_call_method", "py_int", "__bmb_py_int",
                 "py_call", "__bmb_py_call", "py_call_any",
+                "__bmb_process_run",
             ):
                 if expr.func in ("abs", "min", "max") and any(t == "f64" for t in arg_types):
                     expr.inferred_type = "f64"
@@ -1263,7 +1264,7 @@ class TypeInferencer:
             if expr.func in ("bool", "__bmb_file_exists", "__bmb_file_remove"):
                 expr.inferred_type = "bool"
                 return "bool"
-            if expr.func in ("str", "chr", "__bmb_file_read", "__bmb_get_cwd", "__bmb_get_env", "__bmb_socket_recv"):
+            if expr.func in ("str", "chr", "__bmb_file_read", "__bmb_get_cwd", "__bmb_get_env", "__bmb_socket_recv", "__bmb_process_stdout", "__bmb_process_stderr"):
                 expr.inferred_type = "str"
                 return "str"
             if expr.func == "print":

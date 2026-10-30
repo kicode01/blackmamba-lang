@@ -881,6 +881,16 @@ class MachOARM64ExecutableBuilder:
         buf.mov_reg_imm64(0, 0)
         buf.ret()
 
+        # Process primitives stubs
+        buf.mark_label("fn____bmb_process_run")
+        buf.emit32(0xD65F03C0, "ret")
+
+        buf.mark_label("fn____bmb_process_stdout")
+        buf.emit32(0xD65F03C0, "ret")
+
+        buf.mark_label("fn____bmb_process_stderr")
+        buf.emit32(0xD65F03C0, "ret")
+
         buf.mark_label("fn____bmb_file_remove")
         buf.mov_reg_imm64(0, 1)
         buf.ret()
@@ -1085,7 +1095,7 @@ class MachOARM64ExecutableBuilder:
         self.known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
             "__bmb_file_write_bytes", "__bmb_file_read_bytes",
-            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env", "__bmb_process_run", "__bmb_process_stdout", "__bmb_process_stderr",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
             "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",

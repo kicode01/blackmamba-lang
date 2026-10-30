@@ -291,7 +291,7 @@ class PE32PlusExecutableBuilder:
                 [
                     "printf", "calloc", "free", "pow", "fflush",
                     "fopen", "fread", "fwrite", "fclose", "fseek", "ftell",
-                    "remove", "_getcwd", "getenv", "sprintf", "atof",
+                    "remove", "_getcwd", "getenv", "sprintf", "atof", "system",
                 ],
             ),
             (
@@ -1860,6 +1860,48 @@ class PE32PlusExecutableBuilder:
         buf.ret()
         self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x30))
 
+        # Process primitives
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_process_run")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x40)
+        buf.emit(b"\xF6\xC1\x01", "test cl, 1")
+        buf.jcc_rel32(0x84, "z", "rt__prun_ptr")
+        buf.emit(b"\x48\x89\xC8", "mov rax, rcx")
+        buf.emit(b"\x48\xC1\xE8\x08", "shr rax, 8")
+        buf.emit(b"\x48\x89\x45\xF0", "mov [rbp - 0x10], rax")
+        buf.emit(b"\x48\xC7\x45\xF8\x00\x00\x00\x00", "mov qword ptr [rbp - 0x08], 0")
+        buf.emit(b"\x48\x8D\x4D\xF0", "lea rcx, [rbp - 0x10]")
+        buf.mark_label("rt__prun_ptr")
+        self._emit_call_iat(self.iat_rvas["system"], "msvcrt!system")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x40))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_process_stdout")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x20)
+        self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x20))
+
+        f_start = len(buf.code)
+        buf.mark_label("fn____bmb_process_stderr")
+        buf.push_rbp()
+        buf.mov_rbp_rsp()
+        buf.sub_rsp_imm32(0x20)
+        self._emit_lea_rax_rva(self.builtin_rvas["str_empty"], "str_empty")
+        buf.mov_rsp_rbp()
+        buf.pop_rbp()
+        buf.ret()
+        self.func_entries.append((f_start, len(buf.code), "rbp_frame", 0x20))
+
         # Socket primitives
         f_start = len(buf.code)
         buf.mark_label("fn____bmb_socket_init")
@@ -2341,7 +2383,7 @@ class PE32PlusExecutableBuilder:
         known_fn_names.update([
             "__bmb_file_exists", "__bmb_file_size", "__bmb_file_read", "__bmb_file_write",
             "__bmb_file_write_bytes", "__bmb_file_read_bytes",
-            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env",
+            "__bmb_file_remove", "__bmb_get_cwd", "__bmb_get_env", "__bmb_process_run", "__bmb_process_stdout", "__bmb_process_stderr",
             "__bmb_socket_init", "__bmb_socket_cleanup", "__bmb_socket_create",
             "__bmb_socket_connect", "__bmb_socket_bind", "__bmb_socket_listen",
             "__bmb_socket_accept", "__bmb_socket_send", "__bmb_socket_recv",

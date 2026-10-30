@@ -388,12 +388,109 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+
+
+def cmd_profile(args: argparse.Namespace) -> int:
+    from .profile import Profiler
+    if not os.path.exists(args.file):
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        return 1
+    with open(args.file, "r", encoding="utf-8") as f:
+        source = f.read()
+
+    mir = compile_source_to_mir(source, args.file)
+    profiler = Profiler(mir)
+    print(f"[Black Mamba Profiler] Profiling {args.file} ({args.iterations} iteration(s))...")
+    times = profiler.profile_execution(iterations=args.iterations)
+
+    total_sec = sum(times.values())
+    print("\n--- Execution Profile Summary ---")
+    print(f"{'Function':<30} {'Time (ms)':<15} {'Share (%)':<10}")
+    print("-" * 55)
+    sorted_times = sorted(times.items(), key=lambda x: x[1], reverse=True)
+    for name, t in sorted_times[:args.top]:
+        pct = (t / total_sec * 100.0) if total_sec > 0 else 0.0
+        print(f"{name:<30} {t*1000.0:<15.3f} {pct:<10.1f}%")
+    print("-" * 55)
+    print(f"Total Time: {total_sec*1000.0:.3f} ms\n")
+
+    out_svg = args.output or "profile_flamegraph.svg"
+    profiler.generate_flamegraph_svg(out_svg, title=f"Profile: {os.path.basename(args.file)}")
+    print(f"[Black Mamba Profiler] Interactive flamegraph generated at: {out_svg}")
+    return 0
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    target_path = args.path or "."
+    test_files = []
+    if os.path.isfile(target_path):
+        test_files.append(target_path)
+    else:
+        for root, _, files in os.walk(target_path):
+            for file in files:
+                if (file.startswith("test_") or file.endswith("_test.bmb")) and file.endswith(".bmb"):
+                    test_files.append(os.path.join(root, file))
+
+    if not test_files:
+        print(f"[Black Mamba Test Runner] No test files found matching test_*.bmb in '{target_path}'")
+        return 0
+
+    print(f"[Black Mamba Test Runner] Discovered {len(test_files)} test suite(s)...")
+    passed = 0
+    failed = 0
+    t_start = time.perf_counter()
+
+    for path in test_files:
+        print(f"\nRunning {path}:")
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                source = f.read()
+            mir = compile_source_to_mir(source, path)
+            jit = NativeJITModule(mir, output_callback=_safe_write)
+
+            test_funcs = [fn.name for fn in mir.functions if fn.name.startswith("test_") and len(fn.params) == 0]
+            if not test_funcs:
+                ret = jit.run_main()
+                if ret == 0 or ret is None:
+                    _safe_write("  [PASS] main PASSED\n")
+                    passed += 1
+                else:
+                    _safe_write(f"  [FAIL] main FAILED (exit code {ret})\n")
+                    failed += 1
+            else:
+                for fn_name in test_funcs:
+                    try:
+                        ret = jit.call_function(fn_name)
+                        if ret == 0 or ret is None or ret is True or ret == 1:
+                            _safe_write(f"  [PASS] {fn_name} PASSED\n")
+                            passed += 1
+                        else:
+                            _safe_write(f"  [FAIL] {fn_name} FAILED (returned {ret})\n")
+                            failed += 1
+                    except Exception as e:
+                        _safe_write(f"  [ERROR] {fn_name} ERROR: {e}\n")
+                        failed += 1
+        except Exception as e:
+            _safe_write(f"  [ERROR] Failed to compile/execute {path}: {e}\n")
+            failed += 1
+
+    elapsed = (time.perf_counter() - t_start) * 1000.0
+    _safe_write("\n" + "=" * 50 + "\n")
+    _safe_write(f"Results: {passed} passed, {failed} failed in {elapsed:.2f} ms\n")
+    if failed == 0:
+        _safe_write("ALL TESTS PASSED!\n")
+        return 0
+    else:
+        _safe_write("TEST FAILURES OCCURRED!\n")
+        return 1
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
 
     # Drop-in execution support: `bmb script.py` or `bmb script.bmb`
     raw_args = list(argv if argv is not None else sys.argv[1:])
-    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate"}
+    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate", "profile", "test"}
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
             raw_args.insert(0, "run")
@@ -463,6 +560,15 @@ def main(argv: Optional[list] = None) -> int:
     p_mig.add_argument("path", help="Path to Python file (.py) or project directory to migrate")
     p_mig.add_argument("--output", "-o", help="Output .bmb file path or destination directory")
 
+    p_prof = sub.add_parser("profile", help="Profile a .bmb program and generate an interactive SVG flamegraph")
+    p_prof.add_argument("file", help="Path to .bmb source file to profile")
+    p_prof.add_argument("--output", "-o", help="Output path for interactive SVG flamegraph (default: profile_flamegraph.svg)")
+    p_prof.add_argument("--iterations", "-n", type=int, default=1, help="Number of benchmark iterations (default: 1)")
+    p_prof.add_argument("--top", type=int, default=10, help="Number of top functions to display in summary table (default: 10)")
+
+    p_test = sub.add_parser("test", help="Discover and run automated tests (*_test.bmb or test_*.bmb)")
+    p_test.add_argument("path", nargs="?", default=".", help="Directory or file path to test (default: current directory)")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -485,6 +591,10 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_bindgen(args)
     if args.command == "migrate":
         return cmd_migrate(args)
+    if args.command == "profile":
+        return cmd_profile(args)
+    if args.command == "test":
+        return cmd_test(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

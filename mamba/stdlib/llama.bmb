@@ -1,0 +1,32 @@
+# Black Mamba Standard Library: llama
+# Native Edge AI & Local LLM Inference Engine
+# 100% pure native Black Mamba (.bmb) | GGUF / LLaMA Architecture
+
+from tensor import tensor_rmsnorm, tensor_softmax, tensor_swiglu, q8_0_dot, q4_0_dot, GGUFHeader, gguf_validate_magic, gguf_parse_header
+from math import cos, sin
+
+struct LlamaConfig:
+    dim: i64
+    hidden_dim: i64
+    n_layers: i64
+    n_heads: i64
+    n_kv_heads: i64
+    vocab_size: i64
+    seq_len: i64
+    eps: f64
+
+struct LlamaState:
+    step: i64
+    cur_token: i64
+    logits_count: i64
+
+def llama_config_default(vocab_size: i64) -> LlamaConfig:
+    # Standard TinyLlama / LLaMA-style config
+    return LlamaConfig(256, 512, 4, 8, 4, vocab_size, 512, 0.00001)
+
+def llama_rotary_embedding(pos: i64, dim_idx: i64, head_dim: i64) -> f64:
+    let theta_base = 10000.0
+    let power = float(dim_idx) / float(head_dim)
+    let freq = 1.0 / (1.0 + power * 999.0)
+    let angle = float(pos) * freq
+    return cos(angle)

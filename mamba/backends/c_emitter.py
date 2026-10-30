@@ -245,6 +245,18 @@ class C11Backend:
             "#endif",
             "}",
             "",
+            "static inline int64_t bmb___bmb_process_run(const char* cmd) {",
+            "    return (int64_t)system(cmd);",
+            "}",
+            "",
+            "static inline const char* bmb___bmb_process_stdout(void) {",
+            "    return \"\";",
+            "}",
+            "",
+            "static inline const char* bmb___bmb_process_stderr(void) {",
+            "    return \"\";",
+            "}",
+            "",
             "static inline int64_t bmb_str_len(const char* s) {",
             "    return (int64_t)strlen(s);",
             "}",
@@ -526,6 +538,7 @@ class C11Backend:
             "__bmb_thread_id", "__bmb_thread_yield", "__bmb_thread_sleep",
             "__bmb_mem_alloc", "__bmb_mem_free", "__bmb_mem_read", "__bmb_mem_write", "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
             "__bmb_alloc_root_get", "__bmb_alloc_root_set", "__bmb_rt_slot_get", "__bmb_rt_slot_set", "__bmb_exit",
+            "__bmb_process_run", "__bmb_process_stdout", "__bmb_process_stderr",
         }
 
         # Foreign C declarations & forwarding stubs

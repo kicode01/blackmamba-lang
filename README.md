@@ -7,9 +7,9 @@
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
 
-[![Release](https://img.shields.io/badge/release-v1.4.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v1.4.0)
+[![Release](https://img.shields.io/badge/release-v1.5.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v1.5.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-71%2F71%20(100%25)-success?style=for-the-badge)](tests/test_phase3_bridge_migrate.py)
+[![Test Suite](https://img.shields.io/badge/tests-83%2F83%20(100%25)-success?style=for-the-badge)](tests/test_phase3_bridge_migrate.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
 [![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
 [![Targets](https://img.shields.io/badge/targets-Win64%20%7C%20Linux%20ELF64%20%7C%20macOS%20ARM64%20%7C%20WASM%20%7C%20Bare--Metal-blueviolet?style=for-the-badge)](#-visual-architecture-cpython-vs-black-mamba)
@@ -17,14 +17,14 @@
 
 ---
 
-**Black Mamba (`v1.4.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
+**Black Mamba (`v1.5.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
 
-In **v1.4.0**, Black Mamba cements itself as both an **independent standalone competitor** and a **seamless drop-in upgrade** to Python by delivering:
-1. **Universal Transparent Python Bridge**: Seamless interop syntax (`from python import math, sys, os`, `from python.<pkg> import ...`) with bidirectional dynamic dispatch and zero-copy tensor/buffer pointer sharing (`Py_buffer`).
-2. **Automated Migration Engine (`bmb migrate`)**: Intelligent AST migration converting Python codebases into idiomatic Black Mamba code with type inference, `@dataclass` to unboxed `struct` promotion, stdlib remapping, and test conversion.
-3. **Drop-in Python Execution**: Execute Python files directly via JIT with `bmb script.py` or `bmb run script.py`.
-4. **Native PyPI Stdlib Parity**: Pure-native standard library implementations for top PyPI packages: `requests.bmb`, `pydantic.bmb`, `fastapi.bmb`, and `pytest.bmb`.
-5. **Full Python Syntactic Parity**: First-class context managers (`with` & `async with`), zero-overhead inlined comprehensions, dynamic dict literals, dunder operator overloading, pattern matching with guards, and Dynamic C3 Diamond MRO.
+In **v1.5.0**, Black Mamba cements itself as both an **independent standalone competitor** and a **seamless drop-in upgrade** to Python by delivering Phase 4 ("The High-Performance Domain Monopolies & Full Stdlib Parity"):
+1. **Complete Standard Library Parity ("Batteries Included")**: Pure-native modules for `collections.bmb` (Deque, Counter, DefaultDict, OrderedDict), `heap.bmb` (MinHeap, PriorityQueue, `bisect_left`/`bisect_right`, `insort_i64`), `iter.bmb` (Combinators `chain_i64`, `take_i64`, `drop_i64`, `permutations_count`, `combinations_count`, `MemoCache`), `process.bmb` (cross-platform subprocess execution & output capture), `csv.bmb` (tabular CSV/TSV parser & serializer), and `pathlib.bmb` (object-oriented Path).
+2. **Native Edge AI & Local LLM Inference Engine (`tensor.bmb` + `llama.bmb`)**: GGUF binary format loader (magic `0x46554747` validation, header & tensor descriptors), Quantized GEMV block dot-products (`q8_0_dot` and `q4_0_dot` 4-bit nibbles), and Transformer components (`tensor_rmsnorm`, `tensor_softmax`, `tensor_swiglu`, `LlamaConfig`).
+3. **High-Throughput Web Microframework (`fastapi.bmb`)**: Parameterized route matching (`/items/:id`), query string parsing (`parse_query_param`), and sub-millisecond microservice dispatch.
+4. **Native Performance Tooling (`bmb profile` and `bmb test`)**: Nanosecond call-graph sampling and interactive SVG flamegraph generator (`mamba/profile.py`), plus automated project test discovery & runner (`bmb test`).
+5. **Universal Transparent Python Bridge & Migration**: `from python import ...` transparent interop, zero-copy Py_buffer sharing, and automated codebase migration via `bmb migrate`.
 
 Unlike **Mojo** (which forces Rust-like borrow checkers and bifurcates `def` vs `fn`) or **Nim** (which departs from Python syntax), Black Mamba preserves true Python syntax while compiling directly down to **bare-metal machine code**, **5.5 KB standalone Windows executables**, **3.9 KB static Linux binaries**, **freestanding microcontroller firmware**, **drop-in `.pyd` Python C-extensions**, and **1.7 KB WebAssembly modules** with **zero external C compiler dependencies**.
 
@@ -316,7 +316,7 @@ Try it yourself: open [`examples/web_game_canvas.html`](examples/web_game_canvas
 
 ---
 
-## 📦 Pure Native Standard Library (29 Modules)
+## 📦 Pure Native Standard Library (36 Modules)
 
 Black Mamba includes a comprehensive 29-module standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**:
 
@@ -350,6 +350,13 @@ Black Mamba includes a comprehensive 29-module standard library written in pure 
 | [`async.bmb`](mamba/stdlib/async.bmb) | Asynchronous Reactor & Event Loop | Pure native cooperative async reactor, monotonic timer scheduling, non-blocking step ticks, and batch runners. |
 | [`kv.bmb`](mamba/stdlib/kv.bmb) | Embedded Key-Value Storage Engine | Zero-dependency persistent key-value store with append WAL, in-memory index, compaction, and disk durability. |
 | [`gc.bmb`](mamba/stdlib/gc.bmb) | Generational Regions & Cycles | Generational arenas (`Region`) for $O(1)$ bulk reclamation and non-recursive tracing mark-sweep cycle collectors (`GC`). |
+| [`collections.bmb`](mamba/stdlib/collections.bmb) | High-Performance Collections | Circular double-ended queue (`Deque`), `Counter`, default-fallback mapping (`DefaultDict`), and insertion-ordered `OrderedDict`. |
+| [`heap.bmb`](mamba/stdlib/heap.bmb) | Binary Heaps & Bisect Search | Binary Min-Heap (`MinHeap`), `PriorityQueue`, logarithmic `bisect_left` / `bisect_right` binary search, and in-place `insort_i64`. |
+| [`iter.bmb`](mamba/stdlib/iter.bmb) | Combinators & MemoCache | Functional iterator combinators (`chain_i64`, `take_i64`, `drop_i64`, `accumulate_sum`), combinatorics (`permutations_count`, `combinations_count`), and `MemoCache` (LRU parity). |
+| [`process.bmb`](mamba/stdlib/process.bmb) | Native Subprocess Execution | Cross-platform subprocess execution (`process_run`, `process_check_output`) capturing return codes, stdout, and stderr with zero external dependencies. |
+| [`csv.bmb`](mamba/stdlib/csv.bmb) | Tabular CSV/TSV Parser | High-performance delimiter-aware CSV/TSV parser (`csv_parse`), cell accessors, file persistence (`csv_read_file`, `csv_write_file`), and serializing (`csv_dumps`). |
+| [`pathlib.bmb`](mamba/stdlib/pathlib.bmb) | Object-Oriented Paths | Pure-native `Path` objects with `.name()`, `.stem()`, `.suffix()`, `.parent()`, `.join()`, `.as_posix()`, `.read_text()`, `.write_text()`. |
+| [`llama.bmb`](mamba/stdlib/llama.bmb) | Edge AI & LLaMA Architecture | Native Edge AI and local LLM transformer inference configuration (`LlamaConfig`), rotary position embeddings (`llama_rotary_embedding`), and GGUF quantization wrappers. |
 | [`test.bmb`](mamba/stdlib/test.bmb) | Testing & Benchmark Harness | Assertion macros (`assert_eq_i64`), suite runner, and hardware nanosecond benchmarking reporting Mops/sec. |
 
 ---
@@ -532,7 +539,7 @@ py_res: i64 = py_eval("100 * 2 + 5")
 git clone https://github.com/kicode01/blackmamba-lang.git
 cd blackmamba-lang
 
-# Run full test suite (44/44 unit & integration tests pass)
+# Run full test suite (83/83 unit & integration tests pass)
 python -m unittest discover -s tests -v
 ```
 
@@ -577,3 +584,15 @@ We believe in 100% engineering honesty. Every design trade-off, hardware boundar
 Black Mamba is licensed under the [MIT License](LICENSE). Contributions, issues, and discussions are welcome!
 
 > **Disclaimer**: *Black Mamba (`.bmb`) is an independent open-source programming language and native compiler. It is not affiliated with, endorsed by, or sponsored by the Python Software Foundation (PSF). Python is a registered trademark of the Python Software Foundation.*
+
+### 4. Nanosecond Call Profiling & Interactive Flamegraphs
+```bash
+# Profile any .bmb program and output an interactive SVG flamegraph
+bmb profile examples/phase4_domain_showcase.bmb -o flamegraph.svg
+```
+
+### 5. Automated Project Test Discovery & Runner
+```bash
+# Discover and execute all test_*.bmb and *_test.bmb files
+bmb test
+```
