@@ -274,8 +274,10 @@ class ReplSession:
             jit.call_function("__repl_exec__")
             jit.close()
 
-            # Append validated statements to session state
-            self.statements.extend(new_lines)
+            # Append validated state-bearing statements to session state (exclude top-level print calls)
+            self.statements.extend(
+                ln for ln in new_lines if not ln.startswith("print(")
+            )
 
             # Track variable names if assigned
             if mod:

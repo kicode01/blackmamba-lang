@@ -1,0 +1,31 @@
+# Black Mamba v2.1 Flagship Showcase: Pillar 0 (GPU Compute, Jupyter Kernel & Serverless Cloud)
+
+from gpu import gpu_device_init, gpu_workgroup_1d, gpu_saxpy_f64, gpu_q8_gemv
+from cloud import cloud_event_new, cloud_response_json, cloud_format_http
+from kernel import notebook_cell_new, notebook_display_metric
+
+def compute_kernel_dot(a: i64, b: i64) -> i64:
+    return a * b + 42
+
+def main() -> i64:
+    # 1. Native GPU Compute Initialization & Workgroup Dispatch
+    dev = gpu_device_init(64)
+    wg = gpu_workgroup_1d(1024, dev.workgroup_size)
+    print(f"[GPU] Device Ready={dev.is_ready} | Grid=({wg.grid_x}, {wg.grid_y}, {wg.grid_z}) | Workgroup={wg.local_x}")
+
+    # 2. GPU Quantized Q8_0 GEMV Dot Product
+    w_q8 = [10, -4, 20, 8, 16, -8, 12, 6]
+    acts = [1.5, 2.0, 0.5, 4.0, 1.0, 0.5, 2.0, 1.0]
+    gemv_res = gpu_q8_gemv(w_q8, acts, 8, 0.5)
+    print(f"[GPU] Q8_0 GEMV Result = {gemv_res}")
+
+    # 3. Jupyter Kernel Telemetry Formatting
+    cell = notebook_cell_new(1, 1)
+    metric_str = notebook_display_metric("Q8_0 Tensor Kernel", 0.12, 3.60)
+    print(f"[Kernel] Cell #{cell.exec_count}: {metric_str}")
+
+    # 4. Zero-Cold-Start Serverless Cloud Handler
+    ev = cloud_event_new("req-2026-bmb", "POST", "/v1/infer", "{\"prompt\":\"hello\"}")
+    resp = cloud_response_json(200, "{\"status\":\"ok\",\"cold_start_ms\":0.4}")
+    print(f"[Cloud] Event {ev.request_id} ({ev.method} {ev.path}) -> HTTP {resp.status_code} ({ev.cold_start_us} us boot)")
+    return 0

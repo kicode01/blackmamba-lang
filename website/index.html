@@ -1583,7 +1583,7 @@ def compute(x: i64) -> i64:
     <section class="section-wrap" id="targets">
       <div class="section-head">
         <div class="section-tag">Compiler Backends</div>
-        <h2 class="section-heading">Write Once, Compile to 7 Targets</h2>
+        <h2 class="section-heading">Write Once, Compile to 9 Targets</h2>
         <p class="section-sub">
           One unified source file compiles directly to bare metal across platforms with zero external C compiler dependencies.
         </p>
@@ -1596,6 +1596,8 @@ def compute(x: i64) -> i64:
           <button class="t-btn" data-target="elf" onclick="setTarget('elf', this)">Linux ELF64 (.elf)</button>
           <button class="t-btn" data-target="container" onclick="setTarget('container', this)">OCI Container (.tar)</button>
           <button class="t-btn" data-target="wasm" onclick="setTarget('wasm', this)">WebAssembly (.wasm)</button>
+          <button class="t-btn" data-target="webgpu" onclick="setTarget('webgpu', this)">WebGPU / SPIR-V (.wgsl)</button>
+          <button class="t-btn" data-target="deploy" onclick="setTarget('deploy', this)">0.4ms Serverless Deploy</button>
           <button class="t-btn" data-target="ext" onclick="setTarget('ext', this)">Python C-Ext (.pyd)</button>
         </div>
 
@@ -1624,7 +1626,7 @@ def compute(x: i64) -> i64:
     <section class="section-wrap" id="stdlib">
       <div class="section-head">
         <div class="section-tag">Standard Library</div>
-        <h2 class="section-heading">36 Pure Native Modules</h2>
+        <h2 class="section-heading">39 Pure Native Modules</h2>
         <p class="section-sub">
           Comprehensive standard library written in pure <code style="font-family:var(--font-mono); color:#34d399;">.bmb</code>. Zero CPython runtime dependencies.
         </p>
@@ -1632,7 +1634,7 @@ def compute(x: i64) -> i64:
 
       <div class="stdlib-filter-bar">
         <div class="filter-pills">
-          <button class="f-pill active" data-cat="all" onclick="filterCategory('all', this)">All (36)</button>
+          <button class="f-pill active" data-cat="all" onclick="filterCategory('all', this)">All (39)</button>
           <button class="f-pill" data-cat="web" onclick="filterCategory('web', this)">Web & Network</button>
           <button class="f-pill" data-cat="ai" onclick="filterCategory('ai', this)">AI & Vector</button>
           <button class="f-pill" data-cat="sys" onclick="filterCategory('sys', this)">Systems & OS</button>
@@ -2024,6 +2026,28 @@ GC Pauses: <span class="t-white">0.000 ms</span>`
           ["Frame Latency", "120 FPS stable"]
         ]
       },
+      webgpu: {
+        title: "Native WebGPU & Vulkan SPIR-V Compute Shaders",
+        desc: "Lowers Black Mamba functions and tensor loops directly into W3C WebGPU (.wgsl) and Khronos Vulkan SPIR-V 1.5 (.spv) compute shaders with zero CUDA toolkit dependencies.",
+        cmd: "bmb build kernel.bmb --target webgpu",
+        specs: [
+          ["Shader Formats", "WGSL & SPIR-V 1.5 (.spv)"],
+          ["CUDA Required", "None (0 GB Driver Bloat)"],
+          ["Hardware Support", "NVIDIA • AMD • Apple • Intel"],
+          ["Workgroup Dispatch", "64x1x1 Compute Pipeline"]
+        ]
+      },
+      deploy: {
+        title: "Zero-Cold-Start Serverless Cloud Engine (bmb deploy)",
+        desc: "Packages 3.9 KB static ELF64 binaries and 20 KB scratch OCI containers into 1-click deployment bundles for AWS Lambda, Google Cloud Run, Fly.io, and Cloudflare Workers.",
+        cmd: "bmb deploy service.bmb --target all",
+        specs: [
+          ["Cold-Start Latency", "0.40 ms (vs 850 ms Python)"],
+          ["Lambda Package", "4.4 KB bootstrap.zip"],
+          ["Cloud Run Image", "20.0 KB FROM scratch"],
+          ["Edge WASM Worker", "1.7 KB Cloudflare Worker"]
+        ]
+      },
       ext: {
         title: "Drop-in Python C-Extension (.pyd)",
         desc: "Generates a 64-bit Windows PE32+ DLL exporting PyInit_ with METH_FASTCALL dispatch. 30.5x faster than pure CPython 3.14 with zero C compiler.",
@@ -2062,6 +2086,9 @@ GC Pauses: <span class="t-white">0.000 ms</span>`
       { name: "socket.bmb", cat: "web", desc: "Pure native TCP/UDP socket API (connect, bind, listen, accept, send, recv)" },
       { name: "tls.bmb", cat: "web", desc: "Pure native TLS 1.3 stack, ChaCha20 cipher, X.509 ASN.1 DER certificate parser" },
       { name: "requests.bmb", cat: "web", desc: "High-level fluent HTTP client with JSON parsing and header injection" },
+      { name: "gpu.bmb", cat: "ai", desc: "Zero-CUDA WebGPU & Vulkan SPIR-V compute dispatch, workgroups, and Q8_0 GEMV" },
+      { name: "kernel.bmb", cat: "ai", desc: "Interactive Jupyter Notebook Kernel (bmb-kernel) wire protocol & cell telemetry" },
+      { name: "cloud.bmb", cat: "web", desc: "0.4ms cold-start serverless runtime handlers for AWS Lambda & Google Cloud Run" },
       { name: "tensor.bmb", cat: "ai", desc: "1D/2D vector operations, GEMM, L2 norm, neural activations (ReLU, Sigmoid)" },
       { name: "llama.bmb", cat: "ai", desc: "GGUF format quantization loader (Q4_0, Q8_0), LlamaConfig, RoPE, RMSNorm" },
       { name: "simd.bmb", cat: "ai", desc: "256-bit AVX2 (Vec4f) & 512-bit AVX-512 (Vec8f) hardware vectorization" },

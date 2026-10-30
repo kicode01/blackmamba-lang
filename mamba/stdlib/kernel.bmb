@@ -1,0 +1,19 @@
+# Black Mamba Standard Library: kernel.bmb
+# Interactive Notebook Display, Rich Telemetry & Cell Helpers for bmb-kernel
+
+struct NotebookCell:
+    cell_id: i64
+    exec_count: i64
+    elapsed_ns: i64
+
+def notebook_cell_new(cell_id: i64, exec_count: i64) -> NotebookCell:
+    return NotebookCell(cell_id, exec_count, 0)
+
+def notebook_display_badge(label: str, value: str) -> str:
+    return f"[{label}: {value}]"
+
+def notebook_display_metric(title: str, mamba_ms: f64, python_ms: f64) -> str:
+    speedup = 1.0
+    if mamba_ms > 0.0:
+        speedup = python_ms / mamba_ms
+    return f"{title} => Black Mamba: {mamba_ms} ms | Python: {python_ms} ms ({speedup}x faster)"

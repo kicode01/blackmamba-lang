@@ -23,6 +23,7 @@ from .backends.wasm_emitter import WasmBackend
 from .backends.c_emitter import C11Backend, LLVMIRBackend
 from .backends.python_ext import PE32PlusExtensionBuilder, C11ExtensionEmitter
 from .backends.embedded import EmbeddedBareMetalBuilder, DEFAULT_BASE_ADDR
+from .backends.gpu_shader import WebGPUShaderBackend, SPIRVShaderBackend
 
 
 def compile_source_to_mir(source: str, filename: str = "<input.bmb>", base_dir: str = "") -> MIRModule:
@@ -148,6 +149,14 @@ def cmd_build(args: argparse.Namespace) -> int:
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.hex")
             path = EmbeddedBareMetalBuilder(mir, base_addr=base_addr).write_hex(out_path)
             print(f"[Black Mamba] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
+        elif tgt in ("webgpu", "wgsl"):
+            out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.wgsl")
+            path = WebGPUShaderBackend(mir).write_wgsl(out_path)
+            print(f"[Black Mamba] Built WebGPU Compute Shader (.wgsl)             -> {path} ({os.path.getsize(path)} bytes)")
+        elif tgt in ("spirv", "spv", "vulkan"):
+            out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.spv")
+            path = SPIRVShaderBackend(mir).write_spirv(out_path)
+            print(f"[Black Mamba] Built Vulkan SPIR-V 1.5 Compute Binary (.spv)   -> {path} ({os.path.getsize(path)} bytes)")
     return 0
 
 
@@ -528,12 +537,60 @@ def cmd_chat(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_kernel(args: argparse.Namespace) -> int:
+    from .kernel import BlackMambaJupyterKernel
+    if getattr(args, "install", False):
+        spec_path = BlackMambaJupyterKernel.install_kernelspec(getattr(args, "prefix", None))
+        print(f"[Black Mamba Kernel] Installed Jupyter kernelspec -> {spec_path}")
+        return 0
+    if getattr(args, "notebook", None):
+        k = BlackMambaJupyterKernel()
+        info = k.execute_notebook_file(args.notebook, getattr(args, "output", None))
+        print(
+            f"[Black Mamba Kernel] Executed {info['executed_cells']} cells in {info['notebook']} "
+            f"in {info['total_ms']:.2f} ms"
+        )
+        return 0
+    if getattr(args, "eval", None):
+        k = BlackMambaJupyterKernel()
+        reply = k.execute_cell(args.eval)
+        if reply.stdout:
+            _safe_write(reply.stdout)
+        if reply.status == "error":
+            print(f"Error: {reply.error_value}", file=sys.stderr)
+            return 1
+        if "text/plain" in reply.mime_bundle:
+            print(reply.mime_bundle["text/plain"])
+        return 0
+    k = BlackMambaJupyterKernel()
+    info = k.kernel_info()
+    print(info["banner"])
+    print(f"Protocol v{info['protocol_version']} ready. Use `bmb kernel --install` to register in JupyterLab / VS Code.")
+    return 0
+
+
+def cmd_deploy(args: argparse.Namespace) -> int:
+    from .deploy import ServerlessDeployBuilder
+    if not os.path.exists(args.file):
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        return 1
+    builder = ServerlessDeployBuilder(args.file, service_name=getattr(args, "name", None))
+    results = builder.deploy(target=args.target, output_dir=getattr(args, "output", None))
+    for r in results:
+        tgt = r["target"]
+        print(f"[Black Mamba Deploy] Built {tgt.upper()} zero-cold-start ({r['cold_start_ms']} ms) bundle for '{r['service_name']}':")
+        for k, v in r.items():
+            if k not in ("target", "service_name", "cold_start_ms"):
+                print(f"  - {k}: {v}")
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
 
     # Drop-in execution support: `bmb script.py` or `bmb script.bmb`
     raw_args = list(argv if argv is not None else sys.argv[1:])
-    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate", "profile", "test", "container", "chat", "add", "publish"}
+    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate", "profile", "test", "container", "chat", "add", "publish", "kernel", "deploy"}
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
             raw_args.insert(0, "run")
@@ -556,7 +613,7 @@ def main(argv: Optional[list] = None) -> int:
         "-t",
         choices=[
             "exe", "elf", "linux", "macho", "arm64", "macos", "wasm", "wat", "c", "llvm", "ext", "pyd",
-            "embedded", "bin", "hex", "no-os", "baremetal", "all",
+            "embedded", "bin", "hex", "no-os", "baremetal", "webgpu", "wgsl", "spirv", "spv", "vulkan", "all",
         ],
         default="exe",
         help="Target output format (default: exe)",
@@ -634,6 +691,26 @@ def main(argv: Optional[list] = None) -> int:
     p_top_pub = sub.add_parser("publish", help="Package and publish to registry (alias for bmb pkg publish)")
     p_top_pub.add_argument("--registry", "-r", help="Registry directory or index.json file path")
 
+    p_krn = sub.add_parser("kernel", help="Interactive Jupyter Notebook Kernel daemon and kernelspec installer (bmb-kernel)")
+    p_krn.add_argument("--install", action="store_true", help="Install Black Mamba kernelspec for JupyterLab & VS Code")
+    p_krn.add_argument("--prefix", help="Custom target directory for kernelspec installation")
+    p_krn.add_argument("--connection-file", "-f", help="Jupyter connection file path")
+    p_krn.add_argument("--notebook", "-n", help="Execute a .ipynb notebook file in-place via native JIT")
+    p_krn.add_argument("--output", "-o", help="Output path for executed .ipynb notebook")
+    p_krn.add_argument("--eval", "-e", help="Evaluate a single notebook cell snippet and print wire output")
+
+    p_dep = sub.add_parser("deploy", help="Build zero-cold-start (0.4ms) serverless cloud bundles (Lambda, Cloud Run, Fly.io, Cloudflare)")
+    p_dep.add_argument("file", help="Path to .bmb source file to deploy")
+    p_dep.add_argument(
+        "--target",
+        "-t",
+        choices=["lambda", "cloudrun", "fly", "cloudflare", "all"],
+        default="lambda",
+        help="Serverless cloud provider target (default: lambda)",
+    )
+    p_dep.add_argument("--name", "-n", help="Cloud service / function name")
+    p_dep.add_argument("--output", "-o", help="Output directory for deployment artifacts")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -668,6 +745,10 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_pkg_add(args)
     if args.command == "publish":
         return cmd_pkg_publish(args)
+    if args.command == "kernel":
+        return cmd_kernel(args)
+    if args.command == "deploy":
+        return cmd_deploy(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:
