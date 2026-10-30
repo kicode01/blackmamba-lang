@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="512" height="512">
+  <defs>
+    <!-- Mamba Body: Sleek Obsidian Carbon with Slate Sheen for dual dark/light mode visibility -->
+    <linearGradient id="mambaBody" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5E697F" />
+      <stop offset="50%" stop-color="#343A46" />
+      <stop offset="100%" stop-color="#20242C" />
+    </linearGradient>
+
+    <!-- Speed Gold Venom Accent -->
+    <linearGradient id="goldVenom" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFE066" />
+      <stop offset="50%" stop-color="#FFB703" />
+      <stop offset="100%" stop-color="#E58A00" />
+    </linearGradient>
+
+    <!-- Subtle Ambient Drop Shadow -->
+    <filter id="mambaShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-opacity="0.35" flood-color="#000000" />
+    </filter>
+  </defs>
+
+  <g filter="url(#mambaShadow)" transform="translate(1, 2)">
+    <!-- Stylized Geometric M Coiled Mamba Snake (Zero Badge / Pure Standalone Mark) -->
+    <!-- Left Wing of M: Ascending tail coil (Obsidian Carbon) -->
+    <path d="M 64 176 C 52 176 46 164 46 148 L 46 104 C 46 88 56 76 72 76 C 88 76 96 88 96 104 L 96 140 C 96 156 104 164 116 164" 
+          fill="none" stroke="url(#mambaBody)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Center to Right Wing of M: Striking Mamba Body (Speed Gold) -->
+    <path d="M 116 164 C 128 164 136 156 136 140 L 136 104 C 136 88 144 76 160 76 C 176 76 186 88 186 104 L 186 148 C 186 164 180 176 168 176" 
+          fill="none" stroke="url(#goldVenom)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
+
+    <!-- Piercing Strike Fang / Diamond Head Silhouette -->
+    <path d="M 176 104 L 204 94 C 210 92 216 98 214 104 L 202 124 C 198 130 190 134 184 132 Z" 
+          fill="url(#goldVenom)" />
+
+    <!-- Mamba Eye: Obsidian Spark -->
+    <circle cx="198" cy="104" r="4" fill="#1A1C23" />
+
+    <!-- Left Tail Tip: Sleek Gold Accent -->
+    <circle cx="64" cy="176" r="5" fill="url(#goldVenom)" />
+  </g>
+</svg>
