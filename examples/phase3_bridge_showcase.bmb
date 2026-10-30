@@ -1,0 +1,69 @@
+# Black Mamba v1.4.0 Phase 3 Showcase:
+# Universal Python Bridge, Drop-In Execution, and Native Top-PyPI Standard Libraries
+
+from python import math, sys, os
+from python.math import sqrt, sin
+from json import JsonDoc, json_get_str
+from requests import Response
+from pydantic import validate_int_field, validate_str_field, validate_email
+from fastapi import new_fastapi, FastAPI, RouteEntry
+from pytest import new_test_session, TestSummary
+
+def main() -> i64:
+    print("=== Black Mamba v1.4.0 Phase 3 Bridge & Ecosystem Showcase ===")
+    test_session = new_test_session()
+
+    # 1. Transparent Python Host Bridge
+    r1: f64 = math.sqrt(144.0)
+    test_session.assert_eq_f64(r1, 12.0, "math.sqrt(144.0) via Python bridge")
+
+    r2: f64 = sqrt(49.0)
+    test_session.assert_eq_f64(r2, 7.0, "from python.math import sqrt")
+
+    pid: i64 = os.getpid()
+    test_session.assert_true(pid > 0, "os.getpid() returns valid process ID")
+
+    eval_res: i64 = py_eval("100 * 2 + 5")
+    test_session.assert_eq_i64(eval_res, 205, "py_eval dynamic expression")
+
+    py_ver: str = py_eval_str("sys.version.split()[0]")
+    print("Host Python Runtime Version:", py_ver)
+
+    # 2. Native Requests Parity (requests.bmb)
+    resp = Response(200, "{\"status\": \"healthy\", \"latency_us\": 14}", True, "Content-Type: application/json")
+    test_session.assert_eq_i64(resp.status_code, 200, "requests.Response.status_code")
+    test_session.assert_true(resp.ok, "requests.Response.ok")
+
+    data = resp.json()
+    st_val = json_get_str(data, data.root, "status", "")
+    print("Decoded Response JSON status:", st_val)
+    test_session.assert_true(st_val == "healthy", "requests.Response.json() DOM query")
+
+    # 3. Native Pydantic Validation (pydantic.bmb)
+    is_valid_age = validate_int_field(25, 0, 150)
+    test_session.assert_true(is_valid_age, "pydantic int range validator")
+
+    is_valid_username = validate_str_field("antigravity_user", 3, 32)
+    test_session.assert_true(is_valid_username, "pydantic string length validator")
+
+    is_valid_mail = validate_email("developer@blackmamba.dev")
+    test_session.assert_true(is_valid_mail, "pydantic email format validator")
+
+    # 4. Native FastAPI Microservice Framework (fastapi.bmb)
+    app = new_fastapi("BlackMamba Microservice", "1.4.0")
+    app.get("/health", "{\"status\": \"UP\"}")
+    app.get("/metrics", "{\"req_sec\": 350000, \"p99_us\": 8}")
+
+    health_resp = app.dispatch("GET", "/health")
+    print("FastAPI Dispatch /health ->", health_resp)
+    test_session.assert_true(health_resp == "{\"status\": \"UP\"}", "FastAPI route matching")
+
+    metrics_resp = app.dispatch("GET", "/metrics")
+    print("FastAPI Dispatch /metrics ->", metrics_resp)
+    test_session.assert_true(metrics_resp == "{\"req_sec\": 350000, \"p99_us\": 8}", "FastAPI metrics endpoint")
+
+    # 5. Print PyTest Summary Report
+    exit_code = test_session.print_report()
+    return exit_code
+
+main()

@@ -1234,16 +1234,30 @@ class TypeInferencer:
                 "__bmb_mem_read32", "__bmb_mem_write32", "__bmb_mem_read8", "__bmb_mem_write8",
                 "__bmb_alloc_root_get", "__bmb_alloc_root_set",
                 "__bmb_rt_slot_get", "__bmb_rt_slot_set",
+                "py_eval", "__bmb_py_eval", "py_eval_i64", "py_import", "__bmb_py_import",
+                "py_getattr", "__bmb_py_getattr", "py_setattr", "__bmb_py_setattr",
+                "py_call_method", "__bmb_py_call_method", "py_int", "__bmb_py_int",
+                "py_call", "__bmb_py_call", "py_call_any",
             ):
                 if expr.func in ("abs", "min", "max") and any(t == "f64" for t in arg_types):
                     expr.inferred_type = "f64"
                     return "f64"
                 expr.inferred_type = "i64"
                 return "i64"
-            if expr.func in ("float", "f64", "sqrt", "sin", "cos", "exp", "log", "fabs", "clock_sec", "py_eval", "py_call"):
+            if expr.func in (
+                "float", "f64", "sqrt", "sin", "cos", "exp", "log", "fabs", "clock_sec",
+                "py_eval_f64", "__bmb_py_eval_f64", "py_call_f64", "__bmb_py_call_f64",
+                "py_float", "__bmb_py_float",
+            ):
                 expr.inferred_type = "f64"
                 return "f64"
-            if expr.func in ("py_eval_tensor", "as_tensor"):
+            if expr.func in (
+                "str", "__bmb_file_read", "py_eval_str", "__bmb_py_eval_str",
+                "py_call_str", "__bmb_py_call_str", "py_str", "__bmb_py_str",
+            ):
+                expr.inferred_type = "str"
+                return "str"
+            if expr.func in ("py_eval_tensor", "__bmb_py_eval_tensor", "as_tensor"):
                 expr.inferred_type = "Array[f64]"
                 return "Array[f64]"
             if expr.func in ("bool", "__bmb_file_exists", "__bmb_file_remove"):

@@ -249,113 +249,184 @@ def _bind_dunder_name_stmt(stmt: Stmt, mod_name: str, file_path: str) -> None:
         stmt.exc = _bind_dunder_name_expr(stmt.exc, mod_name, file_path)
 
 
-def _rewrite_module_calls(expr: Expr, imported_mods: Set[str], local_vars: Optional[Set[str]] = None) -> Expr:
-    """Rewrite `math.sin(x)` -> `sin(x)` and `math.PI` -> `PI` across all expression forms."""
+def _rewrite_module_calls(
+    expr: Expr,
+    imported_mods: Set[str],
+    local_vars: Optional[Set[str]] = None,
+    py_mods: Optional[Dict[str, str]] = None,
+    py_funcs: Optional[Dict[str, Tuple[str, str]]] = None,
+) -> Expr:
+    """Rewrite `math.sin(x)` -> `sin(x)` and Python bridge calls."""
     locals_set = local_vars or set()
+    py_m = py_mods or {}
+    py_f = py_funcs or {}
     if isinstance(expr, MethodCall):
+        if isinstance(expr.target, Var) and expr.target.name in py_m and expr.target.name not in locals_set:
+            actual_mod = py_m[expr.target.name]
+            call_fn = "py_call_f64" if (actual_mod == "math" or expr.method in ("sqrt", "sin", "cos", "tan", "atan", "exp", "log", "log10", "pow", "ceil", "floor", "fabs")) else "py_call"
+            return Call(
+                line=expr.line,
+                col=expr.col,
+                func=call_fn,
+                args=[
+                    StringLit(line=expr.line, col=expr.col, value=actual_mod),
+                    StringLit(line=expr.line, col=expr.col, value=expr.method),
+                ] + [_rewrite_module_calls(a, imported_mods, locals_set, py_m, py_f) for a in expr.args],
+            )
         if isinstance(expr.target, Var) and expr.target.name in imported_mods and expr.target.name not in locals_set:
             return Call(
                 line=expr.line,
                 col=expr.col,
                 func=expr.method,
-                args=[_rewrite_module_calls(a, imported_mods, locals_set) for a in expr.args],
+                args=[_rewrite_module_calls(a, imported_mods, locals_set, py_m, py_f) for a in expr.args],
             )
-        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set)
-        expr.args = [_rewrite_module_calls(a, imported_mods, locals_set) for a in expr.args]
+        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set, py_m, py_f)
+        expr.args = [_rewrite_module_calls(a, imported_mods, locals_set, py_m, py_f) for a in expr.args]
         return expr
     if isinstance(expr, FieldAccess):
+        if isinstance(expr.target, Var) and expr.target.name in py_m and expr.target.name not in locals_set:
+            actual_mod = py_m[expr.target.name]
+            return Call(
+                line=expr.line,
+                col=expr.col,
+                func="py_getattr",
+                args=[
+                    StringLit(line=expr.line, col=expr.col, value=actual_mod),
+                    StringLit(line=expr.line, col=expr.col, value=expr.field_name),
+                ]
+            )
         if isinstance(expr.target, Var) and expr.target.name in imported_mods and expr.target.name not in locals_set:
             return Var(line=expr.line, col=expr.col, name=expr.field_name)
-        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set)
+        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, Call):
-        expr.args = [_rewrite_module_calls(a, imported_mods, locals_set) for a in expr.args]
+        if expr.func in py_f and expr.func not in locals_set:
+            actual_mod, actual_func = py_f[expr.func]
+            call_fn = "py_call_f64" if (actual_mod == "math" or actual_func in ("sqrt", "sin", "cos", "tan", "atan", "exp", "log", "log10", "pow", "ceil", "floor", "fabs")) else "py_call"
+            return Call(
+                line=expr.line,
+                col=expr.col,
+                func=call_fn,
+                args=[
+                    StringLit(line=expr.line, col=expr.col, value=actual_mod),
+                    StringLit(line=expr.line, col=expr.col, value=actual_func),
+                ] + [_rewrite_module_calls(a, imported_mods, locals_set, py_m, py_f) for a in expr.args],
+            )
+        expr.args = [_rewrite_module_calls(a, imported_mods, locals_set, py_m, py_f) for a in expr.args]
         return expr
     if isinstance(expr, BinOp):
-        expr.left = _rewrite_module_calls(expr.left, imported_mods, locals_set)
-        expr.right = _rewrite_module_calls(expr.right, imported_mods, locals_set)
+        expr.left = _rewrite_module_calls(expr.left, imported_mods, locals_set, py_m, py_f)
+        expr.right = _rewrite_module_calls(expr.right, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, UnaryOp):
-        expr.operand = _rewrite_module_calls(expr.operand, imported_mods, locals_set)
+        expr.operand = _rewrite_module_calls(expr.operand, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, TernaryIf):
-        expr.cond = _rewrite_module_calls(expr.cond, imported_mods, locals_set)
-        expr.then_expr = _rewrite_module_calls(expr.then_expr, imported_mods, locals_set)
-        expr.else_expr = _rewrite_module_calls(expr.else_expr, imported_mods, locals_set)
+        expr.cond = _rewrite_module_calls(expr.cond, imported_mods, locals_set, py_m, py_f)
+        expr.then_expr = _rewrite_module_calls(expr.then_expr, imported_mods, locals_set, py_m, py_f)
+        expr.else_expr = _rewrite_module_calls(expr.else_expr, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, IndexExpr):
-        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set)
-        expr.index = _rewrite_module_calls(expr.index, imported_mods, locals_set)
+        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set, py_m, py_f)
+        expr.index = _rewrite_module_calls(expr.index, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, SliceExpr):
-        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set)
+        expr.target = _rewrite_module_calls(expr.target, imported_mods, locals_set, py_m, py_f)
         if expr.start is not None:
-            expr.start = _rewrite_module_calls(expr.start, imported_mods, locals_set)
+            expr.start = _rewrite_module_calls(expr.start, imported_mods, locals_set, py_m, py_f)
         if expr.stop is not None:
-            expr.stop = _rewrite_module_calls(expr.stop, imported_mods, locals_set)
+            expr.stop = _rewrite_module_calls(expr.stop, imported_mods, locals_set, py_m, py_f)
         if expr.step is not None:
-            expr.step = _rewrite_module_calls(expr.step, imported_mods, locals_set)
+            expr.step = _rewrite_module_calls(expr.step, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, ArrayLit):
-        expr.elements = [_rewrite_module_calls(e, imported_mods, locals_set) for e in expr.elements]
+        expr.elements = [_rewrite_module_calls(e, imported_mods, locals_set, py_m, py_f) for e in expr.elements]
         if expr.repeat_value is not None:
-            expr.repeat_value = _rewrite_module_calls(expr.repeat_value, imported_mods, locals_set)
+            expr.repeat_value = _rewrite_module_calls(expr.repeat_value, imported_mods, locals_set, py_m, py_f)
         if expr.repeat_count is not None:
-            expr.repeat_count = _rewrite_module_calls(expr.repeat_count, imported_mods, locals_set)
+            expr.repeat_count = _rewrite_module_calls(expr.repeat_count, imported_mods, locals_set, py_m, py_f)
         return expr
     if isinstance(expr, RangeExpr):
-        expr.start = _rewrite_module_calls(expr.start, imported_mods, locals_set)
-        expr.stop = _rewrite_module_calls(expr.stop, imported_mods, locals_set)
-        expr.step = _rewrite_module_calls(expr.step, imported_mods, locals_set)
+        expr.start = _rewrite_module_calls(expr.start, imported_mods, locals_set, py_m, py_f)
+        expr.stop = _rewrite_module_calls(expr.stop, imported_mods, locals_set, py_m, py_f)
+        expr.step = _rewrite_module_calls(expr.step, imported_mods, locals_set, py_m, py_f)
+        return expr
+    if isinstance(expr, ListComp):
+        expr.elt = _rewrite_module_calls(expr.elt, imported_mods, locals_set, py_m, py_f)
+        expr.iter_expr = _rewrite_module_calls(expr.iter_expr, imported_mods, locals_set, py_m, py_f)
+        if expr.cond is not None:
+            expr.cond = _rewrite_module_calls(expr.cond, imported_mods, locals_set, py_m, py_f)
+        return expr
+    if isinstance(expr, DictLit):
+        expr.keys = [_rewrite_module_calls(k, imported_mods, locals_set, py_m, py_f) for k in expr.keys]
+        expr.values = [_rewrite_module_calls(v, imported_mods, locals_set, py_m, py_f) for v in expr.values]
+        return expr
+    if isinstance(expr, DictComp):
+        expr.key_expr = _rewrite_module_calls(expr.key_expr, imported_mods, locals_set, py_m, py_f)
+        expr.value_expr = _rewrite_module_calls(expr.value_expr, imported_mods, locals_set, py_m, py_f)
+        expr.iter_expr = _rewrite_module_calls(expr.iter_expr, imported_mods, locals_set, py_m, py_f)
+        if expr.cond is not None:
+            expr.cond = _rewrite_module_calls(expr.cond, imported_mods, locals_set, py_m, py_f)
+        return expr
+    if isinstance(expr, YieldExpr) and expr.value is not None:
+        expr.value = _rewrite_module_calls(expr.value, imported_mods, locals_set, py_m, py_f)
         return expr
     return expr
 
 
-def _rewrite_stmt(stmt: Stmt, imported_mods: Set[str], local_vars: Optional[Set[str]] = None) -> None:
+def _rewrite_stmt(
+    stmt: Stmt,
+    imported_mods: Set[str],
+    local_vars: Optional[Set[str]] = None,
+    py_mods: Optional[Dict[str, str]] = None,
+    py_funcs: Optional[Dict[str, Tuple[str, str]]] = None,
+) -> None:
     locals_set = local_vars or set()
+    py_m = py_mods or {}
+    py_f = py_funcs or {}
     if isinstance(stmt, ExprStmt):
-        stmt.expr = _rewrite_module_calls(stmt.expr, imported_mods, locals_set)
+        stmt.expr = _rewrite_module_calls(stmt.expr, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, (Assign, AugAssign)):
-        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set)
+        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, FieldAssign):
-        stmt.target = _rewrite_module_calls(stmt.target, imported_mods, locals_set)
-        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set)
+        stmt.target = _rewrite_module_calls(stmt.target, imported_mods, locals_set, py_m, py_f)
+        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, (IndexAssign, IndexAugAssign)):
-        stmt.target = _rewrite_module_calls(stmt.target, imported_mods, locals_set)
-        stmt.index = _rewrite_module_calls(stmt.index, imported_mods, locals_set)
-        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set)
+        stmt.target = _rewrite_module_calls(stmt.target, imported_mods, locals_set, py_m, py_f)
+        stmt.index = _rewrite_module_calls(stmt.index, imported_mods, locals_set, py_m, py_f)
+        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, Return) and stmt.value:
-        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set)
+        stmt.value = _rewrite_module_calls(stmt.value, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, IfStmt):
-        stmt.cond = _rewrite_module_calls(stmt.cond, imported_mods, locals_set)
+        stmt.cond = _rewrite_module_calls(stmt.cond, imported_mods, locals_set, py_m, py_f)
         for s in stmt.then_body:
-            _rewrite_stmt(s, imported_mods, locals_set)
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
         for idx, (c, body) in enumerate(stmt.elif_branches):
-            rewritten_c = _rewrite_module_calls(c, imported_mods, locals_set)
+            rewritten_c = _rewrite_module_calls(c, imported_mods, locals_set, py_m, py_f)
             for s in body:
-                _rewrite_stmt(s, imported_mods, locals_set)
+                _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
             stmt.elif_branches[idx] = (rewritten_c, body)
         for s in stmt.else_body:
-            _rewrite_stmt(s, imported_mods, locals_set)
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, WhileStmt):
-        stmt.cond = _rewrite_module_calls(stmt.cond, imported_mods, locals_set)
+        stmt.cond = _rewrite_module_calls(stmt.cond, imported_mods, locals_set, py_m, py_f)
         for s in stmt.body:
-            _rewrite_stmt(s, imported_mods, locals_set)
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, ForRangeStmt):
-        stmt.start = _rewrite_module_calls(stmt.start, imported_mods, locals_set)
-        stmt.stop = _rewrite_module_calls(stmt.stop, imported_mods, locals_set)
-        stmt.step = _rewrite_module_calls(stmt.step, imported_mods, locals_set)
+        stmt.start = _rewrite_module_calls(stmt.start, imported_mods, locals_set, py_m, py_f)
+        stmt.stop = _rewrite_module_calls(stmt.stop, imported_mods, locals_set, py_m, py_f)
+        stmt.step = _rewrite_module_calls(stmt.step, imported_mods, locals_set, py_m, py_f)
         sub_locals = set(locals_set)
         sub_locals.add(stmt.var_name)
         for s in stmt.body:
-            _rewrite_stmt(s, imported_mods, sub_locals)
+            _rewrite_stmt(s, imported_mods, sub_locals, py_m, py_f)
     elif isinstance(stmt, MatchStmt):
-        stmt.subject = _rewrite_module_calls(stmt.subject, imported_mods, locals_set)
+        stmt.subject = _rewrite_module_calls(stmt.subject, imported_mods, locals_set, py_m, py_f)
         for c in stmt.cases:
             if c.pattern is not None:
-                c.pattern = _rewrite_module_calls(c.pattern, imported_mods, locals_set)
+                c.pattern = _rewrite_module_calls(c.pattern, imported_mods, locals_set, py_m, py_f)
             for s in c.body:
-                _rewrite_stmt(s, imported_mods, locals_set)
+                _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, FuncDef):
         fn_locals = set(locals_set)
         for p in stmt.params:
@@ -365,25 +436,30 @@ def _rewrite_stmt(stmt: Stmt, imported_mods: Set[str], local_vars: Optional[Set[
                 fn_locals.add(s.target)
             elif isinstance(s, ForRangeStmt):
                 fn_locals.add(s.var_name)
-            _rewrite_stmt(s, imported_mods, fn_locals)
+            _rewrite_stmt(s, imported_mods, fn_locals, py_m, py_f)
     elif isinstance(stmt, StructDef):
         for m in stmt.methods:
-            _rewrite_stmt(m, imported_mods, locals_set)
+            _rewrite_stmt(m, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, TryStmt):
         for s in stmt.body:
-            _rewrite_stmt(s, imported_mods, locals_set)
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
         for h in stmt.handlers:
             h_locals = set(locals_set)
             if h.var_name:
                 h_locals.add(h.var_name)
             for s in h.body:
-                _rewrite_stmt(s, imported_mods, h_locals)
+                _rewrite_stmt(s, imported_mods, h_locals, py_m, py_f)
         for s in stmt.else_body:
-            _rewrite_stmt(s, imported_mods, locals_set)
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
         for s in stmt.finally_body:
-            _rewrite_stmt(s, imported_mods, locals_set)
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
+    elif isinstance(stmt, WithStmt):
+        for it in stmt.items:
+            it.context_expr = _rewrite_module_calls(it.context_expr, imported_mods, locals_set, py_m, py_f)
+        for s in stmt.body:
+            _rewrite_stmt(s, imported_mods, locals_set, py_m, py_f)
     elif isinstance(stmt, RaiseStmt) and stmt.exc is not None:
-        stmt.exc = _rewrite_module_calls(stmt.exc, imported_mods, locals_set)
+        stmt.exc = _rewrite_module_calls(stmt.exc, imported_mods, locals_set, py_m, py_f)
 
 
 def _collect_callees(fn: FuncDef) -> Set[str]:
@@ -523,6 +599,8 @@ def resolve_imports(
         in_progress = set()
 
     imported_mods: Set[str] = set()
+    py_mods: Dict[str, str] = {}
+    py_funcs: Dict[str, Tuple[str, str]] = {}
     new_stmts: List[Stmt] = []
     prepended_stmts: List[Stmt] = []
     seen_defs: Set[str] = set()
@@ -530,9 +608,26 @@ def resolve_imports(
     for stmt in mod.statements:
         if isinstance(stmt, (ImportStmt, FromImportStmt)):
             mod_name = stmt.module_name
+            # Check for Python host interop bridge imports: from python import ... / from python.<mod> import ...
+            if mod_name == "python" or mod_name.startswith("python."):
+                if isinstance(stmt, FromImportStmt):
+                    if mod_name == "python":
+                        for n in stmt.names:
+                            py_mods[n] = n
+                    else:
+                        submod = mod_name[7:]
+                        for n in stmt.names:
+                            py_funcs[n] = (submod, n)
+                elif isinstance(stmt, ImportStmt):
+                    if mod_name.startswith("python."):
+                        submod = mod_name[7:]
+                        target_alias = stmt.alias or (submod.split(".")[-1])
+                        py_mods[target_alias] = submod
+                continue
+
             alias_map: Dict[str, str] = {}
+            imported_mods.add(mod_name)
             if isinstance(stmt, ImportStmt):
-                imported_mods.add(mod_name)
                 if stmt.alias:
                     imported_mods.add(stmt.alias)
                     alias_map[stmt.alias] = mod_name
@@ -583,8 +678,15 @@ def resolve_imports(
                             prepended_stmts.append(s)
                 else:
                     wanted = set(stmt.names)
-                    # Transitive dependency closure
                     func_map = {s.name: s for s in imported_ast.statements if isinstance(s, FuncDef)}
+                    extern_names = {fn.name for s in imported_ast.statements if isinstance(s, ExternBlock) for fn in s.functions}
+                    # Seed wanted with callees of all methods on any StructDef
+                    for s in imported_ast.statements:
+                        if isinstance(s, StructDef):
+                            for m in s.methods:
+                                wanted.update(_collect_callees(m))
+
+                    # Transitive dependency closure
                     changed = True
                     while changed:
                         changed = False
@@ -592,7 +694,7 @@ def resolve_imports(
                         for name in list(wanted):
                             if name in func_map:
                                 for c in _collect_callees(func_map[name]):
-                                    if c in func_map and c not in wanted:
+                                    if (c in func_map or c in extern_names) and c not in wanted:
                                         new_callees.add(c)
                         if new_callees:
                             wanted.update(new_callees)
@@ -629,6 +731,6 @@ def resolve_imports(
 
     unified_stmts = prepended_stmts + new_stmts
     for s in unified_stmts:
-        _rewrite_stmt(s, imported_mods)
+        _rewrite_stmt(s, imported_mods, py_mods=py_mods, py_funcs=py_funcs)
 
     return Module(statements=unified_stmts)

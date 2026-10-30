@@ -695,8 +695,12 @@ class C11Backend:
                         out.append(f"    {dst} = {call_expr};")
                 else:
                     out.append(f"    {call_expr};")
-            elif op in ("PY_CALL_F64", "PY_EVAL_F64", "PY_EVAL_TENSOR"):
-                out.append(f"    {dst} = 0.0; /* CPython Host Call */")
+            elif op in (
+                "PY_CALL_F64", "PY_CALL_STR", "PY_CALL_ANY", "PY_CALL_METHOD",
+                "PY_EVAL_F64", "PY_EVAL_I64", "PY_EVAL_STR", "PY_EVAL_TENSOR",
+                "PY_IMPORT", "PY_GETATTR", "PY_SETATTR", "PY_TO_I64", "PY_TO_F64", "PY_TO_STR"
+            ):
+                out.append(f"    {dst} = 0; /* CPython Host Call */")
             elif op == "ARENA_SAVE":
                 out.append(f"    {dst} = 0; /* lexical arena checkpoint */")
             elif op == "ARENA_RESTORE":

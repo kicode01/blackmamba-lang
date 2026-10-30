@@ -869,15 +869,88 @@ class X86_64CodeBuffer:
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("py_eval_f64")
                 store_from_rax(str(ins.dst))
+            elif op == "PY_EVAL_I64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_eval_i64")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_EVAL_STR":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_eval_str")
+                store_from_rax(str(ins.dst))
             elif op == "PY_EVAL_TENSOR":
                 load_into("rcx", str(ins.arg1))
                 emit_helper_call("py_eval_tensor")
                 store_from_rax(str(ins.dst))
-            elif op == "PY_CALL_F64":
+            elif op == "PY_IMPORT":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_import")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_GETATTR":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                emit_helper_call("py_getattr")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_SETATTR":
                 load_into("rcx", str(ins.arg1))
                 load_into("rdx", str(ins.arg2))
                 load_into("r8", str(ins.extra[0]))
+                emit_helper_call("py_setattr")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_CALL_METHOD":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                if len(ins.extra) > 0:
+                    load_into("r8", str(ins.extra[0]))
+                else:
+                    self.emit(b"\x4D\x31\xC0", "xor r8, r8")
+                num_e = len(ins.extra)
+                self.emit(b"\x49\xC7\xC1" + int(num_e).to_bytes(4, "little", signed=True), f"mov r9, {num_e}")
+                emit_helper_call("py_call_method")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_TO_I64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_to_i64")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_TO_F64":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_to_f64")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_TO_STR":
+                load_into("rcx", str(ins.arg1))
+                emit_helper_call("py_to_str")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_CALL_F64":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                if len(ins.extra) > 0:
+                    load_into("r8", str(ins.extra[0]))
+                else:
+                    self.emit(b"\x4D\x31\xC0", "xor r8, r8")
+                num_e = len(ins.extra)
+                self.emit(b"\x49\xC7\xC1" + int(num_e).to_bytes(4, "little", signed=True), f"mov r9, {num_e}")
                 emit_helper_call("py_call_f64")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_CALL_STR":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                if len(ins.extra) > 0:
+                    load_into("r8", str(ins.extra[0]))
+                else:
+                    self.emit(b"\x4D\x31\xC0", "xor r8, r8")
+                num_e = len(ins.extra)
+                self.emit(b"\x49\xC7\xC1" + int(num_e).to_bytes(4, "little", signed=True), f"mov r9, {num_e}")
+                emit_helper_call("py_call_str")
+                store_from_rax(str(ins.dst))
+            elif op == "PY_CALL_ANY":
+                load_into("rcx", str(ins.arg1))
+                load_into("rdx", str(ins.arg2))
+                if len(ins.extra) > 0:
+                    load_into("r8", str(ins.extra[0]))
+                else:
+                    self.emit(b"\x4D\x31\xC0", "xor r8, r8")
+                num_e = len(ins.extra)
+                self.emit(b"\x49\xC7\xC1" + int(num_e).to_bytes(4, "little", signed=True), f"mov r9, {num_e}")
+                emit_helper_call("py_call_any")
                 store_from_rax(str(ins.dst))
             elif op == "LOAD_IDX":
                 load_into("rax", str(ins.arg1))
@@ -1626,13 +1699,38 @@ class NativeJITModule:
         from ..interop import CPythonHostBridge
         bridge = CPythonHostBridge.get_instance()
 
-        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
-        def rt_py_call_f64(mod_val: int, func_val: int, arg_bits: int) -> int:
+        def _convert_py_arg(raw: int) -> Any:
+            if raw in bridge._obj_registry:
+                return bridge._obj_registry[raw]
+            if raw & 1 == 1:
+                return get_str_bytes(raw).decode("utf-8")
+            if 0 <= raw < len(self.mir_module.string_pool):
+                return self.mir_module.string_pool[raw]
+            return raw
+
+        def _convert_py_ret(res: Any) -> int:
+            if res is None:
+                return 0
+            if isinstance(res, bool):
+                return 1 if res else 0
+            if isinstance(res, int):
+                return int(res)
+            if isinstance(res, float):
+                return struct.unpack("<q", struct.pack("<d", res))[0]
+            if isinstance(res, str):
+                return make_str_handle(res.encode("utf-8"))
+            return bridge.register_object(res)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_py_call_f64(mod_val: int, func_val: int, a1_bits: int, num_args: int) -> int:
             mod_s = get_str_bytes(mod_val).decode("utf-8")
             func_s = get_str_bytes(func_val).decode("utf-8")
-            arg_f = struct.unpack("<d", struct.pack("<q", arg_bits))[0]
-            res_f = bridge.call_func_f64_1(mod_s, func_s, arg_f)
-            return struct.unpack("<q", struct.pack("<d", res_f))[0]
+            args = []
+            if num_args > 0:
+                arg_f = struct.unpack("<d", struct.pack("<q", a1_bits))[0]
+                args.append(arg_f)
+            res = bridge.call_func_any(mod_s, func_s, *args)
+            return struct.unpack("<q", struct.pack("<d", float(res)))[0]
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
         def rt_py_eval_f64(val: int) -> int:
@@ -1641,10 +1739,88 @@ class NativeJITModule:
             return struct.unpack("<q", struct.pack("<d", res))[0]
 
         @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_eval_i64(val: int) -> int:
+            expr_s = get_str_bytes(val).decode("utf-8")
+            res = bridge.eval_code(expr_s)
+            return _convert_py_ret(res)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_eval_str(val: int) -> int:
+            expr_s = get_str_bytes(val).decode("utf-8")
+            res = str(bridge.eval_code(expr_s))
+            return make_str_handle(res.encode("utf-8"))
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
         def rt_py_eval_tensor(val: int) -> int:
             expr_s = get_str_bytes(val).decode("utf-8")
             ptr, _, _ = bridge.eval_tensor(expr_s)
             return ptr
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_import(mod_val: int) -> int:
+            import importlib
+            mod_s = get_str_bytes(mod_val).decode("utf-8")
+            mod = importlib.import_module(mod_s)
+            return bridge.register_object(mod)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_py_getattr(handle: int, attr_val: int) -> int:
+            attr_s = get_str_bytes(attr_val).decode("utf-8")
+            val = bridge.getattr_any(handle, attr_s)
+            return _convert_py_ret(val)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_py_setattr(handle: int, attr_val: int, val: int) -> int:
+            attr_s = get_str_bytes(attr_val).decode("utf-8")
+            py_val = _convert_py_arg(val)
+            bridge.setattr_any(handle, attr_s, py_val)
+            return 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_py_call_method(handle: int, meth_val: int, a1: int, num_args: int) -> int:
+            meth_s = get_str_bytes(meth_val).decode("utf-8")
+            args = []
+            if num_args > 0:
+                args.append(_convert_py_arg(a1))
+            res = bridge.call_method_any(handle, meth_s, *args)
+            return _convert_py_ret(res)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_py_call_any(mod_val: int, func_val: int, a1: int, num_args: int) -> int:
+            mod_s = get_str_bytes(mod_val).decode("utf-8")
+            func_s = get_str_bytes(func_val).decode("utf-8")
+            args = []
+            if num_args > 0:
+                args.append(_convert_py_arg(a1))
+            res = bridge.call_func_any(mod_s, func_s, *args)
+            return _convert_py_ret(res)
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64)
+        def rt_py_call_str(mod_val: int, func_val: int, a1: int, num_args: int) -> int:
+            mod_s = get_str_bytes(mod_val).decode("utf-8")
+            func_s = get_str_bytes(func_val).decode("utf-8")
+            args = []
+            if num_args > 0:
+                args.append(_convert_py_arg(a1))
+            res = bridge.call_func_any(mod_s, func_s, *args)
+            return make_str_handle(str(res).encode("utf-8"))
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_to_i64(handle: int) -> int:
+            obj = bridge.get_object(handle)
+            return int(obj) if obj is not None else 0
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_to_f64(handle: int) -> int:
+            obj = bridge.get_object(handle)
+            res = float(obj) if obj is not None else 0.0
+            return struct.unpack("<q", struct.pack("<d", res))[0]
+
+        @ctypes.CFUNCTYPE(ctypes.c_int64, ctypes.c_int64)
+        def rt_py_to_str(handle: int) -> int:
+            obj = bridge.get_object(handle)
+            res = str(obj) if obj is not None else ""
+            return make_str_handle(res.encode("utf-8"))
 
         self._exit_code_override: Optional[int] = None
 
@@ -1653,10 +1829,27 @@ class NativeJITModule:
             self._exit_code_override = int(code)
             return int(code)
 
-        self._callbacks.extend([rt_py_call_f64, rt_py_eval_f64, rt_py_eval_tensor, rt_bmb_exit])
+        self._callbacks.extend([
+            rt_py_call_f64, rt_py_call_str, rt_py_call_any, rt_py_call_method,
+            rt_py_eval_f64, rt_py_eval_i64, rt_py_eval_str, rt_py_eval_tensor,
+            rt_py_import, rt_py_getattr, rt_py_setattr,
+            rt_py_to_i64, rt_py_to_f64, rt_py_to_str,
+            rt_bmb_exit,
+        ])
         self.addr_py_call_f64 = ctypes.cast(rt_py_call_f64, ctypes.c_void_p).value
+        self.addr_py_call_str = ctypes.cast(rt_py_call_str, ctypes.c_void_p).value
+        self.addr_py_call_any = ctypes.cast(rt_py_call_any, ctypes.c_void_p).value
+        self.addr_py_call_method = ctypes.cast(rt_py_call_method, ctypes.c_void_p).value
         self.addr_py_eval_f64 = ctypes.cast(rt_py_eval_f64, ctypes.c_void_p).value
+        self.addr_py_eval_i64 = ctypes.cast(rt_py_eval_i64, ctypes.c_void_p).value
+        self.addr_py_eval_str = ctypes.cast(rt_py_eval_str, ctypes.c_void_p).value
         self.addr_py_eval_tensor = ctypes.cast(rt_py_eval_tensor, ctypes.c_void_p).value
+        self.addr_py_import = ctypes.cast(rt_py_import, ctypes.c_void_p).value
+        self.addr_py_getattr = ctypes.cast(rt_py_getattr, ctypes.c_void_p).value
+        self.addr_py_setattr = ctypes.cast(rt_py_setattr, ctypes.c_void_p).value
+        self.addr_py_to_i64 = ctypes.cast(rt_py_to_i64, ctypes.c_void_p).value
+        self.addr_py_to_f64 = ctypes.cast(rt_py_to_f64, ctypes.c_void_p).value
+        self.addr_py_to_str = ctypes.cast(rt_py_to_str, ctypes.c_void_p).value
         self.addr_bmb_exit = ctypes.cast(rt_bmb_exit, ctypes.c_void_p).value
 
     def _write_out(self, text: str) -> None:
@@ -1674,8 +1867,19 @@ class NativeJITModule:
             "pow_i64": (self.addr_pow_i64, "__bmb_pow_i64"),
             "pow_f64": (self.addr_pow_f64, "__bmb_pow_f64"),
             "py_call_f64": (self.addr_py_call_f64, "__bmb_py_call_f64"),
+            "py_call_str": (self.addr_py_call_str, "__bmb_py_call_str"),
+            "py_call_any": (self.addr_py_call_any, "__bmb_py_call_any"),
+            "py_call_method": (self.addr_py_call_method, "__bmb_py_call_method"),
             "py_eval_f64": (self.addr_py_eval_f64, "__bmb_py_eval_f64"),
+            "py_eval_i64": (self.addr_py_eval_i64, "__bmb_py_eval_i64"),
+            "py_eval_str": (self.addr_py_eval_str, "__bmb_py_eval_str"),
             "py_eval_tensor": (self.addr_py_eval_tensor, "__bmb_py_eval_tensor"),
+            "py_import": (self.addr_py_import, "__bmb_py_import"),
+            "py_getattr": (self.addr_py_getattr, "__bmb_py_getattr"),
+            "py_setattr": (self.addr_py_setattr, "__bmb_py_setattr"),
+            "py_to_i64": (self.addr_py_to_i64, "__bmb_py_to_i64"),
+            "py_to_f64": (self.addr_py_to_f64, "__bmb_py_to_f64"),
+            "py_to_str": (self.addr_py_to_str, "__bmb_py_to_str"),
             "arena_save": (self.addr_arena_save, "__bmb_arena_save"),
             "arena_restore": (self.addr_arena_restore, "__bmb_arena_restore"),
             "str_concat": (self.addr_str_concat, "__bmb_str_concat"),

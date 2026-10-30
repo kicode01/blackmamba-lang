@@ -47,6 +47,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     with open(args.file, "r", encoding="utf-8") as f:
         source = f.read()
 
+    # Drop-in Python file execution: if running .py file, migrate transparently in-memory
+    if args.file.endswith(".py"):
+        try:
+            from .migrate import migrate_source
+            source, _ = migrate_source(source)
+        except Exception:
+            pass
+
     t0 = time.perf_counter()
     mir = compile_source_to_mir(source, args.file)
     jit = NativeJITModule(mir, output_callback=_safe_write)
@@ -353,8 +361,43 @@ def cmd_bindgen(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_migrate(args: argparse.Namespace) -> int:
+    from .migrate import migrate_file, migrate_directory
+    path = args.path
+    if not os.path.exists(path):
+        print(f"Error: Path not found: {path}", file=sys.stderr)
+        return 1
+    if os.path.isdir(path):
+        out_dir = args.output or (path.rstrip("/\\") + "_bmb")
+        print(f"[Black Mamba Migrator] Migrating directory '{path}' -> '{out_dir}'...")
+        stats = migrate_directory(path, out_dir)
+        print(f"[Black Mamba Migrator] Migration complete: {stats['files_converted']} files converted.")
+        print(f"  - Classes promoted to structs: {stats['classes_promoted_to_structs']}")
+        print(f"  - Functions migrated:         {stats['functions_migrated']}")
+        print(f"  - Types inferred:             {stats['types_inferred']}")
+        print(f"  - Imports mapped:             {stats['imports_mapped']}")
+    else:
+        out_file = args.output or (os.path.splitext(path)[0] + ".bmb")
+        print(f"[Black Mamba Migrator] Migrating '{path}' -> '{out_file}'...")
+        target, stats = migrate_file(path, out_file)
+        print(f"[Black Mamba Migrator] Successfully migrated to {target}")
+        print(f"  - Classes promoted to structs: {stats['classes_promoted_to_structs']}")
+        print(f"  - Functions migrated:         {stats['functions_migrated']}")
+        print(f"  - Types inferred:             {stats['types_inferred']}")
+        print(f"  - Imports mapped:             {stats['imports_mapped']}")
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
+
+    # Drop-in execution support: `bmb script.py` or `bmb script.bmb`
+    raw_args = list(argv if argv is not None else sys.argv[1:])
+    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate"}
+    if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
+        if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
+            raw_args.insert(0, "run")
+            argv = raw_args
     parser = argparse.ArgumentParser(
         prog="bmb",
         description="Black Mamba (.bmb) — High-Performance Native Python Superset & Multi-Target Compiler",
@@ -416,6 +459,10 @@ def main(argv: Optional[list] = None) -> int:
     p_bindgen.add_argument("--lib", "-l", required=True, help="Target shared library name (e.g. msvcrt.dll, sqlite3.dll)")
     p_bindgen.add_argument("--output", "-o", help="Output .bmb binding file path")
 
+    p_mig = sub.add_parser("migrate", help="Automatically migrate Python source (.py) to native Black Mamba (.bmb)")
+    p_mig.add_argument("path", help="Path to Python file (.py) or project directory to migrate")
+    p_mig.add_argument("--output", "-o", help="Output .bmb file path or destination directory")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -436,6 +483,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_doc(args)
     if args.command == "bindgen":
         return cmd_bindgen(args)
+    if args.command == "migrate":
+        return cmd_migrate(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

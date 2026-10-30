@@ -265,13 +265,14 @@ class MIRBuilder:
         existing_main = next((f for f in mir_funcs if f.name == "main"), None)
         if top_stmts:
             body_stmts = list(top_stmts)
-            calls_main = any(
-                isinstance(s, ExprStmt) and isinstance(s.expr, Call) and s.expr.func == "main"
-                for s in top_stmts
-            )
-            if existing_main and not calls_main:
-                body_stmts.append(ExprStmt(line=1, col=1, expr=Call(line=1, col=1, func="main", args=[])))
-            body_stmts.append(Return(line=1, col=1, value=IntLit(value=0)))
+            if existing_main:
+                body_stmts = [
+                    s for s in body_stmts
+                    if not (isinstance(s, ExprStmt) and isinstance(s.expr, Call) and s.expr.func == "main")
+                ]
+                body_stmts.append(Return(line=1, col=1, value=Call(line=1, col=1, func="main", args=[])))
+            else:
+                body_stmts.append(Return(line=1, col=1, value=IntLit(value=0)))
             main_def = FuncDef(
                 line=1,
                 col=1,
@@ -2354,29 +2355,101 @@ class MIRBuilder:
                 return dst, "i64"
 
             # CPython Host Interop Intrinsics
-            if expr.func == "py_eval" and len(expr.args) == 1:
+            if expr.func in ("py_eval_f64", "__bmb_py_eval_f64") and len(expr.args) == 1:
                 av, _ = self._lower_expr(expr.args[0], instrs, local_types)
                 dst = self.new_temp(local_types, "f64")
                 instrs.append(MIRInstr(op="PY_EVAL_F64", dst=dst, arg1=av, val_type="f64"))
                 return dst, "f64"
 
-            if expr.func == "py_eval_tensor" and len(expr.args) == 1:
+            if expr.func in ("py_eval_str", "__bmb_py_eval_str") and len(expr.args) == 1:
+                av, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="PY_EVAL_STR", dst=dst, arg1=av, val_type="str"))
+                return dst, "str"
+
+            if expr.func in ("py_eval", "__bmb_py_eval") and len(expr.args) == 1:
+                av, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="PY_EVAL_I64", dst=dst, arg1=av, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("py_eval_tensor", "__bmb_py_eval_tensor") and len(expr.args) == 1:
                 av, _ = self._lower_expr(expr.args[0], instrs, local_types)
                 dst = self.new_temp(local_types, "Array[f64]")
                 instrs.append(MIRInstr(op="PY_EVAL_TENSOR", dst=dst, arg1=av, val_type="Array[f64]"))
                 return dst, "Array[f64]"
 
-            if expr.func == "py_call" and len(expr.args) == 3:
+            if expr.func in ("py_import", "__bmb_py_import") and len(expr.args) == 1:
+                av, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="PY_IMPORT", dst=dst, arg1=av, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("py_getattr", "__bmb_py_getattr") and len(expr.args) == 2:
+                hv, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                av, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="PY_GETATTR", dst=dst, arg1=hv, arg2=av, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("py_setattr", "__bmb_py_setattr") and len(expr.args) == 3:
+                hv, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                av, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                vv, _ = self._lower_expr(expr.args[2], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="PY_SETATTR", dst=dst, arg1=hv, arg2=av, extra=[vv], val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("py_call_method", "__bmb_py_call_method") and len(expr.args) >= 2:
+                hv, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                mv, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                call_args = [self._lower_expr(a, instrs, local_types)[0] for a in expr.args[2:]]
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="PY_CALL_METHOD", dst=dst, arg1=hv, arg2=mv, extra=call_args, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("py_int", "__bmb_py_int") and len(expr.args) == 1:
+                hv, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "i64")
+                instrs.append(MIRInstr(op="PY_TO_I64", dst=dst, arg1=hv, val_type="i64"))
+                return dst, "i64"
+
+            if expr.func in ("py_float", "__bmb_py_float") and len(expr.args) == 1:
+                hv, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "f64")
+                instrs.append(MIRInstr(op="PY_TO_F64", dst=dst, arg1=hv, val_type="f64"))
+                return dst, "f64"
+
+            if expr.func in ("py_str", "__bmb_py_str") and len(expr.args) == 1:
+                hv, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="PY_TO_STR", dst=dst, arg1=hv, val_type="str"))
+                return dst, "str"
+
+            if expr.func in ("py_call_f64", "__bmb_py_call_f64") and len(expr.args) >= 2:
                 m_v, _ = self._lower_expr(expr.args[0], instrs, local_types)
                 f_v, _ = self._lower_expr(expr.args[1], instrs, local_types)
-                a_v, at = self._lower_expr(expr.args[2], instrs, local_types)
-                if at != "f64":
-                    flt_tmp = self.new_temp(local_types, "f64")
-                    instrs.append(MIRInstr(op="I64_TO_F64", dst=flt_tmp, arg1=a_v, val_type="f64"))
-                    a_v = flt_tmp
+                call_args = [self._lower_expr(a, instrs, local_types)[0] for a in expr.args[2:]]
                 dst = self.new_temp(local_types, "f64")
-                instrs.append(MIRInstr(op="PY_CALL_F64", dst=dst, arg1=m_v, arg2=f_v, extra=[a_v], val_type="f64"))
+                instrs.append(MIRInstr(op="PY_CALL_F64", dst=dst, arg1=m_v, arg2=f_v, extra=call_args, val_type="f64"))
                 return dst, "f64"
+
+            if expr.func in ("py_call_str", "__bmb_py_call_str") and len(expr.args) >= 2:
+                m_v, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                f_v, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                call_args = [self._lower_expr(a, instrs, local_types)[0] for a in expr.args[2:]]
+                dst = self.new_temp(local_types, "str")
+                instrs.append(MIRInstr(op="PY_CALL_STR", dst=dst, arg1=m_v, arg2=f_v, extra=call_args, val_type="str"))
+                return dst, "str"
+
+            if expr.func in ("py_call", "__bmb_py_call", "py_call_any") and len(expr.args) >= 2:
+                m_v, _ = self._lower_expr(expr.args[0], instrs, local_types)
+                f_v, _ = self._lower_expr(expr.args[1], instrs, local_types)
+                call_args = [self._lower_expr(a, instrs, local_types)[0] for a in expr.args[2:]]
+                ret_t = expr.inferred_type or "i64"
+                dst = self.new_temp(local_types, ret_t)
+                instrs.append(MIRInstr(op="PY_CALL_ANY", dst=dst, arg1=m_v, arg2=f_v, extra=call_args, val_type=ret_t))
+                return dst, ret_t
 
             arg_vals = []
             for a in expr.args:

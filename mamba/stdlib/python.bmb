@@ -1,0 +1,50 @@
+# Black Mamba Standard Library: python.bmb
+# Zero-Copy CPython Host Interop Bridge & PyPI Package Runtime Gateway
+# Provides seamless access to 500,000+ PyPI packages directly from Black Mamba.
+
+struct PyObject:
+    handle: i64
+
+    def getattr(self, attr_name: str) -> PyObject:
+        h = __bmb_py_getattr(self.handle, attr_name)
+        return PyObject(h)
+
+    def setattr(self, attr_name: str, val: i64) -> i64:
+        return __bmb_py_setattr(self.handle, attr_name, val)
+
+    def call(self, method: str, arg: i64) -> i64:
+        return __bmb_py_call_method(self.handle, method, arg)
+
+    def int(self) -> i64:
+        return __bmb_py_int(self.handle)
+
+    def float(self) -> f64:
+        return __bmb_py_float(self.handle)
+
+    def str(self) -> str:
+        return __bmb_py_str(self.handle)
+
+    def is_valid(self) -> bool:
+        return self.handle != 0
+
+def py_import(mod_name: str) -> PyObject:
+    h = __bmb_py_import(mod_name)
+    return PyObject(h)
+
+def py_eval(expr: str) -> i64:
+    return __bmb_py_eval(expr)
+
+def py_eval_f64(expr: str) -> f64:
+    return __bmb_py_eval_f64(expr)
+
+def py_eval_str(expr: str) -> str:
+    return __bmb_py_eval_str(expr)
+
+def py_call(mod: str, func: str, arg: i64) -> i64:
+    return __bmb_py_call(mod, func, arg)
+
+def py_call_f64(mod: str, func: str, arg: f64) -> f64:
+    return __bmb_py_call_f64(mod, func, arg)
+
+def py_call_str(mod: str, func: str, arg: str) -> str:
+    return __bmb_py_call_str(mod, func, arg)

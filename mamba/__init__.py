@@ -26,7 +26,7 @@ from .interop import (
     as_torch_tensor,
 )
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 __author__ = "Black Mamba Compiler Team"
 
 

@@ -174,15 +174,25 @@ class Parser:
         if tok.type == TokenType.IMPORT:
             self.pos += 1
             mod_tok = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected module name after 'import'")
+            mod_parts = [mod_tok.value]
+            while self.match(TokenType.DOT):
+                next_mod = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected identifier after '.' in module name")
+                mod_parts.append(next_mod.value)
+            module_name = ".".join(mod_parts)
             alias = None
             if self.match(TokenType.AS):
                 alias_tok = self.expect(TokenType.IDENT, "Expected alias name after 'as'")
                 alias = alias_tok.value
             self.skip_newlines()
-            return ImportStmt(line=tok.line, col=tok.col, module_name=mod_tok.value, alias=alias)
+            return ImportStmt(line=tok.line, col=tok.col, module_name=module_name, alias=alias)
         if tok.type == TokenType.FROM:
             self.pos += 1
             mod_tok = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected module name after 'from'")
+            mod_parts = [mod_tok.value]
+            while self.match(TokenType.DOT):
+                next_mod = self.match(TokenType.IDENT, TokenType.ASYNC) or self.expect(TokenType.IDENT, "Expected identifier after '.' in module name")
+                mod_parts.append(next_mod.value)
+            module_name = ".".join(mod_parts)
             self.expect(TokenType.IMPORT, "Expected 'import' after module name in from-import")
             names = []
             if self.match(TokenType.STAR):
@@ -201,7 +211,7 @@ class Parser:
                 if has_paren:
                     self.expect(TokenType.RPAREN, "Expected ')' after import list")
             self.skip_newlines()
-            return FromImportStmt(line=tok.line, col=tok.col, module_name=mod_tok.value, names=names)
+            return FromImportStmt(line=tok.line, col=tok.col, module_name=module_name, names=names)
         if tok.type in (TokenType.LET, TokenType.CONST, TokenType.MUT):
             is_const = tok.type == TokenType.CONST
             self.pos += 1

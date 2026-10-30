@@ -11,6 +11,7 @@ Provides zero-copy, pay-as-you-go interoperability with host Python (and PyPI):
 """
 
 import ctypes
+import importlib
 import os
 import sys
 import struct
@@ -202,6 +203,8 @@ class CPythonHostBridge:
         self.pyapi = ctypes.pythonapi
         self._tensor_registry: Dict[int, Any] = {}
         self._named_tensors: Dict[str, Any] = {}
+        self._obj_registry: Dict[int, Any] = {}
+        self._next_handle: int = 1000
         self._setup_c_signatures()
 
     @classmethod
@@ -340,4 +343,52 @@ class CPythonHostBridge:
 
     def release_tensor(self, ptr: int) -> None:
         self._tensor_registry.pop(ptr, None)
+
+    def register_object(self, obj: Any) -> int:
+        if obj is None:
+            return 0
+        h = self._next_handle
+        self._next_handle += 1
+        self._obj_registry[h] = obj
+        return h
+
+    def get_object(self, handle: int) -> Optional[Any]:
+        return self._obj_registry.get(handle)
+
+    def release_object(self, handle: int) -> None:
+        self._obj_registry.pop(handle, None)
+
+    def call_func_any(self, mod_name: str, func_name: str, *args) -> Any:
+        try:
+            mod = importlib.import_module(mod_name)
+        except ImportError as e:
+            raise RuntimeError(f"Could not import Python module '{mod_name}': {e}")
+        func = getattr(mod, func_name, None)
+        if func is None:
+            raise RuntimeError(f"Could not find function '{func_name}' in Python module '{mod_name}'")
+        return func(*args)
+
+    def getattr_any(self, handle_or_mod: Union[int, str], attr_name: str) -> Any:
+        if isinstance(handle_or_mod, str):
+            mod = importlib.import_module(handle_or_mod)
+            return getattr(mod, attr_name)
+        obj = self._obj_registry.get(handle_or_mod)
+        if obj is None:
+            raise RuntimeError(f"Invalid Python object handle: {handle_or_mod}")
+        return getattr(obj, attr_name)
+
+    def setattr_any(self, handle: int, attr_name: str, val: Any) -> None:
+        obj = self._obj_registry.get(handle)
+        if obj is None:
+            raise RuntimeError(f"Invalid Python object handle: {handle}")
+        setattr(obj, attr_name, val)
+
+    def call_method_any(self, handle: int, method_name: str, *args) -> Any:
+        obj = self._obj_registry.get(handle)
+        if obj is None:
+            raise RuntimeError(f"Invalid Python object handle: {handle}")
+        method = getattr(obj, method_name, None)
+        if method is None:
+            raise RuntimeError(f"Object {type(obj).__name__} has no method '{method_name}'")
+        return method(*args)
 
