@@ -16,6 +16,7 @@ __pycache__/
 .coverage
 htmlcov/
 *.log
+models/
 
 # Operating System Files
 .DS_Store

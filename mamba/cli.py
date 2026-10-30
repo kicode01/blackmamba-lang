@@ -485,12 +485,55 @@ def cmd_test(args: argparse.Namespace) -> int:
         return 1
 
 
+
+
+def cmd_container(args: argparse.Namespace) -> int:
+    from .container import ContainerBuilder
+    if not os.path.exists(args.file):
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        return 1
+
+    tag = args.tag or "blackmamba-app:latest"
+    builder = ContainerBuilder(args.file, image_tag=tag)
+    print(f"[Black Mamba Container] Building zero-base micro-container for '{args.file}'...")
+
+    if getattr(args, "dir", None):
+        out_dir = builder.export_bundle_dir(args.dir)
+        print(f"  [OK] Exported container bundle to: {out_dir}")
+        print(f"  [OK] Dockerfile: {os.path.join(out_dir, 'Dockerfile')}")
+        print(f"  [OK] Static binary: {os.path.join(out_dir, 'app')} ({os.path.getsize(os.path.join(out_dir, 'app'))} bytes)")
+
+    out_tar = args.output or (os.path.splitext(args.file)[0] + "_container.tar")
+    tar_path, tar_size = builder.export_oci_tarball(out_tar)
+    print(f"  [OK] OCI/Docker image tarball: {tar_path} ({tar_size} bytes / {tar_size/1024:.1f} KB)")
+    print(f"  [OK] Image Tag: {tag}")
+    print(f"\nLoad immediately into Docker with zero build steps:")
+    print(f"  docker load -i {tar_path}")
+    print(f"  docker run --rm {tag}\n")
+    return 0
+
+
+def cmd_chat(args: argparse.Namespace) -> int:
+    from .llm import run_interactive_chat, create_demo_gguf
+    model_path = getattr(args, "model", None)
+    if not model_path or not os.path.exists(model_path) or getattr(args, "demo", False):
+        demo_path = os.path.join("models", "tiny_mamba_demo.gguf")
+        if not os.path.exists(demo_path):
+            print(f"[Black Mamba LLM] Generating verified synthetic GGUF demo model at: {demo_path}...")
+            create_demo_gguf(demo_path)
+            print(f"  [OK] Model created ({os.path.getsize(demo_path)} bytes)")
+        model_path = demo_path
+
+    run_interactive_chat(model_path)
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
 
     # Drop-in execution support: `bmb script.py` or `bmb script.bmb`
     raw_args = list(argv if argv is not None else sys.argv[1:])
-    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate", "profile", "test"}
+    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate", "profile", "test", "container", "chat", "add", "publish"}
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
             raw_args.insert(0, "run")
@@ -569,6 +612,28 @@ def main(argv: Optional[list] = None) -> int:
     p_test = sub.add_parser("test", help="Discover and run automated tests (*_test.bmb or test_*.bmb)")
     p_test.add_argument("path", nargs="?", default=".", help="Directory or file path to test (default: current directory)")
 
+    p_cnt = sub.add_parser("container", help="Build zero-base FROM scratch micro-containers and OCI image tarballs")
+    p_cnt.add_argument("file", help="Path to .bmb source file to package into container")
+    p_cnt.add_argument("--tag", "-t", default="blackmamba-app:latest", help="Container image tag (default: blackmamba-app:latest)")
+    p_cnt.add_argument("--output", "-o", help="Output OCI/Docker tarball path (default: <file>_container.tar)")
+    p_cnt.add_argument("--dir", "-d", help="Also export uncompressed directory with Dockerfile and binary")
+
+    p_cht = sub.add_parser("chat", help="Interactive local LLM chat and streaming token generator (GGUF format)")
+    p_cht.add_argument("model", nargs="?", help="Path to .gguf model file (optional; defaults to built-in demo model)")
+    p_cht.add_argument("--demo", action="store_true", help="Force using the built-in synthetic demo model")
+
+    # Top-level package aliases: bmb add <pkg>, bmb publish
+    from .pkg.cli import register_pkg_subparsers, cmd_pkg_add, cmd_pkg_publish
+    p_top_add = sub.add_parser("add", help="Add a dependency to mamba.toml and mamba.lock (alias for bmb pkg add)")
+    p_top_add.add_argument("package", help="Name of the package")
+    p_top_add.add_argument("--git", help="Git repository URL")
+    p_top_add.add_argument("--version", help="Version requirement constraint")
+    p_top_add.add_argument("--path", help="Local directory path")
+    p_top_add.add_argument("--registry", help="JSON package registry index URL or file path")
+
+    p_top_pub = sub.add_parser("publish", help="Package and publish to registry (alias for bmb pkg publish)")
+    p_top_pub.add_argument("--registry", "-r", help="Registry directory or index.json file path")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -595,6 +660,14 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_profile(args)
     if args.command == "test":
         return cmd_test(args)
+    if args.command == "container":
+        return cmd_container(args)
+    if args.command == "chat":
+        return cmd_chat(args)
+    if args.command == "add":
+        return cmd_pkg_add(args)
+    if args.command == "publish":
+        return cmd_pkg_publish(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

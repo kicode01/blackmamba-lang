@@ -163,6 +163,103 @@ def cmd_pkg_run(args: argparse.Namespace) -> int:
     return cmd_run(run_args)
 
 
+
+
+def cmd_pkg_publish(args: argparse.Namespace) -> int:
+    import json
+    import shutil
+    import tarfile
+    from .manifest import PackageManifest
+    from .fetcher import compute_integrity
+
+    mgr = PackageManager()
+    if not os.path.exists(mgr.manifest_path):
+        print(f"Error: No mamba.toml found in {mgr.project_dir}.", file=sys.stderr)
+        return 1
+
+    manifest = PackageManifest.load(mgr.manifest_path)
+    pkg_name = manifest.name
+    pkg_ver = manifest.version
+    print(f"[bmb pkg] Packaging '{pkg_name}' v{pkg_ver} for publication...")
+
+    dist_dir = os.path.join(mgr.project_dir, "dist")
+    os.makedirs(dist_dir, exist_ok=True)
+    archive_name = f"{pkg_name}-{pkg_ver}.bmbpkg"
+    archive_path = os.path.join(dist_dir, archive_name)
+
+    with tarfile.open(archive_path, "w:gz") as tar:
+        for item in ["mamba.toml", "src", "README.md", "LICENSE"]:
+            src_item = os.path.join(mgr.project_dir, item)
+            if os.path.exists(src_item):
+                tar.add(src_item, arcname=item)
+
+    integrity = compute_integrity(mgr.project_dir)
+    pkg_size = os.path.getsize(archive_path)
+    print(f"[bmb pkg] Packaged: {archive_path} ({pkg_size} bytes)")
+    print(f"          Integrity: {integrity}")
+
+    reg_path = getattr(args, "registry", None)
+    if reg_path:
+        if os.path.isdir(reg_path):
+            index_file = os.path.join(reg_path, "index.json")
+        else:
+            index_file = reg_path
+            reg_path = os.path.dirname(index_file) or "."
+
+        index_data = {"packages": {}}
+        if os.path.exists(index_file):
+            try:
+                with open(index_file, "r", encoding="utf-8") as f:
+                    index_data = json.load(f)
+            except Exception:
+                pass
+
+        pkgs_map = index_data.get("packages", index_data)
+        if pkg_name not in pkgs_map:
+            pkgs_map[pkg_name] = {}
+
+        dest_archive = os.path.join(reg_path, archive_name)
+        if os.path.abspath(archive_path) != os.path.abspath(dest_archive):
+            shutil.copy2(archive_path, dest_archive)
+
+        pkgs_map[pkg_name][pkg_ver] = {
+            "version": pkg_ver,
+            "archive": archive_name,
+            "integrity": integrity,
+            "dependencies": list(manifest.dependencies.keys()),
+            "description": getattr(manifest, "description", f"{pkg_name} package"),
+        }
+        index_data["packages"] = pkgs_map
+        with open(index_file, "w", encoding="utf-8") as f:
+            json.dump(index_data, f, indent=2)
+        print(f"[bmb pkg] Published '{pkg_name}' v{pkg_ver} to registry at {index_file}")
+    else:
+        print(f"[bmb pkg] Publication bundle ready at {archive_path}")
+
+    return 0
+
+
+def cmd_pkg_server(args: argparse.Namespace) -> int:
+    import http.server
+    import socketserver
+    port = args.port or 8080
+    serve_dir = args.directory or os.getcwd()
+
+    class Handler(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=serve_dir, **kw)
+
+    print(f"[bmb pkg server] Serving Black Mamba Package Registry on port {port}...")
+    print(f"                 Registry root: {os.path.abspath(serve_dir)}")
+    print(f"                 Index URL:     http://localhost:{port}/index.json")
+    try:
+        with socketserver.TCPServer(("", port), Handler) as httpd:
+            httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\nRegistry server stopped.")
+    return 0
+
+
 def register_pkg_subparsers(subparsers) -> None:
     """Registers `bmb pkg` and its subcommands to the main argument parser."""
     p_pkg = subparsers.add_parser("pkg", help="Manage Black Mamba packages, manifests, and dependencies")
@@ -211,6 +308,15 @@ def register_pkg_subparsers(subparsers) -> None:
     p_rn = pkg_sub.add_parser("run", help="Run package binary from mamba.toml entry point")
     p_rn.add_argument("--stats", action="store_true", help="Print execution timing statistics")
 
+    # publish
+    p_pub = pkg_sub.add_parser("publish", help="Package and publish to a Black Mamba registry")
+    p_pub.add_argument("--registry", "-r", help="Registry directory or index.json file path")
+
+    # server
+    p_srv = pkg_sub.add_parser("server", help="Host a lightweight local Black Mamba package registry server")
+    p_srv.add_argument("--port", "-p", type=int, default=8080, help="Port to listen on (default: 8080)")
+    p_srv.add_argument("--directory", "-d", default=".", help="Directory containing packages and index.json")
+
 
 def handle_pkg_command(args: argparse.Namespace) -> int:
     """Dispatches `bmb pkg` subcommands."""
@@ -231,6 +337,10 @@ def handle_pkg_command(args: argparse.Namespace) -> int:
         return cmd_pkg_build(args)
     if cmd == "run":
         return cmd_pkg_run(args)
+    if cmd == "publish":
+        return cmd_pkg_publish(args)
+    if cmd == "server":
+        return cmd_pkg_server(args)
 
-    print("Usage: bmb pkg {init,add,remove,install,update,list,build,run} ...", file=sys.stderr)
+    print("Usage: bmb pkg {init,add,remove,install,update,list,build,run,publish,server} ...", file=sys.stderr)
     return 1

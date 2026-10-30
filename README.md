@@ -7,9 +7,9 @@
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
 
-[![Release](https://img.shields.io/badge/release-v1.5.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v1.5.0)
+[![Release](https://img.shields.io/badge/release-v2.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v2.0.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-83%2F83%20(100%25)-success?style=for-the-badge)](tests/test_phase3_bridge_migrate.py)
+[![Test Suite](https://img.shields.io/badge/tests-87%2F87%20(100%25)-success?style=for-the-badge)](tests/test_phase5_enterprise_v2.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
 [![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
 [![Targets](https://img.shields.io/badge/targets-Win64%20%7C%20Linux%20ELF64%20%7C%20macOS%20ARM64%20%7C%20WASM%20%7C%20Bare--Metal-blueviolet?style=for-the-badge)](#-visual-architecture-cpython-vs-black-mamba)
@@ -17,14 +17,14 @@
 
 ---
 
-**Black Mamba (`v1.5.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
+**Black Mamba (`v2.0.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
 
-In **v1.5.0**, Black Mamba cements itself as both an **independent standalone competitor** and a **seamless drop-in upgrade** to Python by delivering Phase 4 ("The High-Performance Domain Monopolies & Full Stdlib Parity"):
-1. **Complete Standard Library Parity ("Batteries Included")**: Pure-native modules for `collections.bmb` (Deque, Counter, DefaultDict, OrderedDict), `heap.bmb` (MinHeap, PriorityQueue, `bisect_left`/`bisect_right`, `insort_i64`), `iter.bmb` (Combinators `chain_i64`, `take_i64`, `drop_i64`, `permutations_count`, `combinations_count`, `MemoCache`), `process.bmb` (cross-platform subprocess execution & output capture), `csv.bmb` (tabular CSV/TSV parser & serializer), and `pathlib.bmb` (object-oriented Path).
-2. **Native Edge AI & Local LLM Inference Engine (`tensor.bmb` + `llama.bmb`)**: GGUF binary format loader (magic `0x46554747` validation, header & tensor descriptors), Quantized GEMV block dot-products (`q8_0_dot` and `q4_0_dot` 4-bit nibbles), and Transformer components (`tensor_rmsnorm`, `tensor_softmax`, `tensor_swiglu`, `LlamaConfig`).
-3. **High-Throughput Web Microframework (`fastapi.bmb`)**: Parameterized route matching (`/items/:id`), query string parsing (`parse_query_param`), and sub-millisecond microservice dispatch.
-4. **Native Performance Tooling (`bmb profile` and `bmb test`)**: Nanosecond call-graph sampling and interactive SVG flamegraph generator (`mamba/profile.py`), plus automated project test discovery & runner (`bmb test`).
-5. **Universal Transparent Python Bridge & Migration**: `from python import ...` transparent interop, zero-copy Py_buffer sharing, and automated codebase migration via `bmb migrate`.
+In **v2.0.0**, Black Mamba cements itself as both an **independent standalone competitor** and a **seamless drop-in upgrade** to Python by delivering Phase 5 ("The Global Cloud & Enterprise Dominance — v2.0"):
+1. **Zero-Base Container & Micro-VM Engine (`bmb container`)**: Compiles static Linux ELF64 binaries and packages pure-Python OCI/Docker container image tarballs (~20 KB total footprint) from `FROM scratch` with zero Docker daemon or Linux machine required.
+2. **Native Edge AI & Local LLM Streaming Chat CLI (`bmb chat`)**: Complete GGUF binary format loader, tensor matrix parser, and local streaming conversational AI inference engine directly embedded into the Black Mamba CLI.
+3. **Centralized Package Registry & Publishing CLI (`bmb pkg publish` & `bmb add`)**: Full package packaging (`.bmbpkg`), cryptographic SHA-256 integrity hashing, built-in local registry server (`bmb pkg server`), and shorthand dependency installation (`bmb add <pkg>`).
+4. **Interactive In-Browser WebAssembly Arena & Playground**: Rich HTML5 Canvas simulation and live WebAssembly playground running at 120 FPS in browser with instant preset switching and side-by-side performance benchmarks.
+5. **Universal Transparent Python Bridge & Full Stdlib Parity**: `from python import ...` transparent interop, zero-copy Py_buffer sharing, automated codebase migration via `bmb migrate`, `bmb profile`, `bmb test`, and 32 pure-native standard modules.
 
 Unlike **Mojo** (which forces Rust-like borrow checkers and bifurcates `def` vs `fn`) or **Nim** (which departs from Python syntax), Black Mamba preserves true Python syntax while compiling directly down to **bare-metal machine code**, **5.5 KB standalone Windows executables**, **3.9 KB static Linux binaries**, **freestanding microcontroller firmware**, **drop-in `.pyd` Python C-extensions**, and **1.7 KB WebAssembly modules** with **zero external C compiler dependencies**.
 
@@ -539,7 +539,7 @@ py_res: i64 = py_eval("100 * 2 + 5")
 git clone https://github.com/kicode01/blackmamba-lang.git
 cd blackmamba-lang
 
-# Run full test suite (83/83 unit & integration tests pass)
+# Run full test suite (87/87 unit & integration tests pass)
 python -m unittest discover -s tests -v
 ```
 
@@ -567,6 +567,42 @@ python bmb.py build examples/black_mamba_flagship.bmb --target all --debug
 python bmb.py bench
 ```
 
+### 5. Build Zero-Base Containers & OCI Images (No Docker Needed!)
+```bash
+# Compile static Linux ELF and export ~20 KB OCI image tarball directly
+bmb container examples/phase5_enterprise_showcase.bmb -t mamba-app:v2 --tar dist/app.tar
+```
+
+### 6. Native Edge AI & Local LLM Chat
+```bash
+# Launch interactive streaming AI chat with any GGUF model
+bmb chat --model models/default_v2.gguf
+```
+
+### 7. Package Manager & Centralized Publishing
+```bash
+# Publish package to registry
+bmb pkg publish
+
+# Add dependency to mamba.toml
+bmb add math_extra
+```
+
+### 8. Nanosecond Call Profiling & Interactive Flamegraphs
+```bash
+# Profile any .bmb program and output an interactive SVG flamegraph
+bmb profile examples/phase4_domain_showcase.bmb -o flamegraph.svg
+```
+
+### 9. Automated Project Test Discovery & Runner
+```bash
+# Discover and execute all test_*.bmb and *_test.bmb files
+bmb test
+```
+
+### 10. Interactive WebAssembly Arena
+Open `examples/web_arena/index.html` in any browser to experience 120 FPS WebAssembly particle simulation and live benchmark comparisons!
+
 ---
 
 ## 🗺️ Architectural Transparency & Documentation
@@ -584,15 +620,3 @@ We believe in 100% engineering honesty. Every design trade-off, hardware boundar
 Black Mamba is licensed under the [MIT License](LICENSE). Contributions, issues, and discussions are welcome!
 
 > **Disclaimer**: *Black Mamba (`.bmb`) is an independent open-source programming language and native compiler. It is not affiliated with, endorsed by, or sponsored by the Python Software Foundation (PSF). Python is a registered trademark of the Python Software Foundation.*
-
-### 4. Nanosecond Call Profiling & Interactive Flamegraphs
-```bash
-# Profile any .bmb program and output an interactive SVG flamegraph
-bmb profile examples/phase4_domain_showcase.bmb -o flamegraph.svg
-```
-
-### 5. Automated Project Test Discovery & Runner
-```bash
-# Discover and execute all test_*.bmb and *_test.bmb files
-bmb test
-```
