@@ -1,0 +1,186 @@
+# Black Mamba Standard Library: Declarative Web & CSS Engine
+# Module: web.bmb
+# Target: Client-side WebAssembly, Server-Side HTML Rendering (SSR), and Desktop Canvas
+
+class Style:
+    """Represents a type-safe, compile-time validated set of CSS properties."""
+    def __init__(self, 
+                 display: str = "block",
+                 flex_direction: str = "row",
+                 align_items: str = "stretch",
+                 justify_content: str = "flex-start",
+                 gap: i64 = 0,
+                 padding: i64 = 0,
+                 margin: i64 = 0,
+                 width: str = "auto",
+                 height: str = "auto",
+                 background: str = "transparent",
+                 color: str = "inherit",
+                 font_size: i64 = 14,
+                 font_weight: str = "normal",
+                 border_radius: i64 = 0,
+                 border: str = "none",
+                 box_shadow: str = "none",
+                 cursor: str = "default"):
+        self.display = display
+        self.flex_direction = flex_direction
+        self.align_items = align_items
+        self.justify_content = justify_content
+        self.gap = gap
+        self.padding = padding
+        self.margin = margin
+        self.width = width
+        self.height = height
+        self.background = background
+        self.color = color
+        self.font_size = font_size
+        self.font_weight = font_weight
+        self.border_radius = border_radius
+        self.border = border
+        self.box_shadow = box_shadow
+        self.cursor = cursor
+
+    def to_css_string(self) -> str:
+        """Serializes style attributes into an optimized inline CSS declaration."""
+        return (f"display:{self.display};" +
+                f"flex-direction:{self.flex_direction};" +
+                f"align-items:{self.align_items};" +
+                f"justify-content:{self.justify_content};" +
+                f"gap:{self.gap}px;" +
+                f"padding:{self.padding}px;" +
+                f"margin:{self.margin}px;" +
+                f"width:{self.width};" +
+                f"height:{self.height};" +
+                f"background:{self.background};" +
+                f"color:{self.color};" +
+                f"font-size:{self.font_size}px;" +
+                f"font-weight:{self.font_weight};" +
+                f"border-radius:{self.border_radius}px;" +
+                f"border:{self.border};" +
+                f"box-shadow:{self.box_shadow};" +
+                f"cursor:{self.cursor};")
+
+class VNode:
+    """Virtual DOM Node representing an HTML element, its styles, and its child elements."""
+    def __init__(self, tag: str, style: Style, text: str = "", children: list = None, on_click: str = ""):
+        self.tag = tag
+        self.style = style
+        self.text = text
+        self.children = children if children != None else []
+        self.on_click = on_click
+
+    def add_child(self, child: VNode) -> VNode:
+        self.children.append(child)
+        return self
+
+    def render_html(self) -> str:
+        """Renders the VNode tree to clean, compliant HTML5."""
+        css = self.style.to_css_string()
+        click_attr = f' onclick="{self.on_click}"' if self.on_click else ""
+        open_tag = f'<{self.tag} style="{css}"{click_attr}>'
+        close_tag = f'</{self.tag}>'
+
+        inner_content = self.text
+        if len(self.children) > 0:
+            rendered_children = "".join([c.render_html() for c in self.children])
+            inner_content = inner_content + rendered_children
+
+        return f"{open_tag}{inner_content}{close_tag}"
+
+# Declarative Component Factory Primitives
+
+def Div(style: Style = None, children: list = None, text: str = "") -> VNode:
+    s = style if style != None else Style("block")
+    return VNode("div", s, text, children, "")
+
+def Flex(direction: str = "row", gap: i64 = 8, align: str = "center", justify: str = "flex-start", 
+         padding: i64 = 0, background: str = "transparent", children: list = None) -> VNode:
+    s = Style(
+        "flex",
+        direction,
+        align,
+        justify,
+        gap,
+        padding,
+        0,
+        "auto",
+        "auto",
+        background
+    )
+    return VNode("div", s, "", children, "")
+
+def Card(padding: i64 = 20, border_radius: i64 = 12, background: str = "#161b22", 
+         border: str = "1px solid #30363d", box_shadow: str = "0 8px 24px rgba(0,0,0,0.3)", 
+         children: list = None) -> VNode:
+    s = Style(
+        "flex",
+        "column",
+        "stretch",
+        "flex-start",
+        12,
+        padding,
+        0,
+        "auto",
+        "auto",
+        background,
+        "inherit",
+        14,
+        "normal",
+        border_radius,
+        border,
+        box_shadow
+    )
+    return VNode("div", s, "", children, "")
+
+def H1(text: str, color: str = "#ffffff", font_size: i64 = 24, font_weight: str = "bold") -> VNode:
+    s = Style("block", "row", "stretch", "flex-start", 0, 0, 0, "auto", "auto", "transparent", color, font_size, font_weight, 0, "none", "none", "default")
+    return VNode("h1", s, text, [], "")
+
+def Text(text: str, color: str = "#e6edf3", font_size: i64 = 14, font_weight: str = "normal") -> VNode:
+    s = Style("inline-block", "row", "stretch", "flex-start", 0, 0, 0, "auto", "auto", "transparent", color, font_size, font_weight, 0, "none", "none", "default")
+    return VNode("span", s, text, [], "")
+
+def Button(label: str, background: str = "#00ff88", color: str = "#0d1117", 
+           padding: i64 = 10, border_radius: i64 = 8, on_click: str = "") -> VNode:
+    s = Style(
+        "inline-flex",
+        "row",
+        "center",
+        "center",
+        0,
+        padding,
+        0,
+        "auto",
+        "auto",
+        background,
+        color,
+        14,
+        "bold",
+        border_radius,
+        "none",
+        "0 2px 8px rgba(0,255,136,0.2)",
+        "pointer"
+    )
+    return VNode("button", s, label, [], on_click)
+
+def Badge(label: str, background: str = "rgba(0, 255, 136, 0.15)", color: str = "#00ff88") -> VNode:
+    s = Style(
+        "inline-flex",
+        "row",
+        "center",
+        "flex-start",
+        0,
+        4,
+        0,
+        "auto",
+        "auto",
+        background,
+        color,
+        12,
+        "bold",
+        6,
+        "none",
+        "none",
+        "default"
+    )
+    return VNode("span", s, label, [], "")
