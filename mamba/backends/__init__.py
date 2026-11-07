@@ -14,6 +14,7 @@ from .wasm_emitter import WasmBackend
 from .c_emitter import C11Backend, LLVMIRBackend
 from .python_ext import PythonExtensionBuilder, PE32PlusExtensionBuilder, C11ExtensionEmitter
 from .embedded import EmbeddedBareMetalBuilder, to_intel_hex
+from .html_backend import HtmlBackend
 
 __all__ = [
     "NativeJITModule",
@@ -28,4 +29,5 @@ __all__ = [
     "C11ExtensionEmitter",
     "EmbeddedBareMetalBuilder",
     "to_intel_hex",
+    "HtmlBackend",
 ]

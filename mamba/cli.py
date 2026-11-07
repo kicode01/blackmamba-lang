@@ -24,6 +24,7 @@ from .backends.c_emitter import C11Backend, LLVMIRBackend
 from .backends.python_ext import PE32PlusExtensionBuilder, C11ExtensionEmitter
 from .backends.embedded import EmbeddedBareMetalBuilder, DEFAULT_BASE_ADDR
 from .backends.gpu_shader import WebGPUShaderBackend, SPIRVShaderBackend
+from .backends.html_backend import HtmlBackend
 
 
 def compile_source_to_mir(source: str, filename: str = "<input.bmb>", base_dir: str = "") -> MIRModule:
@@ -157,6 +158,10 @@ def cmd_build(args: argparse.Namespace) -> int:
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.spv")
             path = SPIRVShaderBackend(mir).write_spirv(out_path)
             print(f"[Black Mamba] Built Vulkan SPIR-V 1.5 Compute Binary (.spv)   -> {path} ({os.path.getsize(path)} bytes)")
+        elif tgt in ("html", "dom", "web"):
+            out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.html")
+            path = HtmlBackend(mir, source=source, title=base_name.replace("_", " ").title()).write_html(out_path)
+            print(f"[Black Mamba] Built standalone HTML5 document / Web Component -> {path} ({os.path.getsize(path)} bytes)")
     return 0
 
 
@@ -613,7 +618,7 @@ def main(argv: Optional[list] = None) -> int:
         "-t",
         choices=[
             "exe", "elf", "linux", "macho", "arm64", "macos", "wasm", "wat", "c", "llvm", "ext", "pyd",
-            "embedded", "bin", "hex", "no-os", "baremetal", "webgpu", "wgsl", "spirv", "spv", "vulkan", "all",
+            "embedded", "bin", "hex", "no-os", "baremetal", "webgpu", "wgsl", "spirv", "spv", "vulkan", "html", "dom", "web", "all",
         ],
         default="exe",
         help="Target output format (default: exe)",
