@@ -1764,6 +1764,49 @@ def cmd_project(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_latent(args: argparse.Namespace) -> int:
+    import json
+    from .latent import LatentSynthesizer, benchmark_latent_synthesis, synthesize_to_code
+
+    action = getattr(args, "action", "synthesize") or "synthesize"
+    if action == "bench" or getattr(args, "prompt", "") == "bench":
+        iters = getattr(args, "iters", 500) or 500
+        res = benchmark_latent_synthesis(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Latent] Neural Latent-Vector Synthesis Benchmark ({iters:,} iters):")
+            print(f"  Syntheses:  {res['iterations']:,}")
+            print(f"  Nodes:      {res['total_nodes_synthesized']:,}")
+            print(f"  Elapsed:    {res['elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput: {res['syntheses_per_second']:,.1f} syntheses/sec ({res['nodes_per_second']:,.1f} nodes/sec)")
+            print(f"  Latency:    {res['avg_ms_per_synthesis']:.3f} ms / synthesis")
+        return 0
+
+    prompt = getattr(args, "prompt", "")
+    if not prompt:
+        print("[Black Mamba Latent] Error: Missing prompt for synthesis. Example: bmb latent synthesize \"compute fibonacci\"")
+        return 1
+
+    view = getattr(args, "view", "python") or "python"
+    synth = LatentSynthesizer()
+    graph, sim = synth.synthesize_from_prompt(prompt)
+
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "prompt": prompt,
+            "similarity": sim,
+            "nodes": len(graph.nodes),
+            "view": view,
+            "code": synth.synthesize_to_code(prompt, view=view),
+        }, indent=2))
+    else:
+        print(f"[Black Mamba Latent] Synthesized AST HyperGraph from latent vector (sim: {sim:.4f}, {len(graph.nodes)} nodes):")
+        print(f"--- View: {view.upper()} ---")
+        print(synth.synthesize_to_code(prompt, view=view))
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1793,7 +1836,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -2226,6 +2269,13 @@ def main(argv: Optional[list] = None) -> int:
     p_project.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
     p_project.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_latent = sub.add_parser("latent", help="Neural latent-vector code synthesis & direct model compilation")
+    p_latent.add_argument("action", nargs="?", choices=["synthesize", "bench"], default="synthesize", help="Action: synthesize or bench")
+    p_latent.add_argument("prompt", nargs="?", default="", help="Natural language prompt or query")
+    p_latent.add_argument("--view", "-v", choices=["python", "morphic", "math", "sexpr"], default="python", help="Output projection view")
+    p_latent.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
+    p_latent.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2319,6 +2369,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_graph(args)
     if args.command == "project":
         return cmd_project(args)
+    if args.command == "latent":
+        return cmd_latent(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

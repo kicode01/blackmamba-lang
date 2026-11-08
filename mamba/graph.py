@@ -88,6 +88,14 @@ class HyperGraph:
         self.nodes[nid] = node
         return nid
 
+    def validate(self) -> bool:
+        if not self.nodes:
+            return False
+        for node in self.nodes.values():
+            if not isinstance(node.kind, NodeKind):
+                return False
+        return True
+
     def compute_hashes(self) -> str:
         """Computes content-addressed SHA-256 hashes for all nodes from leaves to root."""
         computed: Set[int] = set()

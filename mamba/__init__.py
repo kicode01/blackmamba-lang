@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.5.5"
+__version__ = "3.6.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -177,6 +177,14 @@ from .project import (
     ProjectionEngine,
     VirtualDocumentProvider,
     benchmark_projections,
+)
+from .latent import (
+    CodebookCategory,
+    CodebookVector,
+    LatentSynthesizer,
+    synthesize_to_hypergraph,
+    synthesize_to_code,
+    benchmark_latent_synthesis,
 )
 
 
@@ -357,5 +365,11 @@ __all__ = [
     "ProjectionEngine",
     "VirtualDocumentProvider",
     "benchmark_projections",
+    "CodebookCategory",
+    "CodebookVector",
+    "LatentSynthesizer",
+    "synthesize_to_hypergraph",
+    "synthesize_to_code",
+    "benchmark_latent_synthesis",
 ]
 

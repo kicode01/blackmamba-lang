@@ -530,9 +530,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [x] **Phase 10B (`v3.5.5`) — Multi-Perspective Visual & Mathematical Projections (`bmb project`)**:
   - [x] Instantaneous view rendering: Pythonic source projection, 2D Morphic visual dataflow, and LaTeX/KaTeX mathematical formulas.
   - [x] Hypergraph Virtual Document LSP server (`bmb lsp --graph`) providing bidirectional real-time synchronization with standard code editors.
-- [ ] **Phase 10C (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation (`bmb latent`)**:
-  - [ ] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without text tokenization.
-  - [ ] Sub-5ms prompt-to-AST translation with bidirectional semantic synchronization between studio morphs, editors, and compiler agents.
+- [x] **Phase 10C (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation (`bmb latent`)**:
+  - [x] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without text tokenization.
+  - [x] Sub-5ms prompt-to-AST translation with bidirectional semantic synchronization between studio morphs, editors, and compiler agents.
 - [ ] **Phase 10D (`v3.7.0`) — Semantic 3-Way Graph VCS & Conflict-Free Structural Diff (`bmb vcs`)**:
   - [ ] Native AST-aware graph diff (`bmb diff --graph`) and 3-way merge engine replacing line-based Git.
   - [ ] Disjoint structural merging with zero merge conflicts for independent AST symbols.
