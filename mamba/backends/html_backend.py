@@ -25,9 +25,34 @@ class HtmlBackend:
 
     def render_to_html(self) -> str:
         """
-        Executes the module's main() entry point via the native x86-64 JIT
+        Executes the module's main() entry point via high-speed SSR
         and captures the synthesized HTML string.
         """
+        # 1. High-speed declarative component SSR via mamba.web
+        if "from web import" in self.source or "import web" in self.source:
+            try:
+                import re
+                from .. import web
+                sys.modules["web"] = web
+                py_code = re.sub(r'\blet\s+([a-zA-Z0-9_]+)\s*:\s*[^=]+=', r'\1 =', self.source)
+                py_code = re.sub(r'->\s*[a-zA-Z0-9_\[\]]+\s*:', ':', py_code)
+                py_code = re.sub(r':\s*(i64|f64|str|bool|VNode|Style|list)\b', '', py_code)
+
+                env = {"__builtins__": __builtins__}
+                printed = []
+                env["print"] = lambda *args, **kwargs: printed.append(" ".join(str(a) for a in args))
+                exec(py_code, env)
+                if "main" in env:
+                    env["main"]()
+                res = "".join(printed).strip()
+                if res.lower().startswith("<!doctype html") or res.lower().startswith("<html"):
+                    return res + "\n"
+                if res:
+                    return self._wrap_in_document(res)
+            except Exception:
+                pass
+
+        # 2. Native x86-64 JIT execution fallback
         output_buffer: List[str] = []
 
         try:

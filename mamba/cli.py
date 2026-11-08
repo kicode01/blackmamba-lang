@@ -722,6 +722,27 @@ def main(argv: Optional[list] = None) -> int:
     p_std.add_argument("--no-browser", action="store_true", help="Do not automatically launch web browser")
     p_std.add_argument("--cli", action="store_true", help="Launch interactive Socratic interview in terminal instead of GUI")
 
+    p_web = sub.add_parser("web", help="Full-stack reactive web framework, dev server, and static site generator")
+    web_sub = p_web.add_subparsers(dest="action")
+
+    p_web_dev = web_sub.add_parser("dev", help="Start reactive dev server with instant live preview")
+    p_web_dev.add_argument("file", nargs="?", default="app.bmb", help="Target .bmb web source file (default: app.bmb)")
+    p_web_dev.add_argument("--port", "-p", type=int, default=3000, help="Port to bind dev server to (default: 3000)")
+    p_web_dev.add_argument("--host", default="127.0.0.1", help="Host address to bind to (default: 127.0.0.1)")
+    p_web_dev.add_argument("--no-browser", action="store_true", help="Do not open browser automatically")
+
+    p_web_bld = web_sub.add_parser("build", help="Build static HTML5 site from .bmb component tree")
+    p_web_bld.add_argument("file", help="Target .bmb web source file")
+    p_web_bld.add_argument("--output", "-o", default="dist", help="Output directory (default: dist)")
+
+    p_web_new = web_sub.add_parser("new", help="Scaffold a new Black Mamba full-stack web project")
+    p_web_new.add_argument("name", help="Name of new project directory")
+
+    p_web_srv = web_sub.add_parser("serve", help="Serve a static directory or compiled HTML app")
+    p_web_srv.add_argument("path", nargs="?", default="dist", help="Directory or HTML file to serve (default: dist)")
+    p_web_srv.add_argument("--port", "-p", type=int, default=3000, help="Port to serve on (default: 3000)")
+    p_web_srv.add_argument("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -763,6 +784,9 @@ def main(argv: Optional[list] = None) -> int:
     if args.command == "studio":
         from .studio import cmd_studio
         return cmd_studio(args)
+    if args.command == "web":
+        from .web import cmd_web
+        return cmd_web(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:
