@@ -920,6 +920,128 @@ def cmd_replay(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_autograd(args: argparse.Namespace) -> int:
+    import json
+    import time
+    from .autograd import Tensor, Linear, LoRALinear, MSELoss, AdamW, emit_gpu_tensor_shader
+
+    action = getattr(args, "action", None)
+    if action == "train":
+        epochs = getattr(args, "epochs", 20) or 20
+        lr = getattr(args, "lr", 0.05) or 0.05
+        model_type = getattr(args, "model", "linear")
+
+        # Synthetic regression dataset: y = 2.5 * x1 - 1.5 * x2 + 0.5
+        xs = [
+            [1.0, 0.5],
+            [2.0, 1.0],
+            [-1.0, 2.0],
+            [3.0, -1.0],
+            [0.0, 1.5],
+            [-2.0, -1.0],
+            [1.5, 2.0],
+            [4.0, 0.0],
+        ]
+        ys = [[2.5 * r[0] - 1.5 * r[1] + 0.5] for r in xs]
+        X = Tensor(xs)
+        Y = Tensor(ys)
+
+        if model_type == "lora":
+            model = LoRALinear(2, 1, r=2, alpha=4.0, seed=42)
+        else:
+            model = Linear(2, 1, seed=42)
+
+        opt = AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
+        criterion = MSELoss()
+
+        t0 = time.perf_counter()
+        losses = []
+        for ep in range(epochs):
+            opt.zero_grad()
+            pred = model(X)
+            loss = criterion(pred, Y)
+            loss.backward()
+            opt.step()
+            losses.append(loss.item())
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        res = {
+            "model": model_type,
+            "epochs": epochs,
+            "lr": lr,
+            "initial_loss": losses[0],
+            "final_loss": losses[-1],
+            "converged": losses[-1] < losses[0],
+            "elapsed_ms": elapsed_ms,
+            "loss_trajectory": losses,
+        }
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Autograd] Trained {model_type.upper()} model for {epochs} epochs:")
+            print(f"  Initial Loss : {losses[0]:.6f}")
+            print(f"  Final Loss   : {losses[-1]:.6f} (reduction: {((losses[0] - losses[-1])/losses[0])*100:.1f}%)")
+            print(f"  Elapsed Time : {elapsed_ms:.2f} ms ({elapsed_ms / epochs:.3f} ms/epoch)")
+        return 0
+
+    elif action == "bench":
+        dim = getattr(args, "dim", 128) or 128
+        iters = getattr(args, "iters", 30) or 30
+
+        A = Tensor.randn(dim, dim, seed=123, requires_grad=True)
+        B = Tensor.randn(dim, dim, seed=456, requires_grad=True)
+
+        t0 = time.perf_counter()
+        for _ in range(iters):
+            A.zero_grad()
+            B.zero_grad()
+            C = (A @ B).sum()
+            C.backward()
+        elapsed = time.perf_counter() - t0
+        per_iter_ms = (elapsed / iters) * 1000
+        total_flops = iters * 6 * (dim ** 3)
+        gflops = (total_flops / max(1e-9, elapsed)) / 1e9
+
+        res = {
+            "dim": dim,
+            "iterations": iters,
+            "total_seconds": elapsed,
+            "ms_per_step": per_iter_ms,
+            "throughput_gflops": gflops,
+        }
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Autograd Bench] MatMul Autograd Benchmark ({dim}x{dim}):")
+            print(f"  Iterations   : {iters}")
+            print(f"  Latency/Step : {per_iter_ms:.2f} ms")
+            print(f"  Throughput   : {gflops:.3f} GFLOPS (pure native autograd)")
+        return 0
+
+    elif action == "emit":
+        target = getattr(args, "target", "webgpu")
+        op = getattr(args, "op", "matmul")
+        dims = getattr(args, "dims", "64,64,64")
+        parts = [int(x.strip()) for x in dims.split(",")]
+        m, k, n = parts[0], parts[1], parts[2]
+        shader_info = emit_gpu_tensor_shader(op=op, m=m, k=k, n=n)
+
+        out_file = getattr(args, "output", None)
+        if out_file:
+            with open(out_file, "w", encoding="utf-8") as f:
+                f.write(shader_info["wgsl_shader"])
+            if not getattr(args, "json", False):
+                print(f"[Black Mamba Autograd] Emitted {target.upper()} shader to {out_file}")
+
+        if getattr(args, "json", False):
+            print(json.dumps(shader_info, indent=2))
+        elif not out_file:
+            print(shader_info["wgsl_shader"])
+        return 0
+
+    return 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -949,7 +1071,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1225,6 +1347,27 @@ def main(argv: Optional[list] = None) -> int:
     p_rep_ins.add_argument("--diff", "-d", nargs=2, help="Diff two step indices (e.g. --diff 10 25)")
     p_rep_ins.add_argument("--json", "-j", action="store_true", help="Output state inspection as JSON")
 
+    p_atg = sub.add_parser("autograd", help="GPU Tensor Autograd & Native ML Training Engine (Phase 8D / v2.7.0)")
+    atg_sub = p_atg.add_subparsers(dest="action")
+
+    p_atg_trn = atg_sub.add_parser("train", help="Train a native neural model with automatic differentiation")
+    p_atg_trn.add_argument("--epochs", "-e", type=int, default=20, help="Training epochs (default: 20)")
+    p_atg_trn.add_argument("--lr", type=float, default=0.05, help="Learning rate (default: 0.05)")
+    p_atg_trn.add_argument("--model", "-m", choices=["linear", "lora"], default="linear", help="Model architecture")
+    p_atg_trn.add_argument("--json", "-j", action="store_true", help="Output metrics as JSON")
+
+    p_atg_bnc = atg_sub.add_parser("bench", help="Benchmark Tensor forward and backward throughput")
+    p_atg_bnc.add_argument("--dim", "-d", type=int, default=128, help="Square matrix dimension (default: 128)")
+    p_atg_bnc.add_argument("--iters", "-i", type=int, default=30, help="Benchmark iterations (default: 30)")
+    p_atg_bnc.add_argument("--json", "-j", action="store_true", help="Output benchmark as JSON")
+
+    p_atg_emt = atg_sub.add_parser("emit", help="Compile WebGPU WGSL or Vulkan SPIR-V compute shader")
+    p_atg_emt.add_argument("--target", "-t", choices=["webgpu", "spirv"], default="webgpu", help="Shader target")
+    p_atg_emt.add_argument("--op", default="matmul", help="Kernel operation (default: matmul)")
+    p_atg_emt.add_argument("--dims", default="64,64,64", help="Matrix dimensions M,K,N (default: 64,64,64)")
+    p_atg_emt.add_argument("--output", "-o", help="Output file path")
+    p_atg_emt.add_argument("--json", "-j", action="store_true", help="Output shader metadata as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1288,6 +1431,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_swarm(args)
     if args.command == "replay":
         return cmd_replay(args)
+    if args.command == "autograd":
+        return cmd_autograd(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

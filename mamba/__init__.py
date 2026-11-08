@@ -17,6 +17,9 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
+__version__ = "2.7.0"
+__author__ = "Black Mamba Compiler Team"
+
 from .cli import compile_source_to_mir
 from .backends.x86_64_jit import NativeJITModule
 from .interop import (
@@ -88,9 +91,18 @@ from .replay import (
     TimeTravelRecorder,
     OmniscientDebugger,
 )
-
-__version__ = "2.6.0"
-__author__ = "Black Mamba Compiler Team"
+from .autograd import (
+    Tensor,
+    Module,
+    Linear,
+    LoRALinear,
+    MSELoss,
+    CrossEntropyLoss,
+    Optimizer,
+    SGD,
+    AdamW,
+    emit_gpu_tensor_shader,
+)
 
 
 def compile(source: str, filename: str = "<jit>", base_dir: str = "") -> NativeJITModule:
@@ -199,5 +211,15 @@ __all__ = [
     "ReplayTrace",
     "TimeTravelRecorder",
     "OmniscientDebugger",
+    "Tensor",
+    "Module",
+    "Linear",
+    "LoRALinear",
+    "MSELoss",
+    "CrossEntropyLoss",
+    "Optimizer",
+    "SGD",
+    "AdamW",
+    "emit_gpu_tensor_shader",
 ]
 
