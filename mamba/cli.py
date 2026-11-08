@@ -750,6 +750,41 @@ def cmd_image(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_agent(args: argparse.Namespace) -> int:
+    import json
+    from .agent import AutonomousAgent
+
+    agent = AutonomousAgent()
+    if getattr(args, "heal", None):
+        result = agent.heal_module(args.heal, test_source=getattr(args, "test_file", None))
+        if getattr(args, "json", False):
+            print(json.dumps(result.to_dict(), indent=2))
+        else:
+            status = "HEALED" if result.is_healed else "NO_CHANGES"
+            print(f"[Black Mamba Agent] Self-healing pass: {status} ({result.elapsed_ms:.1f} ms)")
+            for act in result.actions:
+                print(f"  [{act.action_type}] {act.target}: {act.output}")
+            if result.is_healed and getattr(args, "output", None):
+                with open(args.output, "w", encoding="utf-8") as f:
+                    f.write(result.output_source)
+        return 0 if result.verified_pass else 1
+
+    goal = args.goal or getattr(args, "synth", None) or "Build an inventory management dashboard with SQLite stock table"
+    res = agent.synthesize_app(
+        goal=goal,
+        output_dir=getattr(args, "output", None),
+        snapshot_name=getattr(args, "snapshot", None),
+        verify=not getattr(args, "no_verify", False),
+    )
+    if getattr(args, "json", False):
+        print(json.dumps(res.to_dict(), indent=2))
+    else:
+        print(res.summary())
+        for a in res.actions:
+            print(f"  * [{a.action_type}] {a.target}: {a.output} ({a.elapsed_ms:.1f}ms)")
+    return 0 if res.tests_passed else 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -779,7 +814,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz",
+        "ast", "patch", "image", "fuzz", "agent",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1016,6 +1051,16 @@ def main(argv: Optional[list] = None) -> int:
     p_fuz.add_argument("--hist", type=int, default=10, help="Historical v0.1-v2.3 feature audit cases per vector (default: 10)")
     p_fuz.add_argument("--json", "-j", action="store_true", help="Output fuzz report as JSON")
 
+    p_agt = sub.add_parser("agent", help="Embedded Autonomous AI Copilot & App Synthesizer (Phase 8 / v2.4.0)")
+    p_agt.add_argument("goal", nargs="?", help="Natural language goal to synthesize or execute")
+    p_agt.add_argument("--synth", "-s", help="Synthesize full-stack .bmb application from goal")
+    p_agt.add_argument("--heal", help="Path to .bmb file for autonomous self-healing")
+    p_agt.add_argument("--test-file", help="Optional test file to verify healed module")
+    p_agt.add_argument("--output", "-o", help="Output directory or file path for synthesized/healed code")
+    p_agt.add_argument("--snapshot", help="Custom snapshot name (.bmbimg)")
+    p_agt.add_argument("--no-verify", action="store_true", help="Skip in-memory JIT test verification")
+    p_agt.add_argument("--json", "-j", action="store_true", help="Output agent report as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1071,6 +1116,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_image(args)
     if args.command == "fuzz":
         return cmd_fuzz(args)
+    if args.command == "agent":
+        return cmd_agent(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

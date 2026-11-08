@@ -436,10 +436,10 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
   - [x] Uncovered and fixed hardware `idiv` floor-division (`//`) & floor-modulo (`%`) sign semantics across negative dividends/divisors in `X86_64CodeBuffer.idiv_rcx` and unary constant folding (`NEG_I64`, `NEG_F64`, `NOT_I64`, `ABS_I64`, `ABS_F64`) in `MIROptimizer`.
 
 ### Phase 8 (`v2.4.0` – `v2.9.0`): Embedded Agent Copilot, Reactive WASM Signals & Self-Hosting Convergence
-- [ ] **Phase 8A (`v2.4.0`) — Embedded Agent Copilot & Reactive WASM Signals (`bmb agent` & `reactive.bmb`)**:
-  - [ ] Closed-loop autonomous agent (`mamba/agent.py` & `bmb agent`) with direct in-memory access to `ast_graph`, `inquisitor`, `canvas`, `db`, `profile`, and `test`.
-  - [ ] Fine-grained WASM Reactive UI Signals (`Signal[T]`, `Computed[T]`, `Effect`) in `mamba/stdlib/reactive.bmb`.
-  - [ ] Prompt-to-Living-App Synthesizer generating verified full-stack `.bmb` apps + `.bmbimg` snapshots from a single natural-language goal.
+- [x] **Phase 8A (`v2.4.0`) — Embedded Agent Copilot & Reactive WASM Signals (`bmb agent` & `reactive.bmb`)** *(COMPLETED IN `v2.4.0`)*:
+  - [x] Closed-loop autonomous agent (`mamba/agent.py` & `bmb agent`) with direct in-memory access to `ast_graph`, `inquisitor`, `canvas`, `db`, `profile`, and `test`.
+  - [x] Fine-grained WASM Reactive UI Signals (`Signal[T]`, `Computed[T]`, `Effect`) in `mamba/stdlib/reactive.bmb`.
+  - [x] Prompt-to-Living-App Synthesizer generating verified full-stack `.bmb` apps + `.bmbimg` snapshots from a single natural-language goal.
 - [ ] **Phase 8B (`v2.5.0`) — Native Multi-Agent Orchestrator & MCP Server (`bmb mcp`)**:
   - [ ] Built-in Model Context Protocol (MCP) Server (`bmb mcp`) exposing `ast_graph`, `patch`, `canvas`, `image`, and `db` as zero-latency tools for Claude, Cursor, Windsurf, and Antigravity.
   - [ ] Parallel sub-agent swarm execution over shared `.bmbimg` snapshots with conflict-free AST symbol locking.

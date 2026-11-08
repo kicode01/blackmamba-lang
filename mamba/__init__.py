@@ -51,8 +51,24 @@ from .fuzzer import (
     FuzzReport,
     FuzzFailure,
 )
+from .reactive import (
+    Signal,
+    Computed,
+    Effect,
+    batch,
+    ReactiveNode,
+    ReactiveStore,
+    DOMPatch,
+    compile_reactive_wasm_bundle,
+)
+from .agent import (
+    AutonomousAgent,
+    AgentAction,
+    SynthesisResult,
+    HealResult,
+)
 
-__version__ = "2.3.2"
+__version__ = "2.4.0"
 __author__ = "Black Mamba Compiler Team"
 
 
@@ -138,5 +154,17 @@ __all__ = [
     "AdversarialFuzzer",
     "FuzzReport",
     "FuzzFailure",
+    "Signal",
+    "Computed",
+    "Effect",
+    "batch",
+    "ReactiveNode",
+    "ReactiveStore",
+    "DOMPatch",
+    "compile_reactive_wasm_bundle",
+    "AutonomousAgent",
+    "AgentAction",
+    "SynthesisResult",
+    "HealResult",
 ]
 
