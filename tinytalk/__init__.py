@@ -19,26 +19,27 @@ from typing import Any, Callable, Optional, Union
 import sys
 import importlib
 
-class _MambaCompatFinder:
-    @classmethod
-    def find_spec(cls, fullname, path=None, target=None):
-        if fullname == "mamba" or fullname.startswith("mamba."):
-            tnt_name = "tinytalk" + fullname[5:]
-            try:
-                mod = importlib.import_module(tnt_name)
-                sys.modules[fullname] = mod
-                return getattr(mod, "__spec__", None)
-            except Exception:
-                return None
-        return None
-
-if not any(getattr(f, "__name__", "") == "_MambaCompatFinder" for f in sys.meta_path):
-    sys.meta_path.insert(0, _MambaCompatFinder)
-
-sys.modules["mamba"] = sys.modules[__name__]
+import pkgutil
 
 __version__ = "4.0.0"
 __author__ = "TinyTalk Team"
+
+# 100% backward compatibility alias: Ensure all tinytalk submodules map to mamba in sys.modules
+sys.modules["mamba"] = sys.modules[__name__]
+
+def _sync_mamba_submodules():
+    this_mod = sys.modules[__name__]
+    if hasattr(this_mod, "__path__"):
+        for mod_info in pkgutil.walk_packages(this_mod.__path__, "tinytalk."):
+            tnt_name = mod_info.name
+            bmb_name = "mamba." + tnt_name[9:]
+            try:
+                m = importlib.import_module(tnt_name)
+                sys.modules[bmb_name] = m
+            except Exception:
+                pass
+
+_sync_mamba_submodules()
 
 from .cli import compile_source_to_mir
 from .backends.x86_64_jit import NativeJITModule

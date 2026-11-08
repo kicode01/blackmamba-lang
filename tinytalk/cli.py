@@ -73,9 +73,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     t_exec = (time.perf_counter() - t1) * 1000.0
 
     if args.stats:
+        invoked_as = os.path.basename(sys.argv[0]).lower().replace(".exe", "")
+        brand = "TinyTalk" if ("tnt" in invoked_as or "tinytalk" in invoked_as) else "Black Mamba"
         code_bytes = len(jit.code_buf.code)
         print(
-            f"\n[Black Mamba x86-64 JIT] Compiled {code_bytes} bytes of native machine code in {t_compile:.2f} ms | "
+            f"\n[{brand} x86-64 JIT] Compiled {code_bytes} bytes of native machine code in {t_compile:.2f} ms | "
             f"Executed in {t_exec:.3f} ms"
         )
     jit.close()
@@ -99,6 +101,9 @@ def cmd_build(args: argparse.Namespace) -> int:
     out_dir = os.path.dirname(os.path.abspath(args.output)) if args.output else os.path.join(os.getcwd(), "build")
     os.makedirs(out_dir, exist_ok=True)
 
+    invoked_as = os.path.basename(sys.argv[0]).lower().replace(".exe", "")
+    brand = "TinyTalk" if ("tnt" in invoked_as or "tinytalk" in invoked_as) else "Black Mamba"
+
     dbg = bool(getattr(args, "debug", False))
     targets = ["exe", "elf", "macho", "wasm", "wat", "c", "llvm"] if args.target == "all" else [args.target]
     for tgt in targets:
@@ -106,79 +111,79 @@ def cmd_build(args: argparse.Namespace) -> int:
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.exe")
             path = PE32PlusExecutableBuilder(mir, debug=dbg).write_executable(out_path)
             dbg_tag = " [Debug: RSDS + COFF Symbols]" if dbg else ""
-            print(f"[Black Mamba] Built standalone Windows x86-64 PE32+ executable -> {path} ({os.path.getsize(path)} bytes){dbg_tag}")
+            print(f"[{brand}] Built standalone Windows x86-64 PE32+ executable -> {path} ({os.path.getsize(path)} bytes){dbg_tag}")
         elif tgt in ("elf", "linux"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.elf")
             path = ELF64ExecutableBuilder(mir, debug=dbg).write_executable(out_path)
             dbg_tag = " [Debug: DWARF v4 + .symtab]" if dbg else ""
-            print(f"[Black Mamba] Built standalone Linux x86-64 ELF64 binary      -> {path} ({os.path.getsize(path)} bytes){dbg_tag}")
+            print(f"[{brand}] Built standalone Linux x86-64 ELF64 binary      -> {path} ({os.path.getsize(path)} bytes){dbg_tag}")
         elif tgt in ("macho", "arm64", "macos"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.macho")
             path = MachOARM64ExecutableBuilder(mir).write_executable(out_path)
-            print(f"[Black Mamba] Built standalone macOS ARM64 Mach-O binary   -> {path} ({os.path.getsize(path)} bytes)")
+            print(f"[{brand}] Built standalone macOS ARM64 Mach-O binary   -> {path} ({os.path.getsize(path)} bytes)")
         elif tgt == "wasm":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.wasm")
             path = WasmBackend(mir).write_wasm(out_path)
-            print(f"[Black Mamba] Built WebAssembly binary module                  -> {path} ({os.path.getsize(path)} bytes)")
+            print(f"[{brand}] Built WebAssembly binary module                  -> {path} ({os.path.getsize(path)} bytes)")
         elif tgt == "wat":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.wat")
             wat_text = WasmBackend(mir).emit_wat()
             with open(out_path, "w", encoding="utf-8") as wf:
                 wf.write(wat_text)
-            print(f"[Black Mamba] Built WebAssembly text (.wat)                    -> {os.path.abspath(out_path)}")
+            print(f"[{brand}] Built WebAssembly text (.wat)                    -> {os.path.abspath(out_path)}")
         elif tgt == "c":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.c")
             path = C11Backend(mir, debug=dbg).write_c(out_path)
-            print(f"[Black Mamba] Built portable C11 + OpenMP/SIMD source          -> {path}")
+            print(f"[{brand}] Built portable C11 + OpenMP/SIMD source          -> {path}")
         elif tgt == "llvm":
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.ll")
             path = LLVMIRBackend(mir).write_llvm(out_path)
-            print(f"[Black Mamba] Built LLVM IR (.ll)                              -> {path}")
+            print(f"[{brand}] Built LLVM IR (.ll)                              -> {path}")
         elif tgt in ("ext", "pyd"):
             if sys.platform == "win32":
                 out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.pyd")
                 path = PE32PlusExtensionBuilder(mir, mod_name=base_name).write_pyd(out_path)
-                print(f"[Black Mamba] Built standalone Windows CPython Extension (.pyd) -> {path} ({os.path.getsize(path)} bytes)")
+                print(f"[{brand}] Built standalone Windows CPython Extension (.pyd) -> {path} ({os.path.getsize(path)} bytes)")
             else:
                 out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.c")
                 path = C11ExtensionEmitter(mir, mod_name=base_name).write_c_extension(out_path)
-                print(f"[Black Mamba] Built portable CPython Extension C source (.c)  -> {path}")
+                print(f"[{brand}] Built portable CPython Extension C source (.c)  -> {path}")
         elif tgt in ("embedded", "bin", "no-os", "baremetal"):
             base_addr = int(args.base_addr, 0) if getattr(args, "base_addr", None) else DEFAULT_BASE_ADDR
             builder = EmbeddedBareMetalBuilder(mir, base_addr=base_addr)
             if args.output and args.output.endswith(".elf"):
                 path = builder.write_freestanding_elf(args.output)
-                print(f"[Black Mamba] Built freestanding bare-metal ELF binary        -> {path} ({os.path.getsize(path)} bytes)")
+                print(f"[{brand}] Built freestanding bare-metal ELF binary        -> {path} ({os.path.getsize(path)} bytes)")
             elif args.output and args.output.endswith(".hex"):
                 path = builder.write_hex(args.output)
-                print(f"[Black Mamba] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes)")
+                print(f"[{brand}] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes)")
             else:
                 out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.bin")
                 path = builder.write_bin(out_path)
-                print(f"[Black Mamba] Built freestanding flat binary image (.bin)     -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
+                print(f"[{brand}] Built freestanding flat binary image (.bin)     -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
         elif tgt == "hex":
             base_addr = int(args.base_addr, 0) if getattr(args, "base_addr", None) else DEFAULT_BASE_ADDR
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.hex")
             path = EmbeddedBareMetalBuilder(mir, base_addr=base_addr).write_hex(out_path)
-            print(f"[Black Mamba] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
+            print(f"[{brand}] Built Intel HEX embedded image                  -> {path} ({os.path.getsize(path)} bytes @ 0x{base_addr:08X})")
         elif tgt in ("webgpu", "wgsl"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.wgsl")
             path = WebGPUShaderBackend(mir).write_wgsl(out_path)
-            print(f"[Black Mamba] Built WebGPU Compute Shader (.wgsl)             -> {path} ({os.path.getsize(path)} bytes)")
+            print(f"[{brand}] Built WebGPU Compute Shader (.wgsl)             -> {path} ({os.path.getsize(path)} bytes)")
         elif tgt in ("spirv", "spv", "vulkan"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.spv")
             path = SPIRVShaderBackend(mir).write_spirv(out_path)
-            print(f"[Black Mamba] Built Vulkan SPIR-V 1.5 Compute Binary (.spv)   -> {path} ({os.path.getsize(path)} bytes)")
+            print(f"[{brand}] Built Vulkan SPIR-V 1.5 Compute Binary (.spv)   -> {path} ({os.path.getsize(path)} bytes)")
         elif tgt in ("html", "dom", "web"):
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}.html")
             path = HtmlBackend(mir, source=source, title=base_name.replace("_", " ").title()).write_html(out_path)
-            print(f"[Black Mamba] Built standalone HTML5 document / Web Component -> {path} ({os.path.getsize(path)} bytes)")
+            print(f"[{brand}] Built standalone HTML5 document / Web Component -> {path} ({os.path.getsize(path)} bytes)")
         elif tgt in ("unikernel", "vm", "firecracker"):
             from .unikernel import UnikernelBuilder
             out_path = args.output if (args.output and args.target != "all") else os.path.join(out_dir, f"{base_name}_unikernel.raw")
             ub = UnikernelBuilder(memory_mb=128)
             res = ub.build_unikernel_image(source, out_path)
-            print(f"[Black Mamba] Built Firecracker/KVM Unikernel Image (0.4 ms)  -> {res['image_path']} ({res['image_bytes']} bytes)")
+            print(f"[{brand}] Built Firecracker/KVM Unikernel Image (0.4 ms)  -> {res['image_path']} ({res['image_bytes']} bytes)")
     return 0
 
 

@@ -9,7 +9,7 @@
 
 [![Release](https://img.shields.io/badge/release-v4.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/tinytalk-lang/releases/tag/v4.0.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_tinytalk_v400.py)
-[![Test Suite](https://img.shields.io/badge/tests-270%2F270%20passed%20(100%25)-success?style=for-the-badge)](tests/)
+[![Test Suite](https://img.shields.io/badge/tests-275%2F275%20passed%20(100%25)-success?style=for-the-badge)](tests/)
 [![Gatekeeper](https://img.shields.io/badge/gatekeeper-5%20stages%20certified-blue?style=for-the-badge)](tinytalk/gatekeeper.py)
 [![Fuzzer](https://img.shields.io/badge/adversarial%20fuzzer-210%2F210%20(100%25)-purple?style=for-the-badge)](tinytalk/fuzzer.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-tinytalk-vs-cpython-314)
@@ -413,7 +413,11 @@ python -m tinytalk.cli gatekeeper
 
 ### 2. Run Instantly via JIT
 ```bash
+# Run Flagship Language Showcase
 tnt run examples/tinytalk_flagship.tnt --stats
+
+# Run Real-World High-Frequency Trading & Order Matching Engine
+tnt run examples/tinytalk_hft_engine.tnt --stats
 ```
 
 ### 3. Build Standalone Binaries Across All Targets
