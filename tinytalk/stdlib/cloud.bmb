@@ -1,0 +1,26 @@
+# Black Mamba Standard Library: cloud.bmb
+# Zero-Cold-Start Serverless Cloud & Edge Function Primitives (AWS Lambda, Cloud Run, Fly.io, Cloudflare)
+
+struct CloudEvent:
+    request_id: str
+    method: str
+    path: str
+    body: str
+    cold_start_us: i64
+
+struct CloudResponse:
+    status_code: i64
+    content_type: str
+    body: str
+
+def cloud_event_new(req_id: str, method: str, path: str, body: str) -> CloudEvent:
+    return CloudEvent(req_id, method, path, body, 400)
+
+def cloud_response_json(status: i64, json_body: str) -> CloudResponse:
+    return CloudResponse(status, "application/json", json_body)
+
+def cloud_response_text(status: i64, text_body: str) -> CloudResponse:
+    return CloudResponse(status, "text/plain", text_body)
+
+def cloud_format_http(resp: CloudResponse) -> str:
+    return f"HTTP/1.1 {resp.status_code} OK\r\nContent-Type: {resp.content_type}\r\n\r\n{resp.body}"

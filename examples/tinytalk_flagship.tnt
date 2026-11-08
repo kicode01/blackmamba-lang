@@ -1,0 +1,104 @@
+# ==============================================================================
+#  BLACK MAMBA (.bmb) FLAGSHIP SAMPLE
+#  "Write like Python, Execute like C/Assembly, Compile Anywhere"
+# ==============================================================================
+
+# 1. Zero-Cost Value Types (Structs allocated directly on registers/stack, no GC)
+struct Vec3:
+    x: f64
+    y: f64
+    z: f64
+
+    fn norm_sq(self) -> f64:
+        return self.x * self.x + self.y * self.y + self.z * self.z
+
+# 2. Mathematical Kernels (64-bit IEEE-754 SSE2 hardware floats)
+def distance_3d(v1: Vec3, v2: Vec3) -> f64:
+    dx = v1.x - v2.x
+    dy = v1.y - v2.y
+    dz = v1.z - v2.z
+    return sqrt(dx * dx + dy * dy + dz * dz)
+
+# 3. Clean Python Syntax with Whole-Program Cartesian Type Inference
+# Notice: Zero type annotations needed here! Black Mamba infers i64 -> i64.
+def is_prime(n):
+    if n <= 1:
+        return False
+    d = 2
+    while d * d <= n:
+        if n % d == 0:
+            return False
+        d += 1
+    return True
+
+def count_primes_in_range(low, high):
+    count = 0
+    for n in low..=high:
+        if is_prime(n):
+            count += 1
+    return count
+
+# 4. Pipeline Operator (|>) for Expressive Functional Dataflow
+def step_double(x: i64) -> i64:
+    return x * 2
+
+def step_add_const(x: i64) -> i64:
+    return x + 42
+
+def step_square(x: i64) -> i64:
+    return x * x
+
+# 5. Pattern Matching (Compiled to 1-cycle jump tables)
+def evaluate_status_code(code: i64) -> str:
+    match code:
+        case 200:
+            return "OK: High Performance"
+        case 201:
+            return "Created: Zero Overhead"
+        case 404:
+            return "Error: GIL Not Found (Lock-Free)"
+        case _:
+            return "Active: Bare-Metal Speed"
+
+# 6. Automatic Tail-Call Optimization (TCO)
+# In standard Python, this crashes with `RecursionError: maximum recursion depth exceeded` at N=1000.
+# In Black Mamba, the compiler transforms it into a 0-stack-frame register jump loop!
+def tail_accumulator(n, acc):
+    if n <= 0:
+        return acc
+    return tail_accumulator(n - 1, acc + n)
+
+# 7. Main Entry Point
+def main():
+    print("=================================================================")
+    print("           BLACK MAMBA (.bmb) FLAGSHIP SHOWCASE")
+    print("=================================================================")
+
+    # Feature 1: Value Structs & 3D Vector Math
+    p1 = Vec3(0.0, 3.0, 4.0)
+    p2 = Vec3(3.0, 7.0, 4.0)
+    dist = distance_3d(p1, p2)
+    print(f"[1] 3D Vector Distance between points: {dist}")
+
+    # Feature 2: High-Speed Number Theory
+    prime_limit = 10000
+    primes_found = count_primes_in_range(1, prime_limit)
+    print(f"[2] Primes counted up to {prime_limit}: {primes_found}")
+
+    # Feature 3: Pipeline Operator (|>)
+    # Passes value from left to right: 7 |> step_double -> 14 |> step_add_const -> 56 |> step_square -> 3136
+    pipe_val = 7 |> step_double |> step_add_const |> step_square
+    print(f"[3] Functional Pipeline (7 |> double |> add_42 |> square): {pipe_val}")
+
+    # Feature 4: Zero-Cost Pattern Matching
+    status = evaluate_status_code(200)
+    print(f"[4] Pattern Matching Result: {status}")
+
+    # Feature 5: Deep Recursion with Auto-TCO (1,000,000 iterations without stack overflow)
+    tco_sum = tail_accumulator(1000000, 0)
+    print(f"[5] Auto-TCO Tail Sum (1,000,000 recursive frames): {tco_sum}")
+
+    print("=================================================================")
+    print("Compiled to Native x86-64 Machine Code / Standalone PE32+ / WASM")
+    print("=================================================================")
+    return 0

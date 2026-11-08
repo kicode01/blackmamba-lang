@@ -1,14 +1,11 @@
-"""
-CLI entry point for Black Mamba Interactive REPL: `python -m mamba.repl`.
-"""
-
+"""Backward compatibility shim forwarding to tinytalk.repl.__main__."""
 import sys
-from .console import run_repl
+import tinytalk.repl.__main__ as _target
+from tinytalk.repl.__main__ import *
 
-
-def main():
-    sys.exit(run_repl())
-
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target
 
 if __name__ == "__main__":
-    main()
+    if hasattr(_target, "main"):
+        sys.exit(_target.main())

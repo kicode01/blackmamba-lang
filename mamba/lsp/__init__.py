@@ -1,35 +1,11 @@
-"""
-Black Mamba Language Server Protocol (LSP) package.
-Provides language intelligence, real-time diagnostics, hover tooltips,
-autocompletion, go-to-definition, and symbol outline for Black Mamba (.bmb).
-"""
+"""Backward compatibility shim forwarding to tinytalk.lsp."""
+import sys
+import tinytalk.lsp as _target
+from tinytalk.lsp import *
 
-from .analyzer import DocumentAnalyzer
-from .formatter import format_source
-from .protocol import (
-    DiagnosticSeverity,
-    CompletionItemKind,
-    SymbolKind,
-    read_message,
-    write_message,
-    make_response,
-    make_error,
-    make_notification,
-)
-from .server import LanguageServer, run_stdio_server, run_tcp_server
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target
 
-__all__ = [
-    "LanguageServer",
-    "DocumentAnalyzer",
-    "format_source",
-    "DiagnosticSeverity",
-    "CompletionItemKind",
-    "SymbolKind",
-    "read_message",
-    "write_message",
-    "make_response",
-    "make_error",
-    "make_notification",
-    "run_stdio_server",
-    "run_tcp_server",
-]
+if __name__ == "__main__":
+    if hasattr(_target, "main"):
+        sys.exit(_target.main())

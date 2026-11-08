@@ -1,0 +1,69 @@
+# Black Mamba Standard Library: debug
+# Vector 8: Native Debugging, Invariant Assertions & Memory Hex Inspection.
+# Pure Black Mamba (.bmb) diagnostics running across JIT, PE32+, ELF64, C11, and WASM.
+
+struct DebugSpan:
+    file_name: str
+    func_name: str
+    line_no: i64
+
+def make_span(file_name: str, func_name: str, line_no: i64) -> DebugSpan:
+    return DebugSpan(file_name, func_name, line_no)
+
+def format_span(sp: DebugSpan) -> str:
+    return sp.func_name + " (" + sp.file_name + ":" + str(sp.line_no) + ")"
+
+def debug_location(file_name: str, line_no: i64, func_name: str) -> str:
+    return file_name + ":" + str(line_no) + " in " + func_name + "()"
+
+def debug_trace(file_name: str, line_no: i64, func_name: str, msg: str) -> i64:
+    print("[TRACE " + debug_location(file_name, line_no, func_name) + "] " + msg)
+    return 0
+
+def debug_assert(cond: bool, msg: str, file_name: str, line_no: i64) -> i64:
+    if not cond:
+        print("[Black Mamba Debug Assertion Failed] " + file_name + ":" + str(line_no) + " - " + msg)
+        exit(1)
+    return 1
+
+def hex_nibble(n: i64) -> str:
+    v = n & 15
+    if v < 10:
+        return chr(48 + v)
+    return chr(55 + v)
+
+def hex_byte(b: i64) -> str:
+    v = b & 255
+    return hex_nibble(v >> 4) + hex_nibble(v & 15)
+
+def hex_u32(val: i64) -> str:
+    v = val & 4294967295
+    return hex_byte((v >> 24) & 255) + hex_byte((v >> 16) & 255) + hex_byte((v >> 8) & 255) + hex_byte(v & 255)
+
+def hex_dump(buf_ptr: i64, length: i64) -> str:
+    # Formats `length` bytes starting at `buf_ptr` into space-separated uppercase hex.
+    out = ""
+    for i in 0..length:
+        b = __bmb_mem_read8(buf_ptr, i)
+        if i > 0:
+            out = out + " "
+        out = out + hex_byte(b)
+    return out
+
+def assert_true(cond: bool, msg: str) -> i64:
+    if not cond:
+        print("[Black Mamba Debug Assertion Failed] " + msg)
+        return 0
+    return 1
+
+def assert_eq(actual: i64, expected: i64, label: str) -> i64:
+    if actual != expected:
+        print("[Black Mamba Debug Assertion Failed] " + label + ": expected " + str(expected) + ", got " + str(actual))
+        return 0
+    return 1
+
+def assert_str_eq(actual: str, expected: str, label: str) -> i64:
+    if actual != expected:
+        print("[Black Mamba Debug Assertion Failed] " + label + ": expected '" + expected + "', got '" + actual + "'")
+        return 0
+    return 1

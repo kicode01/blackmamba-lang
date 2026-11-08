@@ -1,0 +1,99 @@
+# Black Mamba Standard Library: pathlib
+# Object-Oriented Filesystem Paths with 100% Native Pure Black Mamba Execution
+# Zero CPython Overhead | Cross-Platform Windows/POSIX Path Handling
+
+import os
+
+struct Path:
+    raw: str
+
+    def as_posix(self) -> str:
+        let n = len(self.raw)
+        let res = ""
+        for i in 0..n:
+            let c = self.raw[i]
+            if c == "\\":
+                res = res + "/"
+            else:
+                res = res + c
+        return res
+
+    def join(self, child: str) -> Path:
+        if len(self.raw) == 0:
+            return Path(child)
+        if len(child) == 0:
+            return Path(self.raw)
+        let last = self.raw[len(self.raw) - 1]
+        if last == "/" or last == "\\":
+            return Path(self.raw + child)
+        return Path(self.raw + "/" + child)
+
+    def name(self) -> str:
+        let n = len(self.raw)
+        if n == 0:
+            return ""
+        let last_slash = -1
+        for i in 0..n:
+            let c = self.raw[i]
+            if c == "/" or c == "\\":
+                last_slash = i
+        if last_slash < 0:
+            return self.raw
+        return self.raw[last_slash + 1:n]
+
+    def stem(self) -> str:
+        let full_name = self.name()
+        let n = len(full_name)
+        let last_dot = -1
+        for i in 0..n:
+            if full_name[i] == ".":
+                last_dot = i
+        if last_dot <= 0:
+            return full_name
+        return full_name[0:last_dot]
+
+    def suffix(self) -> str:
+        let full_name = self.name()
+        let n = len(full_name)
+        let last_dot = -1
+        for i in 0..n:
+            if full_name[i] == ".":
+                last_dot = i
+        if last_dot < 0:
+            return ""
+        return full_name[last_dot:n]
+
+    def parent(self) -> Path:
+        let n = len(self.raw)
+        if n == 0:
+            return Path("")
+        let last_slash = -1
+        for i in 0..n:
+            let c = self.raw[i]
+            if c == "/" or c == "\\":
+                last_slash = i
+        if last_slash < 0:
+            return Path(".")
+        if last_slash == 0:
+            return Path("/")
+        return Path(self.raw[0:last_slash])
+
+    def exists(self) -> bool:
+        return os.file_exists(self.raw)
+
+    def is_file(self) -> bool:
+        return os.is_file(self.raw)
+
+    def is_dir(self) -> bool:
+        if not os.file_exists(self.raw):
+            return False
+        return os.file_size(self.raw) == 0
+
+    def read_text(self) -> str:
+        return os.read_file(self.raw)
+
+    def write_text(self, content: str) -> i64:
+        return os.write_file(self.raw, content)
+
+def path(raw: str) -> Path:
+    return Path(raw)

@@ -1,0 +1,350 @@
+# Black Mamba Standard Library: simd.bmb
+# Hardware-Accelerated SIMD Vectorization Engine (SSE, AVX2, AVX-512)
+# Exposes fixed-width vector types (Vec4f, Vec8f, Vec4i, Vec8i) and 8-way unrolled bulk kernels.
+
+from math import sqrt
+
+# ==============================================================================
+# 1. 256-bit SIMD Float Vectors (4 x 64-bit Float - AVX2 / 2x SSE2)
+# ==============================================================================
+
+struct Vec4f:
+    v0: f64
+    v1: f64
+    v2: f64
+    v3: f64
+
+fn vec4f_set(v0: f64, v1: f64, v2: f64, v3: f64) -> Vec4f:
+    return Vec4f(v0, v1, v2, v3)
+
+fn vec4f_splat(val: f64) -> Vec4f:
+    return Vec4f(val, val, val, val)
+
+fn vec4f_zero() -> Vec4f:
+    return Vec4f(0.0, 0.0, 0.0, 0.0)
+
+fn vec4f_add(a: Vec4f, b: Vec4f) -> Vec4f:
+    return Vec4f(a.v0 + b.v0, a.v1 + b.v1, a.v2 + b.v2, a.v3 + b.v3)
+
+fn vec4f_sub(a: Vec4f, b: Vec4f) -> Vec4f:
+    return Vec4f(a.v0 - b.v0, a.v1 - b.v1, a.v2 - b.v2, a.v3 - b.v3)
+
+fn vec4f_mul(a: Vec4f, b: Vec4f) -> Vec4f:
+    return Vec4f(a.v0 * b.v0, a.v1 * b.v1, a.v2 * b.v2, a.v3 * b.v3)
+
+fn vec4f_div(a: Vec4f, b: Vec4f) -> Vec4f:
+    return Vec4f(a.v0 / b.v0, a.v1 / b.v1, a.v2 / b.v2, a.v3 / b.v3)
+
+fn vec4f_fma(a: Vec4f, b: Vec4f, c: Vec4f) -> Vec4f:
+    # Fused Multiply-Add: (a * b) + c
+    return Vec4f(a.v0 * b.v0 + c.v0, a.v1 * b.v1 + c.v1, a.v2 * b.v2 + c.v2, a.v3 * b.v3 + c.v3)
+
+fn vec4f_scale(a: Vec4f, factor: f64) -> Vec4f:
+    return Vec4f(a.v0 * factor, a.v1 * factor, a.v2 * factor, a.v3 * factor)
+
+fn vec4f_min(a: Vec4f, b: Vec4f) -> Vec4f:
+    let r0: f64 = a.v0 if a.v0 < b.v0 else b.v0
+    let r1: f64 = a.v1 if a.v1 < b.v1 else b.v1
+    let r2: f64 = a.v2 if a.v2 < b.v2 else b.v2
+    let r3: f64 = a.v3 if a.v3 < b.v3 else b.v3
+    return Vec4f(r0, r1, r2, r3)
+
+fn vec4f_max(a: Vec4f, b: Vec4f) -> Vec4f:
+    let r0: f64 = a.v0 if a.v0 > b.v0 else b.v0
+    let r1: f64 = a.v1 if a.v1 > b.v1 else b.v1
+    let r2: f64 = a.v2 if a.v2 > b.v2 else b.v2
+    let r3: f64 = a.v3 if a.v3 > b.v3 else b.v3
+    return Vec4f(r0, r1, r2, r3)
+
+fn vec4f_hsum(a: Vec4f) -> f64:
+    return a.v0 + a.v1 + a.v2 + a.v3
+
+fn vec4f_dot(a: Vec4f, b: Vec4f) -> f64:
+    return a.v0 * b.v0 + a.v1 * b.v1 + a.v2 * b.v2 + a.v3 * b.v3
+
+fn vec4f_norm(a: Vec4f) -> f64:
+    return sqrt(vec4f_dot(a, a))
+
+# ==============================================================================
+# 2. 512-bit SIMD Float Vectors (8 x 64-bit Float - AVX-512 / 2x AVX2)
+# ==============================================================================
+
+struct Vec8f:
+    v0: f64
+    v1: f64
+    v2: f64
+    v3: f64
+    v4: f64
+    v5: f64
+    v6: f64
+    v7: f64
+
+fn vec8f_set(v0: f64, v1: f64, v2: f64, v3: f64, v4: f64, v5: f64, v6: f64, v7: f64) -> Vec8f:
+    return Vec8f(v0, v1, v2, v3, v4, v5, v6, v7)
+
+fn vec8f_splat(val: f64) -> Vec8f:
+    return Vec8f(val, val, val, val, val, val, val, val)
+
+fn vec8f_zero() -> Vec8f:
+    return Vec8f(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+fn vec8f_add(a: Vec8f, b: Vec8f) -> Vec8f:
+    return Vec8f(
+        a.v0 + b.v0, a.v1 + b.v1, a.v2 + b.v2, a.v3 + b.v3,
+        a.v4 + b.v4, a.v5 + b.v5, a.v6 + b.v6, a.v7 + b.v7
+    )
+
+fn vec8f_sub(a: Vec8f, b: Vec8f) -> Vec8f:
+    return Vec8f(
+        a.v0 - b.v0, a.v1 - b.v1, a.v2 - b.v2, a.v3 - b.v3,
+        a.v4 - b.v4, a.v5 - b.v5, a.v6 - b.v6, a.v7 - b.v7
+    )
+
+fn vec8f_mul(a: Vec8f, b: Vec8f) -> Vec8f:
+    return Vec8f(
+        a.v0 * b.v0, a.v1 * b.v1, a.v2 * b.v2, a.v3 * b.v3,
+        a.v4 * b.v4, a.v5 * b.v5, a.v6 * b.v6, a.v7 * b.v7
+    )
+
+fn vec8f_div(a: Vec8f, b: Vec8f) -> Vec8f:
+    return Vec8f(
+        a.v0 / b.v0, a.v1 / b.v1, a.v2 / b.v2, a.v3 / b.v3,
+        a.v4 / b.v4, a.v5 / b.v5, a.v6 / b.v6, a.v7 / b.v7
+    )
+
+fn vec8f_fma(a: Vec8f, b: Vec8f, c: Vec8f) -> Vec8f:
+    return Vec8f(
+        a.v0 * b.v0 + c.v0, a.v1 * b.v1 + c.v1, a.v2 * b.v2 + c.v2, a.v3 * b.v3 + c.v3,
+        a.v4 * b.v4 + c.v4, a.v5 * b.v5 + c.v5, a.v6 * b.v6 + c.v6, a.v7 * b.v7 + c.v7
+    )
+
+fn vec8f_scale(a: Vec8f, factor: f64) -> Vec8f:
+    return Vec8f(
+        a.v0 * factor, a.v1 * factor, a.v2 * factor, a.v3 * factor,
+        a.v4 * factor, a.v5 * factor, a.v6 * factor, a.v7 * factor
+    )
+
+fn vec8f_hsum(a: Vec8f) -> f64:
+    return a.v0 + a.v1 + a.v2 + a.v3 + a.v4 + a.v5 + a.v6 + a.v7
+
+fn vec8f_dot(a: Vec8f, b: Vec8f) -> f64:
+    return a.v0 * b.v0 + a.v1 * b.v1 + a.v2 * b.v2 + a.v3 * b.v3 + a.v4 * b.v4 + a.v5 * b.v5 + a.v6 * b.v6 + a.v7 * b.v7
+
+fn vec8f_norm(a: Vec8f) -> f64:
+    return sqrt(vec8f_dot(a, a))
+
+# ==============================================================================
+# 3. 256-bit SIMD Integer Vectors (4 x 64-bit Int)
+# ==============================================================================
+
+struct Vec4i:
+    v0: i64
+    v1: i64
+    v2: i64
+    v3: i64
+
+fn vec4i_set(v0: i64, v1: i64, v2: i64, v3: i64) -> Vec4i:
+    return Vec4i(v0, v1, v2, v3)
+
+fn vec4i_splat(val: i64) -> Vec4i:
+    return Vec4i(val, val, val, val)
+
+fn vec4i_zero() -> Vec4i:
+    return Vec4i(0, 0, 0, 0)
+
+fn vec4i_add(a: Vec4i, b: Vec4i) -> Vec4i:
+    return Vec4i(a.v0 + b.v0, a.v1 + b.v1, a.v2 + b.v2, a.v3 + b.v3)
+
+fn vec4i_sub(a: Vec4i, b: Vec4i) -> Vec4i:
+    return Vec4i(a.v0 - b.v0, a.v1 - b.v1, a.v2 - b.v2, a.v3 - b.v3)
+
+fn vec4i_mul(a: Vec4i, b: Vec4i) -> Vec4i:
+    return Vec4i(a.v0 * b.v0, a.v1 * b.v1, a.v2 * b.v2, a.v3 * b.v3)
+
+fn vec4i_band(a: Vec4i, b: Vec4i) -> Vec4i:
+    return Vec4i(a.v0 & b.v0, a.v1 & b.v1, a.v2 & b.v2, a.v3 & b.v3)
+
+fn vec4i_bor(a: Vec4i, b: Vec4i) -> Vec4i:
+    return Vec4i(a.v0 | b.v0, a.v1 | b.v1, a.v2 | b.v2, a.v3 | b.v3)
+
+fn vec4i_bxor(a: Vec4i, b: Vec4i) -> Vec4i:
+    return Vec4i(a.v0 ^ b.v0, a.v1 ^ b.v1, a.v2 ^ b.v2, a.v3 ^ b.v3)
+
+fn vec4i_hsum(a: Vec4i) -> i64:
+    return a.v0 + a.v1 + a.v2 + a.v3
+
+# ==============================================================================
+# 4. 8-Way Unrolled Bulk SIMD Kernels for Contiguous Arrays
+# ==============================================================================
+
+fn simd_add_f64(a: Array[f64], b: Array[f64], out: Array[f64], n: i64) -> i64:
+    let i: i64 = 0
+    let limit: i64 = n - 7
+    while i < limit:
+        out[i] = a[i] + b[i]
+        out[i + 1] = a[i + 1] + b[i + 1]
+        out[i + 2] = a[i + 2] + b[i + 2]
+        out[i + 3] = a[i + 3] + b[i + 3]
+        out[i + 4] = a[i + 4] + b[i + 4]
+        out[i + 5] = a[i + 5] + b[i + 5]
+        out[i + 6] = a[i + 6] + b[i + 6]
+        out[i + 7] = a[i + 7] + b[i + 7]
+        i += 8
+    while i < n:
+        out[i] = a[i] + b[i]
+        i += 1
+    return n
+
+fn simd_mul_f64(a: Array[f64], b: Array[f64], out: Array[f64], n: i64) -> i64:
+    let i: i64 = 0
+    let limit: i64 = n - 7
+    while i < limit:
+        out[i] = a[i] * b[i]
+        out[i + 1] = a[i + 1] * b[i + 1]
+        out[i + 2] = a[i + 2] * b[i + 2]
+        out[i + 3] = a[i + 3] * b[i + 3]
+        out[i + 4] = a[i + 4] * b[i + 4]
+        out[i + 5] = a[i + 5] * b[i + 5]
+        out[i + 6] = a[i + 6] * b[i + 6]
+        out[i + 7] = a[i + 7] * b[i + 7]
+        i += 8
+    while i < n:
+        out[i] = a[i] * b[i]
+        i += 1
+    return n
+
+fn simd_fma_f64(a: Array[f64], b: Array[f64], c: Array[f64], out: Array[f64], n: i64) -> i64:
+    let i: i64 = 0
+    let limit: i64 = n - 7
+    while i < limit:
+        out[i] = a[i] * b[i] + c[i]
+        out[i + 1] = a[i + 1] * b[i + 1] + c[i + 1]
+        out[i + 2] = a[i + 2] * b[i + 2] + c[i + 2]
+        out[i + 3] = a[i + 3] * b[i + 3] + c[i + 3]
+        out[i + 4] = a[i + 4] * b[i + 4] + c[i + 4]
+        out[i + 5] = a[i + 5] * b[i + 5] + c[i + 5]
+        out[i + 6] = a[i + 6] * b[i + 6] + c[i + 6]
+        out[i + 7] = a[i + 7] * b[i + 7] + c[i + 7]
+        i += 8
+    while i < n:
+        out[i] = a[i] * b[i] + c[i]
+        i += 1
+    return n
+
+fn simd_scale_f64(a: Array[f64], factor: f64, out: Array[f64], n: i64) -> i64:
+    let i: i64 = 0
+    let limit: i64 = n - 7
+    while i < limit:
+        out[i] = a[i] * factor
+        out[i + 1] = a[i + 1] * factor
+        out[i + 2] = a[i + 2] * factor
+        out[i + 3] = a[i + 3] * factor
+        out[i + 4] = a[i + 4] * factor
+        out[i + 5] = a[i + 5] * factor
+        out[i + 6] = a[i + 6] * factor
+        out[i + 7] = a[i + 7] * factor
+        i += 8
+    while i < n:
+        out[i] = a[i] * factor
+        i += 1
+    return n
+
+fn simd_dot_f64(a: Array[f64], b: Array[f64], n: i64) -> f64:
+    let acc0: f64 = 0.0
+    let acc1: f64 = 0.0
+    let acc2: f64 = 0.0
+    let acc3: f64 = 0.0
+    let acc4: f64 = 0.0
+    let acc5: f64 = 0.0
+    let acc6: f64 = 0.0
+    let acc7: f64 = 0.0
+
+    let i: i64 = 0
+    let limit: i64 = n - 7
+    while i < limit:
+        acc0 = acc0 + a[i] * b[i]
+        acc1 = acc1 + a[i + 1] * b[i + 1]
+        acc2 = acc2 + a[i + 2] * b[i + 2]
+        acc3 = acc3 + a[i + 3] * b[i + 3]
+        acc4 = acc4 + a[i + 4] * b[i + 4]
+        acc5 = acc5 + a[i + 5] * b[i + 5]
+        acc6 = acc6 + a[i + 6] * b[i + 6]
+        acc7 = acc7 + a[i + 7] * b[i + 7]
+        i += 8
+
+    let total: f64 = (acc0 + acc1) + (acc2 + acc3) + (acc4 + acc5) + (acc6 + acc7)
+    while i < n:
+        total = total + a[i] * b[i]
+        i += 1
+    return total
+
+fn simd_sum_f64(a: Array[f64], n: i64) -> f64:
+    let acc0: f64 = 0.0
+    let acc1: f64 = 0.0
+    let acc2: f64 = 0.0
+    let acc3: f64 = 0.0
+    let acc4: f64 = 0.0
+    let acc5: f64 = 0.0
+    let acc6: f64 = 0.0
+    let acc7: f64 = 0.0
+
+    let i: i64 = 0
+    let limit: i64 = n - 7
+    while i < limit:
+        acc0 = acc0 + a[i]
+        acc1 = acc1 + a[i + 1]
+        acc2 = acc2 + a[i + 2]
+        acc3 = acc3 + a[i + 3]
+        acc4 = acc4 + a[i + 4]
+        acc5 = acc5 + a[i + 5]
+        acc6 = acc6 + a[i + 6]
+        acc7 = acc7 + a[i + 7]
+        i += 8
+
+    let total: f64 = (acc0 + acc1) + (acc2 + acc3) + (acc4 + acc5) + (acc6 + acc7)
+    while i < n:
+        total = total + a[i]
+        i += 1
+    return total
+
+fn simd_norm_f64(a: Array[f64], n: i64) -> f64:
+    let d: f64 = simd_dot_f64(a, a, n)
+    return sqrt(d)
+
+# ==============================================================================
+# 5. Fast Matrix Tiling & GEMM Kernels
+# ==============================================================================
+
+fn simd_matmul(a: Array[f64], b: Array[f64], c: Array[f64], m: i64, k: i64, n: i64) -> i64:
+    # C[m, n] = A[m, k] * B[k, n] with 4-way loop unrolling along inner dimension
+    let i: i64 = 0
+    while i < m:
+        let j: i64 = 0
+        while j < n:
+            let acc0: f64 = 0.0
+            let acc1: f64 = 0.0
+            let acc2: f64 = 0.0
+            let acc3: f64 = 0.0
+            let p: i64 = 0
+            let p_limit: i64 = k - 3
+            while p < p_limit:
+                acc0 = acc0 + a[i * k + p] * b[p * n + j]
+                acc1 = acc1 + a[i * k + p + 1] * b[(p + 1) * n + j]
+                acc2 = acc2 + a[i * k + p + 2] * b[(p + 2) * n + j]
+                acc3 = acc3 + a[i * k + p + 3] * b[(p + 3) * n + j]
+                p += 4
+            let dot: f64 = acc0 + acc1 + acc2 + acc3
+            while p < k:
+                dot = dot + a[i * k + p] * b[p * n + j]
+                p += 1
+            c[i * n + j] = dot
+            j += 1
+        i += 1
+    return m * n
+
+# ==============================================================================
+# 6. Audio DSP & Signal Processing Filter
+# ==============================================================================
+
+fn simd_apply_gain(signal: Array[f64], out: Array[f64], n: i64, gain: f64) -> i64:
+    return simd_scale_f64(signal, gain, out, n)

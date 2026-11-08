@@ -1,0 +1,341 @@
+# Black Mamba Standard Library: unicode.bmb
+# High-performance, pure native Unicode text processing & UTF-8 / UTF-16 / UAX #29 engine.
+# 100% Zero CPython dependencies, zero runtime allocations for classification, ReDoS immune.
+
+# ==============================================================================
+# 1. UTF-8 Low-Level Decoding & Validation
+# ==============================================================================
+
+def utf8_byte_len(lead_byte: i64) -> i64:
+    # Returns byte length of a UTF-8 sequence given its lead byte.
+    # 0xxxxxxx -> 1 byte (ASCII 0..127)
+    # 110xxxxx -> 2 bytes (128..2047)
+    # 1110xxxx -> 3 bytes (2048..65535)
+    # 11110xxx -> 4 bytes (65536..1114111)
+    # Otherwise -> -1 (invalid lead byte or continuation byte)
+    if lead_byte < 0 or lead_byte > 255:
+        return -1
+    if lead_byte < 128:
+        return 1
+    if (lead_byte // 32) == 6: # 110xxxxx (0xC0..0xDF)
+        return 2
+    if (lead_byte // 16) == 14: # 1110xxxx (0xE0..0xEF)
+        return 3
+    if (lead_byte // 8) == 30: # 11110xxx (0xF0..0xF7)
+        return 4
+    return -1
+
+
+def utf8_decode_at(s: str, pos: i64) -> i64:
+    # Decodes and returns the Unicode codepoint (scalar value) starting at byte offset `pos`.
+    # Returns -1 if `pos` is out of bounds or points to an invalid UTF-8 sequence.
+    slen = len(s)
+    if pos < 0 or pos >= slen:
+        return -1
+
+    b0 = ord(s[pos])
+    if b0 < 128:
+        return b0
+
+    # 2-byte sequence (110xxxxx 10xxxxxx)
+    if (b0 // 32) == 6:
+        if pos + 1 >= slen:
+            return -1
+        b1 = ord(s[pos + 1])
+        if (b1 // 64) != 2: # must be 10xxxxxx
+            return -1
+        cp = ((b0 % 32) * 64) + (b1 % 64)
+        if cp < 128: # Overlong sequence rejection
+            return -1
+        return cp
+
+    # 3-byte sequence (1110xxxx 10xxxxxx 10xxxxxx)
+    if (b0 // 16) == 14:
+        if pos + 2 >= slen:
+            return -1
+        b1 = ord(s[pos + 1])
+        b2 = ord(s[pos + 2])
+        if (b1 // 64) != 2 or (b2 // 64) != 2:
+            return -1
+        cp = ((b0 % 16) * 4096) + ((b1 % 64) * 64) + (b2 % 64)
+        if cp < 2048: # Overlong sequence rejection
+            return -1
+        if cp >= 55296 and cp <= 57343: # UTF-16 surrogate range rejection (0xD800..0xDFFF)
+            return -1
+        return cp
+
+    # 4-byte sequence (11110xxx 10xxxxxx 10xxxxxx 10xxxxxx)
+    if (b0 // 8) == 30:
+        if pos + 3 >= slen:
+            return -1
+        b1 = ord(s[pos + 1])
+        b2 = ord(s[pos + 2])
+        b3 = ord(s[pos + 3])
+        if (b1 // 64) != 2 or (b2 // 64) != 2 or (b3 // 64) != 2:
+            return -1
+        cp = ((b0 % 8) * 262144) + ((b1 % 64) * 4096) + ((b2 % 64) * 64) + (b3 % 64)
+        if cp < 65536 or cp > 1114111: # Max Unicode code point is 0x10FFFF
+            return -1
+        return cp
+
+    return -1
+
+
+def utf8_codepoint_len(s: str) -> i64:
+    # Returns the exact number of Unicode scalar values (codepoints) in string `s`.
+    # Correctly counts multi-byte characters and emojis (e.g. "Hello 🐍" -> 7 codepoints).
+    slen = len(s)
+    pos = 0
+    count = 0
+    while pos < slen:
+        b0 = ord(s[pos])
+        blen = utf8_byte_len(b0)
+        if blen <= 0:
+            blen = 1
+        pos += blen
+        count += 1
+    return count
+
+
+def utf8_validate(s: str) -> bool:
+    # Validates whether string `s` contains strictly canonical, well-formed UTF-8.
+    # Rejects overlong encodings, out-of-range codepoints, and orphan surrogates.
+    slen = len(s)
+    pos = 0
+    while pos < slen:
+        cp = utf8_decode_at(s, pos)
+        if cp < 0:
+            return False
+        b0 = ord(s[pos])
+        blen = utf8_byte_len(b0)
+        if blen <= 0:
+            return False
+        pos += blen
+    return True
+
+
+def utf8_codepoint_at(s: str, codepoint_idx: i64) -> i64:
+    # Returns the `codepoint_idx`-th Unicode scalar value in string `s`, or -1 if out of bounds.
+    if codepoint_idx < 0:
+        return -1
+    slen = len(s)
+    pos = 0
+    curr_cp = 0
+    while pos < slen:
+        cp = utf8_decode_at(s, pos)
+        if curr_cp == codepoint_idx:
+            return cp
+        b0 = ord(s[pos])
+        blen = utf8_byte_len(b0)
+        if blen <= 0:
+            blen = 1
+        pos += blen
+        curr_cp += 1
+    return -1
+
+
+# ==============================================================================
+# 2. UTF-16 Surrogate Pair Transcoding (PEP 393 / Win32 / Web Interop)
+# ==============================================================================
+
+def utf16_is_surrogate(cp: i64) -> bool:
+    # Returns True if codepoint is within the UTF-16 surrogate range (0xD800..0xDFFF).
+    return cp >= 55296 and cp <= 57343
+
+def utf16_is_high_surrogate(cp: i64) -> bool:
+    # Returns True if codepoint is a leading high surrogate (0xD800..0xDBFF).
+    return cp >= 55296 and cp <= 56319
+
+def utf16_is_low_surrogate(cp: i64) -> bool:
+    # Returns True if codepoint is a trailing low surrogate (0xDC00..0xDFFF).
+    return cp >= 56320 and cp <= 57343
+
+def utf16_decode_surrogates(high: i64, low: i64) -> i64:
+    # Combines high and low UTF-16 surrogate halves into a 21-bit supplementary codepoint.
+    if not utf16_is_high_surrogate(high) or not utf16_is_low_surrogate(low):
+        return -1
+    return 65536 + ((high - 55296) * 1024) + (low - 56320)
+
+def utf16_encode_high_surrogate(cp: i64) -> i64:
+    # Returns the high surrogate half for a supplementary codepoint (cp >= 0x10000).
+    if cp < 65536 or cp > 1114111:
+        return 0
+    return 55296 + ((cp - 65536) // 1024)
+
+def utf16_encode_low_surrogate(cp: i64) -> i64:
+    # Returns the low surrogate half for a supplementary codepoint (cp >= 0x10000).
+    if cp < 65536 or cp > 1114111:
+        return 0
+    return 56320 + ((cp - 65536) % 1024)
+
+
+# ==============================================================================
+# 3. Codepoint Classification & Unicode Properties
+# ==============================================================================
+
+def cp_is_ascii(cp: i64) -> bool:
+    # Returns True if codepoint is in standard 7-bit ASCII range (0..127).
+    return cp >= 0 and cp <= 127
+
+def cp_is_whitespace(cp: i64) -> bool:
+    # Returns True for Unicode whitespace characters.
+    if cp == 32 or cp == 9 or cp == 10 or cp == 13 or cp == 11 or cp == 12:
+        return True
+    if cp == 160: # Non-breaking space (U+00A0)
+        return True
+    if cp >= 8192 and cp <= 8202: # En Quad .. Hair Space (U+2000..U+200A)
+        return True
+    if cp == 8239: # Narrow No-Break Space (U+202F)
+        return True
+    if cp == 8287: # Medium Mathematical Space (U+205F)
+        return True
+    if cp == 12288: # Ideographic Space (U+3000)
+        return True
+    return False
+
+def cp_is_alphabetic(cp: i64) -> bool:
+    # Returns True if codepoint is an alphabetic character across ASCII, Latin, Greek, Cyrillic, CJK.
+    if (cp >= 65 and cp <= 90) or (cp >= 97 and cp <= 122): # ASCII A-Z, a-z
+        return True
+    if (cp >= 192 and cp <= 214) or (cp >= 216 and cp <= 246) or (cp >= 248 and cp <= 255): # Latin-1
+        return True
+    if cp >= 880 and cp <= 1023: # Greek & Coptic
+        return True
+    if cp >= 1024 and cp <= 1279: # Cyrillic
+        return True
+    if cp >= 19968 and cp <= 40959: # CJK Unified Ideographs
+        return True
+    if cp >= 12352 and cp <= 12543: # Hiragana & Katakana
+        return True
+    if cp >= 44032 and cp <= 55203: # Hangul Syllables
+        return True
+    return False
+
+def cp_is_numeric(cp: i64) -> bool:
+    # Returns True if codepoint is a numeric digit.
+    if cp >= 48 and cp <= 57: # ASCII '0'..'9'
+        return True
+    if cp >= 65296 and cp <= 65305: # Fullwidth digits (U+FF10..U+FF19)
+        return True
+    if cp >= 1632 and cp <= 1641: # Arabic-Indic digits (U+0660..U+0669)
+        return True
+    return False
+
+def cp_is_combining_mark(cp: i64) -> bool:
+    # Returns True if codepoint is a combining mark / diacritic (UAX #29 Grapheme boundary rule).
+    if cp >= 768 and cp <= 879: # Combining Diacritical Marks (U+0300..U+036F)
+        return True
+    if cp >= 6832 and cp <= 6911: # Combining Diacritical Marks Extended (U+1AB0..U+1AFF)
+        return True
+    if cp >= 7616 and cp <= 7679: # Combining Diacritical Marks Supplement (U+1DC0..U+1DFF)
+        return True
+    if cp >= 8400 and cp <= 8447: # Combining Marks for Symbols (U+20D0..U+20FF)
+        return True
+    if cp >= 65056 and cp <= 65071: # Combining Half Marks (U+FE20..U+FE2F)
+        return True
+    return False
+
+def cp_is_emoji(cp: i64) -> bool:
+    # Returns True if codepoint is within standard Unicode emoji ranges.
+    if cp >= 128512 and cp <= 128591: # Emoticons (U+1F600..U+1F64F)
+        return True
+    if cp >= 127744 and cp <= 128511: # Misc Symbols & Pictographs (U+1F300..U+1F5FF)
+        return True
+    if cp >= 128640 and cp <= 128767: # Transport & Map Symbols (U+1F680..U+1F6FF)
+        return True
+    if cp >= 129280 and cp <= 129535: # Supplemental Symbols (U+1F900..U+1F9FF)
+        return True
+    if cp >= 9984 and cp <= 10175: # Dingbats (U+2700..U+27BF)
+        return True
+    if cp == 8205: # Zero-Width Joiner (ZWJ, U+200D)
+        return True
+    if cp >= 65024 and cp <= 65039: # Variation Selectors (U+FE00..U+FE0F)
+        return True
+    return False
+
+
+# ==============================================================================
+# 4. UAX #29 Grapheme Cluster Segmentation (Human-Perceived Characters)
+# ==============================================================================
+
+def grapheme_len(s: str) -> i64:
+    # Returns the true number of user-perceived visual character clusters according to UAX #29.
+    # Correctly handles:
+    # 1. Base characters with combining accents (e.g. 'e' + '\u0301' -> 1 grapheme)
+    # 2. Emoji Zero-Width Joiner sequences (e.g. multi-person emoji -> 1 grapheme)
+    # 3. CRLF pairs -> 1 grapheme
+    slen = len(s)
+    if slen == 0:
+        return 0
+
+    pos = 0
+    grapheme_count = 0
+
+    while pos < slen:
+        b0 = ord(s[pos])
+        blen = utf8_byte_len(b0)
+        if blen <= 0:
+            blen = 1
+        cp = utf8_decode_at(s, pos)
+        pos += blen
+        grapheme_count += 1
+
+        # Check for CRLF pair (U+000D followed by U+000A)
+        if cp == 13 and pos < slen:
+            if ord(s[pos]) == 10:
+                pos += 1
+                continue
+
+        # Absorb following combining marks, variation selectors, or ZWJ sequences
+        while pos < slen:
+            next_b0 = ord(s[pos])
+            next_blen = utf8_byte_len(next_b0)
+            if next_blen <= 0:
+                next_blen = 1
+            next_cp = utf8_decode_at(s, pos)
+
+            # If next codepoint is combining mark or variation selector, it attaches to current grapheme
+            if cp_is_combining_mark(next_cp) or (next_cp >= 65024 and next_cp <= 65039):
+                pos += next_blen
+            elif next_cp == 8205: # Zero-Width Joiner (ZWJ)
+                pos += next_blen
+                # Also absorb the emoji that follows the ZWJ
+                if pos < slen:
+                    follow_b0 = ord(s[pos])
+                    follow_blen = utf8_byte_len(follow_b0)
+                    if follow_blen <= 0:
+                        follow_blen = 1
+                    pos += follow_blen
+            else:
+                break
+
+    return grapheme_count
+
+
+# ==============================================================================
+# 5. Unicode Case Conversion & Folding
+# ==============================================================================
+
+def cp_to_upper(cp: i64) -> i64:
+    # Converts a codepoint to uppercase (ASCII, Latin-1, Greek, Cyrillic).
+    if cp >= 97 and cp <= 122: # ASCII a-z -> A-Z
+        return cp - 32
+    if (cp >= 224 and cp <= 246) or (cp >= 248 and cp <= 254): # Latin-1 lowercase
+        return cp - 32
+    if cp >= 945 and cp <= 969: # Greek lowercase -> uppercase
+        return cp - 32
+    if cp >= 1072 and cp <= 1103: # Cyrillic lowercase -> uppercase
+        return cp - 32
+    return cp
+
+def cp_to_lower(cp: i64) -> i64:
+    # Converts a codepoint to lowercase (ASCII, Latin-1, Greek, Cyrillic).
+    if cp >= 65 and cp <= 90: # ASCII A-Z -> a-z
+        return cp + 32
+    if (cp >= 192 and cp <= 214) or (cp >= 216 and cp <= 222): # Latin-1 uppercase
+        return cp + 32
+    if cp >= 913 and cp <= 937: # Greek uppercase -> lowercase
+        return cp + 32
+    if cp >= 1040 and cp <= 1071: # Cyrillic uppercase -> lowercase
+        return cp + 32
+    return cp

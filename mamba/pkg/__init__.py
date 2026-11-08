@@ -1,19 +1,11 @@
-"""
-Black Mamba (bmb) Package Manager Package.
-Provides decentralized package manifest management, git dependency fetching,
-cryptographic lockfiles, and project initialization.
-"""
+"""Backward compatibility shim forwarding to tinytalk.pkg."""
+import sys
+import tinytalk.pkg as _target
+from tinytalk.pkg import *
 
-from .fetcher import compute_integrity
-from .lock import LockedPackage, PackageLock
-from .manager import PackageManager
-from .manifest import Dependency, PackageManifest
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target
 
-__all__ = [
-    "PackageManager",
-    "PackageManifest",
-    "PackageLock",
-    "LockedPackage",
-    "Dependency",
-    "compute_integrity",
-]
+if __name__ == "__main__":
+    if hasattr(_target, "main"):
+        sys.exit(_target.main())

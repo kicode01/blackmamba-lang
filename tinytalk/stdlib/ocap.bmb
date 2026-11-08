@@ -1,0 +1,82 @@
+# Black Mamba Standard Library: ocap.bmb
+# Phase 9D (v3.3.0): Distributed Object-Capability Security Kernel & Micro-Sandboxing
+# 100% Pure Native Black Mamba (.bmb) with Zero CPython Runtime Dependencies.
+
+# Capability Rights Bitmask
+CAP_NONE = 0
+CAP_READ = 1
+CAP_WRITE = 2
+CAP_EXEC = 4
+CAP_NET = 8
+CAP_FS = 16
+CAP_DELEGATE = 32
+CAP_REVOKE = 64
+CAP_ALL = 127
+
+struct CapabilityToken:
+    token_id: i64
+    resource_id: i64
+    rights: i64
+    expires_at: i64
+    is_revoked: bool
+
+struct SecuritySandbox:
+    sandbox_id: i64
+    allowed_rights: i64
+    violations_count: i64
+    ops_executed: i64
+
+def ocap_create_token(token_id: i64, resource_id: i64, rights: i64, expires_at: i64) -> CapabilityToken:
+    return CapabilityToken(token_id, resource_id, rights, expires_at, False)
+
+def ocap_attenuate(parent: CapabilityToken, new_rights: i64) -> CapabilityToken:
+    # Attenuation rule: child capability rights MUST be a subset of parent rights
+    let attenuated_rights = parent.rights & new_rights
+    let child_id = parent.token_id + 10000
+    return CapabilityToken(child_id, parent.resource_id, attenuated_rights, parent.expires_at, parent.is_revoked)
+
+def ocap_revoke(token: CapabilityToken) -> bool:
+    token.is_revoked = True
+    return True
+
+def ocap_check_permission(token: CapabilityToken, required_right: i64, current_time: i64) -> bool:
+    if token.is_revoked:
+        return False
+    if current_time > token.expires_at and token.expires_at != 0:
+        return False
+    # Check if required_right bits are present in token rights
+    let has_right = (token.rights & required_right) == required_right
+    return has_right
+
+def ocap_sandbox_new(sandbox_id: i64, allowed_rights: i64) -> SecuritySandbox:
+    return SecuritySandbox(sandbox_id, allowed_rights, 0, 0)
+
+def ocap_sandbox_exec(box: SecuritySandbox, required_right: i64, token: CapabilityToken, current_time: i64) -> i64:
+    # 1. Check sandbox boundary policy
+    let sandbox_permits = (box.allowed_rights & required_right) == required_right
+    if not sandbox_permits:
+        box.violations_count = box.violations_count + 1
+        return -1
+    
+    # 2. Check capability token validity
+    let token_valid = ocap_check_permission(token, required_right, current_time)
+    if not token_valid:
+        box.violations_count = box.violations_count + 1
+        return -2
+        
+    box.ops_executed = box.ops_executed + 1
+    return 0
+
+def ocap_benchmark_checks(iterations: i64, initial_rights: i64) -> i64:
+    let tok = ocap_create_token(1, 42, initial_rights, 1000000)
+    let box = ocap_sandbox_new(100, initial_rights)
+    let i = 0
+    let valid_count = 0
+    
+    while i < iterations:
+        let res = ocap_sandbox_exec(box, CAP_READ, tok, 500)
+        if res == 0:
+            valid_count = valid_count + 1
+        i = i + 1
+        
+    return valid_count

@@ -1,0 +1,19 @@
+# Black Mamba Standard Library: process
+# High-performance Subprocess & Command Execution
+# 100% pure native Black Mamba (.bmb)
+
+struct ProcessResult:
+    exit_code: i64
+    stdout: str
+    stderr: str
+    success: bool
+
+def process_run(cmd: str) -> ProcessResult:
+    let code = __bmb_process_run(cmd)
+    let out = __bmb_process_stdout()
+    let err = __bmb_process_stderr()
+    return ProcessResult(code, out, err, code == 0)
+
+def process_check_output(cmd: str) -> str:
+    let res = process_run(cmd)
+    return res.stdout

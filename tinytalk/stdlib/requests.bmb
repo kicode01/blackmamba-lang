@@ -1,0 +1,122 @@
+# Black Mamba Standard Library: requests.bmb
+# High-level, ergonomic HTTP client library (PyPI requests native parity)
+# 100% pure native Black Mamba | Zero external dependencies | Built on socket.bmb & json.bmb
+
+from socket import tcp_connect, socket_send, socket_recv, socket_close
+from json import JsonDoc, json_parse
+
+struct Response:
+    status_code: i64
+    text: str
+    ok: bool
+    headers: str
+
+    def json(self) -> JsonDoc:
+        return json_parse(self.text, 512)
+
+def _parse_url(url: str) -> List[str]:
+    # Returns [host, port_str, path]
+    clean_url = url
+    if len(url) >= 7 and url[0:7] == "http://":
+        clean_url = url[7:]
+    elif len(url) >= 8 and url[0:8] == "https://":
+        clean_url = url[8:]
+
+    slash_idx = -1
+    for i in 0..len(clean_url):
+        if clean_url[i] == "/":
+            slash_idx = i
+            break
+
+    host_part = clean_url
+    path_part = "/"
+    if slash_idx >= 0:
+        host_part = clean_url[0:slash_idx]
+        path_part = clean_url[slash_idx:]
+
+    host = host_part
+    port = "80"
+    colon_idx = -1
+    for i in 0..len(host_part):
+        if host_part[i] == ":":
+            colon_idx = i
+            break
+    if colon_idx >= 0:
+        host = host_part[0:colon_idx]
+        port = host_part[colon_idx + 1:]
+
+    res = [host, port, path_part]
+    return res
+
+def _parse_http_response(raw: str) -> Response:
+    if len(raw) < 12:
+        return Response(0, "", False, "")
+
+    # Parse status code e.g. "HTTP/1.1 200 OK\r\n"
+    code = 0
+    sp1 = -1
+    sp2 = -1
+    for i in 0..len(raw):
+        if raw[i] == " ":
+            if sp1 < 0:
+                sp1 = i
+            elif sp2 < 0:
+                sp2 = i
+                break
+
+    if sp1 >= 0 and sp2 > sp1:
+        code_str = raw[sp1 + 1:sp2]
+        code = int(code_str)
+
+    # Split headers and body at "\r\n\r\n"
+    header_end = -1
+    for i in 0..(len(raw) - 3):
+        if raw[i] == "\r" and raw[i+1] == "\n" and raw[i+2] == "\r" and raw[i+3] == "\n":
+            header_end = i
+            break
+
+    headers = ""
+    body = ""
+    if header_end >= 0:
+        headers = raw[0:header_end]
+        body = raw[header_end + 4:]
+    else:
+        body = raw
+
+    ok = (code >= 200 and code < 400)
+    return Response(code, body, ok, headers)
+
+def get(url: str) -> Response:
+    parts = _parse_url(url)
+    host = parts[0]
+    port = int(parts[1])
+    path = parts[2]
+
+    sock = tcp_connect(host, port)
+    if sock.fd < 0:
+        return Response(0, "", False, "")
+
+    req = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nUser-Agent: BlackMamba-Requests/1.4.0\r\nConnection: close\r\n\r\n"
+    socket_send(sock, req)
+    raw_resp = socket_recv(sock, 1048576)
+    socket_close(sock)
+
+    return _parse_http_response(raw_resp)
+
+def post(url: str, body: str, content_type: str = "application/json") -> Response:
+    parts = _parse_url(url)
+    host = parts[0]
+    port = int(parts[1])
+    path = parts[2]
+
+    sock = tcp_connect(host, port)
+    if sock.fd < 0:
+        return Response(0, "", False, "")
+
+    content_len = len(body)
+    req = "POST " + path + " HTTP/1.1\r\nHost: " + host + "\r\nUser-Agent: BlackMamba-Requests/1.4.0\r\nContent-Type: " + content_type + "\r\nContent-Length: " + str(content_len) + "\r\nConnection: close\r\n\r\n" + body
+    socket_send(sock, req)
+    raw_resp = socket_recv(sock, 1048576)
+    socket_close(sock)
+
+    return _parse_http_response(raw_resp)

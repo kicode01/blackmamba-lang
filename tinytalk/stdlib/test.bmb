@@ -1,0 +1,267 @@
+# Black Mamba Standard Library: test.bmb
+# Built-In Assertion Framework, Test Runner, and Nanosecond Micro-Benchmarking Harness
+# 100% Pure Native Black Mamba (.bmb) with Zero External Dependencies
+
+# ==============================================================================
+# 1. String & Numerical Utilities
+# ==============================================================================
+
+def str_contains(haystack: str, needle: str) -> bool:
+    h_len = len(haystack)
+    n_len = len(needle)
+    if n_len == 0:
+        return True
+    if n_len > h_len:
+        return False
+    limit = h_len - n_len + 1
+    for i in 0..limit:
+        if haystack[i:i + n_len] == needle:
+            return True
+    return False
+
+def abs_f64(x: f64) -> f64:
+    if x < 0.0:
+        return 0.0 - x
+    return x
+
+
+# ==============================================================================
+# 2. Test Runner & Suite Lifecycle
+# ==============================================================================
+
+struct TestRunner:
+    total_asserts: i64
+    passed_asserts: i64
+    failed_asserts: i64
+    current_suite: str
+    current_test: str
+    suite_count: i64
+    start_ns: i64
+    verbose: bool
+
+def test_runner_new(verbose: bool) -> TestRunner:
+    return TestRunner(0, 0, 0, "default", "default", 0, clock_ns(), verbose)
+
+def test_suite(runner: TestRunner, name: str) -> i64:
+    runner.current_suite = name
+    runner.suite_count += 1
+    if runner.verbose:
+        print("")
+        print("=== Test Suite: " + name + " ===")
+    return 0
+
+def test_case(runner: TestRunner, name: str) -> i64:
+    runner.current_test = name
+    if runner.verbose:
+        print("  - " + name + "...")
+    return 0
+
+
+# ==============================================================================
+# 3. Type-Safe Assertion Primitives
+# ==============================================================================
+
+def assert_true(r: TestRunner, cond: bool, msg: str) -> bool:
+    r.total_asserts += 1
+    if cond:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected: True, Actual: False")
+        return False
+
+def assert_false(r: TestRunner, cond: bool, msg: str) -> bool:
+    r.total_asserts += 1
+    if not cond:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected: False, Actual: True")
+        return False
+
+def assert_eq_i64(r: TestRunner, actual: i64, expected: i64, msg: str) -> bool:
+    r.total_asserts += 1
+    if actual == expected:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected: " + str(expected) + ", Actual: " + str(actual))
+        return False
+
+def assert_ne_i64(r: TestRunner, actual: i64, unexpected: i64, msg: str) -> bool:
+    r.total_asserts += 1
+    if actual != unexpected:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Unexpected match: " + str(actual))
+        return False
+
+def assert_lt_i64(r: TestRunner, a: i64, b: i64, msg: str) -> bool:
+    r.total_asserts += 1
+    if a < b:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected " + str(a) + " < " + str(b))
+        return False
+
+def assert_le_i64(r: TestRunner, a: i64, b: i64, msg: str) -> bool:
+    r.total_asserts += 1
+    if a <= b:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected " + str(a) + " <= " + str(b))
+        return False
+
+def assert_gt_i64(r: TestRunner, a: i64, b: i64, msg: str) -> bool:
+    r.total_asserts += 1
+    if a > b:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected " + str(a) + " > " + str(b))
+        return False
+
+def assert_ge_i64(r: TestRunner, a: i64, b: i64, msg: str) -> bool:
+    r.total_asserts += 1
+    if a >= b:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected " + str(a) + " >= " + str(b))
+        return False
+
+def assert_eq_f64(r: TestRunner, actual: f64, expected: f64, eps: f64, msg: str) -> bool:
+    r.total_asserts += 1
+    diff = abs_f64(actual - expected)
+    if diff <= eps:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected: " + str(expected) + ", Actual: " + str(actual) + " (diff=" + str(diff) + " > eps=" + str(eps) + ")")
+        return False
+
+def assert_eq_str(r: TestRunner, actual: str, expected: str, msg: str) -> bool:
+    r.total_asserts += 1
+    if actual == expected:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Expected: \"" + expected + "\", Actual: \"" + actual + "\"")
+        return False
+
+def assert_ne_str(r: TestRunner, actual: str, unexpected: str, msg: str) -> bool:
+    r.total_asserts += 1
+    if actual != unexpected:
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Unexpected match: \"" + actual + "\"")
+        return False
+
+def assert_str_contains(r: TestRunner, haystack: str, needle: str, msg: str) -> bool:
+    r.total_asserts += 1
+    if str_contains(haystack, needle):
+        r.passed_asserts += 1
+        if r.verbose:
+            print("    [PASS] " + msg)
+        return True
+    else:
+        r.failed_asserts += 1
+        print("    [FAIL] " + r.current_suite + " > " + r.current_test + ": " + msg)
+        print("           Needle \"" + needle + "\" not found in \"" + haystack + "\"")
+        return False
+
+
+# ==============================================================================
+# 4. Suite Summary Reporting
+# ==============================================================================
+
+def test_summary(runner: TestRunner) -> i64:
+    elapsed_ns = clock_ns() - runner.start_ns
+    elapsed_ms = elapsed_ns // 1000000
+    print("")
+    print("--------------------------------------------------------------------------------")
+    print("TEST SUMMARY: " + str(runner.passed_asserts) + "/" + str(runner.total_asserts) + " assertions passed (" + str(elapsed_ms) + " ms, " + str(runner.suite_count) + " suites)")
+    if runner.failed_asserts == 0:
+        print("STATUS: ALL TESTS PASSED! [100% SUCCESS]")
+        return 0
+    else:
+        print("STATUS: FAILED (" + str(runner.failed_asserts) + " assertions failed)")
+        return 1
+
+
+# ==============================================================================
+# 5. Nanosecond Micro-Benchmarking Harness
+# ==============================================================================
+
+struct BenchmarkResult:
+    name: str
+    iterations: i64
+    total_ns: i64
+    ns_per_op: f64
+    ops_per_sec: f64
+
+def benchmark_create(name: str, iterations: i64, total_ns: i64) -> BenchmarkResult:
+    if iterations <= 0:
+        return BenchmarkResult(name, 0, 0, 0.0, 0.0)
+    ns_op = float(total_ns) / float(iterations)
+    ops_sec = 0.0
+    if total_ns > 0:
+        ops_sec = (float(iterations) * 1000000000.0) / float(total_ns)
+    return BenchmarkResult(name, iterations, total_ns, ns_op, ops_sec)
+
+def benchmark_print(b: BenchmarkResult) -> i64:
+    print("  Benchmark: " + b.name)
+    print("    Iterations:   " + str(b.iterations))
+    print("    Total Time:   " + str(b.total_ns // 1000000) + " ms (" + str(b.total_ns) + " ns)")
+    print("    Speed:        " + str(b.ns_per_op) + " ns/op")
+    mops = b.ops_per_sec / 1000000.0
+    print("    Throughput:   " + str(mops) + " Mops/sec (" + str(b.ops_per_sec) + " ops/sec)")
+    return 0

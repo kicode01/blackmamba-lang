@@ -1,0 +1,1577 @@
+# Black Mamba Standard Library: codegen.bmb
+# Vector 6 (Phase B): Complete Self-Hosting Native x86-64 PE32+ (.exe) Compiler
+# 100% Pure Native Black Mamba (.bmb) — Zero CPython Runtime Involvement.
+#
+# Pipeline:
+#   .bmb Source -> compiler.compile_source (Lexer + Pratt AST)
+#               -> x86-64 Win64 Machine Code Emitter (.text)
+#               -> PE32+ Import Directory & Read-Only Pool (.rdata)
+#               -> Standalone 64-bit Windows Executable (.exe) on Disk
+
+from compiler import (
+    compile_source, ASTNode,
+    AST_MODULE, AST_FN_DEF, AST_STRUCT_DEF, AST_PARAM,
+    AST_IF, AST_WHILE, AST_FOR, AST_RETURN, AST_ASSIGN,
+    AST_EXPR_STMT, AST_BLOCK, AST_IMPORT, AST_PASS, AST_BREAK, AST_CONTINUE,
+    AST_BIN_OP, AST_UNARY_OP, AST_CALL, AST_INDEX, AST_RANGE, AST_PIPE, AST_ARRAY_LIT,
+    AST_IDENT, AST_INT_LIT, AST_STR_LIT, AST_BOOL_LIT
+)
+from os import read_file, write_bytes
+
+# ==============================================================================
+# 1. Expression Type Tags & Fixed IAT Offsets in .rdata
+# ==============================================================================
+
+TY_I64 = 1
+TY_BOOL = 2
+TY_STR = 3
+TY_ARR = 4
+
+TEXT_RVA = 4096
+
+# Fixed IAT offsets at the start of .rdata (0..88):
+#   [0]  KERNEL32.dll!ExitProcess
+#   [8]  0 (null terminator)
+#   [16] msvcrt.dll!printf
+#   [24] msvcrt.dll!fflush
+#   [32] msvcrt.dll!calloc
+#   [40] msvcrt.dll!strlen
+#   [48] msvcrt.dll!strcpy
+#   [56] msvcrt.dll!strcat
+#   [64] msvcrt.dll!strcmp
+#   [72] msvcrt.dll!sprintf
+#   [80] 0 (null terminator)
+IAT_EXIT_OFF = 0
+IAT_PRINTF_OFF = 16
+IAT_FFLUSH_OFF = 24
+IAT_CALLOC_OFF = 32
+IAT_STRLEN_OFF = 40
+IAT_STRCPY_OFF = 48
+IAT_STRCAT_OFF = 56
+IAT_STRCMP_OFF = 64
+IAT_SPRINTF_OFF = 72
+IAT_TOTAL_BYTES = 88
+
+# ==============================================================================
+# 2. Raw Native Byte Buffer (ByteBuf)
+# ==============================================================================
+
+struct ByteBuf:
+    ptr: i64
+    size: i64
+    cap: i64
+
+def align_up(val: i64, alignment: i64) -> i64:
+    let rem: i64 = val % alignment
+    if rem == 0:
+        return val
+    return val + (alignment - rem)
+
+def buf_new(initial_cap: i64) -> ByteBuf:
+    let cap: i64 = initial_cap
+    if cap < 64:
+        cap = 64
+    let p: i64 = __bmb_mem_alloc(cap)
+    return ByteBuf(p, 0, cap)
+
+def buf_free(b: ByteBuf) -> i64:
+    if b.ptr != 0:
+        __bmb_mem_free(b.ptr)
+        b.ptr = 0
+    return 0
+
+def buf_ensure(b: ByteBuf, extra: i64) -> i64:
+    if b.size + extra <= b.cap:
+        return 0
+    let new_cap: i64 = b.cap * 2
+    while new_cap < b.size + extra:
+        new_cap = new_cap * 2
+    let new_ptr: i64 = __bmb_mem_alloc(new_cap)
+    for i in 0..b.size:
+        let byte_v: i64 = __bmb_mem_read8(b.ptr, i)
+        __bmb_mem_write8(new_ptr, i, byte_v)
+    __bmb_mem_free(b.ptr)
+    b.ptr = new_ptr
+    b.cap = new_cap
+    return 0
+
+def emit_u8(b: ByteBuf, v: i64) -> i64:
+    buf_ensure(b, 1)
+    __bmb_mem_write8(b.ptr, b.size, v & 255)
+    b.size += 1
+    return b.size
+
+def emit_u16(b: ByteBuf, v: i64) -> i64:
+    buf_ensure(b, 2)
+    __bmb_mem_write8(b.ptr, b.size, v & 255)
+    __bmb_mem_write8(b.ptr, b.size + 1, (v >> 8) & 255)
+    b.size += 2
+    return b.size
+
+def emit_u32(b: ByteBuf, v: i64) -> i64:
+    buf_ensure(b, 4)
+    __bmb_mem_write8(b.ptr, b.size, v & 255)
+    __bmb_mem_write8(b.ptr, b.size + 1, (v >> 8) & 255)
+    __bmb_mem_write8(b.ptr, b.size + 2, (v >> 16) & 255)
+    __bmb_mem_write8(b.ptr, b.size + 3, (v >> 24) & 255)
+    b.size += 4
+    return b.size
+
+def emit_u64(b: ByteBuf, v: i64) -> i64:
+    buf_ensure(b, 8)
+    for i in 0..8:
+        __bmb_mem_write8(b.ptr, b.size + i, (v >> (i * 8)) & 255)
+    b.size += 8
+    return b.size
+
+def patch_u32(b: ByteBuf, offset: i64, v: i64) -> i64:
+    __bmb_mem_write8(b.ptr, offset, v & 255)
+    __bmb_mem_write8(b.ptr, offset + 1, (v >> 8) & 255)
+    __bmb_mem_write8(b.ptr, offset + 2, (v >> 16) & 255)
+    __bmb_mem_write8(b.ptr, offset + 3, (v >> 24) & 255)
+    return 0
+
+def patch_u64(b: ByteBuf, offset: i64, v: i64) -> i64:
+    for i in 0..8:
+        __bmb_mem_write8(b.ptr, offset + i, (v >> (i * 8)) & 255)
+    return 0
+
+def emit_zeros(b: ByteBuf, count: i64) -> i64:
+    if count <= 0:
+        return b.size
+    buf_ensure(b, count)
+    for i in 0..count:
+        __bmb_mem_write8(b.ptr, b.size + i, 0)
+    b.size += count
+    return b.size
+
+def align_buf(b: ByteBuf, alignment: i64) -> i64:
+    let target: i64 = align_up(b.size, alignment)
+    return emit_zeros(b, target - b.size)
+
+def emit_bytes_from(dst: ByteBuf, src: ByteBuf) -> i64:
+    buf_ensure(dst, src.size)
+    for i in 0..src.size:
+        __bmb_mem_write8(dst.ptr, dst.size + i, __bmb_mem_read8(src.ptr, i))
+    dst.size += src.size
+    return dst.size
+
+def emit_cstr(b: ByteBuf, s: str) -> i64:
+    let start: i64 = b.size
+    let n: i64 = len(s)
+    buf_ensure(b, n + 1)
+    for i in 0..n:
+        __bmb_mem_write8(b.ptr, b.size + i, ord(s[i]) & 255)
+    __bmb_mem_write8(b.ptr, b.size + n, 0)
+    b.size += n + 1
+    return start
+
+def emit_ascii_fixed8(b: ByteBuf, s: str) -> i64:
+    let n: i64 = len(s)
+    buf_ensure(b, 8)
+    for i in 0..8:
+        if i < n:
+            __bmb_mem_write8(b.ptr, b.size + i, ord(s[i]) & 255)
+        else:
+            __bmb_mem_write8(b.ptr, b.size + i, 0)
+    b.size += 8
+    return b.size
+
+# ==============================================================================
+# 3. Code Generator & Function Scope Contexts
+# ==============================================================================
+
+struct CodeGen:
+    text: ByteBuf
+    rdata: ByteBuf
+    label_offsets: Array[i64]
+    label_count: i64
+    text_fix_pos: Array[i64]
+    text_fix_lbl: Array[i64]
+    text_fix_count: i64
+    rdata_fix_pos: Array[i64]
+    rdata_fix_off: Array[i64]
+    rdata_fix_count: i64
+    fn_names: Array[str]
+    fn_labels: Array[i64]
+    fn_ret_types: Array[i64]
+    fn_count: i64
+    lbl_entry: i64
+    lbl_str_concat: i64
+    lbl_int_to_str: i64
+    fmt_int_sp: i64
+    fmt_str_sp: i64
+    fmt_space: i64
+    fmt_nl: i64
+    str_true: i64
+    str_false: i64
+    str_empty: i64
+
+struct FnCtx:
+    var_names: Array[str]
+    var_types: Array[i64]
+    var_count: i64
+    temp_depth: i64
+    epilogue_lbl: i64
+    break_lbl: i64
+    continue_lbl: i64
+    ret_type: i64
+
+def new_label(cg: CodeGen) -> i64:
+    let id: i64 = cg.label_count
+    cg.label_offsets[id] = -1
+    cg.label_count += 1
+    return id
+
+def bind_label(cg: CodeGen, lbl: i64) -> i64:
+    cg.label_offsets[lbl] = cg.text.size
+    return 0
+
+def add_text_fixup(cg: CodeGen, pos: i64, lbl: i64) -> i64:
+    let idx: i64 = cg.text_fix_count
+    cg.text_fix_pos[idx] = pos
+    cg.text_fix_lbl[idx] = lbl
+    cg.text_fix_count += 1
+    return idx
+
+def add_rdata_fixup(cg: CodeGen, pos: i64, rdata_off: i64) -> i64:
+    let idx: i64 = cg.rdata_fix_count
+    cg.rdata_fix_pos[idx] = pos
+    cg.rdata_fix_off[idx] = rdata_off
+    cg.rdata_fix_count += 1
+    return idx
+
+def cg_new() -> CodeGen:
+    let text: ByteBuf = buf_new(8192)
+    let rdata: ByteBuf = buf_new(4096)
+
+    # Reserve 88 bytes at start of .rdata for IAT slots [0..88)
+    emit_zeros(rdata, IAT_TOTAL_BYTES)
+
+    let fmt_int_sp: i64 = emit_cstr(rdata, "%lld")
+    let fmt_str_sp: i64 = emit_cstr(rdata, "%s")
+    let fmt_space: i64 = emit_cstr(rdata, " ")
+    let fmt_nl: i64 = emit_cstr(rdata, "\n")
+    let str_true: i64 = emit_cstr(rdata, "True")
+    let str_false: i64 = emit_cstr(rdata, "False")
+    let str_empty: i64 = emit_cstr(rdata, "")
+
+    let cg: CodeGen = CodeGen(
+        text,
+        rdata,
+        [-1] * 2048,
+        0,
+        [0] * 4096,
+        [0] * 4096,
+        0,
+        [0] * 4096,
+        [0] * 4096,
+        0,
+        [""] * 256,
+        [0] * 256,
+        [TY_I64] * 256,
+        0,
+        0,
+        0,
+        0,
+        fmt_int_sp,
+        fmt_str_sp,
+        fmt_space,
+        fmt_nl,
+        str_true,
+        str_false,
+        str_empty
+    )
+    cg.lbl_entry = new_label(cg)
+    cg.lbl_str_concat = new_label(cg)
+    cg.lbl_int_to_str = new_label(cg)
+    return cg
+
+def fn_ctx_new(cg: CodeGen, ret_type: i64) -> FnCtx:
+    return FnCtx(
+        [""] * 64,
+        [TY_I64] * 64,
+        0,
+        0,
+        new_label(cg),
+        -1,
+        -1,
+        ret_type
+    )
+
+def find_or_add_var(ctx: FnCtx, name: str, ty: i64) -> i64:
+    for i in 0..ctx.var_count:
+        if ctx.var_names[i] == name:
+            if ty != 0:
+                ctx.var_types[i] = ty
+            return i
+    let idx: i64 = ctx.var_count
+    ctx.var_names[idx] = name
+    if ty == 0:
+        ctx.var_types[idx] = TY_I64
+    else:
+        ctx.var_types[idx] = ty
+    ctx.var_count += 1
+    return idx
+
+def find_var(ctx: FnCtx, name: str) -> i64:
+    for i in 0..ctx.var_count:
+        if ctx.var_names[i] == name:
+            return i
+    return -1
+
+def var_disp(slot: i64) -> i64:
+    # Local variable slots 0..63 live at [rbp - 8] .. [rbp - 512]
+    return 0 - ((slot + 1) * 8)
+
+def temp_disp(temp_idx: i64) -> i64:
+    # Expression temp slots 0..55 live at [rbp - 520] .. [rbp - 960]
+    return 0 - ((65 + temp_idx) * 8)
+
+def find_fn_idx(cg: CodeGen, name: str) -> i64:
+    for i in 0..cg.fn_count:
+        if cg.fn_names[i] == name:
+            return i
+    return -1
+
+# ==============================================================================
+# 4. x86-64 Win64 Machine Code Encoders
+# ==============================================================================
+
+def emit_prologue(b: ByteBuf, frame_bytes: i64) -> i64:
+    # push rbp; mov rbp, rsp; sub rsp, frame_bytes
+    emit_u8(b, 0x55)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xE5)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x81)
+    emit_u8(b, 0xEC)
+    emit_u32(b, frame_bytes)
+    return 0
+
+def emit_epilogue(b: ByteBuf) -> i64:
+    # mov rsp, rbp; pop rbp; ret
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xEC)
+    emit_u8(b, 0x5D)
+    emit_u8(b, 0xC3)
+    return 0
+
+def emit_mov_rax_imm64(b: ByteBuf, val: i64) -> i64:
+    if val == 0:
+        # xor eax, eax
+        emit_u8(b, 0x31)
+        emit_u8(b, 0xC0)
+        return 0
+    # movabs rax, imm64
+    emit_u8(b, 0x48)
+    emit_u8(b, 0xB8)
+    emit_u64(b, val)
+    return 0
+
+def emit_load_rbp_rax(b: ByteBuf, disp: i64) -> i64:
+    # mov rax, [rbp + disp32]
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x8B)
+    emit_u8(b, 0x85)
+    emit_u32(b, disp)
+    return 0
+
+def emit_store_rbp_rax(b: ByteBuf, disp: i64) -> i64:
+    # mov [rbp + disp32], rax
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0x85)
+    emit_u32(b, disp)
+    return 0
+
+def emit_load_rbp_rcx(b: ByteBuf, disp: i64) -> i64:
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x8B)
+    emit_u8(b, 0x8D)
+    emit_u32(b, disp)
+    return 0
+
+def emit_load_rbp_rdx(b: ByteBuf, disp: i64) -> i64:
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x8B)
+    emit_u8(b, 0x95)
+    emit_u32(b, disp)
+    return 0
+
+def emit_load_rbp_r8(b: ByteBuf, disp: i64) -> i64:
+    emit_u8(b, 0x4C)
+    emit_u8(b, 0x8B)
+    emit_u8(b, 0x85)
+    emit_u32(b, disp)
+    return 0
+
+def emit_load_rbp_r9(b: ByteBuf, disp: i64) -> i64:
+    emit_u8(b, 0x4C)
+    emit_u8(b, 0x8B)
+    emit_u8(b, 0x8D)
+    emit_u32(b, disp)
+    return 0
+
+def emit_lea_rax_rdata(cg: CodeGen, rdata_off: i64) -> i64:
+    # lea rax, [rip + disp32]
+    emit_u8(cg.text, 0x48)
+    emit_u8(cg.text, 0x8D)
+    emit_u8(cg.text, 0x05)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_rdata_fixup(cg, pos, rdata_off)
+    return 0
+
+def emit_lea_rcx_rdata(cg: CodeGen, rdata_off: i64) -> i64:
+    # lea rcx, [rip + disp32]
+    emit_u8(cg.text, 0x48)
+    emit_u8(cg.text, 0x8D)
+    emit_u8(cg.text, 0x0D)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_rdata_fixup(cg, pos, rdata_off)
+    return 0
+
+def emit_lea_rdx_rdata(cg: CodeGen, rdata_off: i64) -> i64:
+    # lea rdx, [rip + disp32]
+    emit_u8(cg.text, 0x48)
+    emit_u8(cg.text, 0x8D)
+    emit_u8(cg.text, 0x15)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_rdata_fixup(cg, pos, rdata_off)
+    return 0
+
+def emit_call_iat(cg: CodeGen, iat_off: i64) -> i64:
+    # call qword ptr [rip + disp32]
+    emit_u8(cg.text, 0xFF)
+    emit_u8(cg.text, 0x15)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_rdata_fixup(cg, pos, iat_off)
+    return 0
+
+def emit_call_lbl(cg: CodeGen, lbl: i64) -> i64:
+    # call rel32
+    emit_u8(cg.text, 0xE8)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_text_fixup(cg, pos, lbl)
+    return 0
+
+def emit_jmp_lbl(cg: CodeGen, lbl: i64) -> i64:
+    # jmp rel32
+    emit_u8(cg.text, 0xE9)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_text_fixup(cg, pos, lbl)
+    return 0
+
+def emit_je_lbl(cg: CodeGen, lbl: i64) -> i64:
+    # je rel32 (0F 84)
+    emit_u8(cg.text, 0x0F)
+    emit_u8(cg.text, 0x84)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_text_fixup(cg, pos, lbl)
+    return 0
+
+def emit_jne_lbl(cg: CodeGen, lbl: i64) -> i64:
+    # jne rel32 (0F 85)
+    emit_u8(cg.text, 0x0F)
+    emit_u8(cg.text, 0x85)
+    let pos: i64 = cg.text.size
+    emit_u32(cg.text, 0)
+    add_text_fixup(cg, pos, lbl)
+    return 0
+
+def emit_test_rax_rax(b: ByteBuf) -> i64:
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x85)
+    emit_u8(b, 0xC0)
+    return 0
+
+# ==============================================================================
+# 5. Built-in Runtime Helpers Emitted Directly into .text
+# ==============================================================================
+
+def emit_runtime_stubs(cg: CodeGen) -> i64:
+    let b: ByteBuf = cg.text
+
+    # 5a. _start at RVA 0x1000 (offset 0 of .text)
+    emit_prologue(b, 64)
+    emit_call_lbl(cg, cg.lbl_entry)
+    # mov rbx, rax (preserve exit code across fflush)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xC3)
+    # xor ecx, ecx -> fflush(NULL)
+    emit_u8(b, 0x31)
+    emit_u8(b, 0xC9)
+    emit_call_iat(cg, IAT_FFLUSH_OFF)
+    # mov rcx, rbx -> ExitProcess(exit_code)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xD9)
+    emit_call_iat(cg, IAT_EXIT_OFF)
+    emit_u8(b, 0xCC)
+
+    # 5b. rt_str_concat(rcx=s1, rdx=s2) -> rax=new C-string
+    bind_label(cg, cg.lbl_str_concat)
+    emit_prologue(b, 64)
+    # [rbp - 8] = rcx (s1), [rbp - 16] = rdx (s2)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0x8D)
+    emit_u32(b, -8)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0x95)
+    emit_u32(b, -16)
+    emit_call_iat(cg, IAT_STRLEN_OFF)
+    emit_store_rbp_rax(b, -24)
+    emit_load_rbp_rcx(b, -16)
+    emit_call_iat(cg, IAT_STRLEN_OFF)
+    # add rax, [rbp - 24]; add rax, 2
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x03)
+    emit_u8(b, 0x85)
+    emit_u32(b, -24)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x83)
+    emit_u8(b, 0xC0)
+    emit_u8(b, 0x02)
+    # mov rcx, rax; mov edx, 1; call calloc
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xC1)
+    emit_u8(b, 0xBA)
+    emit_u32(b, 1)
+    emit_call_iat(cg, IAT_CALLOC_OFF)
+    emit_store_rbp_rax(b, -32)
+    # strcpy(buf, s1)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xC1)
+    emit_load_rbp_rdx(b, -8)
+    emit_call_iat(cg, IAT_STRCPY_OFF)
+    # strcat(buf, s2)
+    emit_load_rbp_rcx(b, -32)
+    emit_load_rbp_rdx(b, -16)
+    emit_call_iat(cg, IAT_STRCAT_OFF)
+    emit_load_rbp_rax(b, -32)
+    emit_epilogue(b)
+
+    # 5c. rt_int_to_str(rcx=val) -> rax=new C-string
+    bind_label(cg, cg.lbl_int_to_str)
+    emit_prologue(b, 64)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0x8D)
+    emit_u32(b, -8)
+    # calloc(32, 1)
+    emit_u8(b, 0xB9)
+    emit_u32(b, 32)
+    emit_u8(b, 0xBA)
+    emit_u32(b, 1)
+    emit_call_iat(cg, IAT_CALLOC_OFF)
+    emit_store_rbp_rax(b, -16)
+    # sprintf(buf, "%lld", val)
+    emit_u8(b, 0x48)
+    emit_u8(b, 0x89)
+    emit_u8(b, 0xC1)
+    emit_lea_rdx_rdata(cg, cg.fmt_int_sp)
+    emit_load_rbp_r8(b, -8)
+    emit_u8(b, 0x31)
+    emit_u8(b, 0xC0)
+    emit_call_iat(cg, IAT_SPRINTF_OFF)
+    emit_load_rbp_rax(b, -16)
+    emit_epilogue(b)
+    return 0
+
+# ==============================================================================
+# 6. AST-to-x86-64 Expression & Statement Compiler
+# ==============================================================================
+
+def type_from_name(tname: str) -> i64:
+    if tname == "str":
+        return TY_STR
+    if tname == "bool":
+        return TY_BOOL
+    return TY_I64
+
+def compile_expr(cg: CodeGen, ctx: FnCtx, node: ASTNode) -> i64:
+    let b: ByteBuf = cg.text
+    let k: i64 = node.kind
+
+    if k == AST_INT_LIT:
+        emit_mov_rax_imm64(b, node.int_val)
+        return TY_I64
+
+    if k == AST_BOOL_LIT:
+        emit_mov_rax_imm64(b, node.int_val)
+        return TY_BOOL
+
+    if k == AST_STR_LIT:
+        let soff: i64 = emit_cstr(cg.rdata, node.str_val)
+        emit_lea_rax_rdata(cg, soff)
+        return TY_STR
+
+    if k == AST_IDENT:
+        let slot: i64 = find_var(ctx, node.name)
+        if slot >= 0:
+            emit_load_rbp_rax(b, var_disp(slot))
+            return ctx.var_types[slot]
+        emit_mov_rax_imm64(b, 0)
+        return TY_I64
+
+    if k == AST_UNARY_OP:
+        let sub_ty: i64 = compile_expr(cg, ctx, node.children[0])
+        if node.op == "-":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xF7)
+            emit_u8(b, 0xD8)
+            return TY_I64
+        if node.op == "~":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xF7)
+            emit_u8(b, 0xD0)
+            return TY_I64
+        if node.op == "not":
+            emit_test_rax_rax(b)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0x94)
+            emit_u8(b, 0xC0)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xB6)
+            emit_u8(b, 0xC0)
+            return TY_BOOL
+        return sub_ty
+
+    if k == AST_ARRAY_LIT:
+        # Layout: [len, elem0, elem1, ...] via calloc(n + 1, 8)
+        let n: i64 = node.child_count
+        let arr_tmp: i64 = ctx.temp_depth
+        ctx.temp_depth += 1
+        emit_u8(b, 0xB9)
+        emit_u32(b, n + 1)
+        emit_u8(b, 0xBA)
+        emit_u32(b, 8)
+        emit_call_iat(cg, IAT_CALLOC_OFF)
+        emit_store_rbp_rax(b, temp_disp(arr_tmp))
+        # Store length n at [arr + 0]
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x89)
+        emit_u8(b, 0xC1)
+        emit_mov_rax_imm64(b, n)
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x89)
+        emit_u8(b, 0x01)
+        for i in 0..n:
+            compile_expr(cg, ctx, node.children[i])
+            emit_load_rbp_rcx(b, temp_disp(arr_tmp))
+            # mov [rcx + (i+1)*8], rax -> 48 89 81 <disp32>
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x81)
+            emit_u32(b, (i + 1) * 8)
+        emit_load_rbp_rax(b, temp_disp(arr_tmp))
+        ctx.temp_depth -= 1
+        return TY_ARR
+
+    if k == AST_INDEX:
+        let base_tmp: i64 = ctx.temp_depth
+        ctx.temp_depth += 1
+        let base_ty: i64 = compile_expr(cg, ctx, node.children[0])
+        emit_store_rbp_rax(b, temp_disp(base_tmp))
+        compile_expr(cg, ctx, node.children[1])
+        emit_load_rbp_rcx(b, temp_disp(base_tmp))
+        ctx.temp_depth -= 1
+        if base_ty == TY_STR:
+            # Return 1-char C-string via calloc(2, 1)
+            let idx_tmp: i64 = ctx.temp_depth
+            ctx.temp_depth += 1
+            # movzx rax, byte ptr [rcx + rax] -> 48 0F B6 04 01
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xB6)
+            emit_u8(b, 0x04)
+            emit_u8(b, 0x01)
+            emit_store_rbp_rax(b, temp_disp(idx_tmp))
+            emit_u8(b, 0xB9)
+            emit_u32(b, 2)
+            emit_u8(b, 0xBA)
+            emit_u32(b, 1)
+            emit_call_iat(cg, IAT_CALLOC_OFF)
+            emit_load_rbp_rcx(b, temp_disp(idx_tmp))
+            # mov [rax], cl -> 88 08
+            emit_u8(b, 0x88)
+            emit_u8(b, 0x08)
+            ctx.temp_depth -= 1
+            return TY_STR
+        # Array element at [rcx + rax*8 + 8] -> 48 8B 44 C1 08
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x8B)
+        emit_u8(b, 0x44)
+        emit_u8(b, 0xC1)
+        emit_u8(b, 0x08)
+        return TY_I64
+
+    if k == AST_PIPE:
+        # left |> fn_ident -> call fn_ident(left)
+        let rhs: ASTNode = node.children[1]
+        let arg_tmp: i64 = ctx.temp_depth
+        ctx.temp_depth += 1
+        compile_expr(cg, ctx, node.children[0])
+        emit_store_rbp_rax(b, temp_disp(arg_tmp))
+        emit_load_rbp_rcx(b, temp_disp(arg_tmp))
+        ctx.temp_depth -= 1
+        let fidx: i64 = find_fn_idx(cg, rhs.name)
+        if fidx >= 0:
+            emit_call_lbl(cg, cg.fn_labels[fidx])
+            return cg.fn_ret_types[fidx]
+        return TY_I64
+
+    if k == AST_BIN_OP:
+        let op: str = node.op
+        if op == "and":
+            let lbl_false: i64 = new_label(cg)
+            let lbl_end: i64 = new_label(cg)
+            compile_expr(cg, ctx, node.children[0])
+            emit_test_rax_rax(b)
+            emit_je_lbl(cg, lbl_false)
+            compile_expr(cg, ctx, node.children[1])
+            emit_test_rax_rax(b)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0x95)
+            emit_u8(b, 0xC0)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xB6)
+            emit_u8(b, 0xC0)
+            emit_jmp_lbl(cg, lbl_end)
+            bind_label(cg, lbl_false)
+            emit_mov_rax_imm64(b, 0)
+            bind_label(cg, lbl_end)
+            return TY_BOOL
+
+        if op == "or":
+            let lbl_true: i64 = new_label(cg)
+            let lbl_end: i64 = new_label(cg)
+            compile_expr(cg, ctx, node.children[0])
+            emit_test_rax_rax(b)
+            emit_jne_lbl(cg, lbl_true)
+            compile_expr(cg, ctx, node.children[1])
+            emit_test_rax_rax(b)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0x95)
+            emit_u8(b, 0xC0)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xB6)
+            emit_u8(b, 0xC0)
+            emit_jmp_lbl(cg, lbl_end)
+            bind_label(cg, lbl_true)
+            emit_mov_rax_imm64(b, 1)
+            bind_label(cg, lbl_end)
+            return TY_BOOL
+
+        let tslot: i64 = ctx.temp_depth
+        ctx.temp_depth += 1
+        let lty: i64 = compile_expr(cg, ctx, node.children[0])
+        emit_store_rbp_rax(b, temp_disp(tslot))
+        let rty: i64 = compile_expr(cg, ctx, node.children[1])
+        ctx.temp_depth -= 1
+
+        if op == "+" and (lty == TY_STR or rty == TY_STR):
+            # rdx = right (currently in rax), rcx = left (in temp)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xC2)
+            emit_load_rbp_rcx(b, temp_disp(tslot))
+            emit_call_lbl(cg, cg.lbl_str_concat)
+            return TY_STR
+
+        if (op == "==" or op == "!=") and lty == TY_STR and rty == TY_STR:
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xC2)
+            emit_load_rbp_rcx(b, temp_disp(tslot))
+            emit_call_iat(cg, IAT_STRCMP_OFF)
+            # test eax, eax (85 C0)
+            emit_u8(b, 0x85)
+            emit_u8(b, 0xC0)
+            emit_u8(b, 0x0F)
+            if op == "==":
+                emit_u8(b, 0x94)
+            else:
+                emit_u8(b, 0x95)
+            emit_u8(b, 0xC0)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xB6)
+            emit_u8(b, 0xC0)
+            return TY_BOOL
+
+        # Standard integer binary op: rcx = right, rax = left
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x89)
+        emit_u8(b, 0xC1)
+        emit_load_rbp_rax(b, temp_disp(tslot))
+
+        if op == "+":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x01)
+            emit_u8(b, 0xC8)
+            return TY_I64
+        if op == "-":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x29)
+            emit_u8(b, 0xC8)
+            return TY_I64
+        if op == "*":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xAF)
+            emit_u8(b, 0xC1)
+            return TY_I64
+        if op == "/" or op == "//":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x99)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xF7)
+            emit_u8(b, 0xF9)
+            return TY_I64
+        if op == "%":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x99)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xF7)
+            emit_u8(b, 0xF9)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xD0)
+            return TY_I64
+        if op == "&":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x21)
+            emit_u8(b, 0xC8)
+            return TY_I64
+        if op == "|":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x09)
+            emit_u8(b, 0xC8)
+            return TY_I64
+        if op == "^":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x31)
+            emit_u8(b, 0xC8)
+            return TY_I64
+        if op == "<<":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xD3)
+            emit_u8(b, 0xE0)
+            return TY_I64
+        if op == ">>":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xD3)
+            emit_u8(b, 0xF8)
+            return TY_I64
+
+        # Relational / Equality: cmp rax, rcx (48 39 C8)
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x39)
+        emit_u8(b, 0xC8)
+        emit_u8(b, 0x0F)
+        if op == "==":
+            emit_u8(b, 0x94)
+        elif op == "!=":
+            emit_u8(b, 0x95)
+        elif op == "<":
+            emit_u8(b, 0x9C)
+        elif op == "<=":
+            emit_u8(b, 0x9E)
+        elif op == ">":
+            emit_u8(b, 0x9F)
+        else:
+            emit_u8(b, 0x9D)
+        emit_u8(b, 0xC0)
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x0F)
+        emit_u8(b, 0xB6)
+        emit_u8(b, 0xC0)
+        return TY_BOOL
+
+    if k == AST_CALL:
+        let fname: str = node.name
+        let argc: i64 = node.child_count - 1
+
+        if fname == "print":
+            for i in 0..argc:
+                let arg_ty: i64 = compile_expr(cg, ctx, node.children[i + 1])
+                let p_tmp: i64 = ctx.temp_depth
+                ctx.temp_depth += 1
+                emit_store_rbp_rax(b, temp_disp(p_tmp))
+                if i > 0:
+                    emit_lea_rcx_rdata(cg, cg.fmt_space)
+                    emit_u8(b, 0x31)
+                    emit_u8(b, 0xC0)
+                    emit_call_iat(cg, IAT_PRINTF_OFF)
+                if arg_ty == TY_STR:
+                    emit_load_rbp_rdx(b, temp_disp(p_tmp))
+                    emit_lea_rcx_rdata(cg, cg.fmt_str_sp)
+                    emit_u8(b, 0x31)
+                    emit_u8(b, 0xC0)
+                    emit_call_iat(cg, IAT_PRINTF_OFF)
+                elif arg_ty == TY_BOOL:
+                    let lbl_f: i64 = new_label(cg)
+                    let lbl_p: i64 = new_label(cg)
+                    emit_load_rbp_rax(b, temp_disp(p_tmp))
+                    emit_test_rax_rax(b)
+                    emit_je_lbl(cg, lbl_f)
+                    emit_lea_rdx_rdata(cg, cg.str_true)
+                    emit_jmp_lbl(cg, lbl_p)
+                    bind_label(cg, lbl_f)
+                    emit_lea_rdx_rdata(cg, cg.str_false)
+                    bind_label(cg, lbl_p)
+                    emit_lea_rcx_rdata(cg, cg.fmt_str_sp)
+                    emit_u8(b, 0x31)
+                    emit_u8(b, 0xC0)
+                    emit_call_iat(cg, IAT_PRINTF_OFF)
+                else:
+                    emit_load_rbp_rdx(b, temp_disp(p_tmp))
+                    emit_lea_rcx_rdata(cg, cg.fmt_int_sp)
+                    emit_u8(b, 0x31)
+                    emit_u8(b, 0xC0)
+                    emit_call_iat(cg, IAT_PRINTF_OFF)
+                ctx.temp_depth -= 1
+            emit_lea_rcx_rdata(cg, cg.fmt_nl)
+            emit_u8(b, 0x31)
+            emit_u8(b, 0xC0)
+            emit_call_iat(cg, IAT_PRINTF_OFF)
+            emit_mov_rax_imm64(b, 0)
+            return TY_I64
+
+        if fname == "str" and argc == 1:
+            let aty: i64 = compile_expr(cg, ctx, node.children[1])
+            if aty == TY_STR:
+                return TY_STR
+            if aty == TY_BOOL:
+                let lbl_f: i64 = new_label(cg)
+                let lbl_d: i64 = new_label(cg)
+                emit_test_rax_rax(b)
+                emit_je_lbl(cg, lbl_f)
+                emit_lea_rax_rdata(cg, cg.str_true)
+                emit_jmp_lbl(cg, lbl_d)
+                bind_label(cg, lbl_f)
+                emit_lea_rax_rdata(cg, cg.str_false)
+                bind_label(cg, lbl_d)
+                return TY_STR
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xC1)
+            emit_call_lbl(cg, cg.lbl_int_to_str)
+            return TY_STR
+
+        if fname == "len" and argc == 1:
+            let aty: i64 = compile_expr(cg, ctx, node.children[1])
+            if aty == TY_STR:
+                emit_u8(b, 0x48)
+                emit_u8(b, 0x89)
+                emit_u8(b, 0xC1)
+                emit_call_iat(cg, IAT_STRLEN_OFF)
+                return TY_I64
+            # Array length at [rax] -> 48 8B 00
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x8B)
+            emit_u8(b, 0x00)
+            return TY_I64
+
+        if fname == "ord" and argc == 1:
+            compile_expr(cg, ctx, node.children[1])
+            # movzx rax, byte ptr [rax] -> 48 0F B6 00
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xB6)
+            emit_u8(b, 0x00)
+            return TY_I64
+
+        if fname == "abs" and argc == 1:
+            let lbl_pos: i64 = new_label(cg)
+            compile_expr(cg, ctx, node.children[1])
+            emit_test_rax_rax(b)
+            # jns rel32 (0F 89)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0x89)
+            let p_jns: i64 = b.size
+            emit_u32(b, 0)
+            add_text_fixup(cg, p_jns, lbl_pos)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xF7)
+            emit_u8(b, 0xD8)
+            bind_label(cg, lbl_pos)
+            return TY_I64
+
+        if fname == "exit" and argc == 1:
+            compile_expr(cg, ctx, node.children[1])
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xC3)
+            emit_u8(b, 0x31)
+            emit_u8(b, 0xC9)
+            emit_call_iat(cg, IAT_FFLUSH_OFF)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xD9)
+            emit_call_iat(cg, IAT_EXIT_OFF)
+            return TY_I64
+
+        # User-defined function call (Win64 ABI: rcx, rdx, r8, r9, [rsp+32], [rsp+40])
+        let base_t: i64 = ctx.temp_depth
+        ctx.temp_depth += argc
+        for i in 0..argc:
+            compile_expr(cg, ctx, node.children[i + 1])
+            emit_store_rbp_rax(b, temp_disp(base_t + i))
+        if argc >= 1:
+            emit_load_rbp_rcx(b, temp_disp(base_t))
+        if argc >= 2:
+            emit_load_rbp_rdx(b, temp_disp(base_t + 1))
+        if argc >= 3:
+            emit_load_rbp_r8(b, temp_disp(base_t + 2))
+        if argc >= 4:
+            emit_load_rbp_r9(b, temp_disp(base_t + 3))
+        if argc >= 5:
+            emit_load_rbp_rax(b, temp_disp(base_t + 4))
+            # mov [rsp + 32], rax -> 48 89 44 24 20
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x44)
+            emit_u8(b, 0x24)
+            emit_u8(b, 0x20)
+        if argc >= 6:
+            emit_load_rbp_rax(b, temp_disp(base_t + 5))
+            # mov [rsp + 40], rax -> 48 89 44 24 28
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x44)
+            emit_u8(b, 0x24)
+            emit_u8(b, 0x28)
+        ctx.temp_depth -= argc
+
+        let fidx: i64 = find_fn_idx(cg, fname)
+        if fidx >= 0:
+            emit_call_lbl(cg, cg.fn_labels[fidx])
+            return cg.fn_ret_types[fidx]
+        emit_mov_rax_imm64(b, 0)
+        return TY_I64
+
+    emit_mov_rax_imm64(b, 0)
+    return TY_I64
+
+def compile_stmt(cg: CodeGen, ctx: FnCtx, stmt: ASTNode) -> i64:
+    let b: ByteBuf = cg.text
+    let k: i64 = stmt.kind
+
+    if k == AST_PASS or k == AST_IMPORT or k == AST_FN_DEF or k == AST_STRUCT_DEF:
+        return 0
+
+    if k == AST_BLOCK:
+        for i in 0..stmt.child_count:
+            compile_stmt(cg, ctx, stmt.children[i])
+        return 0
+
+    if k == AST_EXPR_STMT:
+        compile_expr(cg, ctx, stmt.children[0])
+        return 0
+
+    if k == AST_ASSIGN:
+        let op: str = stmt.op
+        if op == "=":
+            let rhs_ty: i64 = compile_expr(cg, ctx, stmt.children[0])
+            let decl_ty: i64 = rhs_ty
+            if stmt.str_val != "":
+                decl_ty = type_from_name(stmt.str_val)
+            let slot: i64 = find_or_add_var(ctx, stmt.name, decl_ty)
+            emit_store_rbp_rax(b, var_disp(slot))
+            return 0
+        # Augmented assignment (+=, -=, *=, /=)
+        let slot: i64 = find_or_add_var(ctx, stmt.name, 0)
+        let rhs_ty: i64 = compile_expr(cg, ctx, stmt.children[0])
+        if op == "+=" and ctx.var_types[slot] == TY_STR:
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0xC2)
+            emit_load_rbp_rcx(b, var_disp(slot))
+            emit_call_lbl(cg, cg.lbl_str_concat)
+            emit_store_rbp_rax(b, var_disp(slot))
+            return 0
+        # rcx = rhs, rax = current var
+        emit_u8(b, 0x48)
+        emit_u8(b, 0x89)
+        emit_u8(b, 0xC1)
+        emit_load_rbp_rax(b, var_disp(slot))
+        if op == "+=":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x01)
+            emit_u8(b, 0xC8)
+        elif op == "-=":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x29)
+            emit_u8(b, 0xC8)
+        elif op == "*=":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x0F)
+            emit_u8(b, 0xAF)
+            emit_u8(b, 0xC1)
+        elif op == "/=":
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x99)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0xF7)
+            emit_u8(b, 0xF9)
+        emit_store_rbp_rax(b, var_disp(slot))
+        return 0
+
+    if k == AST_RETURN:
+        if stmt.child_count > 0:
+            compile_expr(cg, ctx, stmt.children[0])
+        else:
+            emit_mov_rax_imm64(b, 0)
+        emit_jmp_lbl(cg, ctx.epilogue_lbl)
+        return 0
+
+    if k == AST_BREAK:
+        if ctx.break_lbl >= 0:
+            emit_jmp_lbl(cg, ctx.break_lbl)
+        return 0
+
+    if k == AST_CONTINUE:
+        if ctx.continue_lbl >= 0:
+            emit_jmp_lbl(cg, ctx.continue_lbl)
+        return 0
+
+    if k == AST_IF:
+        let lbl_else: i64 = new_label(cg)
+        let lbl_end: i64 = new_label(cg)
+        compile_expr(cg, ctx, stmt.children[0])
+        emit_test_rax_rax(b)
+        emit_je_lbl(cg, lbl_else)
+        compile_stmt(cg, ctx, stmt.children[1])
+        if stmt.child_count >= 3:
+            emit_jmp_lbl(cg, lbl_end)
+            bind_label(cg, lbl_else)
+            compile_stmt(cg, ctx, stmt.children[2])
+            bind_label(cg, lbl_end)
+        else:
+            bind_label(cg, lbl_else)
+        return 0
+
+    if k == AST_WHILE:
+        let lbl_cond: i64 = new_label(cg)
+        let lbl_exit: i64 = new_label(cg)
+        let prev_brk: i64 = ctx.break_lbl
+        let prev_cnt: i64 = ctx.continue_lbl
+        ctx.break_lbl = lbl_exit
+        ctx.continue_lbl = lbl_cond
+
+        bind_label(cg, lbl_cond)
+        compile_expr(cg, ctx, stmt.children[0])
+        emit_test_rax_rax(b)
+        emit_je_lbl(cg, lbl_exit)
+        compile_stmt(cg, ctx, stmt.children[1])
+        emit_jmp_lbl(cg, lbl_cond)
+        bind_label(cg, lbl_exit)
+
+        ctx.break_lbl = prev_brk
+        ctx.continue_lbl = prev_cnt
+        return 0
+
+    if k == AST_FOR:
+        let iter_node: ASTNode = stmt.children[0]
+        let body_node: ASTNode = stmt.children[1]
+        let var_slot: i64 = find_or_add_var(ctx, stmt.name, TY_I64)
+        let end_tmp: i64 = ctx.temp_depth
+        ctx.temp_depth += 1
+
+        if iter_node.kind == AST_RANGE:
+            compile_expr(cg, ctx, iter_node.children[0])
+            emit_store_rbp_rax(b, var_disp(var_slot))
+            compile_expr(cg, ctx, iter_node.children[1])
+            emit_store_rbp_rax(b, temp_disp(end_tmp))
+
+            let lbl_cond: i64 = new_label(cg)
+            let lbl_step: i64 = new_label(cg)
+            let lbl_exit: i64 = new_label(cg)
+            let prev_brk: i64 = ctx.break_lbl
+            let prev_cnt: i64 = ctx.continue_lbl
+            ctx.break_lbl = lbl_exit
+            ctx.continue_lbl = lbl_step
+
+            bind_label(cg, lbl_cond)
+            emit_load_rbp_rax(b, var_disp(var_slot))
+            emit_load_rbp_rcx(b, temp_disp(end_tmp))
+            # cmp rax, rcx (48 39 C8)
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x39)
+            emit_u8(b, 0xC8)
+            if iter_node.op == "..=":
+                # jg lbl_exit (0F 8F)
+                emit_u8(b, 0x0F)
+                emit_u8(b, 0x8F)
+            else:
+                # jge lbl_exit (0F 8D)
+                emit_u8(b, 0x0F)
+                emit_u8(b, 0x8D)
+            let pos_j: i64 = b.size
+            emit_u32(b, 0)
+            add_text_fixup(cg, pos_j, lbl_exit)
+
+            compile_stmt(cg, ctx, body_node)
+
+            bind_label(cg, lbl_step)
+            emit_load_rbp_rax(b, var_disp(var_slot))
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x83)
+            emit_u8(b, 0xC0)
+            emit_u8(b, 0x01)
+            emit_store_rbp_rax(b, var_disp(var_slot))
+            emit_jmp_lbl(cg, lbl_cond)
+            bind_label(cg, lbl_exit)
+
+            ctx.break_lbl = prev_brk
+            ctx.continue_lbl = prev_cnt
+
+        ctx.temp_depth -= 1
+        return 0
+
+    return 0
+
+def compile_fn_def(cg: CodeGen, fn_node: ASTNode, fidx: i64) -> i64:
+    let b: ByteBuf = cg.text
+    bind_label(cg, cg.fn_labels[fidx])
+    let ctx: FnCtx = fn_ctx_new(cg, cg.fn_ret_types[fidx])
+    # 1024-byte 16-byte-aligned stack frame:
+    #   [rbp - 8 .. -512]   locals (64 slots)
+    #   [rbp - 520 .. -960] temps  (56 slots)
+    #   [rsp + 0 .. +63]    Win64 shadow space + arg5/arg6 stack slots
+    emit_prologue(b, 1024)
+
+    let param_count: i64 = fn_node.child_count - 1
+    for i in 0..param_count:
+        let pnode: ASTNode = fn_node.children[i]
+        let pty: i64 = type_from_name(pnode.str_val)
+        let slot: i64 = find_or_add_var(ctx, pnode.name, pty)
+        let disp: i64 = var_disp(slot)
+        if i == 0:
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x8D)
+            emit_u32(b, disp)
+        elif i == 1:
+            emit_u8(b, 0x48)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x95)
+            emit_u32(b, disp)
+        elif i == 2:
+            emit_u8(b, 0x4C)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x85)
+            emit_u32(b, disp)
+        elif i == 3:
+            emit_u8(b, 0x4C)
+            emit_u8(b, 0x89)
+            emit_u8(b, 0x8D)
+            emit_u32(b, disp)
+        elif i == 4:
+            emit_load_rbp_rax(b, 48)
+            emit_store_rbp_rax(b, disp)
+        elif i == 5:
+            emit_load_rbp_rax(b, 56)
+            emit_store_rbp_rax(b, disp)
+
+    let body: ASTNode = fn_node.children[fn_node.child_count - 1]
+    compile_stmt(cg, ctx, body)
+
+    # Default return 0 if execution falls off the end
+    emit_mov_rax_imm64(b, 0)
+    bind_label(cg, ctx.epilogue_lbl)
+    emit_epilogue(b)
+    return 0
+
+# ==============================================================================
+# 7. PE32+ Linker, Import Table Builder & Executable Image Emitter
+# ==============================================================================
+
+def emit_hint_name(rdata: ByteBuf, sym_name: str) -> i64:
+    align_buf(rdata, 2)
+    let off: i64 = rdata.size
+    emit_u16(rdata, 0)
+    emit_cstr(rdata, sym_name)
+    align_buf(rdata, 2)
+    return off
+
+def finalize_imports_and_fixups(cg: CodeGen, rdata_rva: i64) -> i64:
+    let rdata: ByteBuf = cg.rdata
+
+    let hn_exit: i64 = emit_hint_name(rdata, "ExitProcess")
+    let hn_printf: i64 = emit_hint_name(rdata, "printf")
+    let hn_fflush: i64 = emit_hint_name(rdata, "fflush")
+    let hn_calloc: i64 = emit_hint_name(rdata, "calloc")
+    let hn_strlen: i64 = emit_hint_name(rdata, "strlen")
+    let hn_strcpy: i64 = emit_hint_name(rdata, "strcpy")
+    let hn_strcat: i64 = emit_hint_name(rdata, "strcat")
+    let hn_strcmp: i64 = emit_hint_name(rdata, "strcmp")
+    let hn_sprintf: i64 = emit_hint_name(rdata, "sprintf")
+
+    let dll_k32: i64 = emit_cstr(rdata, "KERNEL32.dll")
+    let dll_crt: i64 = emit_cstr(rdata, "msvcrt.dll")
+
+    align_buf(rdata, 8)
+    let ilt_k32: i64 = rdata.size
+    emit_u64(rdata, rdata_rva + hn_exit)
+    emit_u64(rdata, 0)
+
+    let ilt_crt: i64 = rdata.size
+    emit_u64(rdata, rdata_rva + hn_printf)
+    emit_u64(rdata, rdata_rva + hn_fflush)
+    emit_u64(rdata, rdata_rva + hn_calloc)
+    emit_u64(rdata, rdata_rva + hn_strlen)
+    emit_u64(rdata, rdata_rva + hn_strcpy)
+    emit_u64(rdata, rdata_rva + hn_strcat)
+    emit_u64(rdata, rdata_rva + hn_strcmp)
+    emit_u64(rdata, rdata_rva + hn_sprintf)
+    emit_u64(rdata, 0)
+
+    # Mirror ILT Hint/Name RVAs into IAT slots at start of .rdata
+    patch_u64(rdata, IAT_EXIT_OFF, rdata_rva + hn_exit)
+    patch_u64(rdata, IAT_PRINTF_OFF, rdata_rva + hn_printf)
+    patch_u64(rdata, IAT_FFLUSH_OFF, rdata_rva + hn_fflush)
+    patch_u64(rdata, IAT_CALLOC_OFF, rdata_rva + hn_calloc)
+    patch_u64(rdata, IAT_STRLEN_OFF, rdata_rva + hn_strlen)
+    patch_u64(rdata, IAT_STRCPY_OFF, rdata_rva + hn_strcpy)
+    patch_u64(rdata, IAT_STRCAT_OFF, rdata_rva + hn_strcat)
+    patch_u64(rdata, IAT_STRCMP_OFF, rdata_rva + hn_strcmp)
+    patch_u64(rdata, IAT_SPRINTF_OFF, rdata_rva + hn_sprintf)
+
+    # Import Directory Table (3 x 20 = 60 bytes)
+    align_buf(rdata, 4)
+    let idt_off: i64 = rdata.size
+    # Descriptor 0: KERNEL32.dll
+    emit_u32(rdata, rdata_rva + ilt_k32)
+    emit_u32(rdata, 0)
+    emit_u32(rdata, 0)
+    emit_u32(rdata, rdata_rva + dll_k32)
+    emit_u32(rdata, rdata_rva + IAT_EXIT_OFF)
+    # Descriptor 1: msvcrt.dll
+    emit_u32(rdata, rdata_rva + ilt_crt)
+    emit_u32(rdata, 0)
+    emit_u32(rdata, 0)
+    emit_u32(rdata, rdata_rva + dll_crt)
+    emit_u32(rdata, rdata_rva + IAT_PRINTF_OFF)
+    # Descriptor 2: Null terminator
+    for z in 0..5:
+        emit_u32(rdata, 0)
+
+    # Resolve all internal .text label branches & calls
+    for i in 0..cg.text_fix_count:
+        let pos: i64 = cg.text_fix_pos[i]
+        let lbl: i64 = cg.text_fix_lbl[i]
+        let target_off: i64 = cg.label_offsets[lbl]
+        let rel32: i64 = target_off - (pos + 4)
+        patch_u32(cg.text, pos, rel32)
+
+    # Resolve all RIP-relative references from .text into .rdata
+    for i in 0..cg.rdata_fix_count:
+        let pos: i64 = cg.rdata_fix_pos[i]
+        let roff: i64 = cg.rdata_fix_off[i]
+        let disp32: i64 = (rdata_rva + roff) - (TEXT_RVA + pos + 4)
+        patch_u32(cg.text, pos, disp32)
+
+    return idt_off
+
+def build_pe32_image(cg: CodeGen, rdata_rva: i64, idt_off: i64) -> ByteBuf:
+    let size_of_headers: i64 = 512
+    let text_vsize: i64 = cg.text.size
+    let text_fsize: i64 = align_up(text_vsize, 512)
+    let text_foff: i64 = size_of_headers
+
+    let rdata_vsize: i64 = cg.rdata.size
+    let rdata_fsize: i64 = align_up(rdata_vsize, 512)
+    let rdata_foff: i64 = text_foff + text_fsize
+
+    let size_of_image: i64 = align_up(rdata_rva + rdata_vsize, 4096)
+    let total_file_bytes: i64 = rdata_foff + rdata_fsize
+    let img: ByteBuf = buf_new(total_file_bytes)
+
+    # 1. DOS Header (0x00 .. 0x80)
+    emit_u8(img, 0x4D) # 'M'
+    emit_u8(img, 0x5A) # 'Z'
+    emit_zeros(img, 58)
+    emit_u32(img, 128) # e_lfanew = 0x80
+    emit_zeros(img, 64)
+
+    # 2. PE Signature + COFF File Header (0x80 .. 0x98)
+    emit_u8(img, 0x50) # 'P'
+    emit_u8(img, 0x45) # 'E'
+    emit_u8(img, 0x00)
+    emit_u8(img, 0x00)
+    emit_u16(img, 0x8664) # IMAGE_FILE_MACHINE_AMD64
+    emit_u16(img, 2)      # NumberOfSections (.text, .rdata)
+    emit_u32(img, 0)      # TimeDateStamp
+    emit_u32(img, 0)      # PointerToSymbolTable
+    emit_u32(img, 0)      # NumberOfSymbols
+    emit_u16(img, 240)    # SizeOfOptionalHeader (0xF0)
+    emit_u16(img, 0x0022) # EXECUTABLE_IMAGE | LARGE_ADDRESS_AWARE
+
+    # 3. PE32+ Optional Header (0x98 .. 0x188 = 240 bytes)
+    emit_u16(img, 0x020B) # Magic: PE32+
+    emit_u8(img, 14)      # MajorLinkerVersion (Black Mamba Self-Host v1.0)
+    emit_u8(img, 0)       # MinorLinkerVersion
+    emit_u32(img, text_fsize)
+    emit_u32(img, rdata_fsize)
+    emit_u32(img, 0)
+    emit_u32(img, TEXT_RVA) # AddressOfEntryPoint (_start)
+    emit_u32(img, TEXT_RVA) # BaseOfCode
+    emit_u64(img, 0x140000000) # ImageBase
+    emit_u32(img, 4096)   # SectionAlignment (0x1000)
+    emit_u32(img, 512)    # FileAlignment (0x200)
+    emit_u16(img, 6)      # MajorOSVersion
+    emit_u16(img, 0)
+    emit_u16(img, 1)      # MajorImageVersion (1.0)
+    emit_u16(img, 0)
+    emit_u16(img, 6)      # MajorSubsystemVersion
+    emit_u16(img, 0)
+    emit_u32(img, 0)      # Win32VersionValue
+    emit_u32(img, size_of_image)
+    emit_u32(img, size_of_headers)
+    emit_u32(img, 0)      # CheckSum
+    emit_u16(img, 3)      # Subsystem: WINDOWS_CUI
+    emit_u16(img, 0x8140) # DYNAMIC_BASE | NX_COMPAT | TERMINAL_SERVER_AWARE
+    emit_u64(img, 0x100000) # SizeOfStackReserve
+    emit_u64(img, 0x10000)  # SizeOfStackCommit
+    emit_u64(img, 0x100000) # SizeOfHeapReserve
+    emit_u64(img, 0x10000)  # SizeOfHeapCommit
+    emit_u32(img, 0)      # LoaderFlags
+    emit_u32(img, 16)     # NumberOfRvaAndSizes
+
+    # Data Directories (16 x 8 = 128 bytes)
+    # [0] Export
+    emit_u64(img, 0)
+    # [1] Import Directory
+    emit_u32(img, rdata_rva + idt_off)
+    emit_u32(img, 60)
+    # [2..11] Unused directories
+    for d in 2..12:
+        emit_u64(img, 0)
+    # [12] IAT Directory
+    emit_u32(img, rdata_rva)
+    emit_u32(img, IAT_TOTAL_BYTES)
+    # [13..15] Unused directories
+    for d in 13..16:
+        emit_u64(img, 0)
+
+    # 4. Section Headers (2 x 40 = 80 bytes at 0x188)
+    # Section 0: .text
+    emit_ascii_fixed8(img, ".text")
+    emit_u32(img, text_vsize)
+    emit_u32(img, TEXT_RVA)
+    emit_u32(img, text_fsize)
+    emit_u32(img, text_foff)
+    emit_u32(img, 0)
+    emit_u32(img, 0)
+    emit_u16(img, 0)
+    emit_u16(img, 0)
+    emit_u32(img, 0x60000020) # CNT_CODE | MEM_EXECUTE | MEM_READ
+
+    # Section 1: .rdata
+    emit_ascii_fixed8(img, ".rdata")
+    emit_u32(img, rdata_vsize)
+    emit_u32(img, rdata_rva)
+    emit_u32(img, rdata_fsize)
+    emit_u32(img, rdata_foff)
+    emit_u32(img, 0)
+    emit_u32(img, 0)
+    emit_u16(img, 0)
+    emit_u16(img, 0)
+    emit_u32(img, 0xC0000040) # CNT_INITIALIZED_DATA | MEM_READ | MEM_WRITE
+
+    # Pad headers to 0x200
+    align_buf(img, 512)
+
+    # 5. Append .text + file alignment padding
+    emit_bytes_from(img, cg.text)
+    align_buf(img, 512)
+
+    # 6. Append .rdata + file alignment padding
+    emit_bytes_from(img, cg.rdata)
+    align_buf(img, 512)
+
+    return img
+
+# ==============================================================================
+# 8. Public Self-Hosting Compiler Entry Points
+# ==============================================================================
+
+def compile_ast_to_exe(mod: ASTNode, out_path: str) -> i64:
+    let cg: CodeGen = cg_new()
+    emit_runtime_stubs(cg)
+
+    # Pass 1: Register all top-level functions for mutual & recursive calls
+    for i in 0..mod.child_count:
+        let node: ASTNode = mod.children[i]
+        if node.kind == AST_FN_DEF:
+            let idx: i64 = cg.fn_count
+            cg.fn_names[idx] = node.name
+            cg.fn_labels[idx] = new_label(cg)
+            cg.fn_ret_types[idx] = type_from_name(node.str_val)
+            cg.fn_count += 1
+
+    # Pass 2: Emit native x86-64 machine code for all user functions
+    let f_cursor: i64 = 0
+    for i in 0..mod.child_count:
+        let node: ASTNode = mod.children[i]
+        if node.kind == AST_FN_DEF:
+            compile_fn_def(cg, node, f_cursor)
+            f_cursor += 1
+
+    # Pass 3: Emit top-level __bmb_entry (runs top-level stmts, or calls main())
+    bind_label(cg, cg.lbl_entry)
+    let entry_ctx: FnCtx = fn_ctx_new(cg, TY_I64)
+    emit_prologue(cg.text, 1024)
+    let top_stmt_count: i64 = 0
+    for i in 0..mod.child_count:
+        let node: ASTNode = mod.children[i]
+        if node.kind != AST_FN_DEF and node.kind != AST_STRUCT_DEF and node.kind != AST_IMPORT and node.kind != AST_PASS:
+            compile_stmt(cg, entry_ctx, node)
+            top_stmt_count += 1
+
+    let main_idx: i64 = find_fn_idx(cg, "main")
+    if top_stmt_count == 0 and main_idx >= 0:
+        emit_call_lbl(cg, cg.fn_labels[main_idx])
+    else:
+        emit_mov_rax_imm64(cg.text, 0)
+    bind_label(cg, entry_ctx.epilogue_lbl)
+    emit_epilogue(cg.text)
+
+    # Pass 4: Finalize PE32+ Import Tables, Relocations & Write Executable
+    let rdata_rva: i64 = align_up(TEXT_RVA + cg.text.size, 4096)
+    let idt_off: i64 = finalize_imports_and_fixups(cg, rdata_rva)
+    let img: ByteBuf = build_pe32_image(cg, rdata_rva, idt_off)
+
+    let written: i64 = write_bytes(out_path, img.ptr, img.size)
+    buf_free(img)
+    buf_free(cg.text)
+    buf_free(cg.rdata)
+    return written
+
+def compile_bmb_to_exe(source: str, out_path: str) -> i64:
+    let ast: ASTNode = compile_source(source)
+    return compile_ast_to_exe(ast, out_path)
+
+def compile_file_to_exe(in_path: str, out_path: str) -> i64:
+    let source: str = read_file(in_path)
+    return compile_bmb_to_exe(source, out_path)

@@ -1,0 +1,390 @@
+# Black Mamba Standard Library: json
+# High-performance, zero-CPython-overhead JSON Parser and Serializer.
+# Implemented in 100% pure native Black Mamba (.bmb) with memory-safe pool node allocation.
+
+JSON_NULL = 0
+JSON_BOOL = 1
+JSON_INT = 2
+JSON_FLOAT = 3
+JSON_STR = 4
+JSON_ARR = 5
+JSON_OBJ = 6
+
+struct JsonNode:
+    kind: i64
+    key: str
+    str_val: str
+    int_val: i64
+    float_val: f64
+    first_child: i64
+    next_sibling: i64
+    child_count: i64
+
+struct JsonDoc:
+    root: i64
+    node_count: i64
+    capacity: i64
+    error: str
+    nodes: Array[JsonNode]
+
+struct JsonParserState:
+    text: str
+    pos: i64
+    len: i64
+    error: str
+
+def json_doc_new(capacity: i64) -> JsonDoc:
+    dummy = JsonNode(0, "", "", 0, 0.0, -1, -1, 0)
+    arr = [dummy] * capacity
+    for i in 0..capacity:
+        arr[i] = JsonNode(0, "", "", 0, 0.0, -1, -1, 0)
+    return JsonDoc(-1, 0, capacity, "", arr)
+
+def json_alloc_node(doc: JsonDoc, kind: i64, key: str, str_val: str, int_val: i64, float_val: f64) -> i64:
+    idx = doc.node_count
+    if idx >= doc.capacity:
+        doc.error = "JsonDoc node capacity exceeded"
+        return -1
+    node = doc.nodes[idx]
+    node.kind = kind
+    node.key = key
+    node.str_val = str_val
+    node.int_val = int_val
+    node.float_val = float_val
+    node.first_child = -1
+    node.next_sibling = -1
+    node.child_count = 0
+    doc.node_count += 1
+    return idx
+
+def json_skip_ws(st: JsonParserState) -> i64:
+    while st.pos < st.len:
+        c = ord(st.text[st.pos])
+        if c == 32 or c == 9 or c == 10 or c == 13:
+            st.pos += 1
+        else:
+            return st.pos
+    return st.pos
+
+def json_parse_str(st: JsonParserState) -> str:
+    st.pos += 1 # skip opening '"'
+    start = st.pos
+    has_escape = False
+    while st.pos < st.len:
+        c = ord(st.text[st.pos])
+        if c == 34: # '"'
+            break
+        elif c == 92: # '\'
+            has_escape = True
+            st.pos += 2
+        else:
+            st.pos += 1
+    if st.pos >= st.len:
+        st.error = "Unterminated JSON string literal"
+        return ""
+    end = st.pos
+    st.pos += 1 # skip closing '"'
+    if not has_escape:
+        return st.text[start:end]
+    res = ""
+    i = start
+    while i < end:
+        c = ord(st.text[i])
+        if c == 92:
+            i += 1
+            if i < end:
+                c2 = ord(st.text[i])
+                if c2 == 110: # 'n'
+                    res = res + "\n"
+                elif c2 == 116: # 't'
+                    res = res + "\t"
+                elif c2 == 114: # 'r'
+                    res = res + "\r"
+                elif c2 == 34: # '"'
+                    res = res + "\""
+                elif c2 == 92: # '\'
+                    res = res + "\\"
+                else:
+                    res = res + chr(c2)
+                i += 1
+        else:
+            res = res + chr(c)
+            i += 1
+    return res
+
+def json_parse_num(st: JsonParserState, doc: JsonDoc) -> i64:
+    start = st.pos
+    is_float = False
+    if st.pos < st.len and ord(st.text[st.pos]) == 45: # '-'
+        st.pos += 1
+    while st.pos < st.len:
+        c = ord(st.text[st.pos])
+        if c >= 48 and c <= 57:
+            st.pos += 1
+        elif c == 46 or c == 101 or c == 69: # '.', 'e', 'E'
+            is_float = True
+            st.pos += 1
+        elif (c == 43 or c == 45) and st.pos > start and (ord(st.text[st.pos - 1]) == 101 or ord(st.text[st.pos - 1]) == 69):
+            st.pos += 1
+        else:
+            break
+    num_str = st.text[start:st.pos]
+    if is_float:
+        f = float(num_str)
+        return json_alloc_node(doc, JSON_FLOAT, "", "", 0, f)
+    else:
+        i = int(num_str)
+        return json_alloc_node(doc, JSON_INT, "", "", i, 0.0)
+
+def json_parse_val(st: JsonParserState, doc: JsonDoc) -> i64:
+    json_skip_ws(st)
+    if st.pos >= st.len:
+        st.error = "Unexpected end of input"
+        return -1
+    c = ord(st.text[st.pos])
+    if c == 123: # '{'
+        return json_parse_obj(st, doc)
+    elif c == 91: # '['
+        return json_parse_arr(st, doc)
+    elif c == 34: # '"'
+        s = json_parse_str(st)
+        return json_alloc_node(doc, JSON_STR, "", s, 0, 0.0)
+    elif (c >= 48 and c <= 57) or c == 45: # '0'..'9' or '-'
+        return json_parse_num(st, doc)
+    elif c == 116: # 't' (true)
+        if st.pos + 4 <= st.len and st.text[st.pos:st.pos+4] == "true":
+            st.pos += 4
+            return json_alloc_node(doc, JSON_BOOL, "", "", 1, 0.0)
+    elif c == 102: # 'f' (false)
+        if st.pos + 5 <= st.len and st.text[st.pos:st.pos+5] == "false":
+            st.pos += 5
+            return json_alloc_node(doc, JSON_BOOL, "", "", 0, 0.0)
+    elif c == 110: # 'n' (null)
+        if st.pos + 4 <= st.len and st.text[st.pos:st.pos+4] == "null":
+            st.pos += 4
+            return json_alloc_node(doc, JSON_NULL, "", "", 0, 0.0)
+    st.error = "Invalid JSON token"
+    return -1
+
+def json_parse_arr(st: JsonParserState, doc: JsonDoc) -> i64:
+    st.pos += 1 # skip '['
+    arr_idx = json_alloc_node(doc, JSON_ARR, "", "", 0, 0.0)
+    prev_child = -1
+    count = 0
+    while st.pos < st.len:
+        json_skip_ws(st)
+        if st.pos < st.len and ord(st.text[st.pos]) == 93: # ']'
+            st.pos += 1
+            break
+        child_idx = json_parse_val(st, doc)
+        if child_idx == -1:
+            return -1
+        if prev_child == -1:
+            doc.nodes[arr_idx].first_child = child_idx
+        else:
+            doc.nodes[prev_child].next_sibling = child_idx
+        prev_child = child_idx
+        count += 1
+        json_skip_ws(st)
+        if st.pos < st.len:
+            c = ord(st.text[st.pos])
+            if c == 44: # ','
+                st.pos += 1
+            elif c == 93: # ']'
+                st.pos += 1
+                break
+            else:
+                st.error = "Expected ',' or ']' in array"
+                return -1
+    doc.nodes[arr_idx].child_count = count
+    return arr_idx
+
+def json_parse_obj(st: JsonParserState, doc: JsonDoc) -> i64:
+    st.pos += 1 # skip '{'
+    obj_idx = json_alloc_node(doc, JSON_OBJ, "", "", 0, 0.0)
+    prev_child = -1
+    count = 0
+    while st.pos < st.len:
+        json_skip_ws(st)
+        if st.pos < st.len and ord(st.text[st.pos]) == 125: # '}'
+            st.pos += 1
+            break
+        if ord(st.text[st.pos]) != 34:
+            st.error = "Expected string key in object"
+            return -1
+        key = json_parse_str(st)
+        json_skip_ws(st)
+        if st.pos >= st.len or ord(st.text[st.pos]) != 58: # ':'
+            st.error = "Expected ':' after key in object"
+            return -1
+        st.pos += 1 # skip ':'
+        child_idx = json_parse_val(st, doc)
+        if child_idx == -1:
+            return -1
+        doc.nodes[child_idx].key = key
+        if prev_child == -1:
+            doc.nodes[obj_idx].first_child = child_idx
+        else:
+            doc.nodes[prev_child].next_sibling = child_idx
+        prev_child = child_idx
+        count += 1
+        json_skip_ws(st)
+        if st.pos < st.len:
+            c = ord(st.text[st.pos])
+            if c == 44: # ','
+                st.pos += 1
+            elif c == 125: # '}'
+                st.pos += 1
+                break
+            else:
+                st.error = "Expected ',' or '}' in object"
+                return -1
+    doc.nodes[obj_idx].child_count = count
+    return obj_idx
+
+def json_parse(text: str, max_nodes: i64) -> JsonDoc:
+    doc = json_doc_new(max_nodes)
+    st = JsonParserState(text, 0, len(text), "")
+    doc.root = json_parse_val(st, doc)
+    doc.error = st.error
+    return doc
+
+def json_get(doc: JsonDoc, obj_idx: i64, key: str) -> i64:
+    if obj_idx < 0 or obj_idx >= doc.node_count:
+        return -1
+    curr = doc.nodes[obj_idx].first_child
+    while curr != -1:
+        if doc.nodes[curr].key == key:
+            return curr
+        curr = doc.nodes[curr].next_sibling
+    return -1
+
+def json_get_str(doc: JsonDoc, obj_idx: i64, key: str, default_val: str) -> str:
+    idx = json_get(doc, obj_idx, key)
+    if idx != -1 and doc.nodes[idx].kind == JSON_STR:
+        return doc.nodes[idx].str_val
+    return default_val
+
+def json_get_int(doc: JsonDoc, obj_idx: i64, key: str, default_val: i64) -> i64:
+    idx = json_get(doc, obj_idx, key)
+    if idx != -1 and doc.nodes[idx].kind == JSON_INT:
+        return doc.nodes[idx].int_val
+    return default_val
+
+def json_get_float(doc: JsonDoc, obj_idx: i64, key: str, default_val: f64) -> f64:
+    idx = json_get(doc, obj_idx, key)
+    if idx != -1 and doc.nodes[idx].kind == JSON_FLOAT:
+        return doc.nodes[idx].float_val
+    return default_val
+
+def json_get_bool(doc: JsonDoc, obj_idx: i64, key: str, default_val: bool) -> bool:
+    idx = json_get(doc, obj_idx, key)
+    if idx != -1 and doc.nodes[idx].kind == JSON_BOOL:
+        return doc.nodes[idx].int_val == 1
+    return default_val
+
+def json_array_get(doc: JsonDoc, arr_idx: i64, index: i64) -> i64:
+    if arr_idx < 0 or arr_idx >= doc.node_count or index < 0:
+        return -1
+    curr = doc.nodes[arr_idx].first_child
+    i = 0
+    while curr != -1:
+        if i == index:
+            return curr
+        curr = doc.nodes[curr].next_sibling
+        i += 1
+    return -1
+
+def json_array_len(doc: JsonDoc, arr_idx: i64) -> i64:
+    if arr_idx < 0 or arr_idx >= doc.node_count:
+        return 0
+    return doc.nodes[arr_idx].child_count
+
+def json_escape_str(s: str) -> str:
+    res = "\""
+    length = len(s)
+    i = 0
+    while i < length:
+        c = ord(s[i])
+        if c == 34:
+            res = res + "\\\""
+        elif c == 92:
+            res = res + "\\\\"
+        elif c == 10:
+            res = res + "\\n"
+        elif c == 9:
+            res = res + "\\t"
+        elif c == 13:
+            res = res + "\\r"
+        else:
+            res = res + chr(c)
+        i += 1
+    return res + "\""
+
+def json_dumps(doc: JsonDoc, node_idx: i64) -> str:
+    if node_idx < 0 or node_idx >= doc.node_count:
+        return "null"
+    node = doc.nodes[node_idx]
+    if node.kind == JSON_NULL:
+        return "null"
+    elif node.kind == JSON_BOOL:
+        if node.int_val == 1:
+            return "true"
+        else:
+            return "false"
+    elif node.kind == JSON_INT:
+        return str(node.int_val)
+    elif node.kind == JSON_FLOAT:
+        return str(node.float_val)
+    elif node.kind == JSON_STR:
+        return json_escape_str(node.str_val)
+    elif node.kind == JSON_ARR:
+        res = "["
+        curr = node.first_child
+        first = True
+        while curr != -1:
+            if not first:
+                res = res + ", "
+            child_str = json_dumps(doc, curr)
+            res = res + child_str
+            first = False
+            curr = doc.nodes[curr].next_sibling
+        return res + "]"
+    elif node.kind == JSON_OBJ:
+        res = "{"
+        curr = node.first_child
+        first = True
+        while curr != -1:
+            if not first:
+                res = res + ", "
+            k_esc = json_escape_str(doc.nodes[curr].key)
+            child_str = json_dumps(doc, curr)
+            res = res + k_esc + ": " + child_str
+            first = False
+            curr = doc.nodes[curr].next_sibling
+        return res + "}"
+    return "null"
+
+def json_dumps_int_array(arr: Array[i64], count: i64) -> str:
+    res = "["
+    for i in 0..count:
+        if i > 0:
+            res = res + ", "
+        res = res + str(arr[i])
+    return res + "]"
+
+def json_dumps_float_array(arr: Array[f64], count: i64) -> str:
+    res = "["
+    for i in 0..count:
+        if i > 0:
+            res = res + ", "
+        res = res + str(arr[i])
+    return res + "]"
+
+def json_dumps_str_array(arr: Array[str], count: i64) -> str:
+    res = "["
+    for i in 0..count:
+        if i > 0:
+            res = res + ", "
+        res = res + json_escape_str(arr[i])
+    return res + "]"

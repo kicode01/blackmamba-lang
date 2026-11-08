@@ -1,0 +1,254 @@
+# Black Mamba Standard Library: kv.bmb
+# High-performance, zero-CPython-overhead embedded persistent Key-Value Storage Engine.
+# Log-Structured storage (WAL + in-memory table) with durable disk flushing via os.bmb.
+
+from os import file_exists, read_file, write_file
+
+# ==============================================================================
+# 1. Key-Value Storage Structures
+# ==============================================================================
+
+struct KVEntry:
+    key: str
+    val: str
+    int_val: i64
+    is_int: i64
+    is_deleted: i64
+
+struct KVStore:
+    filepath: str
+    capacity: i64
+    count: i64
+    entries: Array[KVEntry]
+    dirty_count: i64
+
+
+# ==============================================================================
+# 2. Store Lifecycle
+# ==============================================================================
+
+def _kv_init_entries(capacity: i64) -> Array[KVEntry]:
+    dummy = KVEntry("", "", 0, 0, 0)
+    arr = [dummy] * capacity
+    for i in 0..capacity:
+        arr[i] = KVEntry("", "", 0, 0, 0)
+    return arr
+
+def kv_open(filepath: str, capacity: i64) -> KVStore:
+    # Opens or creates an embedded key-value store backed by persistent disk file `filepath`.
+    cap = capacity
+    if cap <= 0:
+        cap = 512
+    arr = _kv_init_entries(cap)
+    store = KVStore(filepath, cap, 0, arr, 0)
+
+    # If persistent log exists on disk, replay and load records
+    if len(filepath) > 0 and file_exists(filepath):
+        content = read_file(filepath)
+        clen = len(content)
+        pos = 0
+        while pos < clen:
+            # Parse line: key=val\n
+            line_start = pos
+            eq_pos = -1
+            while pos < clen and ord(content[pos]) != 10: # '\n'
+                if ord(content[pos]) == 61 and eq_pos == -1: # '='
+                    eq_pos = pos
+                pos += 1
+
+            line_end = pos
+            if eq_pos > line_start:
+                k = content[line_start:eq_pos]
+                v = content[eq_pos + 1:line_end]
+                # Strip trailing '\r' if present
+                vlen = len(v)
+                if vlen > 0 and ord(v[vlen - 1]) == 13:
+                    v = v[:vlen - 1]
+                kv_put(store, k, v)
+                store.dirty_count = 0 # Loaded from disk, clean state
+
+            if pos < clen and ord(content[pos]) == 10:
+                pos += 1
+
+    return store
+
+def kv_cap(store: KVStore) -> i64:
+    # Returns maximum entry capacity of the store.
+    return store.capacity
+
+def kv_len(store: KVStore) -> i64:
+    # Returns the count of active, non-deleted key-value entries.
+    active = 0
+    total = store.count
+    for i in 0..total:
+        e = store.entries[i]
+        if e.is_deleted == 0 and len(e.key) > 0:
+            active += 1
+    return active
+
+def kv_is_empty(store: KVStore) -> bool:
+    # Returns True if store has 0 active entries.
+    return kv_len(store) == 0
+
+
+# ==============================================================================
+# 3. Data Access & Mutation
+# ==============================================================================
+
+def _kv_find_idx(store: KVStore, key: str) -> i64:
+    total = store.count
+    for i in 0..total:
+        e = store.entries[i]
+        if e.is_deleted == 0 and e.key == key:
+            return i
+    return -1
+
+def kv_has(store: KVStore, key: str) -> bool:
+    # Returns True if key exists and is not tombstoned.
+    idx = _kv_find_idx(store, key)
+    return idx != -1
+
+def kv_get(store: KVStore, key: str) -> str:
+    # Returns the string value for key, or empty string if not found.
+    idx = _kv_find_idx(store, key)
+    if idx == -1:
+        return ""
+    return store.entries[idx].val
+
+def kv_get_int(store: KVStore, key: str, default_val: i64) -> i64:
+    # Returns the integer value for key, or default_val if key not found or not numeric.
+    idx = _kv_find_idx(store, key)
+    if idx == -1:
+        return default_val
+    e = store.entries[idx]
+    if e.is_int != 0:
+        return e.int_val
+    v = e.val
+    vlen = len(v)
+    if vlen == 0:
+        return default_val
+    res = 0
+    start = 0
+    sign = 1
+    if ord(v[0]) == 45: # '-'
+        sign = -1
+        start = 1
+    for i in start..vlen:
+        c = ord(v[i])
+        if c >= 48 and c <= 57:
+            res = res * 10 + (c - 48)
+        else:
+            return default_val
+    final_val = res * sign
+    e.int_val = final_val
+    e.is_int = 1
+    return final_val
+
+def kv_put(store: KVStore, key: str, val: str) -> i64:
+    # Inserts or updates key with string val. Returns 1 on success, -1 on capacity error.
+    idx = _kv_find_idx(store, key)
+    if idx != -1:
+        e = store.entries[idx]
+        e.val = val
+        e.is_int = 0
+        e.is_deleted = 0
+        store.dirty_count += 1
+        return 1
+
+    if store.count >= store.capacity:
+        return -1
+
+    new_idx = store.count
+    entry = store.entries[new_idx]
+    entry.key = key
+    entry.val = val
+    entry.int_val = 0
+    entry.is_int = 0
+    entry.is_deleted = 0
+    store.count += 1
+    store.dirty_count += 1
+    return 1
+
+def kv_put_int(store: KVStore, key: str, val: i64) -> i64:
+    # Inserts or updates key with an integer value.
+    idx = _kv_find_idx(store, key)
+    if idx != -1:
+        e = store.entries[idx]
+        e.val = str(val)
+        e.int_val = val
+        e.is_int = 1
+        e.is_deleted = 0
+        store.dirty_count += 1
+        return 1
+
+    if store.count >= store.capacity:
+        return -1
+
+    new_idx = store.count
+    entry = store.entries[new_idx]
+    entry.key = key
+    entry.val = str(val)
+    entry.int_val = val
+    entry.is_int = 1
+    entry.is_deleted = 0
+    store.count += 1
+    store.dirty_count += 1
+    return 1
+
+def kv_delete(store: KVStore, key: str) -> i64:
+    # Marks key as deleted (tombstone). Returns 1 on success, 0 if key not found.
+    idx = _kv_find_idx(store, key)
+    if idx == -1:
+        return 0
+    store.entries[idx].is_deleted = 1
+    store.dirty_count += 1
+    return 1
+
+
+# ==============================================================================
+# 4. Persistence & Compaction
+# ==============================================================================
+
+def kv_sync(store: KVStore) -> i64:
+    # Flushes active in-memory entries to the persistent log file on disk.
+    # Returns total bytes written, or 0 if path is empty.
+    if len(store.filepath) == 0:
+        return 0
+
+    # Build file payload of active entries
+    buf = ""
+    total = store.count
+    for i in 0..total:
+        e = store.entries[i]
+        if e.is_deleted == 0 and len(e.key) > 0:
+            buf = buf + e.key + "=" + e.val + "\n"
+
+    written = write_file(store.filepath, buf)
+    store.dirty_count = 0
+    return written
+
+def kv_compact(store: KVStore) -> i64:
+    # Compacts the store in-place, removing deleted tombstone slots.
+    # Flushes the compacted state to disk.
+    total = store.count
+    w_idx = 0
+    for r_idx in 0..total:
+        e = store.entries[r_idx]
+        if e.is_deleted == 0 and len(e.key) > 0:
+            if w_idx != r_idx:
+                target = store.entries[w_idx]
+                target.key = e.key
+                target.val = e.val
+                target.int_val = e.int_val
+                target.is_int = e.is_int
+                target.is_deleted = 0
+            w_idx += 1
+
+    store.count = w_idx
+    return kv_sync(store)
+
+def kv_close(store: KVStore) -> i64:
+    # Flushes dirty changes to disk and closes store handle.
+    if store.dirty_count > 0:
+        return kv_sync(store)
+    return 0

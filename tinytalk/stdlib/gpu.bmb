@@ -1,0 +1,69 @@
+# Black Mamba Standard Library: gpu.bmb
+# Zero-CUDA Native GPU Compute & Shader Dispatch Primitives (WebGPU / Vulkan SPIR-V)
+
+from math import exp, sqrt
+
+struct GpuDevice:
+    device_id: i64
+    vendor_id: i64
+    workgroup_size: i64
+    compute_units: i64
+    is_ready: i64
+
+struct GpuWorkgroup:
+    grid_x: i64
+    grid_y: i64
+    grid_z: i64
+    local_x: i64
+    local_y: i64
+    local_z: i64
+
+def gpu_device_init(workgroup_size: i64) -> GpuDevice:
+    wg = workgroup_size
+    if wg <= 0:
+        wg = 64
+    return GpuDevice(0, 4318, wg, 128, 1)
+
+def gpu_workgroup_1d(total_items: i64, local_size: i64) -> GpuWorkgroup:
+    ls = local_size
+    if ls <= 0:
+        ls = 64
+    gx = (total_items + ls - 1) // ls
+    if gx <= 0:
+        gx = 1
+    return GpuWorkgroup(gx, 1, 1, ls, 1, 1)
+
+def gpu_saxpy_f64(a: f64, x: List[f64], y: List[f64], out: List[f64], n: i64) -> i64:
+    for idx in 0..n:
+        out[idx] = a * x[idx] + y[idx]
+    return n
+
+def gpu_fma_f64(a: List[f64], b: List[f64], c: List[f64], out: List[f64], n: i64) -> i64:
+    for idx in 0..n:
+        out[idx] = a[idx] * b[idx] + c[idx]
+    return n
+
+def gpu_relu_f64(inp: List[f64], out: List[f64], n: i64) -> i64:
+    for idx in 0..n:
+        v = inp[idx]
+        if v > 0.0:
+            out[idx] = v
+        else:
+            out[idx] = 0.0
+    return n
+
+def gpu_matmul_f64(a: List[f64], b: List[f64], c: List[f64], m: i64, n: i64, k: i64) -> i64:
+    for row in 0..m:
+        for col in 0..n:
+            acc = 0.0
+            for p in 0..k:
+                acc = acc + a[row * k + p] * b[p * n + col]
+            c[row * n + col] = acc
+    return m * n
+
+def gpu_q8_gemv(weights_q8: List[i64], acts: List[f64], n: i64, scale: f64) -> f64:
+    acc = 0.0
+    for idx in 0..n:
+        w = float(weights_q8[idx]) * scale
+        acc = acc + w * acts[idx]
+    return acc

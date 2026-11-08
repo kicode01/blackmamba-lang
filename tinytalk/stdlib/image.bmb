@@ -1,0 +1,22 @@
+# Black Mamba Standard Library: `image`
+# Smalltalk-Style Persistent Memory Image Snapshot Descriptors (`.bmbimg`).
+
+struct ImageHeader:
+    magic: str = "BMBIMG01"
+    version: str = "2.3.0"
+    flags: i64 = 0
+
+struct ImageSnapshotMeta:
+    header: ImageHeader
+    module_count: i64 = 1
+    object_count: i64 = 0
+    table_count: i64 = 0
+    morph_count: i64 = 0
+    resume_ms: f64 = 0.45
+
+fn make_image_meta(mods: i64, objs: i64, tables: i64, morphs: i64, resume_ms: f64) -> ImageSnapshotMeta:
+    hdr = ImageHeader("BMBIMG01", "2.3.0", 0)
+    return ImageSnapshotMeta(hdr, mods, objs, tables, morphs, resume_ms)
+
+fn is_valid_image_magic(magic: str) -> bool:
+    return magic == "BMBIMG01"

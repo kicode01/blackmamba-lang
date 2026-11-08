@@ -13,6 +13,8 @@ authors = [
   { name = "KiCode", email = "kicode01@users.noreply.github.com" },
 ]
 keywords = [
+  "tinytalk",
+  "smalltalk",
   "compiler",
   "jit",
   "programming-language",
@@ -47,13 +49,14 @@ Repository = "https://github.com/kicode01/tinytalk-lang.git"
 "Bug Tracker" = "https://github.com/kicode01/tinytalk-lang/issues"
 
 [project.scripts]
-tnt = "mamba.cli:main"
-tinytalk = "mamba.cli:main"
-bmb = "mamba.cli:main"
-blackmamba = "mamba.cli:main"
+tnt = "tinytalk.cli:main"
+tinytalk = "tinytalk.cli:main"
+bmb = "tinytalk.cli:main"
+blackmamba = "tinytalk.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["mamba*"]
+include = ["tinytalk*", "mamba*"]
 
 [tool.setuptools.package-data]
-"mamba" = ["stdlib/*.bmb"]
+"tinytalk" = ["stdlib/*.tnt", "stdlib/*.bmb", "selfhost/*.tnt", "selfhost/*.bmb"]
+"mamba" = ["stdlib/*.tnt", "stdlib/*.bmb", "selfhost/*.tnt", "selfhost/*.bmb"]

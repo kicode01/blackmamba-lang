@@ -10,9 +10,9 @@ const path = require('path');
 let client;
 
 function activate(context) {
-    const config = vscode.workspace.getConfiguration('bmb');
+    const config = vscode.workspace.getConfiguration('tnt');
     const tcpPort = config.get('lsp.tcpPort', 0);
-    const bmbPath = config.get('lsp.path', 'bmb');
+    const bmbPath = config.get('lsp.path', 'tnt');
 
     let LanguageClient;
     try {
@@ -47,9 +47,12 @@ function activate(context) {
     }
 
     const clientOptions = {
-        documentSelector: [{ scheme: 'file', language: 'bmb' }],
+        documentSelector: [
+            { scheme: 'file', language: 'tnt' },
+            { scheme: 'file', language: 'bmb' }
+        ],
         synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher('**/*.bmb')
+            fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{tnt,bmb}')
         }
     };
 

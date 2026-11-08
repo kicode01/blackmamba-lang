@@ -1,22 +1,11 @@
-"""
-Black Mamba (bmb) Documentation Generator Package.
-Provides AST docstring extraction, metadata indexing, and static HTML rendering.
-"""
+"""Backward compatibility shim forwarding to tinytalk.doc."""
+import sys
+import tinytalk.doc as _target
+from tinytalk.doc import *
 
-from .extractor import ConstDoc, FieldDoc, FuncDoc, MethodDoc, ModuleDoc, PackageDoc, extract_module_doc, extract_package_doc
-from .generator import DocGenerator
-from .html_renderer import render_html_documentation
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target
 
-__all__ = [
-    "DocGenerator",
-    "extract_module_doc",
-    "extract_package_doc",
-    "render_html_documentation",
-    "PackageDoc",
-    "ModuleDoc",
-    "StructDoc",
-    "FuncDoc",
-    "FieldDoc",
-    "MethodDoc",
-    "ConstDoc",
-]
+if __name__ == "__main__":
+    if hasattr(_target, "main"):
+        sys.exit(_target.main())

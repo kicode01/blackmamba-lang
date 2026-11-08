@@ -2,5 +2,11 @@ include LICENSE
 include README.md
 include pyproject.toml
 include setup.py
-recursive-include mamba/stdlib *.bmb
-recursive-include mamba/selfhost *.bmb
+include tnt.bat
+include tnt.py
+include bmb.bat
+include bmb.py
+include website_server.tnt
+recursive-include tinytalk *.py *.bmb *.tnt
+recursive-include mamba *.py *.bmb *.tnt
+recursive-include assets *.png *.ico

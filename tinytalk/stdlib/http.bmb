@@ -1,0 +1,662 @@
+# Black Mamba Standard Library: http.bmb
+# High-Performance HTTP/1.1 & WebSocket Server / Client Framework.
+# Zero CPython Runtime Dependency | Bare-metal socket.bmb + hash.bmb integration.
+
+from socket import (
+    Socket,
+    tcp_connect,
+    tcp_server,
+    socket_accept,
+    socket_recv,
+    socket_send,
+    socket_close,
+)
+
+# ==============================================================================
+# 1. HTTP Constants & Status Codes
+# ==============================================================================
+
+HTTP_GET: i64 = 1
+HTTP_POST: i64 = 2
+HTTP_PUT: i64 = 3
+HTTP_DELETE: i64 = 4
+HTTP_HEAD: i64 = 5
+HTTP_PATCH: i64 = 6
+HTTP_OPTIONS: i64 = 7
+
+fn http_method_to_str(m: i64) -> str:
+    if m == 1:
+        return "GET"
+    if m == 2:
+        return "POST"
+    if m == 3:
+        return "PUT"
+    if m == 4:
+        return "DELETE"
+    if m == 5:
+        return "HEAD"
+    if m == 6:
+        return "PATCH"
+    if m == 7:
+        return "OPTIONS"
+    return "GET"
+
+fn http_str_to_method(s: str) -> i64:
+    if s == "GET":
+        return 1
+    if s == "POST":
+        return 2
+    if s == "PUT":
+        return 3
+    if s == "DELETE":
+        return 4
+    if s == "HEAD":
+        return 5
+    if s == "PATCH":
+        return 6
+    if s == "OPTIONS":
+        return 7
+    return 1
+
+fn http_status_reason(status: i64) -> str:
+    if status == 200:
+        return "OK"
+    if status == 201:
+        return "Created"
+    if status == 202:
+        return "Accepted"
+    if status == 204:
+        return "No Content"
+    if status == 301:
+        return "Moved Permanently"
+    if status == 302:
+        return "Found"
+    if status == 304:
+        return "Not Modified"
+    if status == 400:
+        return "Bad Request"
+    if status == 401:
+        return "Unauthorized"
+    if status == 403:
+        return "Forbidden"
+    if status == 404:
+        return "Not Found"
+    if status == 405:
+        return "Method Not Allowed"
+    if status == 429:
+        return "Too Many Requests"
+    if status == 500:
+        return "Internal Server Error"
+    if status == 502:
+        return "Bad Gateway"
+    if status == 503:
+        return "Service Unavailable"
+    return "OK"
+
+# ==============================================================================
+# 2. String Utility Helpers
+# ==============================================================================
+
+fn _str_find(s: str, sub: str, start: i64) -> i64:
+    let slen: i64 = len(s)
+    let sublen: i64 = len(sub)
+    if sublen == 0:
+        return start
+    if slen < sublen or start >= slen:
+        return -1
+    let limit: i64 = slen - sublen
+    let i: i64 = start
+    while i <= limit:
+        let matched: bool = True
+        let j: i64 = 0
+        while j < sublen:
+            if ord(s[i + j]) != ord(sub[j]):
+                matched = False
+                j = sublen
+            j += 1
+        if matched:
+            return i
+        i += 1
+    return -1
+
+fn _str_starts_with(s: str, prefix: str) -> bool:
+    let plen: i64 = len(prefix)
+    if len(s) < plen:
+        return False
+    let i: i64 = 0
+    while i < plen:
+        if ord(s[i]) != ord(prefix[i]):
+            return False
+        i += 1
+    return True
+
+fn _str_trim(s: str) -> str:
+    let slen: i64 = len(s)
+    if slen == 0:
+        return ""
+    let start: i64 = 0
+    while start < slen:
+        let c: i64 = ord(s[start])
+        if c != 32 and c != 9 and c != 13 and c != 10:
+            let dummy: i64 = 0
+            break
+        start += 1
+    if start >= slen:
+        return ""
+    let end: i64 = slen - 1
+    while end >= start:
+        let c: i64 = ord(s[end])
+        if c != 32 and c != 9 and c != 13 and c != 10:
+            let dummy: i64 = 0
+            break
+        end -= 1
+    return s[start:end + 1]
+
+fn _char_to_lower(c: i64) -> i64:
+    if c >= 65 and c <= 90:
+        return c + 32
+    return c
+
+fn _str_eq_ci(a: str, b: str) -> bool:
+    let alen: i64 = len(a)
+    if alen != len(b):
+        return False
+    let i: i64 = 0
+    while i < alen:
+        if _char_to_lower(ord(a[i])) != _char_to_lower(ord(b[i])):
+            return False
+        i += 1
+    return True
+
+# ==============================================================================
+# 3. HTTP Data Structures
+# ==============================================================================
+
+struct HttpRequest:
+    method: str
+    method_id: i64
+    path: str
+    query: str
+    version: str
+    headers_raw: str
+    body: str
+    content_length: i64
+    is_websocket: bool
+    ws_key: str
+
+struct HttpResponse:
+    status: i64
+    content_type: str
+    headers_extra: str
+    body: str
+
+# ==============================================================================
+# 4. HTTP Parsing & Helpers
+# ==============================================================================
+
+fn http_get_header(headers_raw: str, header_name: str) -> str:
+    let hlen: i64 = len(headers_raw)
+    let pos: i64 = 0
+    while pos < hlen:
+        let line_end: i64 = _str_find(headers_raw, "\r\n", pos)
+        if line_end == -1:
+            line_end = hlen
+        let line: str = headers_raw[pos:line_end]
+        let colon: i64 = _str_find(line, ":", 0)
+        if colon > 0:
+            let k: str = _str_trim(line[0:colon])
+            if _str_eq_ci(k, header_name):
+                return _str_trim(line[colon + 1:])
+        pos = line_end + 2
+    return ""
+
+fn http_get_query_param(query: str, key: str) -> str:
+    let qlen: i64 = len(query)
+    if qlen == 0:
+        return ""
+    let pos: i64 = 0
+    while pos < qlen:
+        let amp: i64 = _str_find(query, "&", pos)
+        if amp == -1:
+            amp = qlen
+        let pair: str = query[pos:amp]
+        let eq_idx: i64 = _str_find(pair, "=", 0)
+        if eq_idx > 0:
+            let k: str = pair[0:eq_idx]
+            if k == key:
+                return pair[eq_idx + 1:]
+        pos = amp + 1
+    return ""
+
+fn http_parse_request(raw: str) -> HttpRequest:
+    let rlen: i64 = len(raw)
+    if rlen == 0:
+        return HttpRequest("GET", 1, "/", "", "HTTP/1.1", "", "", 0, False, "")
+
+    # Split header and body on \r\n\r\n
+    let sep: i64 = _str_find(raw, "\r\n\r\n", 0)
+    let body_part: str = ""
+    let header_part: str = raw
+    if sep != -1:
+        header_part = raw[0:sep]
+        body_part = raw[sep + 4:]
+
+    # Parse request line (first line)
+    let first_line_end: i64 = _str_find(header_part, "\r\n", 0)
+    let first_line: str = header_part
+    let rest_headers: str = ""
+    if first_line_end != -1:
+        first_line = header_part[0:first_line_end]
+        rest_headers = header_part[first_line_end + 2:]
+
+    # Parse METHOD PATH VERSION
+    let sp1: i64 = _str_find(first_line, " ", 0)
+    let meth: str = "GET"
+    let full_path: str = "/"
+    let ver: str = "HTTP/1.1"
+
+    if sp1 != -1:
+        meth = first_line[0:sp1]
+        let sp2: i64 = _str_find(first_line, " ", sp1 + 1)
+        if sp2 != -1:
+            full_path = first_line[sp1 + 1:sp2]
+            ver = first_line[sp2 + 1:]
+        else:
+            full_path = first_line[sp1 + 1:]
+
+    # Split full_path into path and query
+    let q_mark: i64 = _str_find(full_path, "?", 0)
+    let path: str = full_path
+    let query: str = ""
+    if q_mark != -1:
+        path = full_path[0:q_mark]
+        query = full_path[q_mark + 1:]
+
+    let meth_id: i64 = http_str_to_method(meth)
+
+    # Check for Content-Length
+    let cl_str: str = http_get_header(rest_headers, "Content-Length")
+    let clen: i64 = 0
+    if len(cl_str) > 0:
+        clen = int(cl_str)
+
+    # Check for WebSocket Upgrade
+    let upgrade_hdr: str = http_get_header(rest_headers, "Upgrade")
+    let is_ws: bool = False
+    let ws_key: str = ""
+    if _str_eq_ci(upgrade_hdr, "websocket"):
+        is_ws = True
+        ws_key = http_get_header(rest_headers, "Sec-WebSocket-Key")
+
+    return HttpRequest(meth, meth_id, path, query, ver, rest_headers, body_part, clen, is_ws, ws_key)
+
+# ==============================================================================
+# 5. HTTP Response Constructors
+# ==============================================================================
+
+fn response_text(status: i64, text: str) -> HttpResponse:
+    return HttpResponse(status, "text/plain; charset=utf-8", "", text)
+
+fn response_json(status: i64, json_str: str) -> HttpResponse:
+    return HttpResponse(status, "application/json; charset=utf-8", "", json_str)
+
+fn response_html(status: i64, html_str: str) -> HttpResponse:
+    return HttpResponse(status, "text/html; charset=utf-8", "", html_str)
+
+fn response_redirect(location: str) -> HttpResponse:
+    return HttpResponse(302, "text/plain", "Location: " + location + "\r\n", "")
+
+fn http_format_response(res: HttpResponse, keep_alive: bool) -> str:
+    let conn_val: str = "close"
+    if keep_alive:
+        conn_val = "keep-alive"
+    let status_str: str = str(res.status)
+    let reason: str = http_status_reason(res.status)
+    let body_len: str = str(len(res.body))
+
+    let out: str = "HTTP/1.1 " + status_str + " " + reason + "\r\n"
+    out = out + "Server: BlackMamba/3.0\r\n"
+    out = out + "Content-Type: " + res.content_type + "\r\n"
+    out = out + "Content-Length: " + body_len + "\r\n"
+    out = out + "Connection: " + conn_val + "\r\n"
+    if len(res.headers_extra) > 0:
+        out = out + res.headers_extra
+    out = out + "\r\n"
+    if len(res.body) > 0:
+        out = out + res.body
+    return out
+
+# ==============================================================================
+# 6. WebSocket Protocol (RFC 6455)
+# ==============================================================================
+
+fn _rotl32(x: i64, n: i64) -> i64:
+    return (((x << n) & 0xFFFFFFFF) | (x >> (32 - n))) & 0xFFFFFFFF
+
+fn sha1_digest(msg: str) -> Array[i64]:
+    let h0: i64 = 0x67452301
+    let h1: i64 = 0xEFCDAB89
+    let h2: i64 = 0x98BADCFE
+    let h3: i64 = 0x10325476
+    let h4: i64 = 0xC3D2E1F0
+
+    let msg_len: i64 = len(msg)
+    let bit_len: i64 = msg_len * 8
+
+    # Compute padded byte count
+    let pad_len: i64 = msg_len + 1
+    while (pad_len % 64) != 56:
+        pad_len += 1
+    let total_len: i64 = pad_len + 8
+
+    let data: Array[i64] = [0] * total_len
+    let i: i64 = 0
+    while i < msg_len:
+        data[i] = ord(msg[i])
+        i += 1
+    data[msg_len] = 0x80
+
+    # 64-bit length big-endian
+    let k: i64 = 7
+    while k >= 0:
+        data[pad_len + (7 - k)] = (bit_len >> (k * 8)) & 0xFF
+        k -= 1
+
+    let num_blocks: i64 = total_len // 64
+    let b: i64 = 0
+    let w: Array[i64] = [0] * 80
+
+    while b < num_blocks:
+        let b_offset: i64 = b * 64
+        let t: i64 = 0
+        while t < 16:
+            let off: i64 = b_offset + t * 4
+            w[t] = ((data[off] << 24) | (data[off + 1] << 16) | (data[off + 2] << 8) | data[off + 3]) & 0xFFFFFFFF
+            t += 1
+
+        while t < 80:
+            let v: i64 = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]
+            w[t] = _rotl32(v, 1)
+            t += 1
+
+        let a: i64 = h0
+        let b_val: i64 = h1
+        let c: i64 = h2
+        let d: i64 = h3
+        let e: i64 = h4
+
+        let step: i64 = 0
+        while step < 80:
+            let f: i64 = 0
+            let k_const: i64 = 0
+            if step < 20:
+                f = (b_val & c) | ((~b_val) & d)
+                k_const = 0x5A827999
+            elif step < 40:
+                f = b_val ^ c ^ d
+                k_const = 0x6ED9EBA1
+            elif step < 60:
+                f = (b_val & c) | (b_val & d) | (c & d)
+                k_const = 0x8F1BBCDC
+            else:
+                f = b_val ^ c ^ d
+                k_const = 0xCA62C1D6
+
+            let temp: i64 = (_rotl32(a, 5) + (f & 0xFFFFFFFF) + e + k_const + w[step]) & 0xFFFFFFFF
+            e = d
+            d = c
+            c = _rotl32(b_val, 30)
+            b_val = a
+            a = temp
+            step += 1
+
+        h0 = (h0 + a) & 0xFFFFFFFF
+        h1 = (h1 + b_val) & 0xFFFFFFFF
+        h2 = (h2 + c) & 0xFFFFFFFF
+        h3 = (h3 + d) & 0xFFFFFFFF
+        h4 = (h4 + e) & 0xFFFFFFFF
+        b += 1
+
+    let digest: Array[i64] = [0] * 20
+    let states: Array[i64] = [h0, h1, h2, h3, h4]
+    let s_idx: i64 = 0
+    while s_idx < 5:
+        let val: i64 = states[s_idx]
+        digest[s_idx * 4] = (val >> 24) & 0xFF
+        digest[s_idx * 4 + 1] = (val >> 16) & 0xFF
+        digest[s_idx * 4 + 2] = (val >> 8) & 0xFF
+        digest[s_idx * 4 + 3] = val & 0xFF
+        s_idx += 1
+
+    return digest
+
+fn base64_encode(bytes_arr: Array[i64], count: i64) -> str:
+    let b64: str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    let n: i64 = count
+    let out: str = ""
+    let i: i64 = 0
+    while i < n:
+        let b0: i64 = bytes_arr[i]
+        let b1: i64 = 0
+        if i + 1 < n:
+            b1 = bytes_arr[i + 1]
+        let b2: i64 = 0
+        if i + 2 < n:
+            b2 = bytes_arr[i + 2]
+
+        let trip: i64 = (b0 << 16) | (b1 << 8) | b2
+        let c0: str = b64[(trip >> 18) & 0x3F]
+        let c1: str = b64[(trip >> 12) & 0x3F]
+        let c2: str = "="
+        if i + 1 < n:
+            c2 = b64[(trip >> 6) & 0x3F]
+        let c3: str = "="
+        if i + 2 < n:
+            c3 = b64[trip & 0x3F]
+
+        out = out + c0 + c1 + c2 + c3
+        i += 3
+    return out
+
+fn ws_accept_key(sec_ws_key: str) -> str:
+    let guid: str = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    let digest: Array[i64] = sha1_digest(sec_ws_key + guid)
+    return base64_encode(digest, 20)
+
+fn ws_handshake_response(sec_ws_key: str) -> str:
+    let accept_key: str = ws_accept_key(sec_ws_key)
+    let resp: str = "HTTP/1.1 101 Switching Protocols\r\n"
+    resp = resp + "Upgrade: websocket\r\n"
+    resp = resp + "Connection: Upgrade\r\n"
+    resp = resp + "Sec-WebSocket-Accept: " + accept_key + "\r\n\r\n"
+    return resp
+
+struct WsFrame:
+    fin: bool
+    opcode: i64
+    payload: str
+    length: i64
+
+fn ws_decode_frame(raw: str) -> WsFrame:
+    let rlen: i64 = len(raw)
+    if rlen < 2:
+        return WsFrame(False, 0, "", 0)
+
+    let b0: i64 = ord(raw[0])
+    let fin: bool = (b0 & 0x80) != 0
+    let opcode: i64 = b0 & 0x0F
+
+    let b1: i64 = ord(raw[1])
+    let is_masked: bool = (b1 & 0x80) != 0
+    let payload_len: i64 = b1 & 0x7F
+
+    let offset: i64 = 2
+    if payload_len == 126:
+        if rlen < 4:
+            return WsFrame(False, 0, "", 0)
+        payload_len = (ord(raw[2]) << 8) | ord(raw[3])
+        offset = 4
+    elif payload_len == 127:
+        if rlen < 10:
+            return WsFrame(False, 0, "", 0)
+        # Low 32 bits for practical frames
+        payload_len = (ord(raw[6]) << 24) | (ord(raw[7]) << 16) | (ord(raw[8]) << 8) | ord(raw[9])
+        offset = 10
+
+    let mask_k0: i64 = 0
+    let mask_k1: i64 = 0
+    let mask_k2: i64 = 0
+    let mask_k3: i64 = 0
+
+    if is_masked:
+        if rlen < offset + 4:
+            return WsFrame(False, 0, "", 0)
+        mask_k0 = ord(raw[offset])
+        mask_k1 = ord(raw[offset + 1])
+        mask_k2 = ord(raw[offset + 2])
+        mask_k3 = ord(raw[offset + 3])
+        offset += 4
+
+    let out: str = ""
+    let i: i64 = 0
+    while i < payload_len and (offset + i) < rlen:
+        let b: i64 = ord(raw[offset + i])
+        if is_masked:
+            let mod: i64 = i % 4
+            if mod == 0:
+                b = b ^ mask_k0
+            elif mod == 1:
+                b = b ^ mask_k1
+            elif mod == 2:
+                b = b ^ mask_k2
+            else:
+                b = b ^ mask_k3
+        out = out + chr(b)
+        i += 1
+
+    return WsFrame(fin, opcode, out, payload_len)
+
+fn ws_encode_text_frame(msg: str) -> str:
+    let mlen: i64 = len(msg)
+    let header: str = chr(0x81) # FIN=1, Opcode=1 (text)
+    if mlen <= 125:
+        header = header + chr(mlen)
+    elif mlen <= 65535:
+        header = header + chr(126) + chr((mlen >> 8) & 0xFF) + chr(mlen & 0xFF)
+    else:
+        header = header + chr(127) + chr(0) + chr(0) + chr(0) + chr(0)
+        header = header + chr((mlen >> 24) & 0xFF) + chr((mlen >> 16) & 0xFF) + chr((mlen >> 8) & 0xFF) + chr(mlen & 0xFF)
+    return header + msg
+
+# ==============================================================================
+# 7. Router & Dispatch Engine
+# ==============================================================================
+
+struct Route:
+    method: str
+    path: str
+    status_code: i64
+    content_type: str
+    body: str
+
+struct HttpServer:
+    host: str
+    port: i64
+    backlog: i64
+    capacity: i64
+    route_count: i64
+    routes: Array[Route]
+    requests_served: i64
+
+fn _init_routes(cap: i64) -> Array[Route]:
+    let dummy: Route = Route("", "", 200, "text/plain", "")
+    let arr: Array[Route] = [dummy] * cap
+    let i: i64 = 0
+    while i < cap:
+        arr[i] = Route("", "", 200, "text/plain", "")
+        i += 1
+    return arr
+
+fn http_server_create(host: str, port: i64, max_routes: i64) -> HttpServer:
+    let cap: i64 = max_routes
+    if cap <= 0:
+        cap = 64
+    let r: Array[Route] = _init_routes(cap)
+    return HttpServer(host, port, 128, cap, 0, r, 0)
+
+fn http_add_route(srv: HttpServer, method: str, path: str, status: i64, content_type: str, body: str) -> i64:
+    if srv.route_count >= srv.capacity:
+        return -1
+    let idx: i64 = srv.route_count
+    srv.routes[idx] = Route(method, path, status, content_type, body)
+    srv.route_count += 1
+    return idx
+
+fn http_dispatch(srv: HttpServer, req: HttpRequest) -> HttpResponse:
+    let i: i64 = 0
+    while i < srv.route_count:
+        let r: Route = srv.routes[i]
+        if r.path == req.path and (r.method == req.method or r.method == "*"):
+            return HttpResponse(r.status_code, r.content_type, "", r.body)
+        i += 1
+    return HttpResponse(404, "text/plain", "", "404 Not Found")
+
+fn http_serve_single_request(srv: HttpServer, client: Socket) -> i64:
+    let raw: str = socket_recv(client, 65536)
+    if len(raw) == 0:
+        return 0
+
+    let req: HttpRequest = http_parse_request(raw)
+
+    # If WebSocket upgrade request
+    if req.is_websocket:
+        let ws_resp: str = ws_handshake_response(req.ws_key)
+        socket_send(client, ws_resp)
+        srv.requests_served += 1
+        return 101
+
+    let resp: HttpResponse = http_dispatch(srv, req)
+    let formatted: str = http_format_response(resp, False)
+    socket_send(client, formatted)
+    srv.requests_served += 1
+    return resp.status
+
+# ==============================================================================
+# 8. High-Level HTTP Client
+# ==============================================================================
+
+fn http_client_get(host: str, port: i64, path: str) -> HttpResponse:
+    let s: Socket = tcp_connect(host, port)
+    if s.fd < 0:
+        return HttpResponse(500, "text/plain", "", "Connection failed")
+    let req: str = "GET " + path + " HTTP/1.1\r\nHost: " + host + "\r\nConnection: close\r\n\r\n"
+    socket_send(s, req)
+    let raw_resp: str = socket_recv(s, 65536)
+    socket_close(s)
+
+    let req_obj: HttpRequest = http_parse_request(raw_resp)
+    let st: i64 = 200
+    if len(req_obj.path) > 0:
+        st = int(req_obj.path)
+    let ct: str = http_get_header(req_obj.headers_raw, "Content-Type")
+    return HttpResponse(st, ct, "", req_obj.body)
+
+fn http_client_post(host: str, port: i64, path: str, body: str, content_type: str) -> HttpResponse:
+    let s: Socket = tcp_connect(host, port)
+    if s.fd < 0:
+        return HttpResponse(500, "text/plain", "", "Connection failed")
+    let blen: str = str(len(body))
+    let req: str = "POST " + path + " HTTP/1.1\r\nHost: " + host + "\r\n"
+    req = req + "Content-Type: " + content_type + "\r\n"
+    req = req + "Content-Length: " + blen + "\r\n"
+    req = req + "Connection: close\r\n\r\n" + body
+    socket_send(s, req)
+    let raw_resp: str = socket_recv(s, 65536)
+    socket_close(s)
+
+    let req_obj: HttpRequest = http_parse_request(raw_resp)
+    let st: i64 = 200
+    if len(req_obj.path) > 0:
+        st = int(req_obj.path)
+    let ct: str = http_get_header(req_obj.headers_raw, "Content-Type")
+    return HttpResponse(st, ct, "", req_obj.body)

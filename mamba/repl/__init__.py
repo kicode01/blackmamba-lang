@@ -1,14 +1,11 @@
-"""
-Black Mamba (bmb) Interactive REPL Package.
-Provides instant bare-metal JIT compilation, live variable state persistence,
-and terminal interactive interface.
-"""
+"""Backward compatibility shim forwarding to tinytalk.repl."""
+import sys
+import tinytalk.repl as _target
+from tinytalk.repl import *
 
-from .console import run_repl
-from .session import ReplResult, ReplSession
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target
 
-__all__ = [
-    "ReplSession",
-    "ReplResult",
-    "run_repl",
-]
+if __name__ == "__main__":
+    if hasattr(_target, "main"):
+        sys.exit(_target.main())

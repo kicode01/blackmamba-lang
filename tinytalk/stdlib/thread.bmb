@@ -1,0 +1,264 @@
+# Black Mamba Standard Library: thread
+# Hardware Multithreading, Atomic Synchronization & Parallel Primitives.
+# True multi-core execution with zero GIL across native Windows PE32+, Linux ELF64, and JIT.
+
+# --- Low-level Hardware Atomic Operations ---
+
+def atomic_load(ptr: i64) -> i64:
+    # Sequentially consistent atomic 64-bit load from memory pointer.
+    return __bmb_atomic_load(ptr)
+
+def atomic_store(ptr: i64, val: i64) -> i64:
+    # Atomic 64-bit store with release semantics. Returns previous value.
+    return __bmb_atomic_store(ptr, val)
+
+def atomic_add(ptr: i64, delta: i64) -> i64:
+    # Atomic 64-bit fetch-and-add (lock xadd). Returns previous value.
+    return __bmb_atomic_add(ptr, delta)
+
+def atomic_sub(ptr: i64, delta: i64) -> i64:
+    # Atomic 64-bit fetch-and-sub. Returns previous value.
+    return __bmb_atomic_sub(ptr, delta)
+
+def atomic_cas(ptr: i64, expected: i64, desired: i64) -> i64:
+    # Atomic 64-bit Compare-And-Swap (lock cmpxchg).
+    # If *ptr == expected, sets *ptr = desired. Returns previous value at *ptr.
+    return __bmb_atomic_cas(ptr, expected, desired)
+
+def atomic_fence() -> i64:
+    # Full hardware CPU memory barrier (mfence).
+    return __bmb_atomic_fence()
+
+def cpu_pause() -> i64:
+    # Hardware spin-loop pause hint to CPU pipeline (pause).
+    return __bmb_cpu_pause()
+
+
+# --- Atomic Integer Struct ---
+
+struct AtomicInt:
+    val: i64
+
+def atomic_new(init_val: i64) -> AtomicInt:
+    # Constructs a heap-allocated atomic integer.
+    return AtomicInt(init_val)
+
+def atomic_get(a: AtomicInt) -> i64:
+    # Atomically reads the current value of the atomic integer.
+    return __bmb_atomic_load(a)
+
+def atomic_set(a: AtomicInt, val: i64) -> i64:
+    # Atomically stores a new value and returns the previous value.
+    return __bmb_atomic_store(a, val)
+
+def atomic_fetch_add(a: AtomicInt, delta: i64) -> i64:
+    # Atomically adds delta to the integer and returns the previous value.
+    return __bmb_atomic_add(a, delta)
+
+def atomic_fetch_sub(a: AtomicInt, delta: i64) -> i64:
+    # Atomically subtracts delta from the integer and returns the previous value.
+    return __bmb_atomic_sub(a, delta)
+
+def atomic_compare_and_swap(a: AtomicInt, expected: i64, desired: i64) -> i64:
+    # Atomically compares and swaps value. Returns previous value.
+    return __bmb_atomic_cas(a, expected, desired)
+
+
+# --- Synchronization Locks ---
+
+struct SpinLock:
+    state: i64
+
+def spinlock_new() -> SpinLock:
+    # Constructs an unlocked spinlock (state = 0).
+    return SpinLock(0)
+
+def spinlock_lock(lock: SpinLock) -> i64:
+    # Acquires spinlock via atomic CAS and cpu_pause.
+    while __bmb_atomic_cas(lock, 0, 1) != 0:
+        __bmb_cpu_pause()
+    return 0
+
+def spinlock_try_lock(lock: SpinLock) -> bool:
+    # Attempts to acquire lock without blocking. Returns True if acquired.
+    return __bmb_atomic_cas(lock, 0, 1) == 0
+
+def spinlock_unlock(lock: SpinLock) -> i64:
+    # Releases spinlock.
+    __bmb_atomic_store(lock, 0)
+    return 0
+
+
+struct Mutex:
+    state: i64
+
+def mutex_new() -> Mutex:
+    # Constructs an adaptive hybrid mutex.
+    return Mutex(0)
+
+def mutex_lock(m: Mutex) -> i64:
+    # Acquires mutex. Fast-path is a single CAS; contended path spins then yields CPU quantum.
+    if __bmb_atomic_cas(m, 0, 1) == 0:
+        return 0
+    spins = 0
+    while __bmb_atomic_cas(m, 0, 1) != 0:
+        __bmb_cpu_pause()
+        spins = spins + 1
+        if spins > 100:
+            __bmb_thread_yield()
+            spins = 0
+    return 0
+
+def mutex_try_lock(m: Mutex) -> bool:
+    # Attempts to acquire mutex without blocking. Returns True on success.
+    return __bmb_atomic_cas(m, 0, 1) == 0
+
+def mutex_unlock(m: Mutex) -> i64:
+    # Releases mutex.
+    __bmb_atomic_store(m, 0)
+    return 0
+
+
+# --- OS Native Threading Primitives ---
+
+def hardware_concurrency() -> i64:
+    # Returns the number of logical CPU cores available to the process.
+    return __bmb_thread_concurrency()
+
+def thread_spawn(func_ptr: i64, arg: i64) -> i64:
+    # Spawns a native OS thread executing func_ptr(arg).
+    # Returns a native thread handle.
+    return __bmb_thread_spawn(func_ptr, arg)
+
+def thread_join(handle: i64) -> i64:
+    # Waits for the thread to complete, closes its handle, and returns its integer exit code.
+    return __bmb_thread_join(handle)
+
+def thread_current_id() -> i64:
+    # Returns the OS thread ID of the calling thread.
+    return __bmb_thread_id()
+
+def thread_yield() -> i64:
+    # Relinquishes the remainder of the calling thread's CPU quantum.
+    return __bmb_thread_yield()
+
+def thread_sleep(ms: i64) -> i64:
+    # Suspends the execution of the current thread for at least ms milliseconds.
+    return __bmb_thread_sleep(ms)
+
+
+# --- Parallel Data Loops (par_for & par_map) ---
+
+struct ParForTask:
+    start_idx: i64
+    end_idx: i64
+    worker_fn: i64
+    context: i64
+
+def _par_for_worker(task: ParForTask) -> i64:
+    start = task.start_idx
+    end = task.end_idx
+    fn_ptr = task.worker_fn
+    ctx = task.context
+    i = start
+    while i < end:
+        fn_ptr(i, ctx)
+        i = i + 1
+    return 0
+
+def par_for(start: i64, end: i64, worker_fn: i64, context: i64) -> i64:
+    # Executes worker_fn(i, context) for all i in [start, end) concurrently across CPU cores.
+    total = end - start
+    if total <= 0:
+        return 0
+    cpus = hardware_concurrency()
+    if cpus <= 1 or total == 1:
+        i = start
+        while i < end:
+            worker_fn(i, context)
+            i = i + 1
+        return 0
+
+    num_threads = cpus
+    if num_threads > total:
+        num_threads = total
+
+    chunk_size = total // num_threads
+    rem = total % num_threads
+
+    handles = [0] * num_threads
+    cur_start = start
+    t = 0
+    while t < num_threads:
+        extra = 1 if t < rem else 0
+        cur_end = cur_start + chunk_size + extra
+        task = ParForTask(cur_start, cur_end, worker_fn, context)
+        handles[t] = thread_spawn(_par_for_worker, task)
+        cur_start = cur_end
+        t = t + 1
+
+    t = 0
+    while t < num_threads:
+        thread_join(handles[t])
+        t = t + 1
+
+    return 0
+
+
+struct ParMapTask:
+    start_idx: i64
+    end_idx: i64
+    src_arr: Array[i64]
+    dst_arr: Array[i64]
+    map_fn: i64
+
+def _par_map_worker(task: ParMapTask) -> i64:
+    start = task.start_idx
+    end = task.end_idx
+    src = task.src_arr
+    dst = task.dst_arr
+    fn_ptr = task.map_fn
+    i = start
+    while i < end:
+        elem = src[i]
+        dst[i] = fn_ptr(elem)
+        i = i + 1
+    return 0
+
+def par_map(arr: Array[i64], count: i64, fn_ptr: i64) -> Array[i64]:
+    # Maps fn_ptr over count elements of arr concurrently, returning a new array.
+    if count <= 0:
+        return [0] * 0
+    out = [0] * count
+    cpus = hardware_concurrency()
+    if cpus <= 1 or count == 1:
+        i = 0
+        while i < count:
+            out[i] = fn_ptr(arr[i])
+            i = i + 1
+        return out
+
+    num_threads = cpus
+    if num_threads > count:
+        num_threads = count
+
+    chunk_size = count // num_threads
+    rem = count % num_threads
+
+    handles = [0] * num_threads
+    cur_start = 0
+    t = 0
+    while t < num_threads:
+        extra = 1 if t < rem else 0
+        cur_end = cur_start + chunk_size + extra
+        task = ParMapTask(cur_start, cur_end, arr, out, fn_ptr)
+        handles[t] = thread_spawn(_par_map_worker, task)
+        cur_start = cur_end
+        t = t + 1
+
+    t = 0
+    while t < num_threads:
+        thread_join(handles[t])
+        t = t + 1
+
+    return out

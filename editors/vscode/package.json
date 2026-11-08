@@ -1,9 +1,9 @@
 {
-  "name": "vscode-black-mamba",
-  "displayName": "Black Mamba Language Support",
-  "description": "Rich language support and Language Server Protocol client for the Black Mamba (.bmb) programming language",
-  "version": "1.1.0",
-  "publisher": "black-mamba",
+  "name": "vscode-tinytalk",
+  "displayName": "TinyTalk & Black Mamba Language Support",
+  "description": "Rich language support and Language Server Protocol client for TinyTalk (.tnt) and Black Mamba (.bmb)",
+  "version": "4.0.0",
+  "publisher": "tinytalk",
   "icon": "icon.png",
   "engines": {
     "vscode": "^1.75.0"
@@ -12,6 +12,9 @@
     "Programming Languages"
   ],
   "keywords": [
+    "tinytalk",
+    "tnt",
+    "smalltalk",
     "mamba",
     "bmb",
     "compiler",
@@ -20,10 +23,22 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
+    "onLanguage:tnt",
     "onLanguage:bmb"
   ],
   "contributes": {
     "languages": [
+      {
+        "id": "tnt",
+        "aliases": [
+          "TinyTalk",
+          "tnt"
+        ],
+        "extensions": [
+          ".tnt"
+        ],
+        "configuration": "./language-configuration.json"
+      },
       {
         "id": "bmb",
         "aliases": [
@@ -38,6 +53,11 @@
     ],
     "grammars": [
       {
+        "language": "tnt",
+        "scopeName": "source.tnt",
+        "path": "./syntaxes/bmb.tmLanguage.json"
+      },
+      {
         "language": "bmb",
         "scopeName": "source.bmb",
         "path": "./syntaxes/bmb.tmLanguage.json"
@@ -45,27 +65,19 @@
     ],
     "configuration": {
       "type": "object",
-      "title": "Black Mamba",
+      "title": "TinyTalk & Black Mamba",
       "properties": {
+        "tnt.lsp.path": {
+          "type": "string",
+          "default": "tnt",
+          "description": "Path to the tnt executable"
+        },
         "bmb.lsp.path": {
           "type": "string",
           "default": "bmb",
-          "description": "Path to the Black Mamba executable (bmb) or Python runner"
-        },
-        "bmb.lsp.tcpPort": {
-          "type": "number",
-          "default": 0,
-          "description": "Optional TCP port to connect to an external bmb-lsp daemon (0 uses stdio)"
-        },
-        "bmb.format.enable": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable formatting documents via Black Mamba canonical 4-space formatter"
+          "description": "Path to the bmb executable (legacy)"
         }
       }
     }
-  },
-  "dependencies": {
-    "vscode-languageclient": "^8.1.0"
   }
 }
