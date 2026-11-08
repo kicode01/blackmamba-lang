@@ -12,6 +12,7 @@ import os
 import sys
 import time
 import json
+import re
 import struct
 import hashlib
 from enum import IntEnum
@@ -47,6 +48,10 @@ class HyperNode:
         self.payload = payload or {}
         self.children = children or []
         self.node_hash = node_hash
+
+    @property
+    def content_hash(self) -> str:
+        return self.node_hash
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -95,6 +100,12 @@ class HyperGraph:
             if not isinstance(node.kind, NodeKind):
                 return False
         return True
+
+    @property
+    def root_hash(self) -> str:
+        if self.root_id in self.nodes and self.nodes[self.root_id].node_hash:
+            return self.nodes[self.root_id].node_hash
+        return self.compute_hashes()
 
     def compute_hashes(self) -> str:
         """Computes content-addressed SHA-256 hashes for all nodes from leaves to root."""
@@ -197,7 +208,8 @@ def source_to_hypergraph(source_code: str, module_name: str = "main") -> HyperGr
             
             body_children = []
             for bstmt in getattr(stmt, "body", []):
-                bid = graph.add_node(NodeKind.STMT, {"type": type(bstmt).__name__, "raw": str(bstmt)})
+                clean_raw = re.sub(r'\b(line|col)=\d+,?\s*', '', str(bstmt))
+                bid = graph.add_node(NodeKind.STMT, {"type": type(bstmt).__name__, "raw": clean_raw})
                 body_children.append(bid)
 
             fid = graph.add_node(
@@ -208,7 +220,8 @@ def source_to_hypergraph(source_code: str, module_name: str = "main") -> HyperGr
             graph.nodes[root_id].children.append(fid)
 
         else:
-            oid = graph.add_node(NodeKind.STMT, {"type": type(stmt).__name__, "raw": str(stmt)})
+            clean_raw = re.sub(r'\b(line|col)=\d+,?\s*', '', str(stmt))
+            oid = graph.add_node(NodeKind.STMT, {"type": type(stmt).__name__, "raw": clean_raw})
             graph.nodes[root_id].children.append(oid)
 
     graph.compute_hashes()

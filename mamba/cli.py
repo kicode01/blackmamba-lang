@@ -1807,6 +1807,96 @@ def cmd_latent(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_vcs(args: argparse.Namespace) -> int:
+    import json
+    from .graph import HyperGraph, source_to_hypergraph
+    from .vcs import SemanticVCS, DiffOp, benchmark_vcs_engine
+
+    action = getattr(args, "action", "diff") or "diff"
+    if action == "bench":
+        iters = getattr(args, "iters", 500) or 500
+        res = benchmark_vcs_engine(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba VCS] Semantic 3-Way Graph Merge Benchmark ({iters:,} iters):")
+            print(f"  Clean Merges: {res['clean_merges']:,} / {res['iterations']:,}")
+            print(f"  Elapsed:      {res['elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput:   {res['merges_per_second']:,.1f} merges/sec ({res['avg_us_per_merge']:.2f} us/merge)")
+        return 0
+
+    def load_or_parse(path: str) -> HyperGraph:
+        if path.endswith(".bmbgraph"):
+            return HyperGraph.load(path)
+        with open(path, "r", encoding="utf-8") as f:
+            return source_to_hypergraph(f.read())
+
+    if action == "diff":
+        file_a = getattr(args, "file_a", None)
+        file_b = getattr(args, "file_b", None)
+        if not file_a or not file_b:
+            print("[Black Mamba VCS] Error: 'diff' requires two files: bmb vcs diff <file_a> <file_b>")
+            return 1
+        g_a = load_or_parse(file_a)
+        g_b = load_or_parse(file_b)
+        diff_res = SemanticVCS.diff(g_a, g_b)
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "base_root_hash": diff_res.base_root_hash,
+                "target_root_hash": diff_res.target_root_hash,
+                "added": diff_res.added_count,
+                "removed": diff_res.removed_count,
+                "modified": diff_res.modified_count,
+                "unchanged": diff_res.unchanged_count,
+                "deltas": [
+                    {"node_id": d.node_id, "op": d.op.value, "kind": d.kind.name, "name": d.name}
+                    for d in diff_res.deltas
+                ],
+            }, indent=2))
+        else:
+            print(diff_res.summary())
+        return 0
+
+    if action == "merge":
+        base_f = getattr(args, "base", None)
+        ours_f = getattr(args, "ours", None)
+        theirs_f = getattr(args, "theirs", None)
+        if not base_f or not ours_f or not theirs_f:
+            print("[Black Mamba VCS] Error: 'merge' requires three files: bmb vcs merge <base> <ours> <theirs>")
+            return 1
+        g_base = load_or_parse(base_f)
+        g_ours = load_or_parse(ours_f)
+        g_theirs = load_or_parse(theirs_f)
+        merge_res = SemanticVCS.merge_3way(g_base, g_ours, g_theirs)
+
+        out_f = getattr(args, "output", None)
+        if merge_res.success and merge_res.merged_graph and out_f:
+            if out_f.endswith(".bmbgraph"):
+                merge_res.merged_graph.save(out_f)
+            else:
+                from .project import ProjectionEngine
+                with open(out_f, "w", encoding="utf-8") as f:
+                    f.write(ProjectionEngine.project_python(merge_res.merged_graph))
+            print(f"[Black Mamba VCS] Merged graph written -> '{out_f}'")
+
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "success": merge_res.success,
+                "clean_merges": merge_res.clean_merges_count,
+                "conflicts_count": len(merge_res.conflicts),
+                "conflicts": [
+                    {"node_id": c.node_id, "kind": c.kind.name, "name": c.name, "desc": c.description}
+                    for c in merge_res.conflicts
+                ],
+            }, indent=2))
+        else:
+            print(merge_res.summary())
+        return 0 if merge_res.success else 1
+
+    print(f"[Black Mamba VCS] Unknown action '{action}'. Choices: diff, merge, bench")
+    return 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1836,7 +1926,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent", "vcs",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -2276,6 +2366,17 @@ def main(argv: Optional[list] = None) -> int:
     p_latent.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
     p_latent.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_vcs = sub.add_parser("vcs", help="Semantic 3-way graph VCS and structural diff")
+    p_vcs.add_argument("action", nargs="?", choices=["diff", "merge", "bench"], default="diff", help="Action (diff, merge, bench)")
+    p_vcs.add_argument("file_a", nargs="?", help="Base file for diff, or base for merge")
+    p_vcs.add_argument("file_b", nargs="?", help="Target file for diff, or ours for merge")
+    p_vcs.add_argument("theirs", nargs="?", help="Theirs file for merge")
+    p_vcs.add_argument("--base", help="Explicit base file for merge")
+    p_vcs.add_argument("--ours", help="Explicit ours file for merge")
+    p_vcs.add_argument("--output", "-o", help="Output destination for merged graph")
+    p_vcs.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
+    p_vcs.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2371,6 +2472,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_project(args)
     if args.command == "latent":
         return cmd_latent(args)
+    if args.command == "vcs":
+        return cmd_vcs(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

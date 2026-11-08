@@ -533,9 +533,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [x] **Phase 10C (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation (`bmb latent`)**:
   - [x] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without text tokenization.
   - [x] Sub-5ms prompt-to-AST translation with bidirectional semantic synchronization between studio morphs, editors, and compiler agents.
-- [ ] **Phase 10D (`v3.7.0`) — Semantic 3-Way Graph VCS & Conflict-Free Structural Diff (`bmb vcs`)**:
-  - [ ] Native AST-aware graph diff (`bmb diff --graph`) and 3-way merge engine replacing line-based Git.
-  - [ ] Disjoint structural merging with zero merge conflicts for independent AST symbols.
+- [x] **Phase 10D (`v3.7.0`) — Semantic 3-Way Graph VCS & Conflict-Free Structural Diff (`bmb vcs`)**:
+  - [x] Native AST-aware graph diff (`bmb diff --graph`) and 3-way merge engine replacing line-based Git.
+  - [x] Disjoint structural merging with zero merge conflicts for independent AST symbols.
 - [ ] **Phase 10E (`v3.8.0`) — Direct Hypergraph-to-MIR Native Compiler Pipeline (`bmb compile --graph`)**:
   - [ ] Zero-copy mmap graph lowering directly to 3-address SSA MIR and machine code in `< 0.2 ms` (10x faster than text compilation).
   - [ ] Whole-graph type inference and cross-module inlining without file boundaries.

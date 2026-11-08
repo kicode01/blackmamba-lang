@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.6.0"
+__version__ = "3.7.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -185,6 +185,17 @@ from .latent import (
     synthesize_to_hypergraph,
     synthesize_to_code,
     benchmark_latent_synthesis,
+)
+from .vcs import (
+    DiffOp,
+    NodeDelta,
+    GraphDiffResult,
+    GraphMergeConflict,
+    GraphMergeResult,
+    SemanticVCS,
+    diff_graphs,
+    merge_graphs,
+    benchmark_vcs_engine,
 )
 
 
@@ -371,5 +382,14 @@ __all__ = [
     "synthesize_to_hypergraph",
     "synthesize_to_code",
     "benchmark_latent_synthesis",
+    "DiffOp",
+    "NodeDelta",
+    "GraphDiffResult",
+    "GraphMergeConflict",
+    "GraphMergeResult",
+    "SemanticVCS",
+    "diff_graphs",
+    "merge_graphs",
+    "benchmark_vcs_engine",
 ]
 
