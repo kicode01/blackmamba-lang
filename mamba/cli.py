@@ -785,6 +785,53 @@ def cmd_agent(args: argparse.Namespace) -> int:
     return 0 if res.tests_passed else 1
 
 
+def cmd_mcp(args: argparse.Namespace) -> int:
+    from .mcp import BlackMambaMCPServer
+    server = BlackMambaMCPServer(workspace_dir=getattr(args, "workspace", None))
+    server.run_stdio()
+    return 0
+
+
+def cmd_swarm(args: argparse.Namespace) -> int:
+    import json
+    from .orchestrator import AgentSwarm
+
+    goal = args.goal or "Build an e-commerce order management microservice with item processing pipeline"
+    swarm = AgentSwarm(workspace_dir=getattr(args, "output", None))
+    res = swarm.execute_goal(
+        goal=goal,
+        output_dir=getattr(args, "output", None),
+        snapshot_name=getattr(args, "snapshot", None),
+        verify=not getattr(args, "no_verify", False),
+    )
+    if getattr(args, "json", False):
+        out_dict = {
+            "goal": res.goal,
+            "app_name": res.app_name,
+            "canvas_morphs": res.canvas_morphs,
+            "tests_passed": res.tests_passed,
+            "test_output": res.test_output,
+            "elapsed_ms": res.elapsed_ms,
+            "total_token_savings_pct": res.total_token_savings_pct,
+            "lock_events_count": res.lock_events_count,
+            "image_path": res.image_path,
+        }
+        print(json.dumps(out_dict, indent=2))
+    else:
+        print(f"=== Black Mamba Multi-Agent Swarm Orchestrator [{'SUCCESS' if res.tests_passed else 'FAILED'}] ===")
+        print(f"Goal         : {res.goal}")
+        print(f"Application  : {res.app_name} (token savings: {res.total_token_savings_pct:.1f}%)")
+        print(f"Symbol Leases: {res.lock_events_count} conflict-free locks acquired & released")
+        print(f"Canvas Morphs: {res.canvas_morphs} nodes mounted")
+        print(f"Test Suite   : {'ALL TESTS PASSED' if res.tests_passed else 'TESTS FAILED'}")
+        print(f"Elapsed Time : {res.elapsed_ms:.1f} ms")
+        if res.image_path:
+            print(f"Image State  : {res.image_path}")
+        for act in res.actions:
+            print(f"  * [{act.action_type}] {act.target}: {act.output} ({act.elapsed_ms:.1f}ms)")
+    return 0 if res.tests_passed else 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1061,6 +1108,17 @@ def main(argv: Optional[list] = None) -> int:
     p_agt.add_argument("--no-verify", action="store_true", help="Skip in-memory JIT test verification")
     p_agt.add_argument("--json", "-j", action="store_true", help="Output agent report as JSON")
 
+    p_mcp = sub.add_parser("mcp", help="Run Model Context Protocol (MCP) Server for Claude, Cursor, Windsurf, Antigravity (v2.5.0)")
+    p_mcp.add_argument("--stdio", action="store_true", default=True, help="Run MCP server over standard I/O (default: True)")
+    p_mcp.add_argument("--workspace", "-w", help="Target workspace root directory")
+
+    p_swm = sub.add_parser("swarm", help="Native Multi-Agent Swarm Orchestrator with conflict-free AST symbol locking (v2.5.0)")
+    p_swm.add_argument("goal", nargs="?", help="Natural language goal to orchestrate across sub-agents")
+    p_swm.add_argument("--output", "-o", help="Output directory for generated application files")
+    p_swm.add_argument("--snapshot", help="Custom snapshot name (.bmbimg)")
+    p_swm.add_argument("--no-verify", action="store_true", help="Skip in-memory JIT test verification")
+    p_swm.add_argument("--json", "-j", action="store_true", help="Output swarm execution report as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1118,6 +1176,10 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_fuzz(args)
     if args.command == "agent":
         return cmd_agent(args)
+    if args.command == "mcp":
+        return cmd_mcp(args)
+    if args.command == "swarm":
+        return cmd_swarm(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

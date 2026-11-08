@@ -67,8 +67,23 @@ from .agent import (
     SynthesisResult,
     HealResult,
 )
+from .mcp import (
+    BlackMambaMCPServer,
+    MCP_PROTOCOL_VERSION,
+    SERVER_NAME,
+    SERVER_VERSION,
+)
+from .orchestrator import (
+    ASTSymbolLockManager,
+    SymbolConflictError,
+    LockMode,
+    SwarmRole,
+    SwarmAgent,
+    AgentSwarm,
+    SwarmResult,
+)
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"
 __author__ = "Black Mamba Compiler Team"
 
 
@@ -166,5 +181,13 @@ __all__ = [
     "AgentAction",
     "SynthesisResult",
     "HealResult",
+    "BlackMambaMCPServer",
+    "ASTSymbolLockManager",
+    "SymbolConflictError",
+    "LockMode",
+    "SwarmRole",
+    "SwarmAgent",
+    "AgentSwarm",
+    "SwarmResult",
 ]
 

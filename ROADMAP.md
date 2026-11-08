@@ -440,9 +440,9 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
   - [x] Closed-loop autonomous agent (`mamba/agent.py` & `bmb agent`) with direct in-memory access to `ast_graph`, `inquisitor`, `canvas`, `db`, `profile`, and `test`.
   - [x] Fine-grained WASM Reactive UI Signals (`Signal[T]`, `Computed[T]`, `Effect`) in `mamba/stdlib/reactive.bmb`.
   - [x] Prompt-to-Living-App Synthesizer generating verified full-stack `.bmb` apps + `.bmbimg` snapshots from a single natural-language goal.
-- [ ] **Phase 8B (`v2.5.0`) — Native Multi-Agent Orchestrator & MCP Server (`bmb mcp`)**:
-  - [ ] Built-in Model Context Protocol (MCP) Server (`bmb mcp`) exposing `ast_graph`, `patch`, `canvas`, `image`, and `db` as zero-latency tools for Claude, Cursor, Windsurf, and Antigravity.
-  - [ ] Parallel sub-agent swarm execution over shared `.bmbimg` snapshots with conflict-free AST symbol locking.
+- [x] **Phase 8B (`v2.5.0`) — Native Multi-Agent Orchestrator & MCP Server (`bmb mcp` & `bmb swarm`)** *(COMPLETED IN `v2.5.0`)*:
+  - [x] Built-in Model Context Protocol (MCP) Server (`mamba/mcp.py` & `bmb mcp`) exposing `ast_graph`, `patch`, `canvas`, `image`, and `db` as zero-latency tools for Claude, Cursor, Windsurf, and Antigravity.
+  - [x] Parallel sub-agent swarm execution (`mamba/orchestrator.py` & `mamba/stdlib/orchestrator.bmb` & `bmb swarm`) over shared `.bmbimg` snapshots with conflict-free AST symbol locking.
 - [ ] **Phase 8C (`v2.6.0`) — Time-Travel Deterministic Replay & Omniscient Debugger (`bmb replay`)**:
   - [ ] Instruction-level and Arena-generation ring buffer recording every state transition in `bmb studio`.
   - [ ] Scrub backward and forward through execution time (`bmb replay`) with zero-overhead checkpoint diffs between `.bmbimg` frames.
