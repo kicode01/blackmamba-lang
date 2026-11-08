@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -113,6 +113,8 @@ from .selfhost import SelfHostManager
 from .supervisor import SelfHealingSupervisor
 from .contracts import FormalContractVerifier
 from .unikernel import UnikernelBuilder
+from .wcet import WCETAnalyzer
+from .realtime import ZeroJitterPool, HardRealTimeScheduler, benchmark_rt_pool
 
 
 def compile(source: str, filename: str = "<jit>", base_dir: str = "") -> NativeJITModule:
@@ -239,5 +241,9 @@ __all__ = [
     "SelfHealingSupervisor",
     "FormalContractVerifier",
     "UnikernelBuilder",
+    "WCETAnalyzer",
+    "ZeroJitterPool",
+    "HardRealTimeScheduler",
+    "benchmark_rt_pool",
 ]
 

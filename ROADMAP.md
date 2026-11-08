@@ -502,9 +502,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
   - [x] Autonomous Self-Healing Runtime Supervisor (`supervisor.bmb` & `mamba/supervisor.py`): captures crash/regression snapshots in production, generates surgical AST patches via shadow arena, and hot-swaps repaired functions with zero downtime.
   - [x] SMT-backed formal contract verification (`bmb verify`, `mamba/contracts.py`, `contracts.bmb`): compile-time verification of `requires(...)` and `ensures(...)` preconditions/postconditions ruling out division-by-zero, bounds errors, and null pointer dereferences.
   - [x] Bare-Metal Cloud Unikernel Target (`bmb build --target unikernel`, `mamba/unikernel.py`, `unikernel.bmb`): emit bootable 1.5 MB KVM/Firecracker micro-VM images booting in `0.4 ms` with zero Linux OS overhead.
-- [ ] **Phase 9B (`v3.1.0`) — Hard-Real-Time Deterministic Latency & Worst-Case Execution Time (WCET) Analyzer**:
-  - [ ] Static WCET analyzer (`bmb wcet`) computing upper execution bounds down to CPU cycle counts for automotive, aerospace, and high-frequency trading.
-  - [ ] Zero-Jitter Allocator (`realtime.bmb`): $O(1)$ constant-time memory allocation guarantees without arena fragmentation or heap lockups.
+- [x] **Phase 9B (`v3.1.0`) — Hard-Real-Time Deterministic Latency & Worst-Case Execution Time (WCET) Analyzer**:
+  - [x] Static WCET analyzer (`bmb wcet`) computing upper execution bounds down to CPU cycle counts for automotive, aerospace, and high-frequency trading.
+  - [x] Zero-Jitter Allocator (`realtime.bmb`): $O(1)$ constant-time memory allocation guarantees without arena fragmentation or heap lockups.
 - [ ] **Phase 9C (`v3.2.0`) — Formal Codebase Specification & Property-Based Mutation Fuzzing**:
   - [ ] Property-based testing framework (`bmb spec` & `spec.bmb`): automatic algebraic invariant exploration, invariant shrinkage, and counterexample minimization.
   - [ ] Automated specification synthesis extracting formal type contracts from existing integration test traces.
@@ -629,9 +629,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v2.7.0** | **Shipped** | GPU Tensor Autograd & Native ML Training Engine | Reverse-mode automatic differentiation (`mamba/autograd.py` & `autograd.bmb`), multi-dimensional autograd Tensor, AdamW/SGD optimizers, LoRA fine-tuning without PyTorch, and WebGPU/SPIR-V 1.5 compute shader emitter |
 | **v2.8.0** | **Shipped** | Zero-Copy Distributed IPC & Cluster Shared Memory | Cross-process OS shared-memory arenas (`mamba/shm.py` & `shm.bmb`), lock-free ring queue for sub-microsecond IPC messaging (< 2 us), zero-serialization tensor and `.bmbimg` sharing |
 | **v2.9.0** | **Shipped** | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for bit-for-bit Stage-2/Stage-3 parity |
-| **v3.0.0** | **Shipped** *(Current)* | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
-| **v3.1.0** | **Next Up** | Hard-Real-Time Deterministic Latency & WCET Static Analyzer | Static worst-case execution time analyzer (`bmb wcet`), zero-jitter memory allocator (`realtime.bmb`), $O(1)$ constant-time scheduling |
-| **v3.2.0** | **Planned** | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
+| **v3.0.0** | **Shipped** | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
+| **v3.1.0** | **Shipped** *(Current)* | Hard-Real-Time Deterministic Latency & WCET Static Analyzer | Static worst-case execution time analyzer (`bmb wcet`), zero-jitter memory allocator (`realtime.bmb`), $O(1)$ constant-time scheduling |
+| **v3.2.0** | **Next Up** | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
 | **v3.3.0** | **Planned** | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
 | **v3.4.0** | **Planned** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
 | **v3.4.5** | **Planned** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
