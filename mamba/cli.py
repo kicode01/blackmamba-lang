@@ -1709,6 +1709,61 @@ def cmd_graph(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_project(args: argparse.Namespace) -> int:
+    import json
+    from .graph import HyperGraph, source_to_hypergraph
+    from .project import ProjectionEngine, ViewType, benchmark_projections
+
+    file_arg = getattr(args, "file", None)
+    if file_arg == "bench":
+        iters = getattr(args, "iters", 500) or 500
+        res = benchmark_projections(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Project] Multi-Perspective Projection Benchmark ({iters:,} iters):")
+            print(f"  Projections Rendered: {res['total_projections_rendered']:,}")
+            print(f"  Elapsed:              {res['elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput:           {res['views_per_second']:,.1f} views/sec ({res['us_per_projection']:.2f} us/view)")
+            print(f"  Views Supported:      {', '.join(res['supported_views'])}")
+        return 0
+
+    if not file_arg or not os.path.exists(file_arg):
+        print(f"[Black Mamba Project] Error: File not found: '{file_arg}'")
+        return 1
+
+    if file_arg.endswith(".bmbgraph"):
+        graph = HyperGraph.load(file_arg)
+    else:
+        with open(file_arg, "r", encoding="utf-8") as f:
+            src = f.read()
+        graph = source_to_hypergraph(src)
+
+    view_name = getattr(args, "view", "python") or "python"
+    try:
+        view_type = ViewType(view_name.lower())
+    except ValueError:
+        print(f"[Black Mamba Project] Error: Unknown view '{view_name}'. Choices: python, morphic, math, sexpr")
+        return 1
+
+    rendered = ProjectionEngine.project(graph, view_type)
+    out_file = getattr(args, "output", None)
+
+    if isinstance(rendered, dict):
+        output_text = json.dumps(rendered, indent=2)
+    else:
+        output_text = str(rendered)
+
+    if out_file:
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(output_text)
+        print(f"[Black Mamba Project] Rendered {view_name.upper()} projection -> '{out_file}'")
+    else:
+        print(output_text)
+
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1738,7 +1793,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -2164,6 +2219,13 @@ def main(argv: Optional[list] = None) -> int:
     p_graph.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
     p_graph.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_project = sub.add_parser("project", help="Multi-perspective view projection engine (python, morphic, math, sexpr)")
+    p_project.add_argument("file", nargs="?", help="Path to .bmb source or .bmbgraph file (or 'bench')")
+    p_project.add_argument("--view", "-v", choices=["python", "morphic", "math", "sexpr"], default="python", help="View projection perspective (default: python)")
+    p_project.add_argument("--output", "-o", help="Output destination file")
+    p_project.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
+    p_project.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2255,6 +2317,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_provenance(args)
     if args.command == "graph":
         return cmd_graph(args)
+    if args.command == "project":
+        return cmd_project(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

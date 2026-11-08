@@ -527,9 +527,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [x] **Phase 10A (`v3.5.0`) — Zero-Syntax Content-Addressed Hypergraph (`.bmbgraph`)**:
   - [x] Content-addressed Blake3/SHA-256 AST DAG storage; eliminates text parsing bottlenecks and syntax errors entirely.
   - [x] Zero-copy binary format with instant mmap deserialization (`graph.bmb` & `mamba/graph.py`).
-- [ ] **Phase 10B (`v3.5.5`) — Multi-Perspective Visual & Mathematical Projections (`bmb project`)**:
-  - [ ] Instantaneous view rendering: Pythonic source projection, 2D Morphic visual dataflow, and LaTeX/KaTeX mathematical formulas.
-  - [ ] Hypergraph Virtual Document LSP server (`bmb lsp --graph`) providing bidirectional real-time synchronization with standard code editors.
+- [x] **Phase 10B (`v3.5.5`) — Multi-Perspective Visual & Mathematical Projections (`bmb project`)**:
+  - [x] Instantaneous view rendering: Pythonic source projection, 2D Morphic visual dataflow, and LaTeX/KaTeX mathematical formulas.
+  - [x] Hypergraph Virtual Document LSP server (`bmb lsp --graph`) providing bidirectional real-time synchronization with standard code editors.
 - [ ] **Phase 10C (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation (`bmb latent`)**:
   - [ ] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without text tokenization.
   - [ ] Sub-5ms prompt-to-AST translation with bidirectional semantic synchronization between studio morphs, editors, and compiler agents.
@@ -648,9 +648,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.4.0** | **Shipped** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
 | **v3.4.5** | **Shipped** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
 | **v3.4.8** | **Shipped** | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
-| **v3.5.0** | **Shipped** *(Current)* | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Content-addressed Blake3 AST DAG storage, zero syntax errors, instant mmap loading |
-| **v3.5.5** | **Next Up** | Multi-Perspective Projections & Virtual LSP | Pythonic, Morphic 2D flow & LaTeX projections with live virtual document LSP for VS Code |
-| **v3.6.0** | **Planned** | Neural Latent-Vector Code Synthesis | Direct LLM latent-space code synthesis without tokenization (< 5 ms prompt-to-AST) |
+| **v3.5.0** | **Shipped** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Content-addressed Blake3 AST DAG storage, zero syntax errors, instant mmap loading |
+| **v3.5.5** | **Shipped** *(Current)* | Multi-Perspective Projections & Virtual LSP | Pythonic, Morphic 2D flow & LaTeX projections with live virtual document LSP for VS Code |
+| **v3.6.0** | **Next Up** | Neural Latent-Vector Code Synthesis | Direct LLM latent-space code synthesis without tokenization (< 5 ms prompt-to-AST) |
 | **v3.7.0** | **Planned** | Semantic 3-Way Graph VCS & Structural Diff | Graph-aware diff & merge replacing line-based Git with zero-conflict structural rebasing |
 | **v3.8.0** | **Planned** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
 | **v3.9.0** | **Planned** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |

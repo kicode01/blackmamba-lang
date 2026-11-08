@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.5.0"
+__version__ = "3.5.5"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -171,6 +171,12 @@ from .graph import (
     HyperGraph,
     source_to_hypergraph,
     benchmark_hypergraph_engine,
+)
+from .project import (
+    ViewType,
+    ProjectionEngine,
+    VirtualDocumentProvider,
+    benchmark_projections,
 )
 
 
@@ -347,5 +353,9 @@ __all__ = [
     "HyperGraph",
     "source_to_hypergraph",
     "benchmark_hypergraph_engine",
+    "ViewType",
+    "ProjectionEngine",
+    "VirtualDocumentProvider",
+    "benchmark_projections",
 ]
 
