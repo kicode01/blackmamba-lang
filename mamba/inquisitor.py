@@ -14,6 +14,13 @@ from .lexer import Lexer
 from .parser import Parser
 
 
+def _safe_print(text: str = ""):
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode("ascii", errors="replace").decode("ascii"))
+
+
 @dataclass
 class InquisitorQuestion:
     id: str
@@ -476,19 +483,22 @@ def main() -> i64:
         questions = cls.get_questionnaire()
         answers = {}
 
-        print("==================================================================")
-        print("    BLACK MAMBA INQUISITOR: SOCRATIC ARCHITECT INTERVIEW          ")
-        print("==================================================================")
-        print("Synthesizing bug-free, type-safe Black Mamba software offline...\n")
+        _safe_print("==================================================================")
+        _safe_print("    BLACK MAMBA INQUISITOR: SOCRATIC ARCHITECT INTERVIEW          ")
+        _safe_print("==================================================================")
+        _safe_print("Synthesizing bug-free, type-safe Black Mamba software offline...\n")
 
         for q in questions:
-            print(f"\n{q['title']}")
-            print(f"  {q['subtitle']}")
+            _safe_print(f"\n{q['title']}")
+            _safe_print(f"  {q['subtitle']}")
             for idx, opt in enumerate(q['options'], 1):
-                print(f"    [{idx}] {opt['label']}")
-                print(f"        {opt['description']}")
+                _safe_print(f"    [{idx}] {opt['label']}")
+                _safe_print(f"        {opt['description']}")
 
-            choice = input(f"Select option [1-{len(q['options'])}] (default: 1): ").strip()
+            try:
+                choice = input(f"Select option [1-{len(q['options'])}] (default: 1): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                choice = "1"
             sel_idx = 0
             if choice.isdigit():
                 val = int(choice) - 1
@@ -497,9 +507,9 @@ def main() -> i64:
             answers[q['id']] = q['options'][sel_idx]['id']
 
         result = cls.synthesize_app(answers)
-        print("\n==================================================================")
-        print(f"  [SUCCESS] Synthesized {result['title']}")
-        print(f"  Category: {result['category']} | Valid AST: {result['valid']}")
-        print("==================================================================\n")
-        print(result["bmb"])
+        _safe_print("\n==================================================================")
+        _safe_print(f"  [SUCCESS] Synthesized {result['title']}")
+        _safe_print(f"  Category: {result['category']} | Valid AST: {result['valid']}")
+        _safe_print("==================================================================\n")
+        _safe_print(result["bmb"])
         return result
