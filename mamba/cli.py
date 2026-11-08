@@ -1554,6 +1554,86 @@ def cmd_xbuild(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_sign(args: argparse.Namespace) -> int:
+    import json
+    from .provenance import ArtifactSigner
+
+    signer = ArtifactSigner()
+    action = getattr(args, "action", None)
+
+    target_file = getattr(args, "file", None)
+    if action == "verify":
+        if not target_file:
+            print("[Black Mamba Sign] Error: Artifact file required for signature verification.")
+            return 1
+        sig_file = getattr(args, "sig", None)
+        res = signer.verify_file(target_file, sig_file)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            status = "VERIFIED (Cryptographically Authentic)" if res["verified"] else f"FAILED: {res.get('error')}"
+            print(f"[Black Mamba Sign] Artifact: {res.get('artifact')}")
+            print(f"  SHA-256: {res.get('sha256')}")
+            print(f"  Status:  {status}")
+        return 0 if res["verified"] else 1
+
+    if not target_file:
+        print("[Black Mamba Sign] Error: Artifact file required for signing.")
+        return 1
+
+    out_sig = getattr(args, "output", None)
+    res = signer.sign_file(target_file, out_sig)
+    if getattr(args, "json", False):
+        print(json.dumps(res, indent=2))
+    else:
+        print(f"[Black Mamba Sign] Successfully signed '{res['artifact']}':")
+        print(f"  SHA-256:   {res['sha256']}")
+        print(f"  Signature: {res['signature']}")
+        print(f"  Detached:  {res['sig_file']}")
+    return 0
+
+
+def cmd_provenance(args: argparse.Namespace) -> int:
+    import json
+    from .provenance import SLSAProvenanceBuilder, benchmark_provenance_signing
+
+    artifact = getattr(args, "artifact", None)
+    if artifact == "bench":
+        iters = getattr(args, "iters", 10000) or 10000
+        res = benchmark_provenance_signing(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Provenance] Cryptographic Software Supply Chain Benchmark ({iters:,} iters):")
+            print(f"  Operations:  {res['total_cryptographic_ops']:,} (Sign + Verify)")
+            print(f"  Elapsed:     {res['elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput:  {res['ops_per_second']:,.1f} ops/sec ({res['us_per_op']:.2f} us/op)")
+            print(f"  SLSA Level:  Level {res['slsa_level']} Compliant")
+        return 0
+
+    if not artifact:
+        print("[Black Mamba Provenance] Error: Artifact file required (e.g. `bmb provenance app.exe -s app.bmb` or `bmb provenance bench`)")
+        return 1
+
+    source = getattr(args, "source", None) or artifact
+    target = getattr(args, "target", "windows-x64")
+    out_path = getattr(args, "output", None) or f"{artifact}.provenance.json"
+
+    builder = SLSAProvenanceBuilder()
+    stmt = builder.generate_attestation(artifact, source, target_platform=target)
+    builder.save_attestation(stmt, out_path)
+
+    if getattr(args, "json", False):
+        print(json.dumps(stmt, indent=2))
+    else:
+        print(f"[Black Mamba Provenance] Generated SLSA Level 3 In-Toto Attestation -> '{out_path}':")
+        print(f"  Subject:     {stmt['subject'][0]['name']}")
+        print(f"  SHA-256:     {stmt['subject'][0]['digest']['sha256']}")
+        print(f"  Builder ID:  {stmt['predicate']['runDetails']['builder']['id']}")
+        print(f"  Build Type:  {stmt['predicate']['buildDefinition']['buildType']}")
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1583,7 +1663,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1987,6 +2067,21 @@ def main(argv: Optional[list] = None) -> int:
     p_xb.add_argument("--out-dir", "-o", default="dist/bin", help="Output directory (default: dist/bin)")
     p_xb.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_sgn = sub.add_parser("sign", help="Sign or verify binary artifacts with HMAC-SHA256 signatures")
+    p_sgn.add_argument("file", help="Path to artifact file")
+    p_sgn.add_argument("--action", "-a", choices=["sign", "verify"], default="sign", help="Action (sign or verify, default: sign)")
+    p_sgn.add_argument("--sig", "-s", help="Detached signature path for verification")
+    p_sgn.add_argument("--output", "-o", help="Detached signature output path (default: <file>.sig)")
+    p_sgn.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_prov = sub.add_parser("provenance", help="Generate or benchmark SLSA Level 3 in-toto build provenance")
+    p_prov.add_argument("artifact", nargs="?", help="Path to binary artifact (or 'bench')")
+    p_prov.add_argument("--source", "-s", help="Path to source .bmb file")
+    p_prov.add_argument("--target", "-t", default="windows-x64", help="Target platform (default: windows-x64)")
+    p_prov.add_argument("--output", "-o", help="Attestation JSON output path")
+    p_prov.add_argument("--iters", "-i", type=int, default=10000, help="Benchmark iterations (default: 10000)")
+    p_prov.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2072,6 +2167,10 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_fiber(args)
     if args.command == "xbuild":
         return cmd_xbuild(args)
+    if args.command == "sign":
+        return cmd_sign(args)
+    if args.command == "provenance":
+        return cmd_provenance(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

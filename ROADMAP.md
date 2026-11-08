@@ -517,9 +517,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [x] **Phase 9F (`v3.4.5`) — Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`)**:
   - [x] Zero-dependency cross-target code emission directly from `bmb.exe` for Linux ELF64, Apple Silicon Mach-O, RISC-V 64 firmware, and WASI without external toolchains (no GCC, Clang, LLD, or MSVC).
   - [x] Host-independent target descriptor matrix (`xbuild.bmb`) with relocatable static runtime linking.
-- [ ] **Phase 9G (`v3.4.8`) — Cryptographic Software Supply Chain & Deterministic Provenance (`bmb sign`)**:
-  - [ ] Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), and bit-for-bit reproducible build certification.
-  - [ ] Anti-tampering package verification ledger (`provenance.bmb`) integrated into `bmb pkg install`.
+- [x] **Phase 9G (`v3.4.8`) — Cryptographic Software Supply Chain & Deterministic Provenance (`bmb sign`)**:
+  - [x] Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), and bit-for-bit reproducible build certification.
+  - [x] Anti-tampering package verification ledger (`provenance.bmb`) integrated into `bmb pkg install`.
 
 ---
 
@@ -634,9 +634,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.2.0** | **Shipped** | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
 | **v3.3.0** | **Shipped** | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
 | **v3.4.0** | **Shipped** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
-| **v3.4.5** | **Shipped** *(Current)* | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
-| **v3.4.8** | **Next Up** | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
-| **v3.5.0** | **Planned** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Binary content-addressed semantic AST storage (`.bmbgraph`), Blake3 symbol hashes, elimination of plain text AST bottlenecks |
+| **v3.4.5** | **Shipped** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
+| **v3.4.8** | **Shipped** *(Current)* | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
+| **v3.5.0** | **Next Up** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Binary content-addressed semantic AST storage (`.bmbgraph`), Blake3 symbol hashes, elimination of plain text AST bottlenecks |
 | **v3.6.0** | **Planned** | Neural Latent-Vector Code Synthesis & Projections | Direct LLM latent-space code synthesis without tokenization, multi-perspective view projections (code, reactive visual flow, math) |
 | **v4.0.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (`planet.bmb`), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
 | **v4.1.0** | **Planned** | Sub-Microsecond Kernel-Bypass & RDMA Network Transport | Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`), 100 Gbps line-rate packet ingestion at < 1 us wire latency |

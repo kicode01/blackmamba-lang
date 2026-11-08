@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.4.5"
+__version__ = "3.4.8"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -159,6 +159,11 @@ from .xbuild import (
     SUPPORTED_TARGETS,
     CrossCompiler,
     benchmark_xbuild_matrix,
+)
+from .provenance import (
+    ArtifactSigner,
+    SLSAProvenanceBuilder,
+    benchmark_provenance_signing,
 )
 
 
@@ -327,5 +332,8 @@ __all__ = [
     "SUPPORTED_TARGETS",
     "CrossCompiler",
     "benchmark_xbuild_matrix",
+    "ArtifactSigner",
+    "SLSAProvenanceBuilder",
+    "benchmark_provenance_signing",
 ]
 
