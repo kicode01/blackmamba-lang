@@ -832,6 +832,94 @@ def cmd_swarm(args: argparse.Namespace) -> int:
     return 0 if res.tests_passed else 1
 
 
+def cmd_replay(args: argparse.Namespace) -> int:
+    import json
+    from .replay import TimeTravelRecorder, ReplayTrace, OmniscientDebugger
+
+    action = getattr(args, "action", None)
+    if action == "record":
+        if not os.path.exists(args.file):
+            print(f"Error: File not found: {args.file}", file=sys.stderr)
+            return 1
+        with open(args.file, "r", encoding="utf-8") as f:
+            src = f.read()
+        mod_name = os.path.splitext(os.path.basename(args.file))[0]
+        recorder = TimeTravelRecorder(capacity=getattr(args, "capacity", 10000))
+        trace = recorder.record_source(src, module_name=mod_name)
+        out_path = getattr(args, "output", None) or f"{mod_name}.bmbreplay"
+        bytes_written = trace.save(out_path, compress=getattr(args, "compress", False))
+
+        html_path = getattr(args, "html", None)
+        if html_path:
+            debugger = OmniscientDebugger(trace)
+            debugger.export_interactive_html(html_path)
+
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "trace_id": trace.trace_id,
+                "module": trace.module_name,
+                "total_steps": trace.total_steps,
+                "output_path": out_path,
+                "bytes": bytes_written,
+                "html_path": html_path,
+            }, indent=2))
+        else:
+            print(f"[Black Mamba Replay] Recorded deterministic trace for '{mod_name}':")
+            print(f"  Total Steps    : {trace.total_steps}")
+            print(f"  Checkpoints    : {len(trace.checkpoints)}")
+            print(f"  Trace File     : {out_path} ({bytes_written} bytes)")
+            if html_path:
+                print(f"  Interactive UI : {html_path}")
+        return 0
+
+    elif action == "inspect":
+        if not os.path.exists(args.trace):
+            print(f"Error: Trace file not found: {args.trace}", file=sys.stderr)
+            return 1
+        trace = ReplayTrace.load(args.trace)
+        debugger = OmniscientDebugger(trace)
+
+        if getattr(args, "diff", None) and len(args.diff) == 2:
+            step_a, step_b = int(args.diff[0]), int(args.diff[1])
+            diff_data = debugger.diff_steps(step_a, step_b)
+            if getattr(args, "json", False):
+                print(json.dumps(diff_data, indent=2))
+            else:
+                print(f"[Black Mamba Replay] Diff between Step {step_a} and Step {step_b}:")
+                for var, change in diff_data["changed_variables"].items():
+                    print(f"  {var}: {change['before']} -> {change['after']}")
+            return 0
+
+        if getattr(args, "var", None):
+            var_hist = debugger.query_variable_history(args.var)
+            if getattr(args, "json", False):
+                print(json.dumps(var_hist, indent=2))
+            else:
+                print(f"[Black Mamba Replay] Modification history for variable '{args.var}':")
+                for entry in var_hist:
+                    print(f"  Step {entry['step']:3d} (Line {entry['line']:2d} in {entry['func']}): {entry['value']}")
+            return 0
+
+        target_step = getattr(args, "step", None)
+        if target_step is not None:
+            frame = debugger.jump_to_step(int(target_step))
+        else:
+            frame = debugger.current_frame()
+
+        if getattr(args, "json", False):
+            print(json.dumps(frame.to_dict(), indent=2))
+        else:
+            print(f"[Black Mamba Replay] Step {frame.step_index}/{trace.total_steps - 1}:")
+            print(f"  Function : {frame.function_name} (Line {frame.line_number})")
+            print(f"  Event    : {frame.event}")
+            print(f"  Arena Gen: {frame.arena_generation}")
+            print(f"  Stack    : {' -> '.join(frame.call_stack)}")
+            print(f"  Variables: {frame.variables}")
+        return 0
+
+    return 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1119,6 +1207,24 @@ def main(argv: Optional[list] = None) -> int:
     p_swm.add_argument("--no-verify", action="store_true", help="Skip in-memory JIT test verification")
     p_swm.add_argument("--json", "-j", action="store_true", help="Output swarm execution report as JSON")
 
+    p_rep = sub.add_parser("replay", help="Time-Travel Deterministic Replay & Omniscient Debugger (Phase 8C / v2.6.0)")
+    rep_sub = p_rep.add_subparsers(dest="action")
+
+    p_rep_rec = rep_sub.add_parser("record", help="Record deterministic execution trace into .bmbreplay file")
+    p_rep_rec.add_argument("file", help="Path to .bmb source file")
+    p_rep_rec.add_argument("--output", "-o", help="Output .bmbreplay file path")
+    p_rep_rec.add_argument("--html", help="Export standalone interactive HTML5 debugger")
+    p_rep_rec.add_argument("--compress", "-z", action="store_true", help="Enable zlib compression")
+    p_rep_rec.add_argument("--capacity", type=int, default=10000, help="Ring buffer frame capacity")
+    p_rep_rec.add_argument("--json", "-j", action="store_true", help="Output record report as JSON")
+
+    p_rep_ins = rep_sub.add_parser("inspect", help="Inspect or scrub through execution trace")
+    p_rep_ins.add_argument("trace", help="Path to .bmbreplay file")
+    p_rep_ins.add_argument("--step", "-s", type=int, help="Seek directly to step index")
+    p_rep_ins.add_argument("--var", "-v", help="Query chronological variable value timeline")
+    p_rep_ins.add_argument("--diff", "-d", nargs=2, help="Diff two step indices (e.g. --diff 10 25)")
+    p_rep_ins.add_argument("--json", "-j", action="store_true", help="Output state inspection as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1180,6 +1286,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_mcp(args)
     if args.command == "swarm":
         return cmd_swarm(args)
+    if args.command == "replay":
+        return cmd_replay(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

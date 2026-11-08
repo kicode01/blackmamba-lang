@@ -443,9 +443,9 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
 - [x] **Phase 8B (`v2.5.0`) — Native Multi-Agent Orchestrator & MCP Server (`bmb mcp` & `bmb swarm`)** *(COMPLETED IN `v2.5.0`)*:
   - [x] Built-in Model Context Protocol (MCP) Server (`mamba/mcp.py` & `bmb mcp`) exposing `ast_graph`, `patch`, `canvas`, `image`, and `db` as zero-latency tools for Claude, Cursor, Windsurf, and Antigravity.
   - [x] Parallel sub-agent swarm execution (`mamba/orchestrator.py` & `mamba/stdlib/orchestrator.bmb` & `bmb swarm`) over shared `.bmbimg` snapshots with conflict-free AST symbol locking.
-- [ ] **Phase 8C (`v2.6.0`) — Time-Travel Deterministic Replay & Omniscient Debugger (`bmb replay`)**:
-  - [ ] Instruction-level and Arena-generation ring buffer recording every state transition in `bmb studio`.
-  - [ ] Scrub backward and forward through execution time (`bmb replay`) with zero-overhead checkpoint diffs between `.bmbimg` frames.
+- [x] **Phase 8C (`v2.6.0`) — Time-Travel Deterministic Replay & Omniscient Debugger (`mamba/replay.py` & `bmb replay` & `replay.bmb`)** *(COMPLETED IN `v2.6.0`)*:
+  - [x] Instruction-level and Arena-generation ring buffer recording every state transition in `bmb studio` and `bmb replay`.
+  - [x] Scrub backward and forward through execution time (`bmb replay`) with zero-overhead checkpoint diffs between `.bmbimg` frames and interactive HTML5 time-travel timeline debugger.
 - [ ] **Phase 8D (`v2.7.0`) — GPU Tensor Autograd & Native ML Training Engine (`autograd.bmb`)**:
   - [ ] Reverse-mode automatic differentiation (`backward()`) compiled directly to AVX2/AVX-512 and PTX/SPIR-V GPU kernels.
   - [ ] Native AdamW/SGD optimizers and LoRA fine-tuning in pure `.bmb` without PyTorch or Python runtime dependencies.

@@ -20,7 +20,15 @@ from .fuzzer import AdversarialFuzzer
 
 MCP_PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "blackmamba-mcp-server"
-SERVER_VERSION = "2.5.0"
+
+def get_server_version() -> str:
+    try:
+        from . import __version__
+        return __version__
+    except Exception:
+        return "2.6.0"
+
+SERVER_VERSION = get_server_version()
 
 
 class BlackMambaMCPServer:

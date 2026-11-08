@@ -82,8 +82,14 @@ from .orchestrator import (
     AgentSwarm,
     SwarmResult,
 )
+from .replay import (
+    ExecutionFrame,
+    ReplayTrace,
+    TimeTravelRecorder,
+    OmniscientDebugger,
+)
 
-__version__ = "2.5.0"
+__version__ = "2.6.0"
 __author__ = "Black Mamba Compiler Team"
 
 
@@ -189,5 +195,9 @@ __all__ = [
     "SwarmAgent",
     "AgentSwarm",
     "SwarmResult",
+    "ExecutionFrame",
+    "ReplayTrace",
+    "TimeTravelRecorder",
+    "OmniscientDebugger",
 ]
 
