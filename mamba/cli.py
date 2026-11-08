@@ -1491,6 +1491,29 @@ def cmd_ocap(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_fiber(args: argparse.Namespace) -> int:
+    import json
+    from .fiber import benchmark_fiber_scheduler
+
+    action = getattr(args, "action", "bench") or "bench"
+
+    if action == "bench":
+        fibers = getattr(args, "fibers", 10000) or 10000
+        switches = getattr(args, "switches", 50000) or 50000
+        res = benchmark_fiber_scheduler(fiber_count=fibers, context_switches=switches)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Fiber] M:N Work-Stealing Fiber Scheduler Benchmark ({fibers:,} fibers):")
+            print(f"  Context Switch Latency: {res['ns_per_context_switch']:.2f} ns / switch")
+            print(f"  Throughput:             {res['context_switches_per_second']:,.1f} switches/sec")
+            print(f"  Total Switches:         {res['total_context_switches']:,}")
+            print(f"  Completion Status:      {'ALL FIBERS TERMINATED CLEANLY' if res['all_terminated'] else 'FAILED'}")
+        return 0
+
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1520,7 +1543,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1911,6 +1934,13 @@ def main(argv: Optional[list] = None) -> int:
     p_ocap_mnt.add_argument("--ttl", type=float, default=3600.0, help="Token time-to-live in seconds (default: 3600)")
     p_ocap_mnt.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_fib = sub.add_parser("fiber", help="Native asynchronous fiber runtime & M:N work-stealing scheduler")
+    p_fib_sub = p_fib.add_subparsers(dest="action")
+    p_fib_bnc = p_fib_sub.add_parser("bench", help="Benchmark fiber creation and context switch latency")
+    p_fib_bnc.add_argument("--fibers", "-f", type=int, default=10000, help="Number of fibers (default: 10000)")
+    p_fib_bnc.add_argument("--switches", "-s", type=int, default=50000, help="Total context switches (default: 50000)")
+    p_fib_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1992,6 +2022,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_spec(args)
     if args.command == "ocap":
         return cmd_ocap(args)
+    if args.command == "fiber":
+        return cmd_fiber(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

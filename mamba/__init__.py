@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.3.0"
+__version__ = "3.4.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -147,6 +147,12 @@ from .ocap import (
     ObjectCapabilityKernel,
     MicroSandbox,
     benchmark_ocap_throughput,
+)
+from .fiber import (
+    FiberState,
+    Fiber,
+    WorkStealingScheduler,
+    benchmark_fiber_scheduler,
 )
 
 
@@ -307,5 +313,9 @@ __all__ = [
     "ObjectCapabilityKernel",
     "MicroSandbox",
     "benchmark_ocap_throughput",
+    "FiberState",
+    "Fiber",
+    "WorkStealingScheduler",
+    "benchmark_fiber_scheduler",
 ]
 
