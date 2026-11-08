@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.2.0"
+__version__ = "3.3.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -132,6 +132,21 @@ from .spec import (
     AlgebraicLaws,
     SpecificationSynthesizer,
     benchmark_spec_engine,
+)
+from .ocap import (
+    CAP_NONE,
+    CAP_READ,
+    CAP_WRITE,
+    CAP_EXEC,
+    CAP_NET,
+    CAP_FS,
+    CAP_DELEGATE,
+    CAP_REVOKE,
+    CAP_ALL,
+    CapabilityToken,
+    ObjectCapabilityKernel,
+    MicroSandbox,
+    benchmark_ocap_throughput,
 )
 
 
@@ -279,5 +294,18 @@ __all__ = [
     "AlgebraicLaws",
     "SpecificationSynthesizer",
     "benchmark_spec_engine",
+    "CAP_NONE",
+    "CAP_READ",
+    "CAP_WRITE",
+    "CAP_EXEC",
+    "CAP_NET",
+    "CAP_FS",
+    "CAP_DELEGATE",
+    "CAP_REVOKE",
+    "CAP_ALL",
+    "CapabilityToken",
+    "ObjectCapabilityKernel",
+    "MicroSandbox",
+    "benchmark_ocap_throughput",
 ]
 

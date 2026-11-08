@@ -1428,6 +1428,69 @@ def cmd_spec(args: argparse.Namespace) -> int:
         return 0 if all_passed else 1
 
 
+def cmd_ocap(args: argparse.Namespace) -> int:
+    import json
+    import time
+    from .ocap import (
+        ObjectCapabilityKernel,
+        MicroSandbox,
+        benchmark_ocap_throughput,
+        CAP_READ,
+        CAP_WRITE,
+        CAP_EXEC,
+        CAP_NET,
+        CAP_FS,
+        CAP_DELEGATE,
+        CAP_ALL,
+        rights_to_string,
+    )
+
+    action = getattr(args, "action", "bench") or "bench"
+
+    if action == "bench":
+        iters = getattr(args, "iters", 50000) or 50000
+        res = benchmark_ocap_throughput(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba O-Cap] Object-Capability Verification Benchmark ({iters:,} checks):")
+            print(f"  Latency:              {res['ns_per_capability_check']:.2f} ns / check")
+            print(f"  Throughput:           {res['checks_per_second']:,.1f} checks/sec")
+            print(f"  Total Valid Checks:   {res['valid_checks']:,}")
+            print(f"  Violations Intercepted: {'ZERO (Enforced)' if res['zero_violations'] else 'FAILED'}")
+        return 0
+
+    elif action == "mint":
+        kernel = ObjectCapabilityKernel()
+        resource = getattr(args, "resource", "bmb://mem/arena") or "bmb://mem/arena"
+        rights_str = getattr(args, "rights", "read,write") or "read,write"
+        mask = 0
+        for r in rights_str.lower().split(","):
+            r = r.strip()
+            if r in ("read", "r"): mask |= CAP_READ
+            elif r in ("write", "w"): mask |= CAP_WRITE
+            elif r in ("exec", "x"): mask |= CAP_EXEC
+            elif r in ("net", "n"): mask |= CAP_NET
+            elif r in ("fs", "f"): mask |= CAP_FS
+            elif r in ("delegate", "d"): mask |= CAP_DELEGATE
+            elif r in ("all", "*"): mask |= CAP_ALL
+
+        ttl = getattr(args, "ttl", 3600.0) or 3600.0
+        tok = kernel.mint_token(resource, rights=mask, ttl_seconds=ttl)
+        if getattr(args, "json", False):
+            print(json.dumps(tok.to_dict(), indent=2))
+        else:
+            print(f"[Black Mamba O-Cap] Minted Capability Token:")
+            print(f"  Token ID:     {tok.token_id}")
+            print(f"  Resource URI: {tok.resource_uri}")
+            print(f"  Rights:       {rights_to_string(tok.rights)} ({tok.rights})")
+            print(f"  Signature:    {tok.signature[:24]}...")
+            print(f"  Expires:      {time.ctime(tok.expires_at) if tok.expires_at else 'NEVER'}")
+        return 0
+
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1457,7 +1520,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1836,6 +1899,18 @@ def main(argv: Optional[list] = None) -> int:
     p_spec_bnc.add_argument("--iters", "-i", type=int, default=1000, help="Iterations (default: 1000)")
     p_spec_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_ocap = sub.add_parser("ocap", help="Object-Capability security kernel & micro-sandboxing")
+    p_ocap_sub = p_ocap.add_subparsers(dest="action")
+    p_ocap_bnc = p_ocap_sub.add_parser("bench", help="Benchmark object-capability check throughput")
+    p_ocap_bnc.add_argument("--iters", "-i", type=int, default=50000, help="Iterations (default: 50000)")
+    p_ocap_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_ocap_mnt = p_ocap_sub.add_parser("mint", help="Mint a new cryptographically signed capability token")
+    p_ocap_mnt.add_argument("resource", nargs="?", default="bmb://mem/arena", help="Resource URI (default: bmb://mem/arena)")
+    p_ocap_mnt.add_argument("--rights", "-r", default="read,write", help="Comma-separated rights (read,write,exec,net,fs,delegate,all)")
+    p_ocap_mnt.add_argument("--ttl", type=float, default=3600.0, help="Token time-to-live in seconds (default: 3600)")
+    p_ocap_mnt.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1915,6 +1990,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_realtime(args)
     if args.command == "spec":
         return cmd_spec(args)
+    if args.command == "ocap":
+        return cmd_ocap(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

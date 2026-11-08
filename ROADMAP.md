@@ -508,9 +508,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [x] **Phase 9C (`v3.2.0`) — Formal Codebase Specification & Property-Based Mutation Fuzzing**:
   - [x] Property-based testing framework (`bmb spec` & `spec.bmb`): automatic algebraic invariant exploration, invariant shrinkage, and counterexample minimization.
   - [x] Automated specification synthesis extracting formal type contracts from existing integration test traces.
-- [ ] **Phase 9D (`v3.3.0`) — Distributed Object-Capability Security Kernel & Micro-Sandboxing**:
-  - [ ] Object-Capability Security Kernel (`bmb ocap` & `ocap.bmb`): unforgeable cryptographic capabilities for memory regions, sockets, files, and IPC channels.
-  - [ ] Untrusted multi-tenant execution sandboxes with nanosecond capability checks and memory isolation.
+- [x] **Phase 9D (`v3.3.0`) — Distributed Object-Capability Security Kernel & Micro-Sandboxing**:
+  - [x] Object-Capability Security Kernel (`bmb ocap` & `ocap.bmb`): unforgeable cryptographic capabilities for memory regions, sockets, files, and IPC channels.
+  - [x] Untrusted multi-tenant execution sandboxes with nanosecond capability checks and memory isolation.
 - [ ] **Phase 9E (`v3.4.0`) — Native Asynchronous Fiber Runtime & M:N Work-Stealing Scheduler**:
   - [ ] Lightweight fibers (`fiber.bmb`): 10,000,000 concurrent cooperative green threads per gigabyte of RAM with 12 ns context switch latency.
   - [ ] Multi-threaded work-stealing scheduler with NUMA-aware core binding and adaptive thread pool load balancing.
@@ -631,9 +631,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v2.9.0** | **Shipped** | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for bit-for-bit Stage-2/Stage-3 parity |
 | **v3.0.0** | **Shipped** | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
 | **v3.1.0** | **Shipped** | Hard-Real-Time Deterministic Latency & WCET Static Analyzer | Static worst-case execution time analyzer (`bmb wcet`), zero-jitter memory allocator (`realtime.bmb`), $O(1)$ constant-time scheduling |
-| **v3.2.0** | **Shipped** *(Current)* | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
-| **v3.3.0** | **Next Up** | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
-| **v3.4.0** | **Planned** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
+| **v3.2.0** | **Shipped** | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
+| **v3.3.0** | **Shipped** *(Current)* | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
+| **v3.4.0** | **Next Up** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
 | **v3.4.5** | **Planned** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
 | **v3.4.8** | **Planned** | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
 | **v3.5.0** | **Planned** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Binary content-addressed semantic AST storage (`.bmbgraph`), Blake3 symbol hashes, elimination of plain text AST bottlenecks |
