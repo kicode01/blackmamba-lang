@@ -26,3 +26,6 @@ desktop.ini
 # IDEs
 .vscode/
 .idea/
+
+.vercel
+.env*

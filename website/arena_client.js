@@ -987,7 +987,7 @@ Cold-Start Comparison: 0.40 ms (Black Mamba) vs 850.0 ms (CPython) -> 2,125x FAS
       statusBadge.textContent = "● COMPILING TO WASM...";
       statusBadge.style.color = "#f59e0b";
 
-      // Run through the live client-side In-Browser WebAssembly Compiler (bmbc.wasm)
+      // Run through the live client-side In-Browser WebAssembly Compiler (tntc.wasm)
       const compileRes = window.MambaCompiler
         ? window.MambaCompiler.executeBmbSourceInBrowser(userCode)
         : { ok: true, logs: [], returnValue: 0, elapsedMs: 0.12, wasmBytes: 1742 };
@@ -1008,7 +1008,7 @@ Cold-Start Comparison: 0.40 ms (Black Mamba) vs 850.0 ms (CPython) -> 2,125x FAS
         if (!compileRes.ok) {
           statusBadge.textContent = `● COMPILE ERROR (${msStr} ms)`;
           statusBadge.style.color = "#f87171";
-          termLog.textContent = `[bmbc.wasm] Syntax / Execution Diagnostic:\n${compileRes.error}`;
+          termLog.textContent = `[tntc.wasm] Syntax / Execution Diagnostic:\n${compileRes.error}`;
           return;
         }
 
@@ -1026,7 +1026,7 @@ Cold-Start Comparison: 0.40 ms (Black Mamba) vs 850.0 ms (CPython) -> 2,125x FAS
             ? compileRes.logs.join("\n")
             : `(Program returned ${compileRes.returnValue} with no stdout)`;
           termLog.textContent =
-            `[bmbc.wasm] Compiled custom .bmb source -> ${compileRes.wasmBytes} bytes WebAssembly 1.0 module in ${msStr} ms\n` +
+            `[tntc.wasm] Compiled custom .bmb source -> ${compileRes.wasmBytes} bytes WebAssembly 1.0 module in ${msStr} ms\n` +
             `[Output] ${printed}\n` +
             `--------------------------------------------------\n` +
             `Return Code: ${compileRes.returnValue}  |  Heap Allocations: 0 Bytes (Lexical Arena)  |  GC Pauses: 0.000 ms`;
@@ -1079,7 +1079,7 @@ Cold-Start Comparison: 0.40 ms (Black Mamba) vs 850.0 ms (CPython) -> 2,125x FAS
 
         const outStr = compileRes.logs.length > 0 ? compileRes.logs.join(" | ") : `return=${compileRes.returnValue}`;
         termLog.textContent =
-          `[SPEED DUEL] Black Mamba (bmbc.wasm) vs CPython 3.14 Head-to-Head:\n` +
+          `[SPEED DUEL] Black Mamba (tntc.wasm) vs CPython 3.14 Head-to-Head:\n` +
           `  1. Black Mamba (.bmb): ${mMs} ms  |  0 Bytes Heap  |  Output: ${outStr}\n` +
           `  2. CPython 3.14 (.py): ${data ? data.pyTime : pyMs + ' ms'}  |  ${data ? data.pyHeap : '18.4 MB Boxed Heap'}\n` +
           `--------------------------------------------------\n` +

@@ -178,7 +178,7 @@
       theme: "emerald"
     },
     transcriptLogs: [
-      "[Studio] Black Mamba Smalltalk-80 Reactive Environment initialized.",
+      "[Studio] TinyTalk Smalltalk Live Reactive Environment initialized.",
       "[Inquisitor] Socratic Architecture Assistant loaded (100% Offline / Zero-API).",
       "[Morphic] Live Reactive Canvas ready at 60 FPS."
     ]

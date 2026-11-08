@@ -1,0 +1,17 @@
+dist/
+build/
+models/
+.git/
+scratch/
+*.zip
+*.tar.gz
+*.whl
+*.exe
+*.elf
+*.macho
+*.tar
+__pycache__/
+*.pyc
+tests/
+mamba/
+tinytalk/

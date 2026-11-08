@@ -55,7 +55,7 @@
       {
         "language": "tnt",
         "scopeName": "source.tnt",
-        "path": "./syntaxes/bmb.tmLanguage.json"
+        "path": "./syntaxes/tnt.tmLanguage.json"
       },
       {
         "language": "bmb",
