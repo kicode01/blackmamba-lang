@@ -137,6 +137,7 @@ class MIRFunction:
 class MIRModule:
     functions: List[MIRFunction] = field(default_factory=list)
     structs: Dict[str, StructDef] = field(default_factory=dict)
+    struct_layouts: Dict[str, object] = field(default_factory=dict)
     string_pool: List[str] = field(default_factory=list)
     filename: str = "<input.bmb>"
     extern_functions: Dict[str, Tuple[str, Optional[str], List[Tuple[str, str]], str, str]] = field(default_factory=dict)
@@ -213,6 +214,7 @@ class MIRBuilder:
         module = Inferencer.run()
 
         self.structs = Inferencer.structs
+        self.struct_layouts = Inferencer.struct_layouts
         self.has_exceptions = Inferencer.has_exceptions
         self.dynamic_classes = Inferencer.dynamic_classes
         self.mro = Inferencer.mro
@@ -298,6 +300,7 @@ class MIRBuilder:
         mir_mod = MIRModule(
             functions=mir_funcs,
             structs=self.structs,
+            struct_layouts=self.struct_layouts,
             string_pool=self.string_pool,
             filename=filename,
             extern_functions=self.extern_functions,
@@ -829,6 +832,17 @@ class MIRBuilder:
             val_v, val_t = self._lower_expr(stmt.value, instrs, local_types)
             field_idx = self._struct_field_index(obj_t, stmt.field_name)
             if field_idx >= 0:
+                field_t = self._struct_field_type(obj_t, stmt.field_name)
+                if field_t == "f64" and val_t == "i64":
+                    conv = self.new_temp(local_types, "f64")
+                    instrs.append(MIRInstr(op="I64_TO_F64", dst=conv, arg1=val_v, val_type="f64"))
+                    val_v = conv
+                    val_t = "f64"
+                elif field_t == "i64" and val_t == "f64":
+                    conv = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="F64_TO_I64", dst=conv, arg1=val_v, val_type="i64"))
+                    val_v = conv
+                    val_t = "i64"
                 idx_tmp = self.new_temp(local_types, "i64")
                 instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=field_idx, val_type="i64"))
                 instrs.append(MIRInstr(op="STORE_IDX", dst=obj_v, arg1=idx_tmp, arg2=val_v, val_type=val_t))
@@ -2148,8 +2162,12 @@ class MIRBuilder:
                     if init_fn_name in self.func_return_types:
                         # Initialize fields to defaults first, then invoke `Cls____init__(dst, *args)`
                         for f in sdef.fields:
-                            def_e = f.default if f.default is not None else self._default_expr_for_type(f.type_ann)
+                            def_e = f.default if f.default is not None else self._default_expr_for_type(f.type_ann, {expr.func})
                             av, at = self._lower_expr(def_e, instrs, local_types)
+                            if f.type_ann == "f64" and at == "i64":
+                                conv = self.new_temp(local_types, "f64")
+                                instrs.append(MIRInstr(op="I64_TO_F64", dst=conv, arg1=av, val_type="f64"))
+                                av, at = conv, "f64"
                             f_slot = self.class_field_offsets[(expr.func, f.name)]
                             idx_tmp = self.new_temp(local_types, "i64")
                             instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=f_slot, val_type="i64"))
@@ -2160,7 +2178,7 @@ class MIRBuilder:
                             init_args.append(av)
                         decl_p = self.func_params.get(init_fn_name, [])
                         for p_idx in range(len(init_args), len(decl_p)):
-                            def_p = decl_p[p_idx].default or self._default_expr_for_type(decl_p[p_idx].type_ann or "i64")
+                            def_p = decl_p[p_idx].default or self._default_expr_for_type(decl_p[p_idx].type_ann or "i64", {expr.func})
                             dv, _ = self._lower_expr(def_p, instrs, local_types)
                             init_args.append(dv)
                         ign_init = self.new_temp(local_types, "i64")
@@ -2171,9 +2189,13 @@ class MIRBuilder:
                             arg_e = (
                                 expr.args[idx]
                                 if idx < len(expr.args)
-                                else (f.default if f.default is not None else self._default_expr_for_type(f.type_ann))
+                                else (f.default if f.default is not None else self._default_expr_for_type(f.type_ann, {expr.func}))
                             )
                             av, at = self._lower_expr(arg_e, instrs, local_types)
+                            if f.type_ann == "f64" and at == "i64":
+                                conv = self.new_temp(local_types, "f64")
+                                instrs.append(MIRInstr(op="I64_TO_F64", dst=conv, arg1=av, val_type="f64"))
+                                av, at = conv, "f64"
                             f_slot = self.class_field_offsets[(expr.func, f.name)]
                             idx_tmp = self.new_temp(local_types, "i64")
                             instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=f_slot, val_type="i64"))
@@ -2187,8 +2209,16 @@ class MIRBuilder:
                 instrs.append(MIRInstr(op="CONST_I64", dst=zero_tmp, arg1=0, val_type="i64"))
                 instrs.append(MIRInstr(op="ALLOC_ARR", dst=dst, arg1=cnt_tmp, arg2=zero_tmp, val_type=expr.func))
                 for idx, f in enumerate(sdef.fields):
-                    arg_e = expr.args[idx] if idx < len(expr.args) else (f.default or IntLit(value=0))
+                    arg_e = (
+                        expr.args[idx]
+                        if idx < len(expr.args)
+                        else (f.default if f.default is not None else self._default_expr_for_type(f.type_ann, {expr.func}))
+                    )
                     av, at = self._lower_expr(arg_e, instrs, local_types)
+                    if f.type_ann == "f64" and at == "i64":
+                        conv = self.new_temp(local_types, "f64")
+                        instrs.append(MIRInstr(op="I64_TO_F64", dst=conv, arg1=av, val_type="f64"))
+                        av, at = conv, "f64"
                     idx_tmp = self.new_temp(local_types, "i64")
                     instrs.append(MIRInstr(op="CONST_I64", dst=idx_tmp, arg1=idx, val_type="i64"))
                     instrs.append(MIRInstr(op="STORE_IDX", dst=dst, arg1=idx_tmp, arg2=av, val_type=at))
@@ -2507,11 +2537,20 @@ class MIRBuilder:
         instrs.append(MIRInstr(op="CONST_I64", dst=dst, arg1=0, val_type="i64"))
         return dst, "i64"
 
-    def _default_expr_for_type(self, t: str) -> Expr:
+    def _default_expr_for_type(self, t: str, _seen: Optional[Set[str]] = None) -> Expr:
         if t == "str":
             return StringLit(value="")
         if t == "f64":
             return FloatLit(value=0.0)
+        if t == "bool":
+            return BoolLit(value=False)
+        if t and t.startswith("Array[") and t.endswith("]"):
+            return ArrayLit(elements=[], inferred_type=t)
+        if t in self.structs:
+            seen = set(_seen) if _seen else set()
+            if t not in seen:
+                seen.add(t)
+                return Call(func=t, args=[], inferred_type=t)
         return IntLit(value=0)
 
     def _class_or_base_offset(self, cls_name: str, field_name: str) -> int:
@@ -2568,6 +2607,11 @@ class MIRBuilder:
             for idx, f in enumerate(sdef.fields):
                 if f.name == field_name:
                     return idx
+        for s in self.structs.values():
+            if s.name not in self.dynamic_classes:
+                for idx, f in enumerate(s.fields):
+                    if f.name == field_name:
+                        return idx
         return 0
 
     def _struct_field_type(self, struct_name: str, field_name: str) -> str:
@@ -2576,6 +2620,11 @@ class MIRBuilder:
             for f in sdef.fields:
                 if f.name == field_name:
                     return f.type_ann
+        for s in self.structs.values():
+            if s.name not in self.dynamic_classes:
+                for f in s.fields:
+                    if f.name == field_name:
+                        return f.type_ann
         return "i64"
 
     def _map_binop(self, op: str, t: str) -> str:
@@ -2640,20 +2689,28 @@ class MIROptimizer:
         if fn.return_type not in ("f64", "i64", "bool", "void"):
             return
 
-        param_derived = {p[0] for p in fn.params}
-        for _ in range(2):
+        mutable_param_derived = {
+            p[0] for p in fn.params if p[1] not in ("f64", "i64", "bool", "str", "void")
+        }
+        changed = True
+        while changed:
+            changed = False
             for ins in fn.instructions:
-                if ins.op == "MOV" and ins.dst and isinstance(ins.arg1, str) and ins.arg1 in param_derived:
-                    param_derived.add(ins.dst)
-                elif ins.op == "LOAD_IDX" and ins.dst and isinstance(ins.arg1, str) and ins.arg1 in param_derived:
-                    param_derived.add(ins.dst)
+                if ins.op in ("MOV", "LOAD_IDX") and ins.dst and isinstance(ins.arg1, str) and ins.arg1 in mutable_param_derived:
+                    if ins.dst not in mutable_param_derived:
+                        mutable_param_derived.add(ins.dst)
+                        changed = True
 
         for ins in fn.instructions:
             if ins.op == "RET" and ins.val_type not in ("f64", "i64", "bool", "void"):
                 return
             if ins.op == "CALL" and ins.arg1 in ("__bmb_alloc_root_set", "__bmb_rt_slot_set"):
                 return
-            if ins.op == "STORE_IDX" and ins.dst in param_derived:
+            if ins.op == "STORE_IDX" and ins.dst in mutable_param_derived:
+                return
+            if ins.op == "CALL" and ins.extra and any(
+                isinstance(a, str) and a in mutable_param_derived for a in ins.extra
+            ):
                 return
 
         save_var = f"%arena_sp_{fn.name}"

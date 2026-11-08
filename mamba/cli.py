@@ -590,12 +590,133 @@ def cmd_deploy(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_ast(args: argparse.Namespace) -> int:
+    import json
+    from .ast_graph import ASTGraph, TokenSparseCodec, benchmark_token_efficiency
+
+    action = getattr(args, "action", None) or "skeleton"
+    if not os.path.exists(args.file):
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        return 1
+    with open(args.file, "r", encoding="utf-8") as f:
+        source = f.read()
+    mod_name = os.path.splitext(os.path.basename(args.file))[0]
+
+    if action == "skeleton":
+        graph = ASTGraph.from_source(source, module_name=mod_name)
+        print(graph.to_skeleton(include_hashes=not getattr(args, "no_hash", False)))
+        return 0
+
+    if action == "inspect":
+        graph = ASTGraph.from_source(source, module_name=mod_name)
+        node = graph.inspect(args.uri)
+        if getattr(args, "json", False):
+            print(json.dumps(node.to_dict(), indent=2))
+        elif getattr(args, "compact", False):
+            print(node.compact_source)
+        elif getattr(args, "sexpr", False):
+            print(node.sexpr)
+        else:
+            print(f"# {node.uri} [{node.sha256}] ({node.signature})")
+            print(node.source)
+        return 0
+
+    if action == "encode":
+        codec = TokenSparseCodec()
+        encoded = codec.encode(source)
+        if getattr(args, "output", None):
+            with open(args.output, "w", encoding="utf-8") as out_f:
+                out_f.write(encoded)
+        else:
+            print(encoded, end="")
+        return 0
+
+    if action == "decode":
+        codec = TokenSparseCodec()
+        decoded = codec.decode(source)
+        if getattr(args, "output", None):
+            with open(args.output, "w", encoding="utf-8") as out_f:
+                out_f.write(decoded)
+        else:
+            print(decoded, end="")
+        return 0
+
+    if action == "bench":
+        report = benchmark_token_efficiency(source, target_uri=getattr(args, "uri", None), module_name=mod_name)
+        if getattr(args, "json", False):
+            print(json.dumps(report.to_dict(), indent=2))
+        else:
+            print(f"[Black Mamba Token-Sparse AST Benchmark: {mod_name} ({report.symbol_count} symbols)]")
+            print(f"  Full .bmb Source Tokens    : {report.full_bmb_tokens}")
+            print(f"  Compact .bmbs Tokens       : {report.compact_bmbs_tokens}")
+            print(f"  Module Skeleton Tokens     : {report.skeleton_tokens}")
+            print(f"  Single-Symbol Delta Tokens : {report.single_symbol_edit_delta_tokens} (vs {report.single_symbol_edit_bmb_tokens} full rewrite)")
+            print(f"  Context Read Savings       : {report.read_savings_pct:.2f}%")
+            print(f"  Edit Output Savings        : {report.edit_savings_pct:.2f}%")
+            print(f"  Total Round-Trip Savings   : {report.roundtrip_savings_pct:.2f}%")
+        return 0
+
+    return 1
+
+
+def cmd_patch(args: argparse.Namespace) -> int:
+    import json
+    from .ast_graph import ASTDeltaOp, ASTPatcher
+
+    if not os.path.exists(args.file):
+        print(f"Error: File not found: {args.file}", file=sys.stderr)
+        return 1
+    with open(args.file, "r", encoding="utf-8") as f:
+        source = f.read()
+    mod_name = os.path.splitext(os.path.basename(args.file))[0]
+
+    ops = []
+    if getattr(args, "patch_file", None):
+        with open(args.patch_file, "r", encoding="utf-8") as pf:
+            raw_data = json.load(pf)
+        ops = [ASTDeltaOp.from_dict(d) for d in (raw_data if isinstance(raw_data, list) else [raw_data])]
+    else:
+        ops.append(
+            ASTDeltaOp(
+                op=args.op.upper(),
+                target_uri=args.uri,
+                code=getattr(args, "code", "") or "",
+                field_name=getattr(args, "field_name", "") or "",
+                field_type=getattr(args, "field_type", "i64") or "i64",
+                default_expr=getattr(args, "default_expr", None),
+                new_name=getattr(args, "new_name", "") or "",
+            )
+        )
+
+    patcher = ASTPatcher()
+    res = patcher.apply_patch(source, ops, module_name=mod_name, verify=not getattr(args, "no_verify", False))
+    if not res.success:
+        diag_str = res.diagnostic.to_compact_str() if res.diagnostic else "!ERR[PATCH]: unknown failure"
+        print(diag_str, file=sys.stderr)
+        return 1
+
+    if getattr(args, "in_place", False):
+        with open(args.file, "w", encoding="utf-8") as f:
+            f.write(res.new_source)
+    elif getattr(args, "output", None):
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(res.new_source)
+    else:
+        print(res.new_source, end="")
+    return 0
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
 
     # Drop-in execution support: `bmb script.py` or `bmb script.bmb`
     raw_args = list(argv if argv is not None else sys.argv[1:])
-    known_cmds = {"run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc", "bindgen", "migrate", "profile", "test", "container", "chat", "add", "publish", "kernel", "deploy"}
+    known_cmds = {
+        "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
+        "bindgen", "migrate", "profile", "test", "container", "chat",
+        "add", "publish", "kernel", "deploy", "studio", "web", "db",
+        "ast", "patch",
+    }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
             raw_args.insert(0, "run")
@@ -761,6 +882,47 @@ def main(argv: Optional[list] = None) -> int:
     p_db_dmp.add_argument("--table", "-t", help="Specific table to dump (optional)")
     p_db_dmp.add_argument("--format", "-f", choices=["json", "sql"], default="json", help="Dump format (default: json)")
 
+    p_ast = sub.add_parser("ast", help="Token-Sparse AST Graph index, symbol URI inspection, .bmbs codec, and token benchmark")
+    ast_sub = p_ast.add_subparsers(dest="action")
+
+    p_ast_skel = ast_sub.add_parser("skeleton", help="Print ultra-compact content-addressed AST skeleton for a .bmb file")
+    p_ast_skel.add_argument("file", help="Path to .bmb source file")
+    p_ast_skel.add_argument("--no-hash", action="store_true", help="Omit SHA-256 node hashes")
+
+    p_ast_insp = ast_sub.add_parser("inspect", help="Inspect a specific AST symbol by URI (e.g. bmb://mod/Struct/fn)")
+    p_ast_insp.add_argument("file", help="Path to .bmb source file")
+    p_ast_insp.add_argument("uri", help="Symbol URI or name (e.g. bmb://app/Vec3/norm or Vec3/norm)")
+    p_ast_insp.add_argument("--compact", "-c", action="store_true", help="Emit Token-Sparse .bmbs representation")
+    p_ast_insp.add_argument("--sexpr", "-s", action="store_true", help="Emit S-expression AST representation")
+    p_ast_insp.add_argument("--json", "-j", action="store_true", help="Emit full JSON metadata")
+
+    p_ast_enc = ast_sub.add_parser("encode", help="Encode standard .bmb source into Token-Sparse .bmbs format")
+    p_ast_enc.add_argument("file", help="Path to .bmb source file")
+    p_ast_enc.add_argument("--output", "-o", help="Output .bmbs file path")
+
+    p_ast_dec = ast_sub.add_parser("decode", help="Decode Token-Sparse .bmbs source into canonical .bmb format")
+    p_ast_dec.add_argument("file", help="Path to .bmbs source file")
+    p_ast_dec.add_argument("--output", "-o", help="Output .bmb file path")
+
+    p_ast_bnc = ast_sub.add_parser("bench", help="Benchmark LLM token savings on a .bmb module")
+    p_ast_bnc.add_argument("file", help="Path to .bmb source file")
+    p_ast_bnc.add_argument("--uri", "-u", help="Specific target symbol URI to benchmark")
+    p_ast_bnc.add_argument("--json", "-j", action="store_true", help="Output benchmark report as JSON")
+
+    p_patch = sub.add_parser("patch", help="Apply surgical AST delta patches with pre-commit compiler verification")
+    p_patch.add_argument("file", help="Path to .bmb source file")
+    p_patch.add_argument("--op", default="REPLACE_SYMBOL", help="Delta operation (REPLACE_SYMBOL, ADD_SYMBOL, DELETE_SYMBOL, ADD_FIELD, REMOVE_FIELD, ADD_METHOD, RENAME_SYMBOL)")
+    p_patch.add_argument("--uri", "-u", default="", help="Target symbol URI (e.g. bmb://mod/Struct/fn)")
+    p_patch.add_argument("--code", "-c", help="New .bmb or .bmbs code snippet for the symbol/method")
+    p_patch.add_argument("--field-name", help="Field name for ADD_FIELD / REMOVE_FIELD")
+    p_patch.add_argument("--field-type", default="i64", help="Field type for ADD_FIELD (e.g. f64, str, InnerStruct)")
+    p_patch.add_argument("--default-expr", help="Default value expression for ADD_FIELD")
+    p_patch.add_argument("--new-name", help="New identifier name for RENAME_SYMBOL")
+    p_patch.add_argument("--patch-file", "-f", help="Path to JSON file containing a list of ASTDeltaOp objects")
+    p_patch.add_argument("--in-place", "-i", action="store_true", help="Modify source file in-place")
+    p_patch.add_argument("--output", "-o", help="Write patched source to output file")
+    p_patch.add_argument("--no-verify", action="store_true", help="Skip pre-commit TypeInferencer + MIRBuilder check")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -808,6 +970,10 @@ def main(argv: Optional[list] = None) -> int:
     if args.command == "db":
         from .db import cmd_db
         return cmd_db(args)
+    if args.command == "ast":
+        return cmd_ast(args)
+    if args.command == "patch":
+        return cmd_patch(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

@@ -252,6 +252,20 @@ class FunctionSignature:
     var_types: Dict[str, str] = field(default_factory=dict)
 
 
+@dataclass
+class StructLayout:
+    """Recursive memory & slot layout metadata for plain and composite nested structs."""
+    name: str
+    slot_count: int
+    immediate_bytes: int
+    flat_scalar_slots: int
+    recursive_bytes: int
+    field_offsets: Dict[str, int] = field(default_factory=dict)
+    field_types: Dict[str, str] = field(default_factory=dict)
+    flat_field_paths: Dict[str, Tuple[int, str]] = field(default_factory=dict)
+    nested_structs: List[str] = field(default_factory=list)
+
+
 class TypeInferencer:
     """
     Whole-program flow-sensitive + call-site Cartesian type inference, C3 MRO linearization,
@@ -280,6 +294,7 @@ class TypeInferencer:
         self.vtable_methods: Dict[str, List[str]] = {}
         self.vtable_method_owners: Dict[Tuple[str, str], str] = {}
         self.dyn_attr_types: Dict[Tuple[str, str], str] = {}
+        self.struct_layouts: Dict[str, StructLayout] = {}
 
     def _scan_features(self) -> Tuple[bool, bool, Set[str], List[Tuple[str, str, Optional[str]]]]:
         """
@@ -604,7 +619,17 @@ class TypeInferencer:
         for stmt in self.module.statements:
             if isinstance(stmt, StructDef):
                 for f in stmt.fields:
-                    f.type_ann = normalize_type(f.type_ann) or "i64"
+                    norm_f = normalize_type(f.type_ann) or "i64"
+                    if norm_f == "i64" and f.default is not None:
+                        if isinstance(f.default, FloatLit):
+                            norm_f = "f64"
+                        elif isinstance(f.default, StringLit):
+                            norm_f = "str"
+                        elif isinstance(f.default, BoolLit):
+                            norm_f = "bool"
+                        elif isinstance(f.default, Call) and f.default.func:
+                            norm_f = normalize_type(f.default.func) or f.default.func
+                    f.type_ann = norm_f
                 self.structs[stmt.name] = stmt
                 raw_own_fields[stmt.name] = copy.deepcopy(stmt.fields)
                 for m in stmt.methods:
@@ -867,12 +892,72 @@ class TypeInferencer:
                 final_stmts.insert(0, sp)
                 seen_funcs.add(sp.name)
 
+        self._compute_struct_layouts()
         self.module.statements = final_stmts
         return self.module
 
+    def _compute_struct_layouts(self) -> None:
+        """Compute recursive memory & slot layouts for all structs and nested composite structs."""
+        def compute_one(name: str, seen: Set[str]) -> StructLayout:
+            if name in self.struct_layouts:
+                return self.struct_layouts[name]
+            sdef = self.structs[name]
+            is_dyn = name in self.dynamic_classes
+            slot_count = self.class_alloc_slots.get(name, max(1, len(sdef.fields))) if is_dyn else max(1, len(sdef.fields))
+            field_offsets: Dict[str, int] = {}
+            field_types: Dict[str, str] = {}
+            flat_paths: Dict[str, Tuple[int, str]] = {}
+            nested_list: List[str] = []
+            flat_slots = 3 if is_dyn else 0
+            flat_byte_cursor = flat_slots * 8
+
+            for idx, f in enumerate(sdef.fields):
+                f_slot = self.class_field_offsets.get((name, f.name), idx) if is_dyn else idx
+                field_offsets[f.name] = f_slot
+                field_types[f.name] = f.type_ann
+                if f.type_ann in self.structs and f.type_ann not in seen:
+                    nested_list.append(f.type_ann)
+                    sub_layout = compute_one(f.type_ann, seen | {name})
+                    flat_slots += sub_layout.flat_scalar_slots
+                    for sub_path, (sub_off, sub_t) in sub_layout.flat_field_paths.items():
+                        flat_paths[f"{f.name}.{sub_path}"] = (flat_byte_cursor + sub_off, sub_t)
+                    flat_byte_cursor += sub_layout.recursive_bytes
+                else:
+                    flat_slots += 1
+                    flat_paths[f.name] = (flat_byte_cursor, f.type_ann)
+                    flat_byte_cursor += 8
+
+            flat_slots = max(1, flat_slots)
+            layout = StructLayout(
+                name=name,
+                slot_count=slot_count,
+                immediate_bytes=slot_count * 8,
+                flat_scalar_slots=flat_slots,
+                recursive_bytes=flat_slots * 8,
+                field_offsets=field_offsets,
+                field_types=field_types,
+                flat_field_paths=flat_paths,
+                nested_structs=nested_list,
+            )
+            self.struct_layouts[name] = layout
+            return layout
+
+        for s_name in self.structs:
+            compute_one(s_name, {s_name})
+
     def _infer_param_from_body(self, fn: FuncDef, param_name: str) -> str:
-        """Scan function body for float operations involving param_name."""
+        """Scan function body for float, array, or struct field operations involving param_name."""
         def scan_expr(e: Expr) -> Optional[str]:
+            if isinstance(e, FieldAccess):
+                if isinstance(e.target, Var) and e.target.name == param_name:
+                    candidates = [
+                        s_name
+                        for s_name, s_def in self.structs.items()
+                        if any(f.name == e.field_name for f in s_def.fields)
+                    ]
+                    if len(candidates) == 1:
+                        return candidates[0]
+                return scan_expr(e.target)
             if isinstance(e, BinOp):
                 if isinstance(e.left, Var) and e.left.name == param_name and isinstance(e.right, FloatLit):
                     return "f64"
@@ -891,6 +976,10 @@ class TypeInferencer:
                         return r
                 elif isinstance(s, Assign):
                     r = scan_expr(s.value)
+                    if r:
+                        return r
+                elif isinstance(s, FieldAssign):
+                    r = scan_expr(s.target) or scan_expr(s.value)
                     if r:
                         return r
                 elif isinstance(s, IndexAssign) and isinstance(s.target, Var) and s.target.name == param_name:

@@ -25,6 +25,16 @@ from .interop import (
     as_numpy_array,
     as_torch_tensor,
 )
+from .ast_graph import (
+    ASTGraph,
+    ASTSymbolNode,
+    TokenSparseCodec,
+    ASTPatcher,
+    ASTDeltaOp,
+    ASTPatchResult,
+    PinpointDiagnostic,
+    benchmark_token_efficiency,
+)
 
 __version__ = "2.2.0"
 __author__ = "Black Mamba Compiler Team"
@@ -94,5 +104,13 @@ __all__ = [
     "try_extract_buffer",
     "as_numpy_array",
     "as_torch_tensor",
+    "ASTGraph",
+    "ASTSymbolNode",
+    "TokenSparseCodec",
+    "ASTPatcher",
+    "ASTDeltaOp",
+    "ASTPatchResult",
+    "PinpointDiagnostic",
+    "benchmark_token_efficiency",
 ]
 
