@@ -414,13 +414,13 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
 
 ## 🚀 Future Roadmap Phases (`v2.3.0` $\rightarrow$ `v10.0.0`)
 
-### Phase 6 (`v2.3.0`): The GUI-First Living Morphic Canvas & Persistent Memory Image
+### Phase 6 (`v2.3.0`): The GUI-First Living Morphic Canvas & Persistent Memory Image ✅ *(COMPLETED IN `v2.3.0`)*
 - [x] **Recursive Composite Struct Layout Fix**: Full `sizeof(T)` (`StructLayout`), recursive nested struct field initialization, and fixed-point lexical arena escape analysis in `mamba/types.py` and `mamba/mir.py` *(Shipped in `v2.3.0`)*.
-- [ ] **Infinite 2D Spatial Morphic Canvas (`mamba/canvas.py` & `canvas.bmb`)**:
-  - [ ] Zoomable, pannable 2D workspace (`bmb studio --canvas`) with interactive Code Morphs, Live Inspector Morphs, Database Table Morphs, and UI Widget Morphs.
-  - [ ] Bidirectional Visual-to-AST Binding: manipulating a UI widget on the canvas rewrites the corresponding `.bmb` AST node in `< 2 ms`; editing a code card hot-swaps the live function pointer in memory without losing app state.
-- [ ] **Smalltalk-Style Persistent Image Snapshots (`mamba/image.py` & `bmb image`)**:
-  - [ ] Freeze and serialize the entire live runtime heap, active objects, in-memory SQLite tables, and canvas layout into a portable `.bmbimg` snapshot with `< 5 ms` instant resume.
+- [x] **Infinite 2D Spatial Morphic Canvas (`mamba/canvas.py` & `canvas.bmb`)**:
+  - [x] Zoomable, pannable 2D workspace (`bmb studio --canvas`) with interactive Code Morphs, Live Inspector Morphs, Database Table Morphs, and UI Widget Morphs.
+  - [x] Bidirectional Visual-to-AST Binding: manipulating a UI widget on the canvas rewrites the corresponding `.bmb` AST node in `< 2 ms`; editing a code card hot-swaps the live function pointer in memory without losing app state.
+- [x] **Smalltalk-Style Persistent Image Snapshots (`mamba/image.py` & `bmb image`)**:
+  - [x] Freeze and serialize the entire live runtime heap, active objects, in-memory SQLite tables, and canvas layout into a portable `.bmbimg` snapshot with `< 5 ms` instant resume.
 
 ### Phase 7 (`v2.3.0` / `v2.4.0`): Neuro-Symbolic AST Core & Token-Sparse LLM Protocol (-85% Tokens) ✅ *(COMPLETED IN `v2.3.0`)*
 - [x] **Content-Addressed AST Graph (`mamba/ast_graph.py` & `ast_graph.bmb`)**:

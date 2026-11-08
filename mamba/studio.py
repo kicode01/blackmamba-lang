@@ -233,6 +233,7 @@ class StudioWorkspace:
 
 class StudioRequestHandler(http.server.BaseHTTPRequestHandler):
     system_model = StudioSystemModel()
+    active_canvas = None
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -247,6 +248,15 @@ class StudioRequestHandler(http.server.BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html", "/studio.html"):
             self._serve_file(self._get_studio_html_path(), "text/html; charset=utf-8")
+        elif path == "/canvas.html":
+            from .canvas import MorphicCanvas
+            canvas = self.active_canvas or MorphicCanvas(module_name="studio")
+            body = canvas.render_html().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         elif path.endswith(".js"):
             filename = os.path.basename(path)
             cand = os.path.join(os.path.dirname(os.path.dirname(__file__)), "website", filename)
@@ -260,6 +270,10 @@ class StudioRequestHandler(http.server.BaseHTTPRequestHandler):
         elif path == "/api/system":
             hierarchy = self.system_model.get_system_hierarchy()
             self._serve_json(hierarchy)
+        elif path == "/api/canvas":
+            from .canvas import MorphicCanvas
+            canvas = self.active_canvas or MorphicCanvas(module_name="studio")
+            self._serve_json(canvas.to_dict())
         elif path == "/api/inquisitor/questions":
             questions = InquisitorEngine.get_questionnaire()
             self._serve_json({"status": "ok", "questions": questions})
@@ -293,6 +307,18 @@ class StudioRequestHandler(http.server.BaseHTTPRequestHandler):
             fields = payload.get("fields", [])
             insp = StudioInspector.inspect_struct(sname, fields)
             self._serve_json(insp)
+        elif path == "/api/canvas/mutate":
+            if self.active_canvas is not None:
+                res = self.active_canvas.mutate_widget_to_ast(payload.get("morph_id", ""), payload.get("value", 0))
+                self._serve_json(res.__dict__)
+            else:
+                self._serve_json({"success": False, "diagnostic": "No active canvas"})
+        elif path == "/api/canvas/hotswap":
+            if self.active_canvas is not None:
+                res = self.active_canvas.hot_swap_code_morph(payload.get("uri", ""), payload.get("code", ""))
+                self._serve_json(res.__dict__)
+            else:
+                self._serve_json({"success": False, "diagnostic": "No active canvas"})
         else:
             self.send_response(404)
             self.end_headers()
@@ -367,6 +393,22 @@ def cmd_studio(args: argparse.Namespace) -> int:
     if getattr(args, "cli", False):
         InquisitorEngine.run_cli_interview()
         return 0
+
+    if getattr(args, "canvas", False):
+        from .canvas import MorphicCanvas
+        target_file = getattr(args, "file", None)
+        if target_file and os.path.exists(target_file):
+            canvas = MorphicCanvas.from_file(target_file)
+        else:
+            default_src = "struct Counter:\n    count: i64 = 0\n\nfn step(c: Counter) -> i64:\n    c.count = c.count + 1\n    return c.count\n"
+            canvas = MorphicCanvas.from_source(default_src, module_name="studio_app")
+        StudioRequestHandler.active_canvas = canvas
+        export_path = getattr(args, "export", None)
+        if export_path:
+            with open(export_path, "w", encoding="utf-8") as f:
+                f.write(canvas.render_html())
+            print(f"[Black Mamba Studio] Exported 2D Morphic Canvas HTML -> {os.path.abspath(export_path)} ({len(canvas.morphs)} morphs)")
+            return 0
 
     port = int(getattr(args, "port", 8765))
     host = getattr(args, "host", "127.0.0.1")

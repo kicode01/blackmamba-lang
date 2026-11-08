@@ -706,6 +706,50 @@ def cmd_patch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_image(args: argparse.Namespace) -> int:
+    import json
+    from .canvas import MorphicCanvas
+    from .image import ImageManager
+
+    action = getattr(args, "action", None) or "inspect"
+    if action == "save":
+        canvas = None
+        if getattr(args, "file", None) and os.path.exists(args.file):
+            canvas = MorphicCanvas.from_file(args.file)
+        db_src = getattr(args, "db", None)
+        rep = ImageManager.save_image(
+            args.output,
+            canvas=canvas,
+            db_source=db_src,
+            compress=bool(getattr(args, "compress", False)),
+        )
+        print(f"[Black Mamba Image] Saved snapshot -> {rep.path} ({rep.size_bytes} bytes in {rep.elapsed_ms:.2f} ms)")
+        print(f"  SHA-256 : {rep.sha256}")
+        print(f"  Contents: {rep.module_count} modules, {rep.morph_count} morphs, {rep.table_count} SQLite tables")
+        return 0
+
+    if action == "load":
+        loaded = ImageManager.load_image(args.image)
+        try:
+            print(f"[Black Mamba Image] Resumed '{loaded.path}' in {loaded.elapsed_ms:.2f} ms (< 5 ms target)")
+            print(f"  Modules : {list(loaded.modules.keys())}")
+            print(f"  Heap    : {len(loaded.heap_objects)} active objects")
+            print(f"  SQLite  : {len(loaded.sqlite_tables)} restored tables")
+            if loaded.canvas and getattr(args, "export_source", None):
+                with open(args.export_source, "w", encoding="utf-8") as f:
+                    f.write(loaded.canvas.source)
+        finally:
+            loaded.close()
+        return 0
+
+    if action == "inspect":
+        info = ImageManager.inspect_image(args.image)
+        print(json.dumps(info, indent=2))
+        return 0
+
+    return 1
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
 
@@ -715,7 +759,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch",
+        "ast", "patch", "image",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -838,10 +882,13 @@ def main(argv: Optional[list] = None) -> int:
     p_dep.add_argument("--output", "-o", help="Output directory for deployment artifacts")
 
     p_std = sub.add_parser("studio", help="Launch the Smalltalk-inspired Reactive GUI Studio and Inquisitor Agent")
+    p_std.add_argument("file", nargs="?", help="Optional .bmb file to open on the 2D Morphic Canvas")
     p_std.add_argument("--port", "-p", type=int, default=8765, help="Port to bind the Studio web server to (default: 8765)")
     p_std.add_argument("--host", default="127.0.0.1", help="Host address to bind to (default: 127.0.0.1)")
     p_std.add_argument("--no-browser", action="store_true", help="Do not automatically launch web browser")
     p_std.add_argument("--cli", action="store_true", help="Launch interactive Socratic interview in terminal instead of GUI")
+    p_std.add_argument("--canvas", "-c", action="store_true", help="Enable Infinite 2D Spatial Morphic Canvas mode")
+    p_std.add_argument("--export", "-e", help="Export the 2D Morphic Canvas workspace directly to a standalone HTML file")
 
     p_web = sub.add_parser("web", help="Full-stack reactive web framework, dev server, and static site generator")
     web_sub = p_web.add_subparsers(dest="action")
@@ -923,6 +970,22 @@ def main(argv: Optional[list] = None) -> int:
     p_patch.add_argument("--output", "-o", help="Write patched source to output file")
     p_patch.add_argument("--no-verify", action="store_true", help="Skip pre-commit TypeInferencer + MIRBuilder check")
 
+    p_img = sub.add_parser("image", help="Smalltalk-style persistent memory image snapshots (.bmbimg) with < 5 ms resume")
+    img_sub = p_img.add_subparsers(dest="action")
+
+    p_img_save = img_sub.add_parser("save", help="Freeze and serialize active module, canvas, and SQLite state to .bmbimg")
+    p_img_save.add_argument("output", help="Output .bmbimg snapshot path")
+    p_img_save.add_argument("--file", "-f", help="Source .bmb module to include in snapshot")
+    p_img_save.add_argument("--db", "-d", help="SQLite database file to freeze into snapshot")
+    p_img_save.add_argument("--compress", "-z", action="store_true", help="Enable zlib payload compression")
+
+    p_img_load = img_sub.add_parser("load", help="Resume a .bmbimg snapshot in < 5 ms")
+    p_img_load.add_argument("image", help="Path to .bmbimg snapshot file")
+    p_img_load.add_argument("--export-source", "-o", help="Export restored module source to file")
+
+    p_img_insp = img_sub.add_parser("inspect", help="Inspect .bmbimg snapshot metadata, SHA-256 digest, and contents")
+    p_img_insp.add_argument("image", help="Path to .bmbimg snapshot file")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -974,6 +1037,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_ast(args)
     if args.command == "patch":
         return cmd_patch(args)
+    if args.command == "image":
+        return cmd_image(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

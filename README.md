@@ -9,7 +9,7 @@
 
 [![Release](https://img.shields.io/badge/release-v2.3.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v2.3.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-130%2F130%20(100%25)-success?style=for-the-badge)](tests/test_ast_graph_and_nested_structs.py)
+[![Test Suite](https://img.shields.io/badge/tests-134%2F134%20(100%25)-success?style=for-the-badge)](tests/test_phase6_canvas_and_image.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
 [![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
 [![Containers](https://img.shields.io/badge/OCI%20container-~20%20KB%20Zero--Daemon-purple?style=for-the-badge)](#-zero-base-containers--micro-vms-new-in-v20)

@@ -35,6 +35,17 @@ from .ast_graph import (
     PinpointDiagnostic,
     benchmark_token_efficiency,
 )
+from .canvas import (
+    MorphicCanvas,
+    MorphNode,
+    CanvasWire,
+    CanvasSyncResult,
+)
+from .image import (
+    ImageManager,
+    ImageSaveReport,
+    LoadedMambaImage,
+)
 
 __version__ = "2.3.0"
 __author__ = "Black Mamba Compiler Team"
@@ -112,5 +123,12 @@ __all__ = [
     "ASTPatchResult",
     "PinpointDiagnostic",
     "benchmark_token_efficiency",
+    "MorphicCanvas",
+    "MorphNode",
+    "CanvasWire",
+    "CanvasSyncResult",
+    "ImageManager",
+    "ImageSaveReport",
+    "LoadedMambaImage",
 ]
 
