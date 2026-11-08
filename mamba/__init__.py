@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.4.0"
+__version__ = "3.4.5"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -153,6 +153,12 @@ from .fiber import (
     Fiber,
     WorkStealingScheduler,
     benchmark_fiber_scheduler,
+)
+from .xbuild import (
+    TargetPlatform,
+    SUPPORTED_TARGETS,
+    CrossCompiler,
+    benchmark_xbuild_matrix,
 )
 
 
@@ -317,5 +323,9 @@ __all__ = [
     "Fiber",
     "WorkStealingScheduler",
     "benchmark_fiber_scheduler",
+    "TargetPlatform",
+    "SUPPORTED_TARGETS",
+    "CrossCompiler",
+    "benchmark_xbuild_matrix",
 ]
 

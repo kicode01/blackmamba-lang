@@ -1514,6 +1514,46 @@ def cmd_fiber(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_xbuild(args: argparse.Namespace) -> int:
+    import json
+    from .xbuild import CrossCompiler, benchmark_xbuild_matrix, SUPPORTED_TARGETS
+
+    source_file = getattr(args, "file", None)
+    if source_file == "bench":
+        res = benchmark_xbuild_matrix()
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print("[Black Mamba xbuild] Multi-Target Cross-Toolchain Benchmark:")
+            print(f"  Target Matrix: {', '.join(res['targets'])}")
+            print(f"  Total Builds:  {res['total_targets_built']} across {res['iterations']} iterations")
+            print(f"  Elapsed:       {res['total_elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput:    {res['builds_per_second']:.1f} builds/sec ({res['ms_per_cross_build']:.3f} ms/build)")
+        return 0
+
+    if not source_file:
+        print("[Black Mamba xbuild] Error: Source file required (e.g. `bmb xbuild main.bmb --targets all` or `bmb xbuild bench`)")
+        return 1
+
+    targets = getattr(args, "targets", "all")
+    target_list = None
+    if targets and targets != "all":
+        target_list = [t.strip() for t in targets.split(",") if t.strip()]
+
+    out_dir = getattr(args, "out_dir", "dist/bin")
+    xc = CrossCompiler()
+    results = xc.build_source_file(source_file, target_list, base_out_dir=out_dir)
+
+    if getattr(args, "json", False):
+        print(json.dumps(results, indent=2))
+    else:
+        print(f"[Black Mamba xbuild] Cross-compiling '{source_file}' across multi-arch matrix -> '{out_dir}/':")
+        for res in results:
+            size_str = f"{res['size_bytes']:,} bytes"
+            print(f"  * [{res['target']:<14}] OK ({res['format']:<16}) -> {res['output_path']} ({size_str}) in {res['elapsed_ms']} ms")
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1543,7 +1583,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1941,6 +1981,12 @@ def main(argv: Optional[list] = None) -> int:
     p_fib_bnc.add_argument("--switches", "-s", type=int, default=50000, help="Total context switches (default: 50000)")
     p_fib_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_xb = sub.add_parser("xbuild", help="Pure native multi-arch cross-toolchain (cross-compile without external toolchains)")
+    p_xb.add_argument("file", nargs="?", help="Path to .bmb source file (or 'bench')")
+    p_xb.add_argument("--targets", "-t", default="all", help="Comma-separated targets or 'all' (windows-x64, linux-x64, macos-arm64, wasi, c11, unikernel)")
+    p_xb.add_argument("--out-dir", "-o", default="dist/bin", help="Output directory (default: dist/bin)")
+    p_xb.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2024,6 +2070,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_ocap(args)
     if args.command == "fiber":
         return cmd_fiber(args)
+    if args.command == "xbuild":
+        return cmd_xbuild(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)
