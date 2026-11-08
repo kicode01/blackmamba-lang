@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.8.0"
+__version__ = "3.9.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -203,6 +203,17 @@ from .graph_mir import (
     compile_hypergraph_to_jit,
     compile_hypergraph_to_exe,
     benchmark_graph_to_mir,
+)
+from .transmute import (
+    TransmuteFormat,
+    RefactorReport,
+    TransmutationEngine,
+    transmute_py_to_bmb,
+    transmute_bmb_to_graph,
+    transmute_graph_to_bmb,
+    verify_transmute_roundtrip,
+    refactor_hypergraph,
+    benchmark_transmute_pipeline,
 )
 
 
@@ -403,5 +414,14 @@ __all__ = [
     "compile_hypergraph_to_jit",
     "compile_hypergraph_to_exe",
     "benchmark_graph_to_mir",
+    "TransmuteFormat",
+    "RefactorReport",
+    "TransmutationEngine",
+    "transmute_py_to_bmb",
+    "transmute_bmb_to_graph",
+    "transmute_graph_to_bmb",
+    "verify_transmute_roundtrip",
+    "refactor_hypergraph",
+    "benchmark_transmute_pipeline",
 ]
 

@@ -1908,6 +1908,89 @@ def cmd_vcs(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_transmute(args: argparse.Namespace) -> int:
+    import json
+    from .graph import HyperGraph
+    from .transmute import (
+        TransmutationEngine,
+        benchmark_transmute_pipeline,
+        verify_transmute_roundtrip,
+    )
+
+    action = getattr(args, "action", "convert") or "convert"
+    if action == "bench" or getattr(args, "file", "") == "bench":
+        iters = getattr(args, "iters", 500) or 500
+        res = benchmark_transmute_pipeline(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Transmute] Lossless Transmutation Benchmark ({iters:,} iters):")
+            print(f"  Roundtrips: {res['roundtrips_verified']:,}")
+            print(f"  Refactors:  {res['refactors_completed']:,}")
+            print(f"  Elapsed:    {res['elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput: {res['operations_per_second']:,.1f} ops/sec ({res['avg_ms_per_operation']:.3f} ms/op)")
+        return 0
+
+    file_arg = getattr(args, "file", None)
+    if not file_arg or not os.path.exists(file_arg):
+        print(f"[Black Mamba Transmute] Error: File not found: '{file_arg}'")
+        return 1
+
+    out_file = getattr(args, "output", None)
+
+    if action == "refactor":
+        if file_arg.endswith(".bmbgraph"):
+            graph = HyperGraph.load(file_arg)
+        else:
+            with open(file_arg, "r", encoding="utf-8") as f:
+                graph = TransmutationEngine.bmb_to_graph(f.read())
+
+        opt_graph, rep = TransmutationEngine.autonomous_refactor(graph)
+        refactored_code = TransmutationEngine.graph_to_bmb(opt_graph)
+
+        if out_file:
+            if out_file.endswith(".bmbgraph"):
+                opt_graph.save(out_file)
+            else:
+                with open(out_file, "w", encoding="utf-8") as f:
+                    f.write(refactored_code)
+            print(f"[Black Mamba Transmute] Refactored output written -> '{out_file}'")
+        else:
+            print(rep.summary())
+            print("--- Refactored Code ---")
+            print(refactored_code)
+        return 0
+
+    target_fmt = getattr(args, "target", "bmb") or "bmb"
+    if file_arg.endswith(".py"):
+        with open(file_arg, "r", encoding="utf-8") as f:
+            bmb_code = TransmutationEngine.py_to_bmb(f.read())
+        graph = TransmutationEngine.bmb_to_graph(bmb_code)
+    elif file_arg.endswith(".bmbgraph"):
+        graph = HyperGraph.load(file_arg)
+        bmb_code = TransmutationEngine.graph_to_bmb(graph)
+    else:
+        with open(file_arg, "r", encoding="utf-8") as f:
+            bmb_code = f.read()
+        graph = TransmutationEngine.bmb_to_graph(bmb_code)
+
+    if target_fmt == "graph" or (out_file and out_file.endswith(".bmbgraph")):
+        dest = out_file or (os.path.splitext(file_arg)[0] + ".bmbgraph")
+        graph.save(dest)
+        print(f"[Black Mamba Transmute] Transmuted to HyperGraph -> '{dest}' (Hash: {graph.root_hash[:12]})")
+        return 0
+
+    out_text = bmb_code
+    if out_file:
+        with open(out_file, "w", encoding="utf-8") as f:
+            f.write(out_text)
+        print(f"[Black Mamba Transmute] Transmuted to Black Mamba -> '{out_file}'")
+    else:
+        print(out_text)
+
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1937,7 +2020,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent", "vcs",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent", "vcs", "transmute",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb") or raw_args[0].endswith(".bmbgraph"):
@@ -2388,6 +2471,14 @@ def main(argv: Optional[list] = None) -> int:
     p_vcs.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
     p_vcs.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_transmute = sub.add_parser("transmute", help="Lossless 3-way transmutation and continuous autonomous refactoring")
+    p_transmute.add_argument("action", nargs="?", choices=["convert", "refactor", "bench"], default="convert", help="Action (convert, refactor, bench)")
+    p_transmute.add_argument("file", nargs="?", help="Input file path (.py, .bmb, or .bmbgraph)")
+    p_transmute.add_argument("--target", "-t", choices=["bmb", "py", "graph"], default="bmb", help="Target transmutation format (default: bmb)")
+    p_transmute.add_argument("--output", "-o", help="Output destination file")
+    p_transmute.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
+    p_transmute.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2485,6 +2576,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_latent(args)
     if args.command == "vcs":
         return cmd_vcs(args)
+    if args.command == "transmute":
+        return cmd_transmute(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)
