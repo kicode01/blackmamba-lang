@@ -864,7 +864,7 @@ def render_arena_html() -> str:
     <div class="header-actions">
       <a href="studio.html" class="back-btn" style="color: #34d399; border-color: rgba(16,185,129,0.35); font-weight: 700;">🎨 Smalltalk Studio</a>
       <a href="index.html" class="back-btn">← Home</a>
-      <a href="https://github.com/kicode01/blackmamba-lang" target="_blank" class="back-btn">GitHub ★</a>
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="back-btn">GitHub ★</a>
     </div>
   </header>
 

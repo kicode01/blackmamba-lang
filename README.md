@@ -7,7 +7,7 @@
 
 ### **"Write like Python, Live like Smalltalk, Run at C Speed."**
 
-[![Release](https://img.shields.io/badge/release-v4.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v4.0.0)
+[![Release](https://img.shields.io/badge/release-v4.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/tinytalk-lang/releases/tag/v4.0.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_tinytalk_v400.py)
 [![Test Suite](https://img.shields.io/badge/tests-65%2F65%20modules%20(100%25)-success?style=for-the-badge)](tests/test_tinytalk_v400.py)
 [![Fuzzer](https://img.shields.io/badge/adversarial%20fuzzer-210%2F210%20(100%25)-purple?style=for-the-badge)](mamba/fuzzer.py)
@@ -399,7 +399,7 @@ The TinyTalk CLI (`tnt` or `bmb`) provides a unified command center for developm
 ### 1. Installation
 
 #### Standalone Binaries (Windows x86-64)
-Download [`tinytalk-v4.0.0-win64.zip`](https://github.com/kicode01/blackmamba-lang/releases/tag/v4.0.0) from GitHub Releases and add `tnt.exe` to your `PATH`. Both `tnt.exe` and `bmb.exe` are bundled.
+Download [`tinytalk-v4.0.0-win64.zip`](https://github.com/kicode01/tinytalk-lang/releases/tag/v4.0.0) from GitHub Releases and add `tnt.exe` to your `PATH`. Both `tnt.exe` and `bmb.exe` are bundled.
 
 #### Python Package via Wheel
 ```bash
@@ -408,8 +408,8 @@ pip install dist/blackmamba_lang-4.0.0-py3-none-any.whl
 
 #### Clone & Run Test Suite
 ```bash
-git clone https://github.com/kicode01/blackmamba-lang.git
-cd blackmamba-lang
+git clone https://github.com/kicode01/tinytalk-lang.git
+cd tinytalk-lang
 
 # Run 5-Stage Zero-Defect Pre-Release Gatekeeper
 python -m mamba.cli gatekeeper

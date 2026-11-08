@@ -614,8 +614,8 @@ def render_studio_html() -> str:
       <a href="index.html">Home</a>
       <a href="arena.html">Playground</a>
       <a href="studio.html" class="active">Studio</a>
-      <a href="https://github.com/kicode01/blackmamba-lang#readme" target="_blank">Docs</a>
-      <a href="https://github.com/kicode01/blackmamba-lang" target="_blank">GitHub</a>
+      <a href="https://github.com/kicode01/tinytalk-lang#readme" target="_blank">Docs</a>
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank">GitHub</a>
     </nav>
   </header>
 

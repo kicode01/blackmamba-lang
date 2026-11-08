@@ -1,14 +1,14 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="blackmamba-lang",
+    name="tinytalk-lang",
     version="4.0.0",
     description="TinyTalk (.tnt) & Black Mamba (.bmb) — Smalltalk Live Heritage, Explosive Performance & Zero-Syntax Substrate",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="KiCode",
     author_email="kicode01@users.noreply.github.com",
-    url="https://github.com/kicode01/blackmamba-lang",
+    url="https://github.com/kicode01/tinytalk-lang",
     packages=find_packages(),
     package_data={
         "mamba": ["stdlib/*.bmb", "selfhost/*.bmb"],

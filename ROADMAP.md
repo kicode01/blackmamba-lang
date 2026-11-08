@@ -668,4 +668,4 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 
 ---
 
-*Suggestions and contributions are welcome via [GitHub Issues](https://github.com/kicode01/blackmamba-lang/issues) and Pull Requests.*
+*Suggestions and contributions are welcome via [GitHub Issues](https://github.com/kicode01/tinytalk-lang/issues) and Pull Requests.*
