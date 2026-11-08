@@ -108,6 +108,7 @@ from .shm import (
     SharedRingQueue,
     benchmark_shm_throughput,
 )
+from .gatekeeper import PreReleaseGatekeeper
 
 
 def compile(source: str, filename: str = "<jit>", base_dir: str = "") -> NativeJITModule:
@@ -229,5 +230,6 @@ __all__ = [
     "SharedMemoryArena",
     "SharedRingQueue",
     "benchmark_shm_throughput",
+    "PreReleaseGatekeeper",
 ]
 

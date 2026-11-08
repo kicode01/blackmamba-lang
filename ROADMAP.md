@@ -457,32 +457,135 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
   - [x] Native standard library `mamba/stdlib/shm.bmb` (`SharedMemorySlot`, `SharedRing`, `shm_ring_is_empty`, `shm_ring_is_full`, `shm_ring_len`, `shm_slot_offset`).
   - [x] CLI commands (`bmb shm create`, `bmb shm write`, `bmb shm read`, `bmb shm bench`, `bmb shm unlink`).
 - [ ] **Phase 8F (`v2.9.0`) — Pure `.bmb` Self-Hosting Optimizer & Linker Convergence (The `v3.0` Bridge)**:
-  - [ ] Port all remaining Python-hosted MIR optimization passes, `StructLayout` calculators, and PE32+/ELF64/Mach-O binary linkers into `mamba/selfhost/`.
-  - [ ] Achieve bit-for-bit stage-2/stage-3 self-compilation parity in preparation for `v3.0.0`.
-- *Note on Patch Releases (`v2.x.1`, `v2.x.2`)*: Never published artificially—only cut when `bmb fuzz` (our 5-vector Adversarial Compiler Fuzzer) or real production usage uncovers a verified regression or bug.
+  - [ ] Port all remaining Python-hosted MIR optimization passes (`DeadCodeElimination`, `ConstantFolding`, `Inliner`, `EscapeAnalysis`), `StructLayout` calculators, and PE32+/ELF64/Mach-O binary linkers into `mamba/selfhost/`.
+  - [ ] Achieve bit-for-bit Stage-2 / Stage-3 self-compilation parity (`bmb selfhost check --parity`).
+  - [ ] Self-hosted driver verifying compiler reproduction from pure `.bmb` source files.
 
-### Phase 9 (`v3.0.0`): Self-Healing Autonomous Runtime, 100% Pure `.bmb` Bootstrap & Unikernel Cloud
-- [ ] **Zero-Python Self-Hosted Compiler (`bmb.exe` < 150 KB)**:
-  - [ ] Complete port of all MIR optimization passes and binary linkers into pure `.bmb`, removing the PyInstaller wrapper.
-- [ ] **Autonomous Self-Healing Runtime Supervisor (`supervisor.bmb`)**:
-  - [ ] Capture deterministic crash/regression snapshots in production, synthesize and verify an AST fix in a shadow arena, and hot-swap the repaired function with zero downtime.
-- [ ] **SMT-Backed Formal Contract Verification (`bmb verify`)**:
-  - [ ] Compile-time `requires(...)` and `ensures(...)` verification ruling out bounds errors, division-by-zero, and null dereferences mathematically.
-- [ ] **Bare-Metal Cloud Unikernel Target (`bmb build --target unikernel`)**:
-  - [ ] Emit bootable 1.5 MB KVM/Firecracker micro-VM images booting in `0.4 ms` with zero Linux OS overhead.
+---
 
-### Phase 10 – Phase 13 (`v3.5.0` – `v5.0.0`): The Post-Text & Neuromorphic Frontier
-- [ ] **Phase 10 (`v3.5.0`) — Zero-Syntax Semantic Hypergraph**: Eliminate plain-text source files in favor of a binary content-addressed semantic graph (`.bmbgraph`) with multi-perspective projections (code, visual flow, math) and direct LLM latent-vector synthesis.
-- [ ] **Phase 11 (`v4.0.0`) — Planetary CRDT Actor Substrate**: Globally distributed Conflict-Free Replicated Data Type (CRDT) object memory (`planet.bmb`) and object-capability security (`ocap`), turning the language runtime itself into a decentralized cloud OS.
-- [ ] **Phase 12 (`v4.5.0`) — Superoptimizing Neuro-Symbolic Compiler**: Monte-Carlo Tree Search (MCTS) kernel synthesizer discovering hardware-specific SIMD/GPU algorithms faster than human-written assembly, paired with machine-checkable equivalence proofs.
-- [ ] **Phase 13 (`v5.0.0`) — Neuromorphic, Photonic & Hard-Real-Time Core**: Direct compilation backends for Spiking Neural Networks (Neuromorphic silicon), Optical matrix co-processors, and sub-microsecond deterministic robotics/BCI loops.
+## 🛡️ Zero-Defect Quality Gatekeeper Protocol (`bmb gatekeeper`)
 
-### Phase 14 – Phase 18 (`v6.0.0` – `v10.0.0`): Long-Range Omega Research Horizons
-- [ ] **Phase 14 (`v6.0.0`) — Programmable Matter & Molecular Compilation**: Compile spatial constraints into DNA-origami sequences, microfluidic routing, and reconfigurable smart-matter lattices.
-- [ ] **Phase 15 (`v7.0.0`) — Fault-Tolerant Quantum & Relativistic Consensus**: Native `qubit` superposition types lowering to OpenQASM 3.0 / topological quantum circuits, plus causal-order state sync for high-latency interplanetary networks.
-- [ ] **Phase 16 (`v8.0.0`) — Differentiable Physics & World-Twin Engine**: First-class automatic differentiation ($\nabla f$) across every language primitive for real-time multi-scale physical simulation.
-- [ ] **Phase 17 (`v9.0.0`) — Collective Multi-Agent Swarm Intelligence**: Self-organizing decentralized agent swarms autonomously discovering scientific and mathematical proofs.
-- [ ] **Phase 18 (`v10.0.0`) — Thermodynamic & Reversible Computing**: Reversible logic synthesis (Toffoli/Fredkin gates) approaching Landauer's thermodynamic limit ($\Delta E = k_B T \ln 2$).
+To guarantee zero critical bugs, regressions, or broken releases, every package publication must pass the **5-Stage Pre-Release Certification Pipeline** before release tagging, followed by the **295-Case Post-Release Adversarial Torture Suite**:
+
+```
+ ┌────────────────────────────────────────────────────────────────────────────┐
+ │                  BLACK MAMBA PRE-RELEASE QUALITY GATE                      │
+ └───────┬────────────┬─────────────┬─────────────┬─────────────┬─────────────┘
+         │            │             │             │             │
+      Stage 1      Stage 2       Stage 3       Stage 4       Stage 5
+    Stdlib MIR    Unit Tests    Adversarial   Multi-Target  Manifest &
+    Compilation  (187/187 100%)    Fuzzer     Emitters (8)   Package
+    Verification   (Tests)      (148 Cases)    Validation   Consistency
+         │            │             │             │             │
+         └────────────┴─────────────┴─────────────┴─────────────┘
+                                    │
+                         [CERTIFICATION PASSED]
+                                    │
+                                 Release
+                                    │
+                      [POST-RELEASE ADVERSARIAL TORTURE]
+                         (295 Cases Across 9 Vectors)
+```
+
+1. **Stage 1 (Stdlib MIR Verification)**: Every module in `mamba/stdlib/` (36 modules) must compile to valid MIR with zero warnings or errors.
+2. **Stage 2 (Unit Test Discovery)**: Full test suite (`python -m unittest discover -s tests`) must pass with 100% success rate (187+ tests).
+3. **Stage 3 (Adversarial Fuzzer Stress)**: 9-Vector fuzzer (`bmb fuzz`) must pass minimum 148 cases covering differential CPython oracle, PE32+ .exe execution, token codec, arena lifetimes, and parser chaos.
+4. **Stage 4 (Multi-Target Matrix)**: Canonical test program compiled and validated across all 8 native targets: Win64 JIT, Windows PE32+, Linux ELF64, Apple Silicon Mach-O, WebAssembly, C11, WebGPU WGSL, and Vulkan SPIR-V 1.5.
+5. **Stage 5 (Manifest & Version Consistency)**: Cross-validates exact version identity across `mamba/__init__.py`, `mamba/mcp.py`, `setup.py`, and `pyproject.toml`.
+6. **Post-Release Torture**: Run 295 adversarial test cases on the compiled `bmb.exe` release binary (`bmb fuzz --diff 60 --pe 15 --codec 50 --arena 30 --chaos 60 --hist 20`).
+
+---
+
+### Phase 9: Self-Hosting Bootstrap, Formal Contracts & Micro-Kernel Architecture (`v3.0.0` – `v3.4.0`)
+- [ ] **Phase 9A (`v3.0.0`) — 100% Pure `.bmb` Self-Hosted Bootstrap & Autonomous Self-Healing Supervisor**:
+  - [ ] Zero-Python standalone `bmb.exe` (< 150 KB) binary completely decoupled from PyInstaller and CPython runtime.
+  - [ ] Autonomous Self-Healing Runtime Supervisor (`supervisor.bmb`): captures crash/regression snapshots in production, generates surgical AST patches via shadow arena, and hot-swaps repaired functions with zero downtime.
+  - [ ] SMT-backed formal contract verification (`bmb verify` & `contracts.bmb`): compile-time verification of `requires(...)` and `ensures(...)` preconditions/postconditions ruling out division-by-zero, bounds errors, and null pointer dereferences.
+  - [ ] Bare-Metal Cloud Unikernel Target (`bmb build --target unikernel`): emit bootable 1.5 MB KVM/Firecracker micro-VM images booting in `0.4 ms` with zero Linux OS overhead.
+- [ ] **Phase 9B (`v3.1.0`) — Hard-Real-Time Deterministic Latency & Worst-Case Execution Time (WCET) Analyzer**:
+  - [ ] Static WCET analyzer (`bmb wcet`) computing upper execution bounds down to CPU cycle counts for automotive, aerospace, and high-frequency trading.
+  - [ ] Zero-Jitter Allocator (`realtime.bmb`): $O(1)$ constant-time memory allocation guarantees without arena fragmentation or heap lockups.
+- [ ] **Phase 9C (`v3.2.0`) — Formal Codebase Specification & Property-Based Mutation Fuzzing**:
+  - [ ] Property-based testing framework (`bmb spec` & `spec.bmb`): automatic algebraic invariant exploration, invariant shrinkage, and counterexample minimization.
+  - [ ] Automated specification synthesis extracting formal type contracts from existing integration test traces.
+- [ ] **Phase 9D (`v3.3.0`) — Distributed Object-Capability Security Kernel & Micro-Sandboxing**:
+  - [ ] Object-Capability Security Kernel (`bmb ocap` & `ocap.bmb`): unforgeable cryptographic capabilities for memory regions, sockets, files, and IPC channels.
+  - [ ] Untrusted multi-tenant execution sandboxes with nanosecond capability checks and memory isolation.
+- [ ] **Phase 9E (`v3.4.0`) — Native Asynchronous Fiber Runtime & M:N Work-Stealing Scheduler**:
+  - [ ] Lightweight fibers (`fiber.bmb`): 10,000,000 concurrent cooperative green threads per gigabyte of RAM with 12 ns context switch latency.
+  - [ ] Multi-threaded work-stealing scheduler with NUMA-aware core binding and adaptive thread pool load balancing.
+
+---
+
+### Phase 10: Zero-Syntax Semantic Hypergraph & Neural Synthesis (`v3.5.0` – `v3.6.0`)
+- [ ] **Phase 10A (`v3.5.0`) — Zero-Syntax Semantic Hypergraph (`.bmbgraph`)**:
+  - [ ] Eliminate plain-text source files in favor of a binary content-addressed semantic graph (`.bmbgraph`) with Blake3 symbol hashing.
+  - [ ] Multi-perspective projections: view and edit the exact same program as Pythonic code, 2D visual reactive flow nodes, or algebraic equations.
+- [ ] **Phase 10B (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation**:
+  - [ ] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without intermediate text tokenization.
+  - [ ] Bidirectional semantic synchronization between visual studio morphs, text editors, and neural compiler agents.
+
+---
+
+### Phase 11: Planetary CRDT Actor Substrate & Kernel-Bypass Networking (`v4.0.0` – `v4.2.0`)
+- [ ] **Phase 11A (`v4.0.0`) — Planetary CRDT Actor Substrate & Multi-Region Consensus**:
+  - [ ] Globally distributed Conflict-Free Replicated Data Type (CRDT) object memory (`planet.bmb`) with causal consistency and delta-state sync.
+  - [ ] Turns the language runtime into a decentralized global cloud OS: transparent cross-datacenter actor migration with automatic state replication.
+- [ ] **Phase 11B (`v4.1.0`) — Sub-Microsecond Kernel-Bypass & RDMA Network Transport**:
+  - [ ] Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`) bypassing the OS TCP/IP kernel stack.
+  - [ ] Direct network card memory access (zero copy) achieving 100 Gbps line-rate packet ingestion at < 1 microsecond wire latency.
+- [ ] **Phase 11C (`v4.2.0`) — Zero-Knowledge Distributed State Verifier**:
+  - [ ] Native SNARK/STARK proof emission (`zk.bmb`) for Black Mamba execution states.
+  - [ ] Cryptographic execution validity proofs enabling decentralized zero-trust computation verifiability across untrusted nodes.
+
+---
+
+### Phase 12: Superoptimizing Neuro-Symbolic Compiler (`v4.5.0`)
+- [ ] **Phase 12 (`v4.5.0`) — Monte-Carlo Tree Search (MCTS) Superoptimizing Compiler**:
+  - [ ] MCTS assembly synthesizer discovering hardware-specific SIMD/GPU micro-architectural optimizations faster than hand-written assembly.
+  - [ ] Automated Z3 formal equivalence checking proving mathematical isomorphism between high-level `.bmb` code and synthesized machine instructions.
+
+---
+
+### Phase 13: Neuromorphic & Optical Native Silicon Backends (`v5.0.0`)
+- [ ] **Phase 13 (`v5.0.0`) — Neuromorphic Silicon, Photonic & Hard-Real-Time Core**:
+  - [ ] Direct compilation backend for Spiking Neural Networks (SNNs) targeting neuromorphic silicon (Intel Loihi 2, SynSense Dynap-CNN).
+  - [ ] Photonic matrix co-processor emitter compiling GEMM operations into coherent optical interference mesh commands.
+
+---
+
+### Phase 14: Programmable Matter & Molecular Compilation (`v6.0.0`)
+- [ ] **Phase 14 (`v6.0.0`) — Programmable Matter & Molecular Compilation**:
+  - [ ] Lower high-level spatial constraints into DNA-origami folding sequences, oligonucleotide strand displacements, and microfluidic routing networks (`bio.bmb`).
+  - [ ] Simulation and verification harness for wet-lab biocomputing and reconfigurable smart-matter lattices.
+
+---
+
+### Phase 15: Fault-Tolerant Quantum & Relativistic Consensus (`v7.0.0`)
+- [ ] **Phase 15 (`v7.0.0`) — Fault-Tolerant Quantum & Relativistic Interplanetary Transport**:
+  - [ ] First-class `qubit` superposition and entanglement types lowering to OpenQASM 3.0 and fault-tolerant topological quantum circuit graphs.
+  - [ ] Relativistic causal-order state synchronization (`space.bmb`) designed for multi-minute high-latency interplanetary deep space networks.
+
+---
+
+### Phase 16: Differentiable Physics & World-Twin Simulation Engine (`v8.0.0`)
+- [ ] **Phase 16 (`v8.0.0`) — Universal Differentiable Physics & Multiscale World-Twin**:
+  - [ ] Native automatic differentiation ($\nabla f$) integrated across every control flow and mathematical primitive in the language.
+  - [ ] Multiscale real-time digital twin physics engine simulating fluid dynamics, rigid bodies, and electromagnetic fields directly on multi-GPU clusters.
+
+---
+
+### Phase 17: Autonomous Scientific Theorem & Proof Prover Swarms (`v9.0.0`)
+- [ ] **Phase 17 (`v9.0.0`) — Collective Swarm Autonomous Theorem Prover**:
+  - [ ] Decentralized self-organizing compiler swarms collaborating to discover and verify novel mathematical theorems and engineering algorithms.
+  - [ ] Formal Coq/Lean 4 proof generation and verification for software, hardware, and mathematical models.
+
+---
+
+### Phase 18: Thermodynamic & Reversible Computing at Physical Limits (`v10.0.0`)
+- [ ] **Phase 18 (`v10.0.0`) — Thermodynamic & Reversible Computing (Landauer's Limit)**:
+  - [ ] Reversible logic synthesis (Toffoli, Fredkin, and Peres gate lowering) eliminating heat dissipation caused by bit erasure ($\Delta E = k_B T \ln 2$).
+  - [ ] Zero-energy-dissipation execution models for ultra-deep space, zero-power ambient IoT, and superconducting cryogenic processors.
 
 ---
 
@@ -519,11 +622,24 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
 | **v2.6.0** | **Shipped** | Time-Travel Deterministic Replay & Omniscient Debugger | Instruction & arena ring-buffer recording (`bmb replay`), backward/forward time-travel debugging across `.bmbimg` frames, and standalone interactive HTML5 visual debugger timeline |
 | **v2.7.0** | **Shipped** | GPU Tensor Autograd & Native ML Training Engine | Reverse-mode automatic differentiation (`mamba/autograd.py` & `autograd.bmb`), multi-dimensional autograd Tensor, AdamW/SGD optimizers, LoRA fine-tuning without PyTorch, and WebGPU/SPIR-V 1.5 compute shader emitter |
 | **v2.8.0** | **Shipped** *(Current)* | Zero-Copy Distributed IPC & Cluster Shared Memory | Cross-process OS shared-memory arenas (`mamba/shm.py` & `shm.bmb`), lock-free ring queue for sub-microsecond IPC messaging (< 2 us), zero-serialization tensor and `.bmbimg` sharing |
-| **v2.9.0** | **Next Up** | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for stage-2/stage-3 parity |
+| **v2.9.0** | **Next Up** | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for bit-for-bit Stage-2/Stage-3 parity |
 | **v3.0.0** | **Planned** | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
-| **v3.0.0** | **Planned** | Self-Healing Autonomous Runtime & Unikernel Cloud | 100% pure `.bmb` self-hosted compiler (`bmb.exe` < 150 KB, zero Python), self-healing runtime supervisor, SMT contract verification (`bmb verify`), 1.5 MB bare-metal unikernels |
-| **v3.5.0 – v5.0.0** | **Frontier** | Post-Text Hypergraph, Planetary CRDT OS & Neuromorphic | Zero-syntax `.bmbgraph` hypergraph, planetary CRDT actor substrate (`planet.bmb`), MCTS superoptimizer, Neuromorphic/Photonic/BCI targets |
-| **v6.0.0 – v10.0.0** | **Omega Research** | Programmable Matter, Quantum Consensus & Reversible Compute | DNA/molecular compilation, topological quantum `qubit` & relativistic consensus, differentiable world-twin physics, reversible thermodynamic logic |
+| **v3.1.0** | **Planned** | Hard-Real-Time Deterministic Latency & WCET Static Analyzer | Static worst-case execution time analyzer (`bmb wcet`), zero-jitter memory allocator (`realtime.bmb`), $O(1)$ constant-time scheduling |
+| **v3.2.0** | **Planned** | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
+| **v3.3.0** | **Planned** | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
+| **v3.4.0** | **Planned** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
+| **v3.5.0** | **Planned** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Binary content-addressed semantic AST storage (`.bmbgraph`), Blake3 symbol hashes, elimination of plain text AST bottlenecks |
+| **v3.6.0** | **Planned** | Neural Latent-Vector Code Synthesis & Projections | Direct LLM latent-space code synthesis without tokenization, multi-perspective view projections (code, reactive visual flow, math) |
+| **v4.0.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (`planet.bmb`), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
+| **v4.1.0** | **Planned** | Sub-Microsecond Kernel-Bypass & RDMA Network Transport | Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`), 100 Gbps line-rate packet ingestion at < 1 us wire latency |
+| **v4.2.0** | **Planned** | Zero-Knowledge Distributed State Verifier | Native SNARK/STARK proof emission (`zk.bmb`), cryptographically verifiable execution state for trustless distributed compute |
+| **v4.5.0** | **Planned** | Superoptimizing Neuro-Symbolic Compiler | Monte-Carlo Tree Search (MCTS) assembly kernel synthesizer, Z3 machine-checkable equivalence proofs for hardware algorithms |
+| **v5.0.0** | **Planned** | Neuromorphic Silicon & Optical Matrix Co-Processor | Direct Spiking Neural Network (SNN) silicon backend (Intel Loihi 2), coherent optical matrix multiplier compilation |
+| **v6.0.0** | **Planned** | Programmable Matter & Molecular Compilation | DNA-origami sequence synthesis, microfluidic spatial control flow routing (`bio.bmb`), reconfigurable molecular lattice compilation |
+| **v7.0.0** | **Planned** | Fault-Tolerant Quantum & Relativistic Consensus | Native `qubit` superposition/entanglement types lowering to OpenQASM 3.0, relativistic deep space causal state sync (`space.bmb`) |
+| **v8.0.0** | **Planned** | Universal Differentiable Physics & World-Twin Simulation | First-class automatic differentiation ($\nabla f$) across all language primitives, multiscale digital twin multi-GPU physical simulation |
+| **v9.0.0** | **Planned** | Collective Multi-Agent Theorem Prover Swarms | Self-organizing compiler swarms for autonomous mathematical and scientific theorem proving, Coq/Lean 4 proof generation |
+| **v10.0.0** | **Planned** | Thermodynamic Reversible Computing at Landauer Limit | Reversible logic synthesis (Toffoli/Fredkin gates) eliminating heat dissipation ($\Delta E = k_B T \ln 2$), zero-power execution |
 
 ---
 

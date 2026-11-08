@@ -435,6 +435,30 @@ def cmd_profile(args: argparse.Namespace) -> int:
 
 
 def cmd_test(args: argparse.Namespace) -> int:
+    if getattr(args, "release", False):
+        import json
+        from .gatekeeper import PreReleaseGatekeeper
+        gk = PreReleaseGatekeeper()
+        print("[Black Mamba Gatekeeper] Running 5-Stage Zero-Defect Pre-Release Quality Pipeline...")
+        report = gk.run_all_stages()
+        if getattr(args, "json", False):
+            print(json.dumps(report, indent=2))
+        else:
+            for s in report["stages"]:
+                stg_num = s["stage"]
+                stg_name = s["name"]
+                status = "[PASS]" if s["passed"] else "[FAIL]"
+                print(f"  {status} Stage {stg_num}: {stg_name}")
+                if not s["passed"] and s.get("errors"):
+                    for err in s["errors"][:5]:
+                        print(f"         Error: {err}")
+            print("=" * 60)
+            if report["all_passed"]:
+                print(f"[Black Mamba Gatekeeper] CERTIFICATION SUCCESS: All stages passed in {report['total_elapsed_seconds']:.2f}s! Release safe to publish.")
+            else:
+                print(f"[Black Mamba Gatekeeper] CERTIFICATION FAILED: Critical defects detected. Aborting release.")
+        return 0 if report["all_passed"] else 1
+
     target_path = args.path or "."
     test_files = []
     if os.path.isfile(target_path):
@@ -1140,7 +1164,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1219,6 +1243,11 @@ def main(argv: Optional[list] = None) -> int:
 
     p_test = sub.add_parser("test", help="Discover and run automated tests (*_test.bmb or test_*.bmb)")
     p_test.add_argument("path", nargs="?", default=".", help="Directory or file path to test (default: current directory)")
+    p_test.add_argument("--release", "-r", action="store_true", help="Run 5-stage zero-defect pre-release quality gate pipeline")
+    p_test.add_argument("--json", "-j", action="store_true", help="Output test report as JSON")
+
+    p_gk = sub.add_parser("gatekeeper", help="Run 5-stage zero-defect pre-release certification pipeline before publishing packages")
+    p_gk.add_argument("--json", "-j", action="store_true", help="Output certification report as JSON")
 
     p_cnt = sub.add_parser("container", help="Build zero-base FROM scratch micro-containers and OCI image tarballs")
     p_cnt.add_argument("file", help="Path to .bmb source file to package into container")
@@ -1529,6 +1558,9 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_autograd(args)
     if args.command == "shm":
         return cmd_shm(args)
+    if args.command == "gatekeeper":
+        setattr(args, "release", True)
+        return cmd_test(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:
