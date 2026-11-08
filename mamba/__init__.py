@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.4.8"
+__version__ = "3.5.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -164,6 +164,13 @@ from .provenance import (
     ArtifactSigner,
     SLSAProvenanceBuilder,
     benchmark_provenance_signing,
+)
+from .graph import (
+    NodeKind,
+    HyperNode,
+    HyperGraph,
+    source_to_hypergraph,
+    benchmark_hypergraph_engine,
 )
 
 
@@ -335,5 +342,10 @@ __all__ = [
     "ArtifactSigner",
     "SLSAProvenanceBuilder",
     "benchmark_provenance_signing",
+    "NodeKind",
+    "HyperNode",
+    "HyperGraph",
+    "source_to_hypergraph",
+    "benchmark_hypergraph_engine",
 ]
 

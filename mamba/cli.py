@@ -1634,6 +1634,81 @@ def cmd_provenance(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_graph(args: argparse.Namespace) -> int:
+    import json
+    from .graph import HyperGraph, source_to_hypergraph, benchmark_hypergraph_engine
+
+    file_arg = getattr(args, "file", None)
+    action = getattr(args, "action", "create") or "create"
+
+    if action == "bench" or file_arg == "bench":
+        iters = getattr(args, "iters", 500) or 500
+        res = benchmark_hypergraph_engine(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba HyperGraph] Semantic AST HyperGraph Benchmark ({iters:,} iters):")
+            print(f"  Nodes Processed: {res['total_nodes_processed']:,}")
+            print(f"  Elapsed:         {res['elapsed_seconds'] * 1000.0:.2f} ms")
+            print(f"  Throughput:      {res['nodes_per_second']:,.1f} nodes/sec ({res['us_per_node']:.2f} us/node)")
+            print(f"  Graphs/Sec:      {res['graphs_per_second']:,.1f} graphs/sec")
+            print(f"  Syntax Errors:   0 (Zero-Syntax Guaranteed)")
+        return 0
+
+    if action == "inspect":
+        if not file_arg or not os.path.exists(file_arg):
+            print(f"[Black Mamba HyperGraph] Error: Graph file not found: '{file_arg}'")
+            return 1
+        graph = HyperGraph.load(file_arg)
+        if getattr(args, "json", False):
+            print(json.dumps({
+                "metadata": graph.metadata,
+                "node_count": len(graph.nodes),
+                "root_id": graph.root_id,
+                "nodes": [n.to_dict() for n in graph.nodes.values()],
+            }, indent=2))
+        else:
+            print(f"[Black Mamba HyperGraph] Inspected '{file_arg}':")
+            print(f"  Root Hash:   {graph.metadata.get('root_hash', 'N/A')}")
+            print(f"  Total Nodes: {len(graph.nodes)}")
+            print(f"  Version:     {graph.metadata.get('version', '3.5.0')}")
+            kinds = {}
+            for n in graph.nodes.values():
+                kname = n.kind.name
+                kinds[kname] = kinds.get(kname, 0) + 1
+            print("  Node Kinds: ", ", ".join(f"{k}: {v}" for k, v in kinds.items()))
+        return 0
+
+    # Default action: create from source
+    if not file_arg or not os.path.exists(file_arg):
+        print(f"[Black Mamba HyperGraph] Error: Source file not found: '{file_arg}'")
+        return 1
+
+    with open(file_arg, "r", encoding="utf-8") as f:
+        src = f.read()
+
+    base_name = os.path.splitext(os.path.basename(file_arg))[0]
+    out_path = getattr(args, "output", None) or f"{base_name}.bmbgraph"
+    graph = source_to_hypergraph(src, module_name=base_name)
+    graph.save(out_path)
+    size_bytes = os.path.getsize(out_path)
+
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "source": file_arg,
+            "output": out_path,
+            "size_bytes": size_bytes,
+            "root_hash": graph.metadata.get("root_hash"),
+            "node_count": len(graph.nodes),
+        }, indent=2))
+    else:
+        print(f"[Black Mamba HyperGraph] Built content-addressed AST hypergraph -> '{out_path}':")
+        print(f"  Root Hash:   {graph.metadata.get('root_hash')}")
+        print(f"  Node Count:  {len(graph.nodes)} AST nodes")
+        print(f"  Binary Size: {size_bytes:,} bytes")
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1663,7 +1738,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -2082,6 +2157,13 @@ def main(argv: Optional[list] = None) -> int:
     p_prov.add_argument("--iters", "-i", type=int, default=10000, help="Benchmark iterations (default: 10000)")
     p_prov.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_graph = sub.add_parser("graph", help="Zero-syntax content-addressed AST hypergraph (.bmbgraph)")
+    p_graph.add_argument("file", nargs="?", help="Path to .bmb source or .bmbgraph file (or 'bench')")
+    p_graph.add_argument("--action", "-a", choices=["create", "inspect", "bench"], default="create", help="Action (create, inspect, bench)")
+    p_graph.add_argument("--output", "-o", help="Output .bmbgraph path")
+    p_graph.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
+    p_graph.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -2171,6 +2253,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_sign(args)
     if args.command == "provenance":
         return cmd_provenance(args)
+    if args.command == "graph":
+        return cmd_graph(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

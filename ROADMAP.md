@@ -523,13 +523,25 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 
 ---
 
-### Phase 10: Zero-Syntax Semantic Hypergraph & Neural Synthesis (`v3.5.0` – `v3.6.0`)
-- [ ] **Phase 10A (`v3.5.0`) — Zero-Syntax Semantic Hypergraph (`.bmbgraph`)**:
-  - [ ] Eliminate plain-text source files in favor of a binary content-addressed semantic graph (`.bmbgraph`) with Blake3 symbol hashing.
-  - [ ] Multi-perspective projections: view and edit the exact same program as Pythonic code, 2D visual reactive flow nodes, or algebraic equations.
-- [ ] **Phase 10B (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation**:
-  - [ ] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without intermediate text tokenization.
-  - [ ] Bidirectional semantic synchronization between visual studio morphs, text editors, and neural compiler agents.
+### Phase 10: Zero-Syntax Semantic Hypergraph, Neural Synthesis & Semantic Toolchain (`v3.5.0` – `v3.9.0`)
+- [x] **Phase 10A (`v3.5.0`) — Zero-Syntax Content-Addressed Hypergraph (`.bmbgraph`)**:
+  - [x] Content-addressed Blake3/SHA-256 AST DAG storage; eliminates text parsing bottlenecks and syntax errors entirely.
+  - [x] Zero-copy binary format with instant mmap deserialization (`graph.bmb` & `mamba/graph.py`).
+- [ ] **Phase 10B (`v3.5.5`) — Multi-Perspective Visual & Mathematical Projections (`bmb project`)**:
+  - [ ] Instantaneous view rendering: Pythonic source projection, 2D Morphic visual dataflow, and LaTeX/KaTeX mathematical formulas.
+  - [ ] Hypergraph Virtual Document LSP server (`bmb lsp --graph`) providing bidirectional real-time synchronization with standard code editors.
+- [ ] **Phase 10C (`v3.6.0`) — Neural Latent-Vector Code Synthesis & Direct Model Compilation (`bmb latent`)**:
+  - [ ] In-memory latent-vector code generator synthesizing optimized AST subgraphs directly from LLM embedding space without text tokenization.
+  - [ ] Sub-5ms prompt-to-AST translation with bidirectional semantic synchronization between studio morphs, editors, and compiler agents.
+- [ ] **Phase 10D (`v3.7.0`) — Semantic 3-Way Graph VCS & Conflict-Free Structural Diff (`bmb vcs`)**:
+  - [ ] Native AST-aware graph diff (`bmb diff --graph`) and 3-way merge engine replacing line-based Git.
+  - [ ] Disjoint structural merging with zero merge conflicts for independent AST symbols.
+- [ ] **Phase 10E (`v3.8.0`) — Direct Hypergraph-to-MIR Native Compiler Pipeline (`bmb compile --graph`)**:
+  - [ ] Zero-copy mmap graph lowering directly to 3-address SSA MIR and machine code in `< 0.2 ms` (10x faster than text compilation).
+  - [ ] Whole-graph type inference and cross-module inlining without file boundaries.
+- [ ] **Phase 10F (`v3.9.0`) — Lossless Transmutation & Continuous Autonomous Refactoring (`bmb transmute`)**:
+  - [ ] Bidirectional lossless roundtripping: `.py` <-> `.bmb` <-> `.bmbgraph` with 100% syntactic and comment preservation.
+  - [ ] Continuous graph refactoring & spec evolution engine with automated invariant synthesis.
 
 ---
 
@@ -635,9 +647,13 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.3.0** | **Shipped** | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
 | **v3.4.0** | **Shipped** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
 | **v3.4.5** | **Shipped** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
-| **v3.4.8** | **Shipped** *(Current)* | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
-| **v3.5.0** | **Next Up** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Binary content-addressed semantic AST storage (`.bmbgraph`), Blake3 symbol hashes, elimination of plain text AST bottlenecks |
-| **v3.6.0** | **Planned** | Neural Latent-Vector Code Synthesis & Projections | Direct LLM latent-space code synthesis without tokenization, multi-perspective view projections (code, reactive visual flow, math) |
+| **v3.4.8** | **Shipped** | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
+| **v3.5.0** | **Shipped** *(Current)* | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Content-addressed Blake3 AST DAG storage, zero syntax errors, instant mmap loading |
+| **v3.5.5** | **Next Up** | Multi-Perspective Projections & Virtual LSP | Pythonic, Morphic 2D flow & LaTeX projections with live virtual document LSP for VS Code |
+| **v3.6.0** | **Planned** | Neural Latent-Vector Code Synthesis | Direct LLM latent-space code synthesis without tokenization (< 5 ms prompt-to-AST) |
+| **v3.7.0** | **Planned** | Semantic 3-Way Graph VCS & Structural Diff | Graph-aware diff & merge replacing line-based Git with zero-conflict structural rebasing |
+| **v3.8.0** | **Planned** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
+| **v3.9.0** | **Planned** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |
 | **v4.0.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (`planet.bmb`), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
 | **v4.1.0** | **Planned** | Sub-Microsecond Kernel-Bypass & RDMA Network Transport | Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`), 100 Gbps line-rate packet ingestion at < 1 us wire latency |
 | **v4.2.0** | **Planned** | Zero-Knowledge Distributed State Verifier | Native SNARK/STARK proof emission (`zk.bmb`), cryptographically verifiable execution state for trustless distributed compute |
