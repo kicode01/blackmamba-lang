@@ -1,47 +1,56 @@
-# Black Mamba (`.bmb`)
+# TinyTalk (`.tnt`)
 
 <div align="center">
 
-<img src="assets/logo_banner.png" alt="Black Mamba Logo" width="420" />
+<img src="assets/logo_banner.png" alt="TinyTalk Logo Banner" width="650" />
 <br/><br/>
 
-### **"Write like Python, Live like Smalltalk, Execute like C, Compile Anywhere."**
+### **"Write like Python, Live like Smalltalk, Run at C Speed."**
 
 [![Release](https://img.shields.io/badge/release-v4.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v4.0.0)
-[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-264%2F264%20(100%25)-success?style=for-the-badge)](tests/test_phase10b_project.py)
-[![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_tinytalk_v400.py)
+[![Test Suite](https://img.shields.io/badge/tests-65%2F65%20modules%20(100%25)-success?style=for-the-badge)](tests/test_tinytalk_v400.py)
+[![Fuzzer](https://img.shields.io/badge/adversarial%20fuzzer-210%2F210%20(100%25)-purple?style=for-the-badge)](mamba/fuzzer.py)
+[![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-tinytalk-vs-cpython-314)
 [![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
-[![Containers](https://img.shields.io/badge/OCI%20container-~20%20KB%20Zero--Daemon-purple?style=for-the-badge)](#-zero-base-containers--micro-vms-new-in-v20)
-[![Website](https://img.shields.io/badge/website-blackmamba--lang.vercel.app-10b981?style=for-the-badge&logo=vercel)](https://blackmamba-lang.vercel.app)
+[![Containers](https://img.shields.io/badge/OCI%20container-~20%20KB%20Zero--Daemon-purple?style=for-the-badge)](#-zero-base-containers--micro-vms)
+[![Backward Compatibility](https://img.shields.io/badge/backward%20compat-100%25%20Black%20Mamba%20(.bmb)-emerald?style=for-the-badge)](#-100-backward-compatibility-for-black-mamba-bmb)
 [![License](https://img.shields.io/badge/license-MIT-green?style=for-the-badge)](LICENSE)
 
 ---
 
-**Black Mamba (`v3.9.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
+**TinyTalk (`.tnt`, v4.0.0)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler. It unites Python's elegant indentation syntax, Smalltalk's live-object interactive computing substrate, and bare-metal unboxed machine code generation without borrow-checker complexity or garbage-collection stutter.
 
-[⚡ The 30-Second Mental Model](#-the-30-second-mental-model-how-black-mamba-compares) • 
-[⚡ Benchmarks](#-performance-black-mamba-vs-cpython-314) • 
-[🔬 Python vs Black Mamba](#-traditional-python-vs-black-mamba-side-by-side) • 
-[🐳 Cloud & AI (v2.0)](#-cloud--enterprise-dominance-new-in-v20) • 
-[📐 Architecture](#-visual-architecture-cpython-vs-black-mamba) • 
-[💻 Code Showcase](#-language-showcase-examplesblack_mamba_flagshipbmb) • 
-[🎮 Web Arena](#-interactive-webassembly-arena--playground) • 
+[⚡ 30-Second Mental Model](#-the-30-second-mental-model-how-tinytalk-compares) • 
+[⚡ Benchmarks](#-performance-tinytalk-vs-cpython-314) • 
+[🔬 Python vs TinyTalk](#-traditional-python-vs-tinytalk-side-by-side) • 
+[💬 Smalltalk Heritage](#-live-smalltalk-heritage--post-text-substrate) • 
+[🐳 Cloud & AI](#-cloud--enterprise-dominance) • 
+[📐 Architecture](#-visual-architecture-cpython-vs-tinytalk) • 
+[💻 Code Showcase](#-language-showcase) • 
 [📦 Standard Library](#-pure-native-standard-library-36-modules) • 
-[🛠️ Toolchain](#️-the-black-mamba-20-unified-toolchain) • 
+[🛠️ Toolchain](#️-the-tinytalk-unified-toolchain) • 
 [🚀 Quickstart](#-quickstart--cli-guide)
 
 </div>
 
 ---
 
-## ⚡ The 30-Second Mental Model: How Black Mamba Compares
+> [!IMPORTANT]
+> ### 🐍 100% Backward Compatibility for Black Mamba (`.bmb`)
+> TinyTalk `v4.0.0` is the direct evolution of **Black Mamba (`.bmb`)**. Every existing `.bmb` source file, `.bmbgraph`, `.bmbimg`, and `bmb` command is **100% compatible and supported out of the box**. Both `tnt` and `bmb` command-line tools are distributed side-by-side, sharing the same multi-target native compilation engine.
 
-If you know Python, you already know 95% of Black Mamba. The difference is under the hood: Black Mamba bypasses the bytecode interpreter and emits **unboxed, bare-metal machine code** with zero external C compiler dependencies.
+---
 
-| Feature / Dimension | Standard Python (CPython) | Mojo 🔥 | Rust 🦀 | Black Mamba (`.bmb`) 🐍⚡ |
+## ⚡ The 30-Second Mental Model: How TinyTalk Compares
+
+If you know Python, you already know 95% of TinyTalk. Under the hood, TinyTalk eliminates Python's 35-year VM bottlenecks by emitting **unboxed, bare-metal machine code** directly to CPU registers, with zero external C compiler dependencies.
+
+| Feature / Dimension | Standard Python (CPython) | Mojo 🔥 | Rust 🦀 | TinyTalk (`.tnt`) ⚡💬 |
 | :--- | :---: | :---: | :---: | :---: |
 | **Syntax Familiarity** | Pure Python | Python-like (`fn` vs `def` split) | C-Family / Complex | **100% Python Indentation Syntax** |
+| **Living Object Model** | Static text files | Static text files | Static text files | **Live Image Snapshots (`.tntimg`) & Morphic Canvas** |
+| **AST Representation** | Ephemeral parse tree | LLVM MLIR AST | Rust AST | **Content-Addressed Hypergraph (`.tntgraph`)** |
 | **Memory Model** | Stop-the-world GC pauses | Strict Borrow Checker | Strict Borrow Checker | **Lexical Arenas (Zero Borrow Ceremony)** |
 | **Execution Speed** | Baseline ($1\times$) | $10\times - 30\times$ | $15\times - 35\times$ | **$12\times - 30.5\times$ Native Speed** |
 | **Standalone Binary Size** | $80 - 120\text{ MB}$ (`pyinstaller`) | $30 - 50\text{ MB}$ | $2 - 10\text{ MB}$ | **5.5 KB EXE / 3.9 KB ELF** |
@@ -50,11 +59,12 @@ If you know Python, you already know 95% of Black Mamba. The difference is under
 | **C Compiler Requirement** | MSVC / GCC for extensions | Modular LLVM toolchain | `rustc` / LLVM | **Zero (Built-in Pure Native Linkers)** |
 | **Multithreading** | Blocked by GIL | Hardware threads | OS threads | **Zero-GIL Hardware Concurrency** |
 
-### 🔄 Multi-Target Lifecycle Flowchart
+### 🔄 Multi-Target Compilation Lifecycle
 
 ```mermaid
 flowchart LR
-    SRC["🐍 Source Code\n(.bmb / .py)"] --> PARSE["⚡ Parser &\nType Inference"]
+    SRC["💬 Source Code\n(.tnt / .bmb / .py)"] --> PARSE["⚡ Parser &\nType Inference"]
+    GRAPH["🕸️ HyperGraph\n(.tntgraph)"] --> PARSE
     PARSE --> MIR["⚙️ Mid-Level SSA IR\n(Auto-TCO, Inlining, DCE)"]
     
     MIR --> JIT["⚡ In-Memory JIT\n(<1 ms Latency)"]
@@ -67,15 +77,15 @@ flowchart LR
 
 ---
 
-## ⚡ Performance: Black Mamba vs. CPython 3.14
+## ⚡ Performance: TinyTalk vs. CPython 3.14
 
 All benchmarks were measured head-to-head on the same machine running 64-bit Windows across identical algorithmic kernels:
 
 ```
 ====================================================================================
-BLACK MAMBA (.bmb) vs CPYTHON 3.14 HEAD-TO-HEAD NATIVE BENCHMARK SUITE
+TINYTALK (.tnt) vs CPYTHON 3.14 HEAD-TO-HEAD NATIVE BENCHMARK SUITE
 ====================================================================================
-Benchmark Kernel                     | CPython 3.14 (ms) | Black Mamba (ms) |    Speedup
+Benchmark Kernel                     | CPython 3.14 (ms) | TinyTalk (ms)    |    Speedup
 ------------------------------------------------------------------------------------
 fib(32) [Recursive Call Tree]        |         297.65 ms |        11.550 ms |     25.8x
 count_primes(30000) [Integer ALU]    |          23.28 ms |         1.375 ms |     16.9x
@@ -98,7 +108,22 @@ tail_sum(5_000_000)    [ ∞x  ] ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰�
 
 ---
 
-## 🔬 Traditional Python vs. Black Mamba (Side-by-Side)
+## 💬 Live Smalltalk Heritage & Post-Text Substrate
+
+TinyTalk bridges the historic divide between file-based batch compilation and Smalltalk's legendary living-image computing model:
+
+1. **Persistent Memory Image Snapshots (`.tntimg` / `tnt image`)**:
+   Freeze and thaw your entire computing environment—active modules, living heaps, database records, and Morphic UI canvas—into binary snapshots that resume execution in **< 0.15 ms** (< 5 ms SLA).
+2. **Infinite 2D Morphic Canvas (`tnt studio --canvas`)**:
+   Spatial visual programming canvas where modules, live data structures, and execution flows exist as interactive visual morphs wired together with bidirectional real-time code synchronization.
+3. **Content-Addressed Semantic Hypergraph (`.tntgraph` / `tnt graph`)**:
+   Post-text zero-syntax substrate. Source code is stored as a Blake3-hashed DAG of semantic AST nodes, eliminating syntax errors, parsing bottlenecks, and text serialization overhead.
+4. **Lossless 3-Way Transmutation (`tnt transmute`)**:
+   Losslessly transmute between standard Python (`.py`), TinyTalk (`.tnt`), Black Mamba (`.bmb`), and binary hypergraphs (`.tntgraph`) with mathematically proven bit-for-bit JIT execution parity.
+
+---
+
+## 🔬 Traditional Python vs. TinyTalk (Side-by-Side)
 
 ### 1. Memory Layout: Heap Boxing vs. Unboxed CPU Registers
 
@@ -112,14 +137,14 @@ Traditional CPython 3.14 (Every variable is a 28+ byte heap object)
 │                         └─ ob_digit  (8 bytes)         │
 └────────────────────────────────────────────────────────┘
 
-Black Mamba (.bmb) (Unboxed values live directly in CPU registers)
+TinyTalk (.tnt) (Unboxed values live directly in CPU registers)
 ┌────────────────────────────────────────────────────────┐
 │  x = 42                                                │
 │  Register RAX: [ 0x000000000000002A ] (0 bytes on heap)│
 └────────────────────────────────────────────────────────┘
 ```
 
-| Feature | Traditional Python (CPython) | Black Mamba (`.bmb`) |
+| Feature | Traditional Python (CPython) | TinyTalk (`.tnt`) |
 | :--- | :--- | :--- |
 | **Object Overhead** | 28 bytes for an integer, 152 bytes for a small class | **0 bytes** (unboxed in CPU registers or stack) |
 | **Small Strings ($\le$ 7 bytes)** | 48–56 bytes heap allocated (`PyUnicodeObject`) | **0 heap allocations** (SSO tagged in 64-bit register) |
@@ -130,10 +155,10 @@ Black Mamba (.bmb) (Unboxed values live directly in CPU registers)
 
 ### 2. Deep Recursion: Stack Overflow vs. Automatic Tail-Call Optimization (Auto-TCO)
 
-In traditional Python, every function call incurs a massive **2,112-byte** stack frame (`_PyEval_EvalFrameDefault`). Deep recursion quickly crashes with `RecursionError`. Black Mamba automatically detects tail recursion and compiles it into a **zero-stack-frame register jump loop**.
+In traditional Python, every function call incurs a massive **2,112-byte** stack frame (`_PyEval_EvalFrameDefault`). Deep recursion quickly crashes with `RecursionError`. TinyTalk automatically detects tail recursion and compiles it into a **zero-stack-frame register jump loop**.
 
 ```python
-# In Black Mamba, this executes 5,000,000 recursive calls in 2.6 ms with 0 stack growth!
+# In TinyTalk, this executes 5,000,000 recursive calls in 2.6 ms with 0 stack growth!
 def tail_sum(n: i64, acc: i64) -> i64:
     if n <= 0:
         return acc
@@ -153,7 +178,7 @@ flowchart TD
         GIL --> CPU1["1 CPU Core Active (Multi-core Wasted)"]
     end
 
-    subgraph BlackMamba["Black Mamba (Zero-GIL Multi-Core)"]
+    subgraph TinyTalk["TinyTalk (Zero-GIL Multi-Core)"]
         M1["Thread 1"] --> Core1["CPU Core 1 (100% Native)"]
         M2["Thread 2"] --> Core2["CPU Core 2 (100% Native)"]
         M3["Thread 3"] --> Core3["CPU Core 3 (100% Native)"]
@@ -162,89 +187,70 @@ flowchart TD
     end
 ```
 
-In Black Mamba, multithreading runs on bare metal without a Global Interpreter Lock. You get hardware atomics (`atomic_cas`, `atomic_add`), parallel loops (`par_for`), lock-free ring channels (`chan.bmb`), Go-style `Select` multiplexers, and priority `Actor` loops.
+In TinyTalk, multithreading runs on bare metal without a Global Interpreter Lock. You get hardware atomics (`atomic_cas`, `atomic_add`), parallel loops (`par_for`), lock-free ring channels (`chan.bmb`), Go-style `Select` multiplexers, and priority `Actor` loops.
 
 ---
 
-## 🐳 Cloud & Enterprise Dominance (New in v2.0)
+## 🐳 Cloud & Enterprise Dominance
 
-Version **v2.0.0** introduces three flagship enterprise capabilities designed to outperform traditional Python and Docker deployment pipelines:
+### 1. 📦 Zero-Base Micro-Containers (`tnt container`)
 
-### 1. 📦 Zero-Base Micro-Containers (`bmb container`)
-
-Traditional Python Docker containers weigh **150 MB to 500 MB** and require building on Linux with a Docker daemon. Black Mamba generates **~20 KB pure-Python OCI/Docker container image tarballs** from `FROM scratch` with **zero Docker daemon required**:
+Traditional Python Docker containers weigh **150 MB to 500 MB** and require building on Linux with a Docker daemon. TinyTalk generates **~20 KB pure-Python OCI/Docker container image tarballs** from `FROM scratch` with **zero Docker daemon required**:
 
 ```mermaid
 flowchart LR
-    SRC["service.bmb\n(Source Code)"] --> ELF["ELF64 Executable\n(Direct Linux Syscalls)"]
-    ELF --> OCI["Pure Python OCI Tarball\n(manifest.json + config + /app)"]
+    SRC["service.tnt\n(Source Code)"] --> ELF["ELF64 Executable\n(Direct Linux Syscalls)"]
+    ELF --> OCI["Pure OCI Tarball\n(manifest.json + config + /app)"]
     OCI --> RUN["docker load -i image.tar\ndocker run --rm service:v2\n(Starts in 0.4 ms, Size: 20 KB)"]
 ```
 
 ```bash
 # Build a minimal, production-ready Linux OCI container directly on Windows/macOS/Linux:
-bmb container examples/phase5_enterprise_showcase.bmb -t mamba-app:v2 --tar dist/app.tar
+tnt container examples/phase5_enterprise_showcase.bmb -t tinytalk-app:v4 --tar dist/app.tar
 
 # Instantly load and run without any build step:
 docker load -i dist/app.tar
-docker run --rm mamba-app:v2
+docker run --rm tinytalk-app:v4
 ```
 
 ---
 
-### 2. 🧠 Native Edge AI & Local LLM Chat CLI (`bmb chat`)
+### 2. 🧠 Native Edge AI & Local LLM Chat CLI (`tnt chat`)
 
-Deploy and chat with large language models locally without PyTorch, CUDA toolkits, or heavy dependencies. Black Mamba features a built-in GGUF parser and quantized matrix-vector arithmetic (`q4_0` / `q8_0` GEMV):
-
-```mermaid
-flowchart TD
-    GGUF["Model Weights\n(.gguf Binary)"] --> LOADER["GGUF Header &\nTensor Parser"]
-    LOADER --> QUANT["Quantized GEMV Engine\n(Q4_0 Nibbles & Q8_0 Blocks)"]
-    QUANT --> ROPE["Rotary Position Embeddings\n(RoPE & RMSNorm)"]
-    ROPE --> STREAM["Interactive Terminal Chat\n(Streaming Word-by-Word Tokens)"]
-```
+Deploy and chat with large language models locally without PyTorch, CUDA toolkits, or heavy dependencies. TinyTalk features a built-in GGUF parser and quantized matrix-vector arithmetic (`q4_0` / `q8_0` GEMV):
 
 ```bash
 # Start an interactive local streaming chat session:
-bmb chat --model models/default_v2.gguf
+tnt chat --model models/default_v2.gguf
 ```
-
----
-
-### 3. 🎮 Interactive In-Browser WebAssembly Arena & Playground
-
-Experience the raw power of Black Mamba WebAssembly right in your browser! Open [`examples/web_arena/index.html`](examples/web_arena/index.html) to interact with:
-* **120 FPS Particle Simulation**: Real-time collision physics calculated in pure WebAssembly.
-* **Live In-Browser Code Editor**: Instant preset switching (Particle Physics, Matrix GEMM, Recursive Fib, Prime Sieve).
-* **Head-to-Head Performance Telemetry**: Side-by-side benchmark telemetry comparing Black Mamba WebAssembly against traditional CPython.
 
 ---
 
 ## 📦 Binary Footprint: The Lightweight Revolution
 
-Traditional Python deployment requires packaging the entire CPython interpreter, DLLs, and bytecode into bloated packages. Black Mamba emits **pure, self-contained binaries with zero runtime dependencies**:
+Traditional Python deployment requires packaging the entire CPython interpreter, DLLs, and bytecode into bloated packages. TinyTalk emits **pure, self-contained binaries with zero runtime dependencies**:
 
 ```
 CPython + PyInstaller Bundle   [85.0 MB] ▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰▰
 Pyodide WebAssembly Bundle     [32.0 MB] ▰▰▰▰▰▰▰▰▰▰▰
 ------------------------------------------------------------------------------------
-Black Mamba Standalone EXE     [0.005 MB] ▍ (5.5 KB - Starts in 0.001 ms)
-Black Mamba Linux ELF64        [0.003 MB] ▍ (3.9 KB - Direct Linux Syscalls)
-Black Mamba OCI Container      [0.020 MB] ▍ (20.0 KB - Full Scratch Docker Image)
-Black Mamba WebAssembly (.wasm)[0.001 MB] ▍ (1.7 KB - Over 18,000x smaller than Pyodide!)
+TinyTalk Standalone EXE        [0.005 MB] ▍ (5.5 KB - Starts in 0.001 ms)
+TinyTalk Linux ELF64           [0.003 MB] ▍ (3.9 KB - Direct Linux Syscalls)
+TinyTalk OCI Container         [0.020 MB] ▍ (20.0 KB - Full Scratch Docker Image)
+TinyTalk WebAssembly (.wasm)   [0.001 MB] ▍ (1.7 KB - Over 18,000x smaller than Pyodide!)
 ```
 
-| Deployment Target | Traditional Python | Black Mamba (`.bmb`) | Reduction Ratio |
+| Deployment Target | Traditional Python | TinyTalk (`.tnt`) | Reduction Ratio |
 | :--- | :--- | :--- | :--- |
-| **Windows Executable** | 80 MB – 120 MB (`pyinstaller`) | **5.5 KB – 12 KB** (`bmb build --target exe`) | **~10,000x smaller** |
-| **Linux Executable** | 40 MB – 100 MB (`docker` / `nuitka`) | **3.9 KB – 7.4 KB** (`bmb build --target elf`) | **~15,000x smaller** |
-| **Cloud Container** | 150 MB – 500 MB (`python:slim`) | **~20 KB** (`bmb container`) | **~15,000x smaller** |
-| **WebAssembly** | 32 MB (`pyodide` download) | **1.7 KB – 2.7 KB** (`bmb build --target wasm`) | **~18,000x smaller** |
+| **Windows Executable** | 80 MB – 120 MB (`pyinstaller`) | **5.5 KB – 12 KB** (`tnt build --target exe`) | **~10,000x smaller** |
+| **Linux Executable** | 40 MB – 100 MB (`docker` / `nuitka`) | **3.9 KB – 7.4 KB** (`tnt build --target elf`) | **~15,000x smaller** |
+| **Cloud Container** | 150 MB – 500 MB (`python:slim`) | **~20 KB** (`tnt container`) | **~15,000x smaller** |
+| **WebAssembly** | 32 MB (`pyodide` download) | **1.7 KB – 2.7 KB** (`tnt build --target wasm`) | **~18,000x smaller** |
 | **Cold Boot Latency** | 1.2s – 2.5s (unpacking zip archives) | **< 0.001 ms** (direct OS memory map) | **Instant** |
 
 ---
 
-## 📐 Visual Architecture: CPython vs. Black Mamba
+## 📐 Visual Architecture: CPython vs. TinyTalk
 
 ```mermaid
 graph TD
@@ -257,27 +263,27 @@ graph TD
         PY_HEAP --> PY_GIL["GIL Lock Serialization (Single-threaded)"]
     end
 
-    subgraph Black_Mamba["Black Mamba (.bmb) Native Pipeline"]
-        BM_SRC[".bmb Source Code"] --> BM_PARSE["Zero-Allocation Lexer & AST"]
-        BM_PARSE --> BM_TYPE["Cartesian Whole-Program Type Inference"]
-        BM_TYPE --> BM_MIR["Mid-level IR (MIR SSA Form)"]
-        BM_MIR --> BM_OPT["Optimizations: Auto-TCO, Inlining, DCE, Loop Unroll"]
+    subgraph TinyTalk_Native["TinyTalk (.tnt) Native Pipeline"]
+        TT_SRC[".tnt Source / .tntgraph"] --> TT_PARSE["Zero-Allocation Lexer & Graph Loader"]
+        TT_PARSE --> TT_TYPE["Cartesian Whole-Program Type Inference"]
+        TT_TYPE --> TT_MIR["Mid-level IR (MIR SSA Form)"]
+        TT_MIR --> TT_OPT["Optimizations: Auto-TCO, Inlining, DCE, Loop Unroll"]
         
-        BM_OPT --> JIT["x86-64 Native JIT (<1 ms latency)"]
-        BM_OPT --> PE["PE32+ Linker (5.5 KB Windows .exe)"]
-        BM_OPT --> ELF["ELF64 Linker (3.9 KB Linux .elf)"]
-        BM_OPT --> OCI_OUT["Container Builder (~20 KB OCI Tarball)"]
-        BM_OPT --> MACHO["Mach-O Linker (macOS ARM64 Apple Silicon)"]
-        BM_OPT --> WASM["WASM 1.0 Linker (1.7 KB in Canvas)"]
-        BM_OPT --> C11["ANSI C11 + OpenMP Emitter"]
+        TT_OPT --> JIT["x86-64 Native JIT (<1 ms latency)"]
+        TT_OPT --> PE["PE32+ Linker (5.5 KB Windows .exe)"]
+        TT_OPT --> ELF["ELF64 Linker (3.9 KB Linux .elf)"]
+        TT_OPT --> OCI_OUT["Container Builder (~20 KB OCI Tarball)"]
+        TT_OPT --> MACHO["Mach-O Linker (macOS ARM64 Apple Silicon)"]
+        TT_OPT --> WASM["WASM 1.0 Linker (1.7 KB in Canvas)"]
+        TT_OPT --> C11["ANSI C11 + OpenMP Emitter"]
     end
 ```
 
 ---
 
-## 💻 Language Showcase: `examples/black_mamba_flagship.bmb`
+## 💻 Language Showcase
 
-Black Mamba delivers clean, expressive Python syntax combined with systems-level control:
+TinyTalk combines expressive Python syntax with systems-level power and Smalltalk dynamism:
 
 ```python
 # 1. Unboxed Value Structs (Stored directly in CPU registers, 0 GC overhead)
@@ -313,7 +319,7 @@ def step_square(x: i64) -> i64: return x * x
 # 5. Pattern Matching (Compiled to single-cycle CPU jump tables)
 def evaluate_status_code(code: i64) -> str:
     match code:
-        case 200: return "OK: High Performance"
+        case 200: return "OK: Explosive Performance"
         case 201: return "Created: Zero Overhead"
         case 404: return "Error: GIL Not Found"
         case _:   return "Active: Bare-Metal Speed"
@@ -323,7 +329,7 @@ def tail_accumulator(n, acc):
     if n <= 0: return acc
     return tail_accumulator(n - 1, acc + n)
 
-def main():
+def main() -> i64:
     p1 = Vec3(0.0, 3.0, 4.0)
     p2 = Vec3(3.0, 7.0, 4.0)
     print(f"3D Vector Distance: {distance_3d(p1, p2)}")
@@ -341,141 +347,50 @@ def main():
 
 ## 📦 Pure Native Standard Library (36 Modules)
 
-Black Mamba includes a comprehensive 36-module standard library written in pure `.bmb` that compiles to bare-metal code with **zero CPython runtime dependencies**.
+TinyTalk includes a comprehensive standard library compiling directly to unboxed native machine code with **zero CPython runtime dependencies**. All standard libraries can be imported seamlessly from `.tnt` or `.bmb` files.
 
-### 🌐 Web & Microservices
-| Module | Description | Key Capabilities |
+| Category | Modules | Key Capabilities |
 | :--- | :--- | :--- |
-| [`http.bmb`](mamba/stdlib/http.bmb) | High-Throughput HTTP & WebSockets | HTTP/1.1 parser, query parameters, response builders, router dispatch, RFC 6455 WebSocket framing (8.2M req/s). |
-| [`fastapi.bmb`](mamba/stdlib/fastapi.bmb) | High-Speed Microframework | Parameterized routing (`/items/:id`), query extraction, sub-millisecond dispatch. |
-| [`socket.bmb`](mamba/stdlib/socket.bmb) | Native TCP/UDP Sockets | Full socket API (`create`, `connect`, `bind`, `listen`, `accept`, `send`, `recv`), HTTP helpers. |
-| [`tls.bmb`](mamba/stdlib/tls.bmb) | Pure Native TLS 1.3 Stack | HKDF-SHA256, ChaCha20 stream cipher, ClientHello builder, X.509 ASN.1 DER parser. |
-| [`requests.bmb`](mamba/stdlib/requests.bmb) | Fluent HTTP Client | `requests.get()`, `requests.post()`, header injection, and JSON response parsing. |
-
-### 🤖 AI, Vector & Columnar Analytics
-| Module | Description | Key Capabilities |
-| :--- | :--- | :--- |
-| [`tensor.bmb`](mamba/stdlib/tensor.bmb) | Linear Algebra & Tensors | 1D vector reductions (sum, dot, norm), neural activations (ReLU, Sigmoid), 2D matrix multiplication (`GEMM`). |
-| [`llama.bmb`](mamba/stdlib/llama.bmb) | Edge AI & LLaMA Inference | GGUF quantization wrappers (`q4_0`, `q8_0` GEMV), `LlamaConfig`, Rotary Position Embeddings (RoPE), RMSNorm, SwiGLU. |
-| [`simd.bmb`](mamba/stdlib/simd.bmb) | Hardware SIMD Vectorization | 256-bit AVX2 (`Vec4f`), 512-bit AVX-512 (`Vec8f`), `Vec4i`, FMA, 8-way unrolled bulk array kernels, GEMM tiling. |
-| [`series.bmb`](mamba/stdlib/series.bmb) | Columnar Data & Analytics | Apache Arrow contiguous layout (`SeriesInt`, `SeriesFloat`, `DataFrame`), 79.2M rows/s scans, GroupBy, Hash Join. |
-
-### ⚙️ Systems, Concurrency & Operating System
-| Module | Description | Key Capabilities |
-| :--- | :--- | :--- |
-| [`os.bmb`](mamba/stdlib/os.bmb) | File System & Binary I/O | Text & binary file I/O (`read_file`, `write_file`, `read_bytes`), env/cwd access, path manipulation. |
-| [`pathlib.bmb`](mamba/stdlib/pathlib.bmb) | Object-Oriented Paths | Pure-native `Path` objects (`name`, `stem`, `suffix`, `parent`, `join`, `read_text`, `write_text`). |
-| [`process.bmb`](mamba/stdlib/process.bmb) | Native Subprocess Execution | Cross-platform subprocess execution (`process_run`, `process_check_output`) capturing stdout, stderr, exit code. |
-| [`thread.bmb`](mamba/stdlib/thread.bmb) | Hardware Multithreading | Multi-core thread spawning, atomic memory operations (`atomic_cas`, `atomic_add`), `SpinLock`, `Mutex`, `par_for`. |
-| [`chan.bmb`](mamba/stdlib/chan.bmb) | Lock-Free Channels & Actors | Dmitry Vyukov's MPMC queue, Go-style `Select` multiplexer (`select_wait`), priority `Actor` loops. |
-| [`alloc.bmb`](mamba/stdlib/alloc.bmb) | Thread-Local Slab Allocator | Mimalloc-inspired thread-isolated slab bins (16B–4KB), `ObjectPool`, `Arena`, zero lock contention. |
-| [`embedded.bmb`](mamba/stdlib/embedded.bmb) | Bare-Metal & Microcontroller HAL| Volatile 32/8-bit MMIO registers, `GpioPort`, `UartDevice`, `SysTimer`, `PIDController` (65.7M ticks/s). |
-| [`cluster.bmb`](mamba/stdlib/cluster.bmb) | Distributed Actor Cluster & RPC | Multi-node TCP actor message framing with RFC 2104 `HMAC-SHA256` signature authentication. |
-
-### 📊 Data Formats & Persistence
-| Module | Description | Key Capabilities |
-| :--- | :--- | :--- |
-| [`json.bmb`](mamba/stdlib/json.bmb) | Native JSON Parser & Serializer | Complete DOM tree (`JsonNode`, `JsonDoc`), typed query getters, fast stringification (`json_dumps`). |
-| [`csv.bmb`](mamba/stdlib/csv.bmb) | Tabular CSV/TSV Parser | Delimiter-aware CSV/TSV parser (`csv_parse`), cell accessors, disk file persistence (`csv_read_file`). |
-| [`sql.bmb`](mamba/stdlib/sql.bmb) | Relational SQL & Postgres Wire | Relational query engine (CREATE, INSERT, SELECT, WHERE), ACID transactions, PostgreSQL v3 wire protocol. |
-| [`kv.bmb`](mamba/stdlib/kv.bmb) | Embedded Key-Value Storage | Zero-dependency key-value store with append WAL, in-memory index, compaction, and disk durability. |
-| [`hash.bmb`](mamba/stdlib/hash.bmb) | Cryptographic & Fast Hashers | SHA-256 (NIST FIPS 180-4), HMAC-SHA256, MurmurHash3 (32-bit x86 mixer), FNV-1a, hex encoders. |
-
-### 🧩 Core Utilities & Collections
-| Module | Description | Key Capabilities |
-| :--- | :--- | :--- |
-| [`collections.bmb`](mamba/stdlib/collections.bmb) | High-Performance Collections | Double-ended queue (`Deque`), `Counter`, `DefaultDict`, insertion-ordered `OrderedDict`. |
-| [`heap.bmb`](mamba/stdlib/heap.bmb) | Binary Heaps & Bisect Search | Binary Min-Heap (`MinHeap`), `PriorityQueue`, logarithmic `bisect_left`/`bisect_right`, in-place `insort_i64`. |
-| [`iter.bmb`](mamba/stdlib/iter.bmb) | Combinators & MemoCache | Iterator combinators (`chain_i64`, `take_i64`, `drop_i64`), combinatorics, zero-overhead `MemoCache` (LRU parity). |
-| [`array.bmb`](mamba/stdlib/array.bmb) | Growable Vectors & Slices | Dynamic vectors (`IntVector`, `FloatVector`, `StrVector`), negative indexing, in-place quicksort, binary search. |
-| [`math.bmb`](mamba/stdlib/math.bmb) | High-Precision Minimax Math | 7-term Chebyshev/Taylor minimax trig (`sin`, `cos`, `tan`, `atan2`), hyperbolic, exp/log, `hypot`, `clamp`, `lerp`. |
-| [`random.bmb`](mamba/stdlib/random.bmb) | BigCrush-Validated PRNG | Hardware-seeded Xoshiro256++ PRNG ($2^{256} - 1$ period), uniform floats, bounded integers, array sampling. |
-| [`time.bmb`](mamba/stdlib/time.bmb) | Nanosecond Hardware Timing | Nanosecond monotonic clock (`clock_ns`), float seconds (`clock_sec`), high-precision sleep (`sleep_ms`, `sleep_ns`). |
-| [`regex.bmb`](mamba/stdlib/regex.bmb) | Linear-Time Regular Expressions | Thompson NFA compiler & Pike VM with guaranteed $O(N)$ execution and total immunity to ReDoS attacks. |
-| [`unicode.bmb`](mamba/stdlib/unicode.bmb) | Pure Native Unicode Engine | UTF-8 decoders, scalar validation, UAX #29 grapheme segmentation, UTF-16 surrogate pairs, case folding. |
-
-### 🛠️ Tooling, Testing & Bootstrap
-| Module | Description | Key Capabilities |
-| :--- | :--- | :--- |
-| [`test.bmb`](mamba/stdlib/test.bmb) | Testing & Benchmark Harness | Assertion macros (`assert_eq_i64`), suite runner, and hardware nanosecond benchmarking. |
-| [`pytest.bmb`](mamba/stdlib/pytest.bmb) | Pytest API Parity | Native test fixtures, parameterization, and assertion runners. |
-| [`debug.bmb`](mamba/stdlib/debug.bmb) | Native Symbolic Diagnostics | Source-line trace helpers, hardware fault triggers, assertions paired with `--debug` (`RSDS`/DWARF v4). |
-| [`compiler.bmb`](mamba/stdlib/compiler.bmb) | Self-Hosting Lexer & Parser | Indentation-aware lexer (3.56M tokens/s), Pratt parser, and unified `ASTNode` engine in pure `.bmb`. |
-| [`codegen.bmb`](mamba/stdlib/codegen.bmb) | Self-Hosting PE32+ Compiler | Win64 instruction encoder and standalone PE32+ `.exe` linker (1.6 ms zero-Python compile). |
-| [`gc.bmb`](mamba/stdlib/gc.bmb) | Generational Regions & Cycles | Generational arenas (`Region`) for $O(1)$ bulk reclamation and non-recursive tracing mark-sweep collectors (`GC`). |
-| [`gui.bmb`](mamba/stdlib/gui.bmb) | Retained-Mode GUI & Canvas | Windows, Panel, Button, Label, TextInput, flex layout, 24-bit software RGB rasterizer, BMP/SVG exporter. |
+| **Web & Networking** | `http`, `fastapi`, `socket`, `tls`, `requests` | HTTP/1.1 (8.2M req/s), RFC 6455 WebSockets, parameterized routing, pure-native TLS 1.3. |
+| **AI & High-Performance Math** | `tensor`, `llama`, `simd`, `series`, `autograd` | 2D GEMM, GGUF local LLM inference, 512-bit AVX-512, Arrow columnar data (79.2M rows/s). |
+| **Concurrency & Systems** | `thread`, `chan`, `alloc`, `embedded`, `cluster`, `shm`, `fiber` | Zero-GIL threads, lock-free MPMC channels, slab allocator, No-OS embedded HAL, distributed RPC. |
+| **Data Formats & Storage** | `json`, `csv`, `sql`, `kv`, `hash` | DOM JSON, tabular CSV, ACID SQLite/SQL engine, append-only WAL KV store, SHA-256/Murmur3. |
+| **Collections & Utilities** | `collections`, `heap`, `iter`, `array`, `math`, `random`, `time`, `regex`, `unicode` | Deque/Counter, binary min-heap, Xoshiro256++ PRNG, Thompson NFA regex, Unicode UAX #29. |
+| **Compiler & Metaprogramming** | `compiler`, `codegen`, `image`, `graph`, `transmute`, `vcs` | Pratt parser, PE32+ assembler, Smalltalk `.tntimg`, semantic `.tntgraph`, 3-way VCS. |
 
 ---
 
-## ⚡ Zero-Copy NumPy & PyTorch Tensor Interop
+## 🛠️ The TinyTalk Unified Toolchain
 
-Need access to the Python AI ecosystem? Black Mamba shares raw memory pointers with NumPy arrays and PyTorch tensors with **zero copying** and **zero serialization overhead**:
-
-```python
-import torch
-import numpy as np
-import mamba
-
-# JIT-compile a high-speed Black Mamba kernel:
-kernel = mamba.compile("""
-def saxpy_kernel(x_ptr: i64, y_ptr: i64, a: f64, n: i64):
-    # Executed as bare-metal SSE2 machine code
-    i = 0
-    while i < n:
-        # Direct raw pointer indexing into torch.Tensor buffer
-        val = mem_read_f64(x_ptr + i * 8)
-        mem_write_f64(y_ptr + i * 8, val * a + mem_read_f64(y_ptr + i * 8))
-        i += 1
-""")
-
-# Allocate standard PyTorch / NumPy memory on host:
-t_x = torch.ones(10_000_000, dtype=torch.float64)
-t_y = torch.zeros(10_000_000, dtype=torch.float64)
-
-# Execute at 6.7 GB/s memory bandwidth (19.7x faster than Python loop):
-kernel(t_x.data_ptr(), t_y.data_ptr(), 2.5, 10_000_000)
-```
-
----
-
-## 🛠️ The Black Mamba 2.0 Unified Toolchain
+The TinyTalk CLI (`tnt` or `bmb`) provides a unified command center for development, compilation, debugging, and live-object exploration:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                              THE BLACK MAMBA 2.0 SUITE                                 │
+│                                 THE TINYTALK 4.0 SUITE                                 │
 ├──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬─────────────┤
-│   bmb run    │  bmb build   │bmb container │   bmb chat   │ bmb profile  │  bmb test   │
-│  Native JIT  │ Multi-Target │  ~20KB OCI   │  Local GGUF  │  Interactive │  Automated  │
-│ <1ms Startup │ Static Bin   │  No Docker!  │ Streaming AI │  Flamegraph  │ Test Runner │
+│   tnt run    │  tnt build   │tnt container │  tnt studio  │  tnt image   │  tnt fuzz   │
+│  Native JIT  │ Multi-Target │  ~20KB OCI   │  2D Morphic  │ Live Snapshot│ Adversarial │
+│ <1ms Startup │ Static Bin   │  No Docker!  │ Live Canvas  │ < 0.15ms Res │ 210 Vectors │
 └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴─────────────┘
 ```
 
 | Command | Purpose | Example |
 | :--- | :--- | :--- |
-| `bmb run` | Instant native execution via in-memory JIT | `bmb run app.bmb --stats` |
-| `bmb build` | Build standalone binary across all targets | `bmb build app.bmb --target all --debug` |
-| `bmb container`| Build ~20 KB zero-base OCI image tarball | `bmb container app.bmb -t app:v2 --tar app.tar` |
-| `bmb chat` | Local streaming LLM conversational AI | `bmb chat --model models/default_v2.gguf` |
-| `bmb profile` | Nanosecond call profiling & SVG flamegraphs | `bmb profile app.bmb -o flamegraph.svg` |
-| `bmb test` | Discover and run all project test suites | `bmb test` |
-| `bmb add` | Add dependency to `mamba.toml` manifest | `bmb add math_extra` |
-| `bmb publish` | Pack and publish `.bmbpkg` to registry | `bmb publish` |
-| `bmb shm` | Zero-copy distributed IPC & cluster shared memory | `bmb shm bench --iters 10000 --json` |
-| `bmb autograd` | GPU tensor autograd, AdamW/LoRA training, & WebGPU/SPIR-V emission | `bmb autograd train --epochs 20 --json` |
-| `bmb replay` | Time-travel deterministic replay & omniscient interactive debugger | `bmb replay record app.bmb --html debug.html` |
-| `bmb mcp` | Model Context Protocol (MCP) server for Claude, Cursor, Windsurf, Antigravity | `bmb mcp --stdio` |
-| `bmb swarm` | Multi-agent swarm orchestrator with conflict-free AST symbol locking | `bmb swarm "Build order service" --json` |
-| `bmb agent` | Closed-loop autonomous LLM agent: prompt-to-app synthesizer & self-healer | `bmb agent "Build inventory app" --verify` |
-| `bmb image` | Freeze/resume Smalltalk `.bmbimg` heap snapshots (< 5 ms) | `bmb image save app.bmb -o app.bmbimg` |
-| `bmb patch` | Surgical token-sparse AST delta patching (87% token reduction) | `bmb patch app.bmb patch.json --dry-run` |
-| `bmb ast` | Semantic URI inspection, skeleton & `.bmbs` token codec | `bmb ast skeleton app.bmb` |
-| `bmb fuzz` | 9-vector adversarial compiler fuzzer & differential oracle | `bmb fuzz --all --diff 50 --chaos 50` |
-| `bmb studio` | Smalltalk-style live interactive object studio & 2D Morphic Canvas | `bmb studio --canvas --open` |
-| `bmb web` | Run full-stack reactive web app with live reload | `bmb web run app.py --port 3000 --reload` |
-| `bmb db` | Type-safe relational database management & query | `bmb db query app.db "SELECT * FROM users"` |
-| `bmb repl` | Interactive bare-metal JIT REPL | `bmb repl` |
-| `bmb migrate` | Automatically convert Python code to `.bmb` | `bmb migrate legacy.py -o modern.bmb` |
-| `bmb doc` | Generate static HTML API documentation | `bmb doc mamba/stdlib -o docs/api --open` |
+| `tnt run` (or `bmb run`) | Instant native execution via in-memory JIT | `tnt run app.tnt --stats` |
+| `tnt build` | Build standalone binary across all targets | `tnt build app.tnt --target all --debug` |
+| `tnt container` | Build ~20 KB zero-base OCI image tarball | `tnt container app.tnt -t app:v4 --tar app.tar` |
+| `tnt studio` | Smalltalk live interactive object studio & 2D Morphic Canvas | `tnt studio --canvas --open` |
+| `tnt image` | Freeze/resume Smalltalk `.tntimg` heap snapshots (< 0.15 ms) | `tnt image save app.tnt -o app.tntimg` |
+| `tnt graph` | Zero-syntax content-addressed AST hypergraph (`.tntgraph`) | `tnt graph build app.tnt -o app.tntgraph` |
+| `tnt project` | Multi-perspective projections (Python, Morphic, Math, Sexpr) | `tnt project view app.tntgraph --format python` |
+| `tnt vcs` | Semantic 3-way graph VCS and structural merge | `tnt vcs diff base.tntgraph feature.tntgraph` |
+| `tnt transmute` | Lossless 3-way transmutation (`.py` $\leftrightarrow$ `.tnt` $\leftrightarrow$ `.tntgraph`) | `tnt transmute roundtrip app.py` |
+| `tnt chat` | Local streaming LLM conversational AI | `tnt chat --model models/default_v2.gguf` |
+| `tnt test` | Discover and run all project test suites | `tnt test` |
+| `tnt fuzz` | 9-vector adversarial compiler fuzzer & differential oracle | `tnt fuzz --diff 80 --pe 20` |
+| `tnt profile` | Nanosecond call profiling & SVG flamegraphs | `tnt profile app.tnt -o flamegraph.svg` |
+| `tnt repl` | Interactive bare-metal JIT REPL | `tnt repl` |
+| `tnt doc` | Generate static HTML API documentation | `tnt doc mamba/stdlib -o docs/api --open` |
 
 ---
 
@@ -483,12 +398,12 @@ kernel(t_x.data_ptr(), t_y.data_ptr(), 2.5, 10_000_000)
 
 ### 1. Installation
 
-#### Standalone Binary (Windows x86-64)
-Download [`dist/bmb.exe`](https://github.com/kicode01/blackmamba-lang/releases/tag/v2.2.0) from GitHub Releases and add it to your `PATH`.
+#### Standalone Binaries (Windows x86-64)
+Download [`tinytalk-v4.0.0-win64.zip`](https://github.com/kicode01/blackmamba-lang/releases/tag/v4.0.0) from GitHub Releases and add `tnt.exe` to your `PATH`. Both `tnt.exe` and `bmb.exe` are bundled.
 
 #### Python Package via Wheel
 ```bash
-pip install dist/blackmamba_lang-2.2.0-py3-none-any.whl
+pip install dist/blackmamba_lang-4.0.0-py3-none-any.whl
 ```
 
 #### Clone & Run Test Suite
@@ -496,63 +411,38 @@ pip install dist/blackmamba_lang-2.2.0-py3-none-any.whl
 git clone https://github.com/kicode01/blackmamba-lang.git
 cd blackmamba-lang
 
-# Run full test suite (121/121 unit & integration tests pass)
-python -m unittest discover -s tests -v
+# Run 5-Stage Zero-Defect Pre-Release Gatekeeper
+python -m mamba.cli gatekeeper
 ```
 
 ### 2. Run Instantly via JIT
 ```bash
-bmb run examples/black_mamba_flagship.bmb --stats
+tnt run examples/black_mamba_flagship.bmb --stats
 ```
 
 ### 3. Build Standalone Binaries Across All Targets
 ```bash
-bmb build examples/black_mamba_flagship.bmb --target all --debug
+tnt build app.tnt --target all --debug
 ```
 * Generates:
-  * `build/black_mamba_flagship.exe` (Standalone Windows x86-64 executable with SEH unwind tables, CodeView `RSDS`, COFF symbols)
-  * `build/black_mamba_flagship.elf` (Static Linux x86-64 binary with `.symtab` and DWARF v4 `.debug_line` tables)
-  * `build/black_mamba_flagship.macho` (Standalone macOS Apple Silicon ARM64 binary)
-  * `build/black_mamba_flagship.wasm` (WebAssembly 1.0 binary module for browser / node)
-  * `build/black_mamba_flagship.c` (Portable ANSI C11 + `#line` source mappings + OpenMP SIMD)
-  * `build/black_mamba_flagship.ll` (Standard LLVM IR)
-  * Also supports `--target ext` / `--target pyd` (zero-compiler Python C-extension) and `--target embedded` / `bin` / `hex` (freestanding microcontroller firmware).
+  * `build/app.exe` (Standalone Windows x86-64 executable with SEH unwind tables, CodeView `RSDS`, COFF symbols)
+  * `build/app.elf` (Static Linux x86-64 binary with `.symtab` and DWARF v4 `.debug_line` tables)
+  * `build/app.macho` (Standalone macOS Apple Silicon ARM64 binary)
+  * `build/app.wasm` (WebAssembly 1.0 binary module for browser / node)
+  * `build/app.c` (Portable ANSI C11 + `#line` source mappings + OpenMP SIMD)
+  * `build/app.ll` (Standard LLVM IR)
 
-### 4. Build Zero-Base Containers & OCI Images (No Docker Needed!)
+### 4. Build Zero-Base Containers (No Docker Needed!)
 ```bash
-# Compile static Linux ELF and export ~20 KB OCI image tarball directly:
-bmb container examples/phase5_enterprise_showcase.bmb -t mamba-app:v2 --tar dist/app.tar
+tnt container app.tnt -t tinytalk-app:v4 --tar dist/app.tar
+docker load -i dist/app.tar
+docker run --rm tinytalk-app:v4
 ```
 
-### 5. Native Edge AI & Local LLM Chat
+### 5. Launch Smalltalk Live Studio & Morphic Canvas
 ```bash
-# Launch interactive streaming AI chat with any GGUF model:
-bmb chat --model models/default_v2.gguf
+tnt studio --canvas --open
 ```
-
-### 6. Package Manager & Centralized Publishing
-```bash
-# Publish package to registry:
-bmb pkg publish
-
-# Add dependency to mamba.toml:
-bmb add math_extra
-```
-
-### 7. Nanosecond Call Profiling & Interactive Flamegraphs
-```bash
-# Profile any .bmb program and output an interactive SVG flamegraph:
-bmb profile examples/phase4_domain_showcase.bmb -o flamegraph.svg
-```
-
-### 8. Automated Project Test Discovery & Runner
-```bash
-# Discover and execute all test_*.bmb and *_test.bmb files:
-bmb test
-```
-
-### 9. Interactive WebAssembly Arena
-Open [`examples/web_arena/index.html`](examples/web_arena/index.html) in any web browser to experience the 120 FPS WebAssembly particle simulation and live benchmark comparisons!
 
 ---
 
@@ -560,14 +450,15 @@ Open [`examples/web_arena/index.html`](examples/web_arena/index.html) in any web
 
 We believe in 100% engineering honesty. Every design trade-off, hardware boundary, and roadmap milestone is documented:
 
-* 📋 [**`ROADMAP.md`**](ROADMAP.md): Detailed engineering milestones, Tier 1 runtime frontiers, feature checklist, and release schedule.
-* ⚠️ [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md): Transparent, complete inventory of every current architectural trade-off, memory model detail, and active enhancement.
-* 🔍 [**`docs/REVERSE_ENGINEERING_REPORT.md`**](docs/REVERSE_ENGINEERING_REPORT.md): Deep-dive technical analysis of CPython 3.14 evaluation frame disassembly vs. Black Mamba JIT machine code.
+* 📋 [**`ROADMAP.md`**](ROADMAP.md): Detailed engineering roadmap from v0.1 to v4.0.0 and beyond.
+* ⚠️ [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md): Transparent inventory of current architectural trade-offs and memory model details.
+* 🔍 [**`docs/REVERSE_ENGINEERING_REPORT.md`**](docs/REVERSE_ENGINEERING_REPORT.md): Deep-dive technical analysis of CPython 3.14 evaluation frame disassembly vs. TinyTalk JIT machine code.
 
 ---
 
-## 📄 License & Trademark Notice
+## 📄 License & Heritage Notice
 
-Black Mamba is licensed under the [MIT License](LICENSE). Contributions, issues, and discussions are welcome!
+TinyTalk is licensed under the [MIT License](LICENSE). Contributions, issues, and discussions are welcome!
 
-> **Disclaimer**: *Black Mamba (`.bmb`) is an independent open-source programming language and native compiler. It is not affiliated with, endorsed by, or sponsored by the Python Software Foundation (PSF). Python is a registered trademark of the Python Software Foundation.*
+> **Heritage Notice**: *TinyTalk (`.tnt`) is the evolution of Black Mamba (`.bmb`). All `.bmb` files, tools, and specifications remain first-class citizens with permanent backward compatibility.*  
+> **Disclaimer**: *TinyTalk is an independent open-source programming language and native compiler. It is not affiliated with, endorsed by, or sponsored by the Python Software Foundation (PSF). Python is a registered trademark of the Python Software Foundation.*
