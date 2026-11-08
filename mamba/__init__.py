@@ -46,8 +46,13 @@ from .image import (
     ImageSaveReport,
     LoadedMambaImage,
 )
+from .fuzzer import (
+    AdversarialFuzzer,
+    FuzzReport,
+    FuzzFailure,
+)
 
-__version__ = "2.3.0"
+__version__ = "2.3.1"
 __author__ = "Black Mamba Compiler Team"
 
 
@@ -130,5 +135,8 @@ __all__ = [
     "ImageManager",
     "ImageSaveReport",
     "LoadedMambaImage",
+    "AdversarialFuzzer",
+    "FuzzReport",
+    "FuzzFailure",
 ]
 

@@ -750,6 +750,25 @@ def cmd_image(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_fuzz(args: argparse.Namespace) -> int:
+    import json
+    from .fuzzer import AdversarialFuzzer
+
+    fuzzer = AdversarialFuzzer(seed=args.seed)
+    report = fuzzer.run_suite(
+        differential_count=args.diff,
+        pe_exe_count=args.pe,
+        codec_count=args.codec,
+        arena_count=args.arena,
+        chaos_count=args.chaos,
+    )
+    if getattr(args, "json", False):
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(report.summary())
+    return 0 if report.all_passed else 1
+
+
 def main(argv: Optional[list] = None) -> int:
     from . import __version__
 
@@ -759,7 +778,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image",
+        "ast", "patch", "image", "fuzz",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -986,6 +1005,15 @@ def main(argv: Optional[list] = None) -> int:
     p_img_insp = img_sub.add_parser("inspect", help="Inspect .bmbimg snapshot metadata, SHA-256 digest, and contents")
     p_img_insp.add_argument("image", help="Path to .bmbimg snapshot file")
 
+    p_fuz = sub.add_parser("fuzz", help="Run the 5-vector Adversarial Compiler Fuzzer & Differential Torture Engine")
+    p_fuz.add_argument("--seed", "-s", type=int, default=20261108, help="Deterministic PRNG seed (default: 20261108)")
+    p_fuz.add_argument("--diff", type=int, default=30, help="Differential CPython vs JIT cases (default: 30)")
+    p_fuz.add_argument("--pe", type=int, default=8, help="Multi-backend JIT vs PE32+ .exe cases (default: 8)")
+    p_fuz.add_argument("--codec", type=int, default=25, help="Token-Sparse .bmbs codec round-trip cases (default: 25)")
+    p_fuz.add_argument("--arena", type=int, default=15, help="Nested struct & lexical arena stress cases (default: 15)")
+    p_fuz.add_argument("--chaos", type=int, default=30, help="Hostile parser mutation chaos cases (default: 30)")
+    p_fuz.add_argument("--json", "-j", action="store_true", help="Output fuzz report as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1039,6 +1067,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_patch(args)
     if args.command == "image":
         return cmd_image(args)
+    if args.command == "fuzz":
+        return cmd_fuzz(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

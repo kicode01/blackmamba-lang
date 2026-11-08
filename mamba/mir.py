@@ -2799,6 +2799,45 @@ class MIROptimizer:
                     consts.pop(ins.dst, None)
                 continue
 
+            if ins.op in ("NEG_I64", "NEG_F64", "NOT_I64", "ABS_I64", "ABS_F64") and ins.dst and isinstance(ins.arg1, str):
+                c1 = consts.get(ins.arg1)
+                if c1 is not None and ins.dst not in mutated_vars:
+                    if ins.op == "NEG_I64":
+                        ins.op = "CONST_I64"
+                        ins.arg1 = -int(c1)
+                        ins.arg2 = None
+                        consts[ins.dst] = ins.arg1
+                        const_types[ins.dst] = "i64"
+                        continue
+                    elif ins.op == "NEG_F64":
+                        ins.op = "CONST_F64"
+                        ins.arg1 = -float(c1)
+                        ins.arg2 = None
+                        consts[ins.dst] = ins.arg1
+                        const_types[ins.dst] = "f64"
+                        continue
+                    elif ins.op == "NOT_I64":
+                        ins.op = "CONST_I64"
+                        ins.arg1 = 0 if int(c1) else 1
+                        ins.arg2 = None
+                        consts[ins.dst] = ins.arg1
+                        const_types[ins.dst] = "i64"
+                        continue
+                    elif ins.op == "ABS_I64":
+                        ins.op = "CONST_I64"
+                        ins.arg1 = abs(int(c1))
+                        ins.arg2 = None
+                        consts[ins.dst] = ins.arg1
+                        const_types[ins.dst] = "i64"
+                        continue
+                    elif ins.op == "ABS_F64":
+                        ins.op = "CONST_F64"
+                        ins.arg1 = abs(float(c1))
+                        ins.arg2 = None
+                        consts[ins.dst] = ins.arg1
+                        const_types[ins.dst] = "f64"
+                        continue
+
             if ins.dst and isinstance(ins.arg1, str) and isinstance(ins.arg2, str):
                 c1 = consts.get(ins.arg1)
                 c2 = consts.get(ins.arg2)

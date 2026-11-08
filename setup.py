@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="blackmamba-lang",
-    version="2.3.0",
+    version="2.3.1",
     description="Black Mamba (.bmb) — High-Speed, Zero-Cost-Abstraction Programming Language & Multi-Target Compiler",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",

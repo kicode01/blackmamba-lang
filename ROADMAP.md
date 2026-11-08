@@ -422,7 +422,7 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
 - [x] **Smalltalk-Style Persistent Image Snapshots (`mamba/image.py` & `bmb image`)**:
   - [x] Freeze and serialize the entire live runtime heap, active objects, in-memory SQLite tables, and canvas layout into a portable `.bmbimg` snapshot with `< 5 ms` instant resume.
 
-### Phase 7 (`v2.3.0` / `v2.4.0`): Neuro-Symbolic AST Core & Token-Sparse LLM Protocol (-85% Tokens) ✅ *(COMPLETED IN `v2.3.0`)*
+### Phase 7 (`v2.3.0` / `v2.3.1`): Neuro-Symbolic AST Core, Token-Sparse LLM Protocol & Adversarial Fuzzer ✅ *(COMPLETED IN `v2.3.1`)*
 - [x] **Content-Addressed AST Graph (`mamba/ast_graph.py` & `ast_graph.bmb`)**:
   - [x] Address every module, struct, class, function, and method via semantic URI (`bmb://module/Type/method`) and cryptographic SHA-256 structural hash (`bmb ast skeleton`, `bmb ast inspect`).
 - [x] **Token-Sparse S-Expression / Compact IR Codec (`TokenSparseCodec`)**:
@@ -431,14 +431,31 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
   - [x] Atomic AST mutations (`REPLACE_SYMBOL`, `ADD_SYMBOL`, `DELETE_SYMBOL`, `ADD_FIELD`, `REMOVE_FIELD`, `ADD_METHOD`, `RENAME_SYMBOL`) verified in-memory by `TypeInferencer` + `MIRBuilder` with automatic rollback on failure (**87.01% edit token reduction**).
 - [x] **Pinpoint 20-Token Compiler Diagnostics (`PinpointDiagnostic`)**:
   - [x] Single-line structured error tuples (`!ERR[CODE]@mod/fn:line:summary|FIX:hint`) eliminating verbose traceback bloat.
+- [x] **5-Vector Adversarial Compiler Fuzzer & Differential Torture Engine (`mamba/fuzzer.py` & `bmb fuzz`)**:
+  - [x] Automated differential oracle testing (CPython 3.14 vs x86-64 JIT vs PE32+ `.exe`), `.bmbs` round-trip equivalence, nested struct arena stress, and hostile parser mutation chaos.
+  - [x] Uncovered and fixed hardware `idiv` floor-division (`//`) & floor-modulo (`%`) sign semantics across negative dividends/divisors in `X86_64CodeBuffer.idiv_rcx` and unary constant folding (`NEG_I64`, `NEG_F64`, `NOT_I64`, `ABS_I64`, `ABS_F64`) in `MIROptimizer`.
 
-### Phase 8 (`v2.5.0`): Embedded Agent Copilot (`bmb agent`) & Autonomous App Synthesizer
-- [ ] **Native Autonomous Agent Loop (`mamba/agent.py` & `bmb agent`)**:
-  - [ ] Closed-loop agent with direct memory access to `ast_graph`, `inquisitor`, `db`, `profile`, and `test`.
-- [ ] **WASM Reactive UI Signals (`mamba/stdlib/reactive.bmb`)**:
-  - [ ] `Signal[T]`, `Computed[T]`, and `Effect` primitives compiling directly to WebAssembly DOM updates.
-- [ ] **Prompt-to-Living-App Synthesizer**:
-  - [ ] Synthesize full-stack apps (SQLite ORM models + REST/WebSocket routes + reactive Morphic UI) from a single natural-language goal or canvas wireframe, verified automatically by generated unit tests.
+### Phase 8 (`v2.4.0` – `v2.9.0`): Embedded Agent Copilot, Reactive WASM Signals & Self-Hosting Convergence
+- [ ] **Phase 8A (`v2.4.0`) — Embedded Agent Copilot & Reactive WASM Signals (`bmb agent` & `reactive.bmb`)**:
+  - [ ] Closed-loop autonomous agent (`mamba/agent.py` & `bmb agent`) with direct in-memory access to `ast_graph`, `inquisitor`, `canvas`, `db`, `profile`, and `test`.
+  - [ ] Fine-grained WASM Reactive UI Signals (`Signal[T]`, `Computed[T]`, `Effect`) in `mamba/stdlib/reactive.bmb`.
+  - [ ] Prompt-to-Living-App Synthesizer generating verified full-stack `.bmb` apps + `.bmbimg` snapshots from a single natural-language goal.
+- [ ] **Phase 8B (`v2.5.0`) — Native Multi-Agent Orchestrator & MCP Server (`bmb mcp`)**:
+  - [ ] Built-in Model Context Protocol (MCP) Server (`bmb mcp`) exposing `ast_graph`, `patch`, `canvas`, `image`, and `db` as zero-latency tools for Claude, Cursor, Windsurf, and Antigravity.
+  - [ ] Parallel sub-agent swarm execution over shared `.bmbimg` snapshots with conflict-free AST symbol locking.
+- [ ] **Phase 8C (`v2.6.0`) — Time-Travel Deterministic Replay & Omniscient Debugger (`bmb replay`)**:
+  - [ ] Instruction-level and Arena-generation ring buffer recording every state transition in `bmb studio`.
+  - [ ] Scrub backward and forward through execution time (`bmb replay`) with zero-overhead checkpoint diffs between `.bmbimg` frames.
+- [ ] **Phase 8D (`v2.7.0`) — GPU Tensor Autograd & Native ML Training Engine (`autograd.bmb`)**:
+  - [ ] Reverse-mode automatic differentiation (`backward()`) compiled directly to AVX2/AVX-512 and PTX/SPIR-V GPU kernels.
+  - [ ] Native AdamW/SGD optimizers and LoRA fine-tuning in pure `.bmb` without PyTorch or Python runtime dependencies.
+- [ ] **Phase 8E (`v2.8.0`) — Zero-Copy Distributed IPC & Cluster Shared Memory (`shm.bmb`)**:
+  - [ ] Cross-process OS shared-memory arenas (`CreateFileMapping` / `shm_open`) for zero-serialization multi-process dataframe, tensor, and `.bmbimg` sharing.
+  - [ ] Sub-microsecond local actor messaging and RDMA-ready network transport.
+- [ ] **Phase 8F (`v2.9.0`) — Pure `.bmb` Self-Hosting Optimizer & Linker Convergence (The `v3.0` Bridge)**:
+  - [ ] Port all remaining Python-hosted MIR optimization passes, `StructLayout` calculators, and PE32+/ELF64/Mach-O binary linkers into `mamba/selfhost/`.
+  - [ ] Achieve bit-for-bit stage-2/stage-3 self-compilation parity in preparation for `v3.0.0`.
+- *Note on Patch Releases (`v2.x.1`, `v2.x.2`)*: Never published artificially—only cut when `bmb fuzz` (our 5-vector Adversarial Compiler Fuzzer) or real production usage uncovers a verified regression or bug.
 
 ### Phase 9 (`v3.0.0`): Self-Healing Autonomous Runtime, 100% Pure `.bmb` Bootstrap & Unikernel Cloud
 - [ ] **Zero-Python Self-Hosted Compiler (`bmb.exe` < 150 KB)**:
@@ -489,10 +506,16 @@ For 100% engineering transparency, here are the **7 specific architectural gaps*
 | **v1.4.0** | **Shipped** | Universal Python Bridge, Drop-In Execution & PyPI Ecosystem Parity | Transparent Python Host Bridge (`from python import ...`), Zero-Copy Tensor Exchange with NumPy/PyTorch, In-memory Drop-In script runner (`bmb script.py`), Automated Python-to-Mamba Migration Engine (`bmb migrate`), Native Top-PyPI Standard Libraries (`requests.bmb`, `pydantic.bmb`, `fastapi.bmb`, `pytest.bmb`), 71/71 Test Suite & 34/34 Examples Verified |
 | **v1.5.0** | **Shipped** | High-Performance Domain Monopolies & Full Stdlib Parity | Complete Stdlib Parity (`collections.bmb`, `heap.bmb`, `iter.bmb`, `process.bmb`, `csv.bmb`, `pathlib.bmb`), Native Edge AI & Local LLM Inference Engine (`tensor.bmb` + `llama.bmb` / GGUF Q4_0 & Q8_0 GEMV), High-Throughput Web Microframework (`fastapi.bmb` parameterized routing), Native Performance Profiler (`bmb profile` interactive SVG flamegraph generator) and Automated Test Runner (`bmb test`), 83/83 Unit Tests & 35/35 Examples 100% Green |
 | **v2.0.0** | **Shipped** | The Global Cloud & Enterprise Dominance | Zero-Base Container & Micro-VM Engine (`bmb container` generating ~20 KB pure Python OCI image tarballs with zero Docker daemon), Standalone Local LLM Inference Engine & Chat CLI (`bmb chat` with GGUF token streaming), Centralized Package Registry & Publishing CLI (`bmb pkg publish`, `bmb pkg server`, and `bmb add`), Interactive In-Browser WebAssembly Arena & Playground (`examples/web_arena/index.html`), 87/87 Unit Tests & 36/36 Examples 100% Green |
-| **v2.2.0** | **Shipped** *(Current — Full-Stack & Live Systems Milestone)* | Full-Stack Web Framework, Smalltalk Studio & Native ORM | Self-Hosting HTML5 Web Compiler (`html5.py`), Smalltalk-Style Live Object Studio & Inquisitor (`bmb studio`), Reactive Full-Stack Web Framework (`mamba.web`), Relational Database Engine & Type-Safe ORM (`mamba.db`), 100% Native BMB Website & Arena on Vercel, 121/121 Unit Tests 100% Green |
-| **v2.3.0** | **Next Up** | GUI-First Living Morphic Canvas & Persistent Image | Nested composite struct layout fix, Infinite 2D zoomable Morphic workspace (`bmb studio --canvas`), bidirectional visual-to-AST hot-swapping, Smalltalk-style `.bmbimg` heap snapshots |
-| **v2.4.0** | **Planned** | Neuro-Symbolic AST Core & Token-Sparse LLM Protocol | Content-addressed AST graph (`bmb://`), compact token-sparse S-expression codec, surgical AST delta patching (`bmb patch` for 70-90% LLM token reduction), 20-token pinpoint diagnostics |
-| **v2.5.0** | **Planned** | Embedded Agent Copilot & Autonomous App Synthesizer | Autonomous ReAct/AST agent (`bmb agent`), fine-grained WASM reactive signals (`Signal[T]`), prompt-to-living-app synthesizer with auto-verification |
+| **v2.2.0** | **Shipped** | Full-Stack Web Framework, Smalltalk Studio & Native ORM | Self-Hosting HTML5 Web Compiler (`html5.py`), Smalltalk-Style Live Object Studio & Inquisitor (`bmb studio`), Reactive Full-Stack Web Framework (`mamba.web`), Relational Database Engine & Type-Safe ORM (`mamba.db`), 100% Native BMB Website & Arena on Vercel, 121/121 Unit Tests 100% Green |
+| **v2.3.0** | **Shipped** | GUI-First Living Morphic Canvas, Persistent Image & AST Graph | Recursive `StructLayout` & escape analysis fix, Content-Addressed AST Graph (`bmb ast`) & Surgical Delta Patcher (`bmb patch`, -87.01% tokens), Infinite 2D Morphic Canvas (`bmb studio --canvas`), Smalltalk-style `.bmbimg` snapshots (`bmb image`, 0.12 ms resume), 134/134 Unit Tests 100% Green |
+| **v2.3.1** | **Shipped** *(Current — Fuzzer & Floor-Div Hotfix)* | Adversarial Compiler Fuzzer & Signed Floor-Division Hotfix | 5-Vector Adversarial Compiler Fuzzer (`mamba/fuzzer.py` & `bmb fuzz`), x86-64 JIT & PE32+ `.exe` floor-division (`//`) & floor-modulo (`%`) negative-sign semantics fix in `idiv_rcx`, unary constant folding (`NEG_I64`, `NEG_F64`, `NOT_I64`, `ABS_I64`, `ABS_F64`) in `MIROptimizer`, 138/138 Unit Tests 100% Green |
+| **v2.4.0** | **Next Up** | Embedded Agent Copilot & Reactive WASM Signals | Autonomous ReAct/AST agent (`bmb agent`), fine-grained WASM reactive signals (`Signal[T]`, `Computed[T]`, `Effect` in `reactive.bmb`), prompt-to-living-app synthesizer with auto-verification |
+| **v2.5.0** | **Planned** | Native Multi-Agent Orchestrator & MCP Server | Built-in Model Context Protocol server (`bmb mcp`) exposing `ast_graph`, `patch`, `canvas`, `image`, and `db`; parallel sub-agent swarm execution over shared `.bmbimg` snapshots |
+| **v2.6.0** | **Planned** | Time-Travel Deterministic Replay & Omniscient Debugger | Instruction & arena ring-buffer recording (`bmb replay`), backward/forward time-travel debugging across `.bmbimg` frames |
+| **v2.7.0** | **Planned** | GPU Tensor Autograd & Native ML Training Engine | Reverse-mode automatic differentiation (`autograd.bmb`), native AVX2/GPU backward passes, AdamW/LoRA fine-tuning without PyTorch |
+| **v2.8.0** | **Planned** | Zero-Copy Distributed IPC & Cluster Shared Memory | Cross-process OS shared-memory arenas (`shm.bmb`) for zero-serialization multi-process tensor & `.bmbimg` sharing |
+| **v2.9.0** | **Planned** | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for stage-2/stage-3 parity |
+| **v3.0.0** | **Planned** | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
 | **v3.0.0** | **Planned** | Self-Healing Autonomous Runtime & Unikernel Cloud | 100% pure `.bmb` self-hosted compiler (`bmb.exe` < 150 KB, zero Python), self-healing runtime supervisor, SMT contract verification (`bmb verify`), 1.5 MB bare-metal unikernels |
 | **v3.5.0 – v5.0.0** | **Frontier** | Post-Text Hypergraph, Planetary CRDT OS & Neuromorphic | Zero-syntax `.bmbgraph` hypergraph, planetary CRDT actor substrate (`planet.bmb`), MCTS superoptimizer, Neuromorphic/Photonic/BCI targets |
 | **v6.0.0 – v10.0.0** | **Omega Research** | Programmable Matter, Quantum Consensus & Reversible Compute | DNA/molecular compilation, topological quantum `qubit` & relativistic consensus, differentiable world-twin physics, reversible thermodynamic logic |

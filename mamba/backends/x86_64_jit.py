@@ -247,6 +247,14 @@ class X86_64CodeBuffer:
     def idiv_rcx(self) -> None:
         self.emit(b"\x48\x99", "cqo")
         self.emit(b"\x48\xF7\xF9", "idiv rcx")
+        # Python floor division (//) & floor modulo (%) adjustment when rem != 0 and (rem ^ div) < 0
+        self.emit(b"\x48\x85\xD2", "test rdx, rdx")
+        self.emit(b"\x74\x0E", "jz +14")
+        self.emit(b"\x49\x89\xD3", "mov r11, rdx")
+        self.emit(b"\x49\x31\xCB", "xor r11, rcx")
+        self.emit(b"\x79\x06", "jns +6")
+        self.emit(b"\x48\xFF\xC8", "dec rax")
+        self.emit(b"\x48\x01\xCA", "add rdx, rcx")
 
     def mov_rax_rdx(self) -> None:
         self.emit(b"\x48\x89\xD0", "mov rax, rdx")
