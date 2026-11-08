@@ -649,12 +649,13 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.4.5** | **Shipped** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
 | **v3.4.8** | **Shipped** | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
 | **v3.5.0** | **Shipped** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Content-addressed Blake3 AST DAG storage, zero syntax errors, instant mmap loading |
-| **v3.5.5** | **Shipped** *(Current)* | Multi-Perspective Projections & Virtual LSP | Pythonic, Morphic 2D flow & LaTeX projections with live virtual document LSP for VS Code |
-| **v3.6.0** | **Next Up** | Neural Latent-Vector Code Synthesis | Direct LLM latent-space code synthesis without tokenization (< 5 ms prompt-to-AST) |
-| **v3.7.0** | **Planned** | Semantic 3-Way Graph VCS & Structural Diff | Graph-aware diff & merge replacing line-based Git with zero-conflict structural rebasing |
-| **v3.8.0** | **Planned** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
-| **v3.9.0** | **Planned** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |
-| **v4.0.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (`planet.bmb`), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
+| **v3.5.5** | **Shipped** | Multi-Perspective Projections & Virtual LSP | Pythonic, Morphic 2D flow & LaTeX projections with live virtual document LSP for VS Code |
+| **v3.6.0** | **Shipped** | Neural Latent-Vector Code Synthesis | Direct LLM latent-space code synthesis without tokenization (< 5 ms prompt-to-AST) |
+| **v3.7.0** | **Shipped** | Semantic 3-Way Graph VCS & Structural Diff | Graph-aware diff & merge replacing line-based Git with zero-conflict structural rebasing |
+| **v3.8.0** | **Shipped** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
+| **v3.9.0** | **Shipped** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |
+| **v4.0.0** | **Shipped** *(Current)* | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Explosive Performance, Zero-Syntax Semantic Hypergraph & 100% Dual .bmb Compatibility |
+| **v4.1.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (planet.bmb), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
 | **v4.1.0** | **Planned** | Sub-Microsecond Kernel-Bypass & RDMA Network Transport | Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`), 100 Gbps line-rate packet ingestion at < 1 us wire latency |
 | **v4.2.0** | **Planned** | Zero-Knowledge Distributed State Verifier | Native SNARK/STARK proof emission (`zk.bmb`), cryptographically verifiable execution state for trustless distributed compute |
 | **v4.5.0** | **Planned** | Superoptimizing Neuro-Symbolic Compiler | Monte-Carlo Tree Search (MCTS) assembly kernel synthesizer, Z3 machine-checkable equivalence proofs for hardware algorithms |

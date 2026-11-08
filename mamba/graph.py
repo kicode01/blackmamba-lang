@@ -19,8 +19,10 @@ from enum import IntEnum
 from typing import Dict, Any, List, Optional, Tuple, Set
 
 
+TNTG_MAGIC = b"TNTG"
+TNTG_VERSION = 0x00040000  # 4.0.0 (TinyTalk)
 BMBG_MAGIC = b"BMBG"
-BMBG_VERSION = 0x00030500  # 3.5.0
+BMBG_VERSION = 0x00030500  # 3.5.0 (Legacy Black Mamba)
 
 
 class NodeKind(IntEnum):
@@ -146,7 +148,9 @@ class HyperGraph:
         }).encode("utf-8")
 
         # Header: MAGIC (4B) + VERSION (4B) + LENGTH (4B) + CRC (4B)
-        header = struct.pack("<4sIII", BMBG_MAGIC, BMBG_VERSION, len(payload_json), len(self.nodes))
+        magic = TNTG_MAGIC
+        version = TNTG_VERSION
+        header = struct.pack("<4sIII", magic, version, len(payload_json), len(self.nodes))
         return header + payload_json
 
     @classmethod
@@ -155,8 +159,8 @@ class HyperGraph:
             raise ValueError("Truncated .bmbgraph header")
 
         magic, version, length, node_count = struct.unpack("<4sIII", data[:16])
-        if magic != BMBG_MAGIC:
-            raise ValueError(f"Invalid .bmbgraph magic signature: {magic!r}")
+        if magic not in (TNTG_MAGIC, BMBG_MAGIC):
+            raise ValueError(f"Invalid graph magic signature (expected TNTG or BMBG): {magic!r}")
 
         payload_json = data[16: 16 + length].decode("utf-8")
         payload = json.loads(payload_json)

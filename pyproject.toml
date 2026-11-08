@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "blackmamba-lang"
-version = "3.9.0"
-description = "Black Mamba (.bmb) — High-Speed, Zero-Cost-Abstraction Programming Language & Multi-Target Compiler"
+version = "4.0.0"
+description = "TinyTalk (.tnt) & Black Mamba (.bmb) — Smalltalk Live Heritage, Explosive Performance & Zero-Syntax Substrate"
 readme = "README.md"
 requires-python = ">=3.8"
 license = { text = "MIT" }
@@ -47,6 +47,8 @@ Repository = "https://github.com/kicode01/blackmamba-lang.git"
 "Bug Tracker" = "https://github.com/kicode01/blackmamba-lang/issues"
 
 [project.scripts]
+tnt = "mamba.cli:main"
+tinytalk = "mamba.cli:main"
 bmb = "mamba.cli:main"
 blackmamba = "mamba.cli:main"
 

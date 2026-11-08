@@ -73,33 +73,45 @@ STDLIB_DIR = _get_stdlib_dir()
 
 
 def resolve_module_file(module_name: str, base_dir: str) -> Optional[str]:
-    # 1. Standard Library
-    stdlib_path = os.path.join(STDLIB_DIR, f"{module_name}.bmb")
-    if os.path.exists(stdlib_path):
-        return stdlib_path
-    # 2. Local directory
-    local_path = os.path.join(base_dir, f"{module_name}.bmb")
-    if os.path.exists(local_path):
-        return local_path
-    # 3. Current working directory
-    cwd_path = os.path.join(os.getcwd(), f"{module_name}.bmb")
-    if os.path.exists(cwd_path):
-        return cwd_path
+    # Support both TinyTalk (.tnt) and Black Mamba (.bmb)
+    exts = [".tnt", ".bmb"]
 
-    # 4. Package Manager Vendor Directories (.mamba/packages/<pkg>/)
+    # 1. Standard Library
+    for ext in exts:
+        stdlib_path = os.path.join(STDLIB_DIR, f"{module_name}{ext}")
+        if os.path.exists(stdlib_path):
+            return stdlib_path
+
+    # 2. Local directory
+    for ext in exts:
+        local_path = os.path.join(base_dir, f"{module_name}{ext}")
+        if os.path.exists(local_path):
+            return local_path
+
+    # 3. Current working directory
+    for ext in exts:
+        cwd_path = os.path.join(os.getcwd(), f"{module_name}{ext}")
+        if os.path.exists(cwd_path):
+            return cwd_path
+
+    # 4. Package Manager Vendor Directories (.tinytalk/packages or .mamba/packages)
     search_dirs = [base_dir, os.path.dirname(base_dir), os.getcwd()]
+    vendor_dirs = [".tinytalk", ".mamba"]
     for sdir in search_dirs:
-        pkg_dir = os.path.join(sdir, ".mamba", "packages", module_name)
-        if os.path.exists(pkg_dir):
-            candidates = [
-                os.path.join(pkg_dir, f"{module_name}.bmb"),
-                os.path.join(pkg_dir, "src", f"{module_name}.bmb"),
-                os.path.join(pkg_dir, "src", "lib.bmb"),
-                os.path.join(pkg_dir, "src", "main.bmb"),
-            ]
-            for cand in candidates:
-                if os.path.exists(cand):
-                    return cand
+        for vdir in vendor_dirs:
+            pkg_dir = os.path.join(sdir, vdir, "packages", module_name)
+            if os.path.exists(pkg_dir):
+                candidates = []
+                for ext in exts:
+                    candidates.extend([
+                        os.path.join(pkg_dir, f"{module_name}{ext}"),
+                        os.path.join(pkg_dir, "src", f"{module_name}{ext}"),
+                        os.path.join(pkg_dir, "src", f"lib{ext}"),
+                        os.path.join(pkg_dir, "src", f"main{ext}"),
+                    ])
+                for cand in candidates:
+                    if os.path.exists(cand):
+                        return cand
 
     return None
 

@@ -2,8 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="blackmamba-lang",
-    version="3.9.0",
-    description="Black Mamba (.bmb) — High-Speed, Zero-Cost-Abstraction Programming Language & Multi-Target Compiler",
+    version="4.0.0",
+    description="TinyTalk (.tnt) & Black Mamba (.bmb) — Smalltalk Live Heritage, Explosive Performance & Zero-Syntax Substrate",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
     author="KiCode",
@@ -15,6 +15,8 @@ setup(
     },
     entry_points={
         "console_scripts": [
+            "tnt=mamba.cli:main",
+            "tinytalk=mamba.cli:main",
             "bmb=mamba.cli:main",
             "blackmamba=mamba.cli:main",
         ],

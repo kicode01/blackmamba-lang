@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.9.0"
+__version__ = "4.0.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir

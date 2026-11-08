@@ -5,9 +5,9 @@
 <img src="assets/logo_banner.png" alt="Black Mamba Logo" width="420" />
 <br/><br/>
 
-### **"Write like Python, Execute like C, Compile Anywhere."**
+### **"Write like Python, Live like Smalltalk, Execute like C, Compile Anywhere."**
 
-[![Release](https://img.shields.io/badge/release-v3.9.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v3.9.0)
+[![Release](https://img.shields.io/badge/release-v4.0.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v4.0.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
 [![Test Suite](https://img.shields.io/badge/tests-264%2F264%20(100%25)-success?style=for-the-badge)](tests/test_phase10b_project.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)

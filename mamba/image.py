@@ -20,7 +20,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from .canvas import MorphicCanvas
 
-IMAGE_MAGIC = b"BMBIMG01"
+IMAGE_MAGIC = b"TNTIMG01"
+LEGACY_IMAGE_MAGIC = b"BMBIMG01"
 FLAG_COMPRESSED = 1
 FLAG_RAW = 0
 
@@ -215,8 +216,8 @@ class ImageManager:
             blob = f.read()
         t0 = time.perf_counter()
 
-        if len(blob) < 44 or blob[:8] != IMAGE_MAGIC:
-            raise ValueError(f"Invalid .bmbimg header in '{path}'")
+        if len(blob) < 44 or blob[:8] not in (IMAGE_MAGIC, LEGACY_IMAGE_MAGIC):
+            raise ValueError(f"Invalid snapshot image header (expected TNTIMG or BMBIMG) in '{path}'")
 
         flags = struct.unpack(">I", blob[8:12])[0]
         expected_digest = blob[12:44]

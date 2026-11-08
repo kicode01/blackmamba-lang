@@ -57,7 +57,7 @@ def main() -> i64:
         graph = source_to_hypergraph(self.sample_src, module_name="test_pkg")
         data = graph.to_bytes()
 
-        self.assertTrue(data.startswith(b"BMBG"))
+        self.assertTrue(data.startswith(b"TNTG") or data.startswith(b"BMBG"))
 
         with tempfile.TemporaryDirectory() as tmpdir:
             file_path = os.path.join(tmpdir, "test.bmbgraph")

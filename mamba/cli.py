@@ -46,7 +46,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not os.path.exists(args.file):
         print(f"Error: File not found: {args.file}", file=sys.stderr)
         return 1
-    if args.file.endswith(".bmbgraph"):
+    if args.file.endswith(".tntgraph") or args.file.endswith(".bmbgraph"):
         from .graph import HyperGraph
         from .graph_mir import GraphMIREmitter
         graph = HyperGraph.load(args.file)
@@ -86,7 +86,7 @@ def cmd_build(args: argparse.Namespace) -> int:
     if not os.path.exists(args.file):
         print(f"Error: File not found: {args.file}", file=sys.stderr)
         return 1
-    if args.file.endswith(".bmbgraph"):
+    if args.file.endswith(".tntgraph") or args.file.endswith(".bmbgraph"):
         from .graph import HyperGraph
         from .graph_mir import GraphMIREmitter
         graph = HyperGraph.load(args.file)
@@ -1743,7 +1743,7 @@ def cmd_project(args: argparse.Namespace) -> int:
         print(f"[Black Mamba Project] Error: File not found: '{file_arg}'")
         return 1
 
-    if file_arg.endswith(".bmbgraph"):
+    if file_arg.endswith(".tntgraph") or file_arg.endswith(".bmbgraph"):
         graph = HyperGraph.load(file_arg)
     else:
         with open(file_arg, "r", encoding="utf-8") as f:
@@ -1837,7 +1837,7 @@ def cmd_vcs(args: argparse.Namespace) -> int:
         return 0
 
     def load_or_parse(path: str) -> HyperGraph:
-        if path.endswith(".bmbgraph"):
+        if path.endswith(".tntgraph") or path.endswith(".bmbgraph"):
             return HyperGraph.load(path)
         with open(path, "r", encoding="utf-8") as f:
             return source_to_hypergraph(f.read())
@@ -1882,7 +1882,7 @@ def cmd_vcs(args: argparse.Namespace) -> int:
 
         out_f = getattr(args, "output", None)
         if merge_res.success and merge_res.merged_graph and out_f:
-            if out_f.endswith(".bmbgraph"):
+            if out_f.endswith(".tntgraph") or out_f.endswith(".bmbgraph"):
                 merge_res.merged_graph.save(out_f)
             else:
                 from .project import ProjectionEngine
@@ -1939,7 +1939,7 @@ def cmd_transmute(args: argparse.Namespace) -> int:
     out_file = getattr(args, "output", None)
 
     if action == "refactor":
-        if file_arg.endswith(".bmbgraph"):
+        if file_arg.endswith(".tntgraph") or file_arg.endswith(".bmbgraph"):
             graph = HyperGraph.load(file_arg)
         else:
             with open(file_arg, "r", encoding="utf-8") as f:
@@ -1949,7 +1949,7 @@ def cmd_transmute(args: argparse.Namespace) -> int:
         refactored_code = TransmutationEngine.graph_to_bmb(opt_graph)
 
         if out_file:
-            if out_file.endswith(".bmbgraph"):
+            if out_file.endswith(".tntgraph") or out_file.endswith(".bmbgraph"):
                 opt_graph.save(out_file)
             else:
                 with open(out_file, "w", encoding="utf-8") as f:
@@ -1966,7 +1966,7 @@ def cmd_transmute(args: argparse.Namespace) -> int:
         with open(file_arg, "r", encoding="utf-8") as f:
             bmb_code = TransmutationEngine.py_to_bmb(f.read())
         graph = TransmutationEngine.bmb_to_graph(bmb_code)
-    elif file_arg.endswith(".bmbgraph"):
+    elif file_arg.endswith(".tntgraph") or file_arg.endswith(".bmbgraph"):
         graph = HyperGraph.load(file_arg)
         bmb_code = TransmutationEngine.graph_to_bmb(graph)
     else:
@@ -1975,7 +1975,7 @@ def cmd_transmute(args: argparse.Namespace) -> int:
         graph = TransmutationEngine.bmb_to_graph(bmb_code)
 
     if target_fmt == "graph" or (out_file and out_file.endswith(".bmbgraph")):
-        dest = out_file or (os.path.splitext(file_arg)[0] + ".bmbgraph")
+        dest = out_file or (os.path.splitext(file_arg)[0] + ".tntgraph")
         graph.save(dest)
         print(f"[Black Mamba Transmute] Transmuted to HyperGraph -> '{dest}' (Hash: {graph.root_hash[:12]})")
         return 0
@@ -2023,14 +2023,16 @@ def main(argv: Optional[list] = None) -> int:
         "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent", "vcs", "transmute",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
-        if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb") or raw_args[0].endswith(".bmbgraph"):
+        if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".tnt") or raw_args[0].endswith(".bmb") or raw_args[0].endswith(".py") or raw_args[0].endswith(".tntgraph") or raw_args[0].endswith(".bmbgraph"):
             raw_args.insert(0, "run")
             argv = raw_args
+    invoked_as = os.path.basename(sys.argv[0]).lower().replace(".exe", "")
+    prog_name = "tnt" if "tnt" in invoked_as else "bmb"
     parser = argparse.ArgumentParser(
-        prog="bmb",
-        description="Black Mamba (.bmb) — High-Performance Native Python Superset & Multi-Target Compiler",
+        prog=prog_name,
+        description="TinyTalk (.tnt) -- Explosive Performance, Live Smalltalk Heritage & Zero-Syntax Semantic Substrate",
     )
-    parser.add_argument("--version", "-v", action="version", version=f"Black Mamba {__version__}")
+    parser.add_argument("--version", "-v", action="version", version=f"TinyTalk {__version__} [tnt / bmb]")
     sub = parser.add_subparsers(dest="command")
 
     p_run = sub.add_parser("run", help="Compile and execute a .bmb file immediately via the native x86-64 JIT")
@@ -2474,7 +2476,7 @@ def main(argv: Optional[list] = None) -> int:
     p_transmute = sub.add_parser("transmute", help="Lossless 3-way transmutation and continuous autonomous refactoring")
     p_transmute.add_argument("action", nargs="?", choices=["convert", "refactor", "bench"], default="convert", help="Action (convert, refactor, bench)")
     p_transmute.add_argument("file", nargs="?", help="Input file path (.py, .bmb, or .bmbgraph)")
-    p_transmute.add_argument("--target", "-t", choices=["bmb", "py", "graph"], default="bmb", help="Target transmutation format (default: bmb)")
+    p_transmute.add_argument("--target", "-t", choices=["tnt", "bmb", "py", "graph"], default="bmb", help="Target transmutation format (default: bmb)")
     p_transmute.add_argument("--output", "-o", help="Output destination file")
     p_transmute.add_argument("--iters", "-i", type=int, default=500, help="Benchmark iterations (default: 500)")
     p_transmute.add_argument("--json", "-j", action="store_true", help="Output as JSON")
