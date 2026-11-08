@@ -716,6 +716,12 @@ def main(argv: Optional[list] = None) -> int:
     p_dep.add_argument("--name", "-n", help="Cloud service / function name")
     p_dep.add_argument("--output", "-o", help="Output directory for deployment artifacts")
 
+    p_std = sub.add_parser("studio", help="Launch the Smalltalk-inspired Reactive GUI Studio and Inquisitor Agent")
+    p_std.add_argument("--port", "-p", type=int, default=8765, help="Port to bind the Studio web server to (default: 8765)")
+    p_std.add_argument("--host", default="127.0.0.1", help="Host address to bind to (default: 127.0.0.1)")
+    p_std.add_argument("--no-browser", action="store_true", help="Do not automatically launch web browser")
+    p_std.add_argument("--cli", action="store_true", help="Launch interactive Socratic interview in terminal instead of GUI")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -754,6 +760,9 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_kernel(args)
     if args.command == "deploy":
         return cmd_deploy(args)
+    if args.command == "studio":
+        from .studio import cmd_studio
+        return cmd_studio(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:
