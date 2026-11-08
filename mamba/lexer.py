@@ -100,6 +100,7 @@ class TokenType(Enum):
     SLASH_EQ = auto()      # /=
     DSLASH_EQ = auto()     # //=
     PERCENT_EQ = auto()    # %=
+    POW_EQ = auto()        # **=
     AMP_EQ = auto()        # &=
     PIPE_EQ = auto()       # |=
     CARET_EQ = auto()      # ^=
@@ -269,6 +270,10 @@ class Lexer:
 
             # Multi-character operators (3 chars)
             three = line[i : i + 3]
+            if three == "**=":
+                self.tokens.append(Token(TokenType.POW_EQ, "**=", line_num, col))
+                i += 3
+                continue
             if three == "//=":
                 self.tokens.append(Token(TokenType.DSLASH_EQ, "//=", line_num, col))
                 i += 3

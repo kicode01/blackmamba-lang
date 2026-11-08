@@ -761,6 +761,7 @@ def cmd_fuzz(args: argparse.Namespace) -> int:
         codec_count=args.codec,
         arena_count=args.arena,
         chaos_count=args.chaos,
+        historical_count=getattr(args, "hist", 10),
     )
     if getattr(args, "json", False):
         print(json.dumps(report.to_dict(), indent=2))
@@ -1012,6 +1013,7 @@ def main(argv: Optional[list] = None) -> int:
     p_fuz.add_argument("--codec", type=int, default=25, help="Token-Sparse .bmbs codec round-trip cases (default: 25)")
     p_fuz.add_argument("--arena", type=int, default=15, help="Nested struct & lexical arena stress cases (default: 15)")
     p_fuz.add_argument("--chaos", type=int, default=30, help="Hostile parser mutation chaos cases (default: 30)")
+    p_fuz.add_argument("--hist", type=int, default=10, help="Historical v0.1-v2.3 feature audit cases per vector (default: 10)")
     p_fuz.add_argument("--json", "-j", action="store_true", help="Output fuzz report as JSON")
 
     args = parser.parse_args(argv)

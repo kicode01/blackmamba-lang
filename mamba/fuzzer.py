@@ -301,6 +301,110 @@ print(r.branch.leaf_a.weight)
 print(r.branch.leaf_b.tag)
 """
 
+    def generate_float_and_pow_program(self, idx: int) -> str:
+        f1 = round(self.rng.uniform(-25.0, 25.0), 2)
+        f2 = round(self.rng.choice([-4.5, -2.0, -1.25, 1.25, 2.0, 3.5, 5.0]), 2)
+        base = self.rng.choice([-3, -2, 2, 3, 4])
+        exp = self.rng.randint(2, 6)
+        sh = self.rng.randint(1, 5)
+        n_div = self.rng.randint(-40, -5)
+        d_div = self.rng.choice([3, 5, 7])
+        return f"""x = {f1}
+y = {f2}
+print(int(x), int(y), int(abs(x) * 10.0))
+z = {idx} + y
+print(int(z * 4.0))
+p = {base} ** {exp}
+p **= 2
+q = {n_div}
+q //= {d_div}
+r = {n_div}
+r %= {d_div}
+s = (1 << {sh}) + (-32 >> 2)
+print(p, q, r, s)
+"""
+
+    def generate_string_and_slice_program(self, idx: int) -> str:
+        words = ["BlackMamba", "NeuroSymbolic", "MorphicCanvas", "ZeroCeremony", "TokenSparse"]
+        w1 = words[idx % len(words)]
+        w2 = words[(idx + 2) % len(words)]
+        n = len(w1)
+        s_pos = self.rng.randint(0, max(1, n // 2 - 1))
+        e_pos = self.rng.randint(max(s_pos + 1, n // 2), n - 1)
+        neg_s = -self.rng.randint(3, min(7, n - 1))
+        neg_e = -self.rng.randint(1, 2)
+        return f"""s = "{w1}"
+t = "{w2}"
+u = s + "_" + t
+print(len(s), len(u))
+print(s[0], s[{s_pos}], s[-1], s[{neg_s}])
+print(s[{s_pos}:{e_pos}], s[:{e_pos}], s[{s_pos}:])
+print(s[{neg_s}:{neg_e}], s[:{neg_e}], s[{neg_s}:])
+"""
+
+    def generate_oop_and_exception_program(self, idx: int) -> str:
+        v0 = self.rng.randint(2, 20)
+        m0 = self.rng.randint(2, 6)
+        arg = self.rng.randint(1, 15)
+        flag = idx % 2
+        return f"""class Base:
+    def __init__(self, v: int):
+        self.v = v
+    def calc(self, x: int) -> int:
+        return self.v + x
+
+class Derived(Base):
+    def __init__(self, v: int, m: int):
+        super().__init__(v)
+        self.m = m
+    def calc(self, x: int) -> int:
+        return super().calc(x) * self.m
+
+def run_try(flag: int) -> int:
+    acc = 5
+    try:
+        acc += 10
+        if flag == 1:
+            raise ValueError("err")
+        acc += 20
+    except ValueError:
+        acc += 100
+    finally:
+        acc += 1
+    return acc
+
+d = Derived({v0}, {m0})
+print(d.calc({arg}), run_try({flag}), run_try(1 - {flag}))
+"""
+
+    def generate_ergonomics_program(self, idx: int) -> str:
+        n = self.rng.randint(6, 14)
+        mod_v = self.rng.choice([2, 3])
+        lo = self.rng.randint(-5, 2)
+        hi = self.rng.randint(8, 20)
+        probe = self.rng.randint(-10, 25)
+        return f"""arr = [i * i + {idx} for i in range({n}) if i % {mod_v} == 0]
+arr[-1] = arr[-1] + 7
+def classify(v: int) -> int:
+    match v:
+        case 0:
+            return 10
+        case 1 | 2 | 3:
+            return 20
+        case x if x < 0:
+            return x * 2
+        case _:
+            return 99
+
+def in_bounds(v: int) -> int:
+    if {lo} < v < {hi}:
+        return 1
+    return 0
+
+d = {{"k1": arr[0], "k2": arr[-1]}}
+print(len(arr), d["k1"], d["k2"], classify({probe}), classify(-7), in_bounds({probe}))
+"""
+
     def run_suite(
         self,
         differential_count: int = 30,
@@ -308,6 +412,7 @@ print(r.branch.leaf_b.tag)
         codec_count: int = 25,
         arena_count: int = 15,
         chaos_count: int = 30,
+        historical_count: int = 10,
     ) -> FuzzReport:
         t0 = time.perf_counter()
         failures: List[FuzzFailure] = []
@@ -510,6 +615,83 @@ print(r.branch.leaf_b.tag)
                         )
                     )
         stats["5_hostile_parser_chaos"] = (v5_pass, chaos_count)
+
+        if historical_count > 0:
+            # Vector 6: Floats, Mixed Numeric, Pow (** / **=) & Bitshifts
+            v6_pass = 0
+            for i in range(historical_count):
+                total += 1
+                prog = self.generate_float_and_pow_program(i)
+                try:
+                    exp_out = run_cpython_oracle(prog).strip()
+                    act_out = run_mamba_jit(prog).strip()
+                    if exp_out != act_out:
+                        failures.append(
+                            FuzzFailure("float_and_pow", self.seed, i, "Float/pow mismatch", prog, exp_out, act_out)
+                        )
+                    else:
+                        v6_pass += 1
+                        passed += 1
+                except Exception as e:
+                    failures.append(FuzzFailure("float_and_pow", self.seed, i, str(e), prog, "ok", repr(e)))
+            stats["6_float_and_mixed_numeric"] = (v6_pass, historical_count)
+
+            # Vector 7: Strings, Negative Indexing & Negative/Omitted Slicing
+            v7_pass = 0
+            for i in range(historical_count):
+                total += 1
+                prog = self.generate_string_and_slice_program(i)
+                try:
+                    exp_out = run_cpython_oracle(prog).strip()
+                    act_out = run_mamba_jit(prog).strip()
+                    if exp_out != act_out:
+                        failures.append(
+                            FuzzFailure("strings_and_slicing", self.seed, i, "String/slice mismatch", prog, exp_out, act_out)
+                        )
+                    else:
+                        v7_pass += 1
+                        passed += 1
+                except Exception as e:
+                    failures.append(FuzzFailure("strings_and_slicing", self.seed, i, str(e), prog, "ok", repr(e)))
+            stats["7_strings_and_slicing"] = (v7_pass, historical_count)
+
+            # Vector 8: OOP Inheritance, super() & try/except/finally Unwinding
+            v8_pass = 0
+            for i in range(historical_count):
+                total += 1
+                prog = self.generate_oop_and_exception_program(i)
+                try:
+                    exp_out = run_cpython_oracle(prog).strip()
+                    act_out = run_mamba_jit(prog).strip()
+                    if exp_out != act_out:
+                        failures.append(
+                            FuzzFailure("oop_and_exceptions", self.seed, i, "OOP/exception mismatch", prog, exp_out, act_out)
+                        )
+                    else:
+                        v8_pass += 1
+                        passed += 1
+                except Exception as e:
+                    failures.append(FuzzFailure("oop_and_exceptions", self.seed, i, str(e), prog, "ok", repr(e)))
+            stats["8_oop_inheritance_exceptions"] = (v8_pass, historical_count)
+
+            # Vector 9: Comprehensions, Negative Array Indexing, Match Guards & Chained Comparisons
+            v9_pass = 0
+            for i in range(historical_count):
+                total += 1
+                prog = self.generate_ergonomics_program(i)
+                try:
+                    exp_out = run_cpython_oracle(prog).strip()
+                    act_out = run_mamba_jit(prog).strip()
+                    if exp_out != act_out:
+                        failures.append(
+                            FuzzFailure("ergonomics_comp_match", self.seed, i, "Ergonomics mismatch", prog, exp_out, act_out)
+                        )
+                    else:
+                        v9_pass += 1
+                        passed += 1
+                except Exception as e:
+                    failures.append(FuzzFailure("ergonomics_comp_match", self.seed, i, str(e), prog, "ok", repr(e)))
+            stats["9_ergonomics_comprehensions_match"] = (v9_pass, historical_count)
 
         elapsed_ms = (time.perf_counter() - t0) * 1000.0
         return FuzzReport(

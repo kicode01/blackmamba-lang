@@ -973,11 +973,11 @@ class X86_64CodeBuffer:
             elif op == "PRINT":
                 types = [t for t in (ins.comment or "").split(",") if t]
                 for idx, (arg_v, arg_t) in enumerate(zip(ins.extra, types)):
-                    if idx > 0 and (types[idx - 1] != "str" and arg_t != "str"):
+                    if idx > 0 and (types[idx - 1] != "str_raw" and arg_t != "str_raw"):
                         self.mov_rcx_imm64(4)
                         self.emit(b"\x48\x31\xD2", "xor rdx, rdx")
                         emit_helper_call("print")
-                    kind_map = {"i64": 0, "f64": 1, "bool": 2, "str": 3}
+                    kind_map = {"i64": 0, "f64": 1, "bool": 2, "str": 3, "str_raw": 3}
                     k = kind_map.get(arg_t, 0)
                     self.mov_rcx_imm64(k)
                     load_into("rdx", arg_v)
@@ -1209,7 +1209,7 @@ class NativeJITModule:
                 if start < 0:
                     start = max(0, orig_len + start)
                 if stop < 0:
-                    stop = orig_len
+                    stop = max(0, orig_len + stop)
                 start = min(start, orig_len)
                 stop = min(max(stop, start), orig_len)
                 slice_len = stop - start
@@ -1228,7 +1228,7 @@ class NativeJITModule:
                 if start < 0:
                     start = max(0, orig_len + start)
                 if stop < 0:
-                    stop = orig_len
+                    stop = max(0, orig_len + stop)
                 start = min(start, orig_len)
                 stop = min(max(stop, start), orig_len)
                 return make_str_handle(b[start:stop])

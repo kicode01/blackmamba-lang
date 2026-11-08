@@ -797,6 +797,7 @@ class MIRBuilder:
                 ign = self.new_temp(local_types, "i64")
                 instrs.append(MIRInstr(op="CALL", dst=ign, arg1="__bmb_dyn_set", extra=[arr_v, key_s, val_v], val_type="i64"))
                 return
+            idx_v = self._normalize_array_index(arr_v, stmt.index, idx_v, instrs, local_types)
             elem_t = "f64" if self._is_f64_array(arr_t) or val_t == "f64" else "i64"
             if elem_t == "f64" and val_t == "i64":
                 conv = self.new_temp(local_types, "f64")
@@ -808,6 +809,7 @@ class MIRBuilder:
         if isinstance(stmt, IndexAugAssign):
             arr_v, arr_t = self._lower_expr(stmt.target, instrs, local_types)
             idx_v, _ = self._lower_expr(stmt.index, instrs, local_types)
+            idx_v = self._normalize_array_index(arr_v, stmt.index, idx_v, instrs, local_types)
             elem_t = "f64" if self._is_f64_array(arr_t) else "i64"
             cur_v = self.new_temp(local_types, elem_t)
             instrs.append(MIRInstr(op="LOAD_IDX", dst=cur_v, arg1=arr_v, arg2=idx_v, val_type=elem_t))
@@ -1132,7 +1134,17 @@ class MIRBuilder:
                 if case.pattern is not None:
                     alts = _flatten_match_alts(case.pattern)
                     cmp_op = "STR_CMP_EQ" if subj_t == "str" else ("CMP_EQ_F64" if subj_t == "f64" else "CMP_EQ_I64")
-                    if len(alts) == 1:
+                    if (
+                        len(alts) == 1
+                        and isinstance(alts[0], Var)
+                        and alts[0].name not in getattr(self, "constants", {})
+                        and alts[0].name not in local_types
+                    ):
+                        # Irrefutable capture variable pattern (e.g. `case x if x < 0:`)
+                        cap_name = alts[0].name
+                        local_types[cap_name] = subj_t
+                        instrs.append(MIRInstr(op="MOV", dst=cap_name, arg1=subj_v, val_type=subj_t))
+                    elif len(alts) == 1:
                         pat_v, _ = self._lower_expr(alts[0], instrs, local_types)
                         cmp_t = self.new_temp(local_types, "bool")
                         instrs.append(MIRInstr(op=cmp_op, dst=cmp_t, arg1=subj_v, arg2=pat_v, val_type="bool"))
@@ -1264,6 +1276,32 @@ class MIRBuilder:
             instrs.append(MIRInstr(op="CALL", dst=ign, arg1="__bmb_mem_write", extra=[dict_v, s_tmp, zero], val_type="i64"))
         return dict_v
 
+    def _normalize_array_index(
+        self,
+        arr_v: str,
+        idx_expr: Expr,
+        idx_v: str,
+        instrs: List[MIRInstr],
+        local_types: Dict[str, str],
+    ) -> str:
+        """
+        Normalize negative Python array indices (`arr[-1] -> arr[len(arr) - 1]`) while keeping
+        zero overhead for non-negative integer literals and standard loop induction expressions.
+        """
+        if isinstance(idx_expr, IntLit) and idx_expr.value >= 0:
+            return idx_v
+        if (isinstance(idx_expr, IntLit) and idx_expr.value < 0) or (
+            isinstance(idx_expr, UnaryOp) and idx_expr.op == "-"
+        ):
+            neg_one = self.new_temp(local_types, "i64")
+            arr_len = self.new_temp(local_types, "i64")
+            adj_idx = self.new_temp(local_types, "i64")
+            instrs.append(MIRInstr(op="CONST_I64", dst=neg_one, arg1=-1, val_type="i64"))
+            instrs.append(MIRInstr(op="LOAD_IDX", dst=arr_len, arg1=arr_v, arg2=neg_one, val_type="i64"))
+            instrs.append(MIRInstr(op="ADD_I64", dst=adj_idx, arg1=arr_len, arg2=idx_v, val_type="i64"))
+            return adj_idx
+        return idx_v
+
     def _emit_comp_iter_loop(
         self,
         iter_expr: Expr,
@@ -1273,9 +1311,9 @@ class MIRBuilder:
         body_callback,
     ) -> None:
         if isinstance(iter_expr, RangeExpr) or (isinstance(iter_expr, Call) and iter_expr.func in ("range", "prange")):
-            start_e: Expr = IntLit(0)
-            stop_e: Expr = IntLit(0)
-            step_e: Expr = IntLit(1)
+            start_e: Expr = IntLit(value=0)
+            stop_e: Expr = IntLit(value=0)
+            step_e: Expr = IntLit(value=1)
             inclusive = False
             if isinstance(iter_expr, Call):
                 if len(iter_expr.args) == 1:
@@ -1649,9 +1687,9 @@ class MIRBuilder:
                 isinstance(expr.iter_expr, Call) and expr.iter_expr.func in ("range", "prange")
             )
             if expr.cond is None and is_range:
-                start_e: Expr = IntLit(0)
-                stop_e: Expr = IntLit(0)
-                step_e: Expr = IntLit(1)
+                start_e: Expr = IntLit(value=0)
+                stop_e: Expr = IntLit(value=0)
+                step_e: Expr = IntLit(value=1)
                 inclusive = False
                 if isinstance(expr.iter_expr, Call):
                     if len(expr.iter_expr.args) == 1:
@@ -1844,6 +1882,7 @@ class MIRBuilder:
                 elem_t = "f64"
             else:
                 elem_t = "i64"
+            idx_v = self._normalize_array_index(arr_v, expr.index, idx_v, instrs, local_types)
             dst = self.new_temp(local_types, elem_t)
             instrs.append(MIRInstr(op="LOAD_IDX", dst=dst, arg1=arr_v, arg2=idx_v, val_type=elem_t))
             return dst, elem_t
@@ -1852,14 +1891,30 @@ class MIRBuilder:
             tgt_v, tgt_t = self._lower_expr(expr.target, instrs, local_types)
             if expr.start is not None:
                 start_v, _ = self._lower_expr(expr.start, instrs, local_types)
+                if (isinstance(expr.start, IntLit) and expr.start.value < 0) or (
+                    isinstance(expr.start, UnaryOp) and expr.start.op == "-"
+                ):
+                    slen_s = self.new_temp(local_types, "i64")
+                    adj_s = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="STR_LEN", dst=slen_s, arg1=tgt_v, val_type="i64"))
+                    instrs.append(MIRInstr(op="ADD_I64", dst=adj_s, arg1=slen_s, arg2=start_v, val_type="i64"))
+                    start_v = adj_s
             else:
                 start_v = self.new_temp(local_types, "i64")
                 instrs.append(MIRInstr(op="CONST_I64", dst=start_v, arg1=0, val_type="i64"))
             if expr.stop is not None:
                 stop_v, _ = self._lower_expr(expr.stop, instrs, local_types)
+                if (isinstance(expr.stop, IntLit) and expr.stop.value < 0) or (
+                    isinstance(expr.stop, UnaryOp) and expr.stop.op == "-"
+                ):
+                    slen_e = self.new_temp(local_types, "i64")
+                    adj_e = self.new_temp(local_types, "i64")
+                    instrs.append(MIRInstr(op="STR_LEN", dst=slen_e, arg1=tgt_v, val_type="i64"))
+                    instrs.append(MIRInstr(op="ADD_I64", dst=adj_e, arg1=slen_e, arg2=stop_v, val_type="i64"))
+                    stop_v = adj_e
             else:
                 stop_v = self.new_temp(local_types, "i64")
-                instrs.append(MIRInstr(op="CONST_I64", dst=stop_v, arg1=-1, val_type="i64"))
+                instrs.append(MIRInstr(op="STR_LEN", dst=stop_v, arg1=tgt_v, val_type="i64"))
             dst = self.new_temp(local_types, "str")
             instrs.append(MIRInstr(op="STR_SLICE", dst=dst, arg1=tgt_v, arg2=start_v, extra=[stop_v], val_type="str"))
             return dst, "str"
@@ -1950,12 +2005,19 @@ class MIRBuilder:
                                 pv = self._coerce_exc_or_scalar_to_str(pv, pt, instrs, local_types)
                                 pt = "str"
                             arg_vals.append(pv)
-                            arg_types.append(pt)
+                            arg_types.append("str_raw" if pt == "str" else pt)
                     else:
                         av, at = self._lower_expr(a, instrs, local_types)
                         if at in self.mro and "BaseException" in self.mro[at]:
                             av = self._coerce_exc_or_scalar_to_str(av, at, instrs, local_types)
                             at = "str"
+                        if isinstance(a, StringLit) and (
+                            a.value.endswith(" ")
+                            or a.value.endswith("\t")
+                            or a.value.endswith(":")
+                            or a.value.endswith("=")
+                        ):
+                            at = "str_raw"
                         arg_vals.append(av)
                         arg_types.append(at)
                 instrs.append(

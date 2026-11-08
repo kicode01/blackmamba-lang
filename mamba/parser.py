@@ -682,6 +682,7 @@ class Parser:
             TokenType.SLASH_EQ,
             TokenType.DSLASH_EQ,
             TokenType.PERCENT_EQ,
+            TokenType.POW_EQ,
             TokenType.AMP_EQ,
             TokenType.PIPE_EQ,
             TokenType.CARET_EQ,
@@ -782,13 +783,27 @@ class Parser:
     def parse_comparison(self) -> Expr:
         left = self.parse_range()
         comp_types = (TokenType.EQ, TokenType.NE, TokenType.LT, TokenType.LE, TokenType.GT, TokenType.GE)
+        tok = self.match(*comp_types)
+        if not tok:
+            return left
+        right = self.parse_range()
+        result: Expr = BinOp(line=left.line, col=left.col, op=tok.value, left=left, right=right)
+        prev_operand = right
         while True:
-            tok = self.match(*comp_types)
-            if not tok:
+            next_tok = self.match(*comp_types)
+            if not next_tok:
                 break
-            right = self.parse_range()
-            left = BinOp(line=left.line, col=left.col, op=tok.value, left=left, right=right)
-        return left
+            next_right = self.parse_range()
+            next_cmp = BinOp(
+                line=prev_operand.line,
+                col=prev_operand.col,
+                op=next_tok.value,
+                left=prev_operand,
+                right=next_right,
+            )
+            result = BinOp(line=left.line, col=left.col, op="and", left=result, right=next_cmp)
+            prev_operand = next_right
+        return result
 
     def parse_range(self) -> Expr:
         left = self.parse_bitor()

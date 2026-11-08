@@ -674,13 +674,13 @@ class C11Backend:
                 types = [t for t in (ins.comment or "").split(",") if t]
                 for idx, (pv, pt) in enumerate(zip(ins.extra, types)):
                     cpv = _c_ident(pv)
-                    if idx > 0 and (types[idx - 1] != "str" and pt != "str"):
+                    if idx > 0 and (types[idx - 1] != "str_raw" and pt != "str_raw"):
                         out.append('    printf(" ");')
                     if pt == "f64":
                         out.append(f'    printf("%.6g", (double){cpv});')
                     elif pt == "bool":
                         out.append(f'    printf("%s", ({cpv}) ? "True" : "False");')
-                    elif pt == "str":
+                    elif pt in ("str", "str_raw"):
                         out.append(f'    printf("%s", {cpv});')
                     else:
                         out.append(f'    printf("%lld", (long long){cpv});')

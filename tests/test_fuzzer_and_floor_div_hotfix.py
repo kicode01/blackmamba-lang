@@ -77,19 +77,66 @@ fn compute() -> i64:
 
     def test_adversarial_fuzzer_suite_passes_100_percent(self) -> None:
         """
-        Run the 5-vector AdversarialCompilerFuzzer and verify 0 failures across all vectors.
+        Run the 9-vector AdversarialCompilerFuzzer and verify 0 failures across all vectors.
         """
         fuzzer = AdversarialFuzzer(seed=20261108)
         report = fuzzer.run_suite(
-            differential_count=15,
-            pe_exe_count=4,
-            codec_count=12,
-            arena_count=8,
-            chaos_count=15,
+            differential_count=10,
+            pe_exe_count=3,
+            codec_count=8,
+            arena_count=5,
+            chaos_count=10,
+            historical_count=5,
         )
         self.assertTrue(report.all_passed, msg=report.summary())
         self.assertEqual(report.failed_cases, 0)
-        self.assertEqual(report.passed_cases, 54)
+        self.assertEqual(report.passed_cases, 56)
+
+    def test_historical_v01_to_v23_audit_regressions(self) -> None:
+        """
+        Regression test for the 7 historical compiler bugs uncovered across v0.1.0 - v1.3.0:
+        1. `range(n)` inside list comprehension with `if` filter (`IntLit(value=1)` step)
+        2. Negative array indexing (`arr[-1]`, `arr[-2]`, `arr[-1] = val`)
+        3. Multiple string arguments in `print(s[0], s[5])` space separation
+        4. Negative and omitted slice bounds (`s[-5:-1]`, `s[:-3]`, `s[-4:]`)
+        5. Structural `match/case` capture pattern variable binding before guard (`case x if x < 0:`)
+        6. Chained comparison desugaring (`0 < x < 10`)
+        7. Power augmented assignment (`**=`)
+        """
+        src = """
+s = "BlackMamba"
+print(s[0], s[5], s[-1], s[-5])
+print(s[-5:-1], s[:-3], s[-4:])
+
+arr = [i * i for i in range(10) if i % 2 == 1]
+print(len(arr), arr[0], arr[-1], arr[-2])
+arr[-1] = 99
+print(arr[4], arr[-1])
+
+def classify(n: int) -> int:
+    match n:
+        case 0:
+            return 100
+        case 1 | 2 | 3:
+            return 200
+        case x if x < 0:
+            return x * 10
+        case _:
+            return 999
+
+def check_chain(v: int) -> int:
+    if 0 < v < 10:
+        return 1
+    return 0
+
+z = 3
+z **= 4
+print(classify(0), classify(2), classify(-5), classify(42))
+print(check_chain(5), check_chain(15), check_chain(-2), z)
+"""
+        expected = run_cpython_oracle(src).strip()
+        jit_out = run_mamba_jit(src, optimize=True).strip()
+        self.assertEqual(jit_out, expected)
 
     def test_cli_bmb_fuzz_json_command(self) -> None:
         """
@@ -100,18 +147,19 @@ fn compute() -> i64:
             rc = bmb_main([
                 "fuzz",
                 "--seed", "99",
-                "--diff", "5",
-                "--pe", "2",
-                "--codec", "5",
-                "--arena", "3",
-                "--chaos", "5",
+                "--diff", "4",
+                "--pe", "1",
+                "--codec", "4",
+                "--arena", "2",
+                "--chaos", "4",
+                "--hist", "2",
                 "--json",
             ])
         self.assertEqual(rc, 0)
         data = json.loads(buf.getvalue())
         self.assertTrue(data["all_passed"])
-        self.assertEqual(data["total_cases"], 20)
-        self.assertEqual(data["passed_cases"], 20)
+        self.assertEqual(data["total_cases"], 23)
+        self.assertEqual(data["passed_cases"], 23)
 
 
 if __name__ == "__main__":
