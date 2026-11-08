@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.7.0"
+__version__ = "3.8.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -196,6 +196,13 @@ from .vcs import (
     diff_graphs,
     merge_graphs,
     benchmark_vcs_engine,
+)
+from .graph_mir import (
+    GraphMIREmitter,
+    compile_hypergraph_to_mir,
+    compile_hypergraph_to_jit,
+    compile_hypergraph_to_exe,
+    benchmark_graph_to_mir,
 )
 
 
@@ -391,5 +398,10 @@ __all__ = [
     "diff_graphs",
     "merge_graphs",
     "benchmark_vcs_engine",
+    "GraphMIREmitter",
+    "compile_hypergraph_to_mir",
+    "compile_hypergraph_to_jit",
+    "compile_hypergraph_to_exe",
+    "benchmark_graph_to_mir",
 ]
 

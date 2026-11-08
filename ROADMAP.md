@@ -536,9 +536,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [x] **Phase 10D (`v3.7.0`) — Semantic 3-Way Graph VCS & Conflict-Free Structural Diff (`bmb vcs`)**:
   - [x] Native AST-aware graph diff (`bmb diff --graph`) and 3-way merge engine replacing line-based Git.
   - [x] Disjoint structural merging with zero merge conflicts for independent AST symbols.
-- [ ] **Phase 10E (`v3.8.0`) — Direct Hypergraph-to-MIR Native Compiler Pipeline (`bmb compile --graph`)**:
-  - [ ] Zero-copy mmap graph lowering directly to 3-address SSA MIR and machine code in `< 0.2 ms` (10x faster than text compilation).
-  - [ ] Whole-graph type inference and cross-module inlining without file boundaries.
+- [x] **Phase 10E (`v3.8.0`) — Direct Hypergraph-to-MIR Native Compiler Pipeline (`bmb compile --graph`)**:
+  - [x] Zero-copy mmap graph lowering directly to 3-address SSA MIR and machine code in `< 0.2 ms` (10x faster than text compilation).
+  - [x] Whole-graph type inference and cross-module inlining without file boundaries.
 - [ ] **Phase 10F (`v3.9.0`) — Lossless Transmutation & Continuous Autonomous Refactoring (`bmb transmute`)**:
   - [ ] Bidirectional lossless roundtripping: `.py` <-> `.bmb` <-> `.bmbgraph` with 100% syntactic and comment preservation.
   - [ ] Continuous graph refactoring & spec evolution engine with automated invariant synthesis.

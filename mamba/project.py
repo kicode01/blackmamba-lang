@@ -35,6 +35,10 @@ class ProjectionEngine:
         lines.append(f"# Projection: Pythonic Black Mamba (Hash: {graph.metadata.get('root_hash', 'N/A')[:16]}...)")
         
         for node in graph.nodes.values():
+            if node.payload.get("code"):
+                lines.append(node.payload["code"])
+                continue
+
             if node.kind == NodeKind.STRUCT:
                 name = node.payload.get("name", "Struct")
                 lines.append(f"\nstruct {name}:")

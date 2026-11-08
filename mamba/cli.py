@@ -46,8 +46,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     if not os.path.exists(args.file):
         print(f"Error: File not found: {args.file}", file=sys.stderr)
         return 1
-    with open(args.file, "r", encoding="utf-8") as f:
-        source = f.read()
+    if args.file.endswith(".bmbgraph"):
+        from .graph import HyperGraph
+        from .graph_mir import GraphMIREmitter
+        graph = HyperGraph.load(args.file)
+        source = GraphMIREmitter.graph_to_source(graph)
+    else:
+        with open(args.file, "r", encoding="utf-8") as f:
+            source = f.read()
 
     # Drop-in Python file execution: if running .py file, migrate transparently in-memory
     if args.file.endswith(".py"):
@@ -80,10 +86,15 @@ def cmd_build(args: argparse.Namespace) -> int:
     if not os.path.exists(args.file):
         print(f"Error: File not found: {args.file}", file=sys.stderr)
         return 1
-    with open(args.file, "r", encoding="utf-8") as f:
-        source = f.read()
-
-    mir = compile_source_to_mir(source, args.file)
+    if args.file.endswith(".bmbgraph"):
+        from .graph import HyperGraph
+        from .graph_mir import GraphMIREmitter
+        graph = HyperGraph.load(args.file)
+        mir = GraphMIREmitter.compile_graph_to_mir(graph, filename=args.file)
+    else:
+        with open(args.file, "r", encoding="utf-8") as f:
+            source = f.read()
+        mir = compile_source_to_mir(source, args.file)
     base_name = os.path.splitext(os.path.basename(args.file))[0]
     out_dir = os.path.dirname(os.path.abspath(args.output)) if args.output else os.path.join(os.getcwd(), "build")
     os.makedirs(out_dir, exist_ok=True)
@@ -1929,7 +1940,7 @@ def main(argv: Optional[list] = None) -> int:
         "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec", "ocap", "fiber", "xbuild", "sign", "provenance", "graph", "project", "latent", "vcs",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
-        if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
+        if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb") or raw_args[0].endswith(".bmbgraph"):
             raw_args.insert(0, "run")
             argv = raw_args
     parser = argparse.ArgumentParser(

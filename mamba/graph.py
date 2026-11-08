@@ -196,10 +196,16 @@ def source_to_hypergraph(source_code: str, module_name: str = "main") -> HyperGr
     root_id = graph.add_node(NodeKind.MODULE, {"name": module_name})
     graph.root_id = root_id
 
-    for stmt in getattr(ast, "statements", []):
+    source_lines = source_code.splitlines()
+    stmts = getattr(ast, "statements", [])
+    for i, stmt in enumerate(stmts):
+        start_line = max(0, getattr(stmt, "line", 1) - 1)
+        end_line = max(start_line + 1, getattr(stmts[i + 1], "line", len(source_lines) + 1) - 1) if i + 1 < len(stmts) else len(source_lines)
+        code_chunk = "\n".join(source_lines[start_line:end_line]).rstrip()
+
         if isinstance(stmt, StructDef):
             fields_meta = [{"name": f.name, "type": str(getattr(f, "type_annotation", "Any"))} for f in getattr(stmt, "fields", [])]
-            sid = graph.add_node(NodeKind.STRUCT, {"name": stmt.name, "fields": fields_meta})
+            sid = graph.add_node(NodeKind.STRUCT, {"name": stmt.name, "fields": fields_meta, "code": code_chunk})
             graph.nodes[root_id].children.append(sid)
 
         elif isinstance(stmt, FuncDef):
@@ -214,14 +220,14 @@ def source_to_hypergraph(source_code: str, module_name: str = "main") -> HyperGr
 
             fid = graph.add_node(
                 NodeKind.FN,
-                {"name": stmt.name, "params": params_meta, "return_type": return_type},
+                {"name": stmt.name, "params": params_meta, "return_type": return_type, "code": code_chunk},
                 children=body_children,
             )
             graph.nodes[root_id].children.append(fid)
 
         else:
             clean_raw = re.sub(r'\b(line|col)=\d+,?\s*', '', str(stmt))
-            oid = graph.add_node(NodeKind.STMT, {"type": type(stmt).__name__, "raw": clean_raw})
+            oid = graph.add_node(NodeKind.STMT, {"type": type(stmt).__name__, "raw": clean_raw, "code": code_chunk})
             graph.nodes[root_id].children.append(oid)
 
     graph.compute_hashes()
