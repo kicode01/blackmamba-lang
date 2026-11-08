@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "2.7.0"
+__version__ = "2.8.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -102,6 +102,11 @@ from .autograd import (
     SGD,
     AdamW,
     emit_gpu_tensor_shader,
+)
+from .shm import (
+    SharedMemoryArena,
+    SharedRingQueue,
+    benchmark_shm_throughput,
 )
 
 
@@ -221,5 +226,8 @@ __all__ = [
     "SGD",
     "AdamW",
     "emit_gpu_tensor_shader",
+    "SharedMemoryArena",
+    "SharedRingQueue",
+    "benchmark_shm_throughput",
 ]
 

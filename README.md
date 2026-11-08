@@ -7,9 +7,9 @@
 
 ### **"Write like Python, Execute like C, Compile Anywhere."**
 
-[![Release](https://img.shields.io/badge/release-v2.7.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v2.7.0)
+[![Release](https://img.shields.io/badge/release-v2.8.0%20Stable-gold?style=for-the-badge)](https://github.com/kicode01/blackmamba-lang/releases/tag/v2.8.0)
 [![Build Status](https://img.shields.io/badge/build-passing-brightgreen?style=for-the-badge&logo=github)](tests/test_mamba.py)
-[![Test Suite](https://img.shields.io/badge/tests-180%2F180%20(100%25)-success?style=for-the-badge)](tests/test_phase8d_autograd.py)
+[![Test Suite](https://img.shields.io/badge/tests-187%2F187%20(100%25)-success?style=for-the-badge)](tests/test_phase8e_shm.py)
 [![Speedup](https://img.shields.io/badge/speedup-12x%20--%2030.5x%20vs%20CPython%203.14-orange?style=for-the-badge)](#-performance-black-mamba-vs-cpython-314)
 [![Binaries](https://img.shields.io/badge/binary%20size-5.5%20KB%20EXE%20%7C%201.7%20KB%20WASM-blue?style=for-the-badge)](#-binary-footprint-the-lightweight-revolution)
 [![Containers](https://img.shields.io/badge/OCI%20container-~20%20KB%20Zero--Daemon-purple?style=for-the-badge)](#-zero-base-containers--micro-vms-new-in-v20)
@@ -18,7 +18,7 @@
 
 ---
 
-**Black Mamba (`v2.7.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
+**Black Mamba (`v2.8.0`)** is an ultra-fast, self-hosting, zero-cost-abstraction systems programming language and multi-target native compiler designed to overcome Python's 35-year architectural bottlenecks without sacrificing syntax simplicity, dynamic power, or developer joy.
 
 [⚡ The 30-Second Mental Model](#-the-30-second-mental-model-how-black-mamba-compares) • 
 [⚡ Benchmarks](#-performance-black-mamba-vs-cpython-314) • 
@@ -460,6 +460,7 @@ kernel(t_x.data_ptr(), t_y.data_ptr(), 2.5, 10_000_000)
 | `bmb test` | Discover and run all project test suites | `bmb test` |
 | `bmb add` | Add dependency to `mamba.toml` manifest | `bmb add math_extra` |
 | `bmb publish` | Pack and publish `.bmbpkg` to registry | `bmb publish` |
+| `bmb shm` | Zero-copy distributed IPC & cluster shared memory | `bmb shm bench --iters 10000 --json` |
 | `bmb autograd` | GPU tensor autograd, AdamW/LoRA training, & WebGPU/SPIR-V emission | `bmb autograd train --epochs 20 --json` |
 | `bmb replay` | Time-travel deterministic replay & omniscient interactive debugger | `bmb replay record app.bmb --html debug.html` |
 | `bmb mcp` | Model Context Protocol (MCP) server for Claude, Cursor, Windsurf, Antigravity | `bmb mcp --stdio` |

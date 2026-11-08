@@ -1042,6 +1042,75 @@ def cmd_autograd(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_shm(args: argparse.Namespace) -> int:
+    import json
+    from .shm import SharedMemoryArena, SharedRingQueue, benchmark_shm_throughput
+
+    action = getattr(args, "action", None)
+    if action == "create":
+        name = args.name
+        size = getattr(args, "size", 1024 * 1024) or (1024 * 1024)
+        arena = SharedMemoryArena(name=name, size=size, create=True)
+        arena.close()
+        if getattr(args, "json", False):
+            print(json.dumps({"name": name, "size": size, "created": True}, indent=2))
+        else:
+            print(f"[Black Mamba SHM] Created shared memory arena '{name}' ({size} bytes)")
+        return 0
+
+    elif action == "write":
+        name = args.name
+        data = args.data.encode("utf-8")
+        arena = SharedMemoryArena(name=name, create=False)
+        bytes_written = arena.write_bytes(data)
+        arena.close()
+        if getattr(args, "json", False):
+            print(json.dumps({"name": name, "bytes_written": bytes_written}, indent=2))
+        else:
+            print(f"[Black Mamba SHM] Wrote {bytes_written} bytes into arena '{name}'")
+        return 0
+
+    elif action == "read":
+        name = args.name
+        arena = SharedMemoryArena(name=name, create=False)
+        payload = arena.read_bytes()
+        arena.close()
+        text = payload.decode("utf-8", errors="replace")
+        if getattr(args, "json", False):
+            print(json.dumps({"name": name, "length": len(payload), "data": text}, indent=2))
+        else:
+            print(f"[Black Mamba SHM] Read {len(payload)} bytes from arena '{name}':")
+            print(f"  {text}")
+        return 0
+
+    elif action == "bench":
+        iters = getattr(args, "iters", 10000) or 10000
+        msg_size = getattr(args, "size", 256) or 256
+        res = benchmark_shm_throughput(iterations=iters, message_size=msg_size)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba SHM Bench] Shared Memory Queue Benchmark ({msg_size}B messages):")
+            print(f"  Total Ops   : {res['iterations'] * 2}")
+            print(f"  Latency     : {res['latency_microseconds']:.3f} us / op")
+            print(f"  Throughput  : {res['ops_per_second']:,.0f} ops/sec ({res['throughput_gb_sec']:.2f} GB/s)")
+        return 0
+
+    elif action == "unlink":
+        name = args.name
+        try:
+            arena = SharedMemoryArena(name=name, create=False)
+            arena.unlink()
+            arena.close()
+            print(f"[Black Mamba SHM] Unlinked shared memory arena '{name}'")
+        except Exception as e:
+            print(f"Error unlinking arena '{name}': {e}", file=sys.stderr)
+            return 1
+        return 0
+
+    return 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1071,7 +1140,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1368,6 +1437,31 @@ def main(argv: Optional[list] = None) -> int:
     p_atg_emt.add_argument("--output", "-o", help="Output file path")
     p_atg_emt.add_argument("--json", "-j", action="store_true", help="Output shader metadata as JSON")
 
+    p_shm = sub.add_parser("shm", help="Zero-Copy Distributed IPC & Cluster Shared Memory (Phase 8E / v2.8.0)")
+    shm_sub = p_shm.add_subparsers(dest="action")
+
+    p_shm_crt = shm_sub.add_parser("create", help="Create a named shared memory arena")
+    p_shm_crt.add_argument("name", help="Name of shared memory region")
+    p_shm_crt.add_argument("--size", "-s", type=int, default=1048576, help="Arena size in bytes (default: 1 MB)")
+    p_shm_crt.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_shm_wrt = shm_sub.add_parser("write", help="Write string data into shared memory arena")
+    p_shm_wrt.add_argument("name", help="Name of shared memory region")
+    p_shm_wrt.add_argument("data", help="String payload to write")
+    p_shm_wrt.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_shm_rd = shm_sub.add_parser("read", help="Read data from shared memory arena")
+    p_shm_rd.add_argument("name", help="Name of shared memory region")
+    p_shm_rd.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_shm_bnc = shm_sub.add_parser("bench", help="Benchmark sub-microsecond shared memory queue throughput")
+    p_shm_bnc.add_argument("--iters", "-i", type=int, default=10000, help="Iterations (default: 10000)")
+    p_shm_bnc.add_argument("--size", "-s", type=int, default=256, help="Message size in bytes (default: 256)")
+    p_shm_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_shm_unl = shm_sub.add_parser("unlink", help="Unlink/destroy named shared memory region")
+    p_shm_unl.add_argument("name", help="Name of shared memory region")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1433,6 +1527,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_replay(args)
     if args.command == "autograd":
         return cmd_autograd(args)
+    if args.command == "shm":
+        return cmd_shm(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:
