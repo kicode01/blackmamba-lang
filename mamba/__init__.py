@@ -36,7 +36,7 @@ from .ast_graph import (
     benchmark_token_efficiency,
 )
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 __author__ = "Black Mamba Compiler Team"
 
 
