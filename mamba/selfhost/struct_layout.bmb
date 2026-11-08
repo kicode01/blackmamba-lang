@@ -1,0 +1,65 @@
+# Black Mamba Self-Hosting Compiler Substrate: struct_layout.bmb
+# Phase 8F (v2.9.0): Pure .bmb Struct & Object Memory Layout Calculator
+# 100% Pure Native Black Mamba (.bmb) with Zero CPython Runtime Dependencies.
+
+struct FieldDesc:
+    name: str
+    type_ann: str
+    offset_bytes: i64
+    slot_index: i64
+
+def field_desc_new(name: str, type_ann: str, offset_bytes: i64, slot_index: i64) -> FieldDesc:
+    return FieldDesc(name, type_ann, offset_bytes, slot_index)
+
+struct LayoutInfo:
+    name: str
+    slot_count: i64
+    immediate_bytes: i64
+    flat_scalar_slots: i64
+    recursive_bytes: i64
+    alignment_bytes: i64
+    field_count: i64
+    fields: Array[FieldDesc]
+
+def dummy_field() -> FieldDesc:
+    return FieldDesc("", "", 0, 0)
+
+def layout_info_new(name: str, field_count: i64) -> LayoutInfo:
+    let cap = 16
+    if field_count > cap:
+        cap = field_count
+    let flds = [dummy_field()] * cap
+    return LayoutInfo(name, 0, 0, 0, 0, 8, 0, flds)
+
+def layout_add_field(layout: LayoutInfo, field_name: str, field_type: str) -> i64:
+    let slot = layout.slot_count
+    let offset = slot * 8
+    let f = FieldDesc(field_name, field_type, offset, slot)
+    
+    if layout.field_count >= len(layout.fields):
+        let new_cap = len(layout.fields) * 2
+        let new_arr = [dummy_field()] * new_cap
+        for i in 0..layout.field_count:
+            new_arr[i] = layout.fields[i]
+        layout.fields = new_arr
+        
+    layout.fields[layout.field_count] = f
+    layout.field_count += 1
+    layout.slot_count += 1
+    layout.immediate_bytes = layout.slot_count * 8
+    layout.flat_scalar_slots = layout.slot_count
+    layout.recursive_bytes = layout.slot_count * 8
+    return layout.slot_count
+
+def layout_get_field_offset(layout: LayoutInfo, field_name: str) -> i64:
+    for i in 0..layout.field_count:
+        if layout.fields[i].name == field_name:
+            return layout.fields[i].offset_bytes
+    return -1
+
+def layout_compute_alignment(immediate_bytes: i64) -> i64:
+    if immediate_bytes <= 8:
+        return 8
+    if immediate_bytes % 16 == 0:
+        return 16
+    return 8

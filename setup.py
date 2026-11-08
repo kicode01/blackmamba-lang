@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="blackmamba-lang",
-    version="2.8.0",
+    version="2.9.0",
     description="Black Mamba (.bmb) — High-Speed, Zero-Cost-Abstraction Programming Language & Multi-Target Compiler",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
@@ -11,7 +11,7 @@ setup(
     url="https://github.com/kicode01/blackmamba-lang",
     packages=find_packages(),
     package_data={
-        "mamba": ["stdlib/*.bmb"],
+        "mamba": ["stdlib/*.bmb", "selfhost/*.bmb"],
     },
     entry_points={
         "console_scripts": [

@@ -1135,6 +1135,71 @@ def cmd_shm(args: argparse.Namespace) -> int:
     return 1
 
 
+def cmd_selfhost(args: argparse.Namespace) -> int:
+    import json
+    from .selfhost import SelfHostManager
+
+    sh = SelfHostManager()
+    action = getattr(args, "action", "info")
+
+    if action == "info" or action is None:
+        status = sh.get_selfhost_status()
+        if getattr(args, "json", False):
+            print(json.dumps(status, indent=2))
+        else:
+            print("[Black Mamba Self-Host] Pure .bmb Compiler Modules:")
+            for m in status["modules"]:
+                valid_str = "VALID" if m.get("mir_valid") else "FAIL"
+                print(f"  [{valid_str}] {m['name']:<20} {m['loc']:>4} LOC | {m.get('fn_count', 0):>2} functions")
+            print(f"Total: {status['module_count']} modules, {status['total_loc']} lines of code across mamba/selfhost/")
+        return 0 if status["all_mir_valid"] else 1
+
+    elif action == "check":
+        if getattr(args, "parity", False):
+            print("[Black Mamba Self-Host] Running 3-Stage Stage-2/Stage-3 Self-Compilation Parity Verification...")
+            res = sh.check_stage_parity()
+            if getattr(args, "json", False):
+                print(json.dumps(res, indent=2))
+            else:
+                print(f"  Stage 1 (Python MIR):   {res['stage1_hash']}")
+                print(f"  Stage 2 (.bmb Driver):  {res['stage2_hash']}")
+                print(f"  Stage 3 (Reproduced):   {res['stage3_hash']}")
+                print(f"  Total Functions:        {res['function_count']}")
+                print(f"  MIR Instructions:       {res['mir_instruction_count']}")
+                print("=" * 60)
+                if res["parity_verified"]:
+                    print("[Black Mamba Self-Host] PARITY CERTIFIED: Stage-2 and Stage-3 outputs are 100% bit-for-bit identical!")
+                else:
+                    print("[Black Mamba Self-Host] PARITY FAILED: Discrepancy detected between Stage-2 and Stage-3 outputs.")
+            return 0 if res["parity_verified"] else 1
+        else:
+            ok, errors = sh.verify_all_modules()
+            if getattr(args, "json", False):
+                print(json.dumps({"passed": ok, "errors": errors}, indent=2))
+            else:
+                if ok:
+                    print(f"[Black Mamba Self-Host] All {len(sh.list_selfhost_modules())} self-hosted modules compile to valid MIR cleanly.")
+                else:
+                    print("[Black Mamba Self-Host] Errors detected in self-host modules:")
+                    for err in errors:
+                        print(f"  - {err}")
+            return 0 if ok else 1
+
+    elif action == "bench":
+        res = sh.benchmark_selfhost()
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print("[Black Mamba Self-Host] Benchmark Results:")
+            print(f"  Modules compiled:     {res['modules_compiled']}")
+            print(f"  Total functions:      {res['total_functions']}")
+            print(f"  Elapsed time:         {res['elapsed_seconds']:.4f}s")
+            print(f"  Throughput:           {res['functions_per_second']:.2f} functions/sec")
+        return 0
+
+    return 0
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1164,7 +1229,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1491,6 +1556,19 @@ def main(argv: Optional[list] = None) -> int:
     p_shm_unl = shm_sub.add_parser("unlink", help="Unlink/destroy named shared memory region")
     p_shm_unl.add_argument("name", help="Name of shared memory region")
 
+    p_self = sub.add_parser("selfhost", help="Inspect and verify pure .bmb self-hosted compiler modules & stage parity")
+    p_self_sub = p_self.add_subparsers(dest="action")
+
+    p_self_info = p_self_sub.add_parser("info", help="List all self-hosted compiler modules and line counts")
+    p_self_info.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_self_chk = p_self_sub.add_parser("check", help="Verify self-hosted modules compilation and stage parity")
+    p_self_chk.add_argument("--parity", "-p", action="store_true", help="Certify Stage-2 and Stage-3 bit-for-bit parity")
+    p_self_chk.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_self_bnc = p_self_sub.add_parser("bench", help="Benchmark pure .bmb compilation throughput")
+    p_self_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1558,6 +1636,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_autograd(args)
     if args.command == "shm":
         return cmd_shm(args)
+    if args.command == "selfhost":
+        return cmd_selfhost(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

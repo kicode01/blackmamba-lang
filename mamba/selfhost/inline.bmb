@@ -1,0 +1,55 @@
+# Black Mamba Self-Hosting Compiler Substrate: inline.bmb
+# Phase 8F (v2.9.0): Pure .bmb Tail-Call Optimization (TCO) & Inlining Pass
+# 100% Pure Native Black Mamba (.bmb) with Zero CPython Runtime Dependencies.
+
+from mir_types import (
+    MIRInstruction, MIRFunc, mir_dummy_instr, mir_instr_new,
+    OP_NOP, OP_MOV, OP_CALL, OP_RET, OP_JMP, OP_LABEL
+)
+
+def is_tail_call(func_def: MIRFunc, idx: i64) -> bool:
+    if idx + 1 >= func_def.instr_count:
+        return False
+    let cur = func_def.instructions[idx]
+    let nxt = func_def.instructions[idx + 1]
+    if cur.op == OP_CALL and cur.arg1 == func_def.name:
+        if nxt.op == OP_RET and nxt.arg1 == cur.dst:
+            return True
+    return False
+
+def optimize_tco(func_def: MIRFunc) -> i64:
+    let tco_count = 0
+    let n = func_def.instr_count
+    let i = 0
+    while i < n:
+        if is_tail_call(func_def, i):
+            func_def.is_tco = True
+            # Convert tail call into JMP to __tco_entry
+            func_def.instructions[i].op = OP_JMP
+            func_def.instructions[i].arg1 = "__tco_entry"
+            func_def.instructions[i].arg2 = ""
+            func_def.instructions[i].dst = ""
+            # Eliminate subsequent RET
+            func_def.instructions[i + 1].op = OP_NOP
+            func_def.instructions[i + 1].dst = ""
+            func_def.instructions[i + 1].arg1 = ""
+            tco_count += 1
+            i += 2
+        else:
+            i += 1
+            
+    # Compact out NOPs if any were created
+    if tco_count > 0:
+        let write_idx = 0
+        for read_idx in 0..func_def.instr_count:
+            let cur = func_def.instructions[read_idx]
+            if cur.op != OP_NOP:
+                func_def.instructions[write_idx] = cur
+                write_idx += 1
+        func_def.instr_count = write_idx
+        
+    return tco_count
+
+def inline_threshold_heuristic(candidate_instr_count: i64) -> bool:
+    # Inline leaf functions containing <= 12 instructions
+    return candidate_instr_count > 0 and candidate_instr_count <= 12

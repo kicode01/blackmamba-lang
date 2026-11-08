@@ -1,0 +1,71 @@
+# Black Mamba Self-Hosting Compiler Substrate: pe_builder.bmb
+# Phase 8F (v2.9.0): Pure .bmb PE32+ 64-bit Windows Binary Linker & Emitter
+# 100% Pure Native Black Mamba (.bmb) with Zero CPython Runtime Dependencies.
+
+# ==============================================================================
+# PE32+ Architectural Constants
+# ==============================================================================
+
+IMAGE_FILE_MACHINE_AMD64 = 34404        # 0x8664
+IMAGE_NT_OPTIONAL_HDR64_MAGIC = 523     # 0x020B
+SECTION_ALIGNMENT = 4096                # 0x1000
+FILE_ALIGNMENT = 512                    # 0x0200
+DEFAULT_IMAGE_BASE = 5368709120         # 0x140000000
+
+struct PESectionHeader:
+    name: str
+    virtual_size: i64
+    virtual_address: i64
+    raw_data_size: i64
+    raw_data_offset: i64
+    characteristics: i64
+
+def pe_dummy_section() -> PESectionHeader:
+    return PESectionHeader("", 0, 0, 0, 0, 0)
+
+struct PEBuilder:
+    machine: i64
+    entry_point_rva: i64
+    image_base: i64
+    section_alignment: i64
+    file_alignment: i64
+    section_count: i64
+    sections: Array[PESectionHeader]
+
+def pe_builder_new() -> PEBuilder:
+    let s = [pe_dummy_section()] * 8
+    return PEBuilder(IMAGE_FILE_MACHINE_AMD64, 4096, DEFAULT_IMAGE_BASE, SECTION_ALIGNMENT, FILE_ALIGNMENT, 0, s)
+
+def align_up(val: i64, alignment: i64) -> i64:
+    if alignment <= 0:
+        return val
+    let rem = val % alignment
+    if rem == 0:
+        return val
+    return val + (alignment - rem)
+
+def pe_add_section(builder: PEBuilder, name: str, raw_size: i64, characteristics: i64) -> i64:
+    let rva = 4096
+    let raw_offset = 512
+    if builder.section_count > 0:
+        let last_idx = builder.section_count - 1
+        let last = builder.sections[last_idx]
+        rva = align_up(last.virtual_address + last.virtual_size, builder.section_alignment)
+        raw_offset = align_up(last.raw_data_offset + last.raw_data_size, builder.file_alignment)
+        
+    let sec = PESectionHeader(name, raw_size, rva, align_up(raw_size, builder.file_alignment), raw_offset, characteristics)
+    builder.sections[builder.section_count] = sec
+    builder.section_count += 1
+    return rva
+
+def pe_compute_total_image_size(builder: PEBuilder) -> i64:
+    if builder.section_count == 0:
+        return 4096
+    let last = builder.sections[builder.section_count - 1]
+    return align_up(last.virtual_address + last.virtual_size, builder.section_alignment)
+
+def pe_compute_total_file_size(builder: PEBuilder) -> i64:
+    if builder.section_count == 0:
+        return 512
+    let last = builder.sections[builder.section_count - 1]
+    return align_up(last.raw_data_offset + last.raw_data_size, builder.file_alignment)

@@ -30,22 +30,25 @@ class PreReleaseGatekeeper:
     def __init__(self, workspace_dir: Optional[str] = None):
         self.workspace_dir = os.path.abspath(workspace_dir or os.getcwd())
         self.stdlib_dir = os.path.join(self.workspace_dir, "mamba", "stdlib")
+        self.selfhost_dir = os.path.join(self.workspace_dir, "mamba", "selfhost")
 
     def stage1_stdlib_syntax_and_mir_check(self) -> Dict[str, Any]:
         """
-        Stage 1: Verify every single standard library module compiles to valid MIR
+        Stage 1: Verify every single standard library and self-hosted module compiles to valid MIR
         with zero parser, lexer, or typechecker exceptions.
         """
         stdlib_files = glob.glob(os.path.join(self.stdlib_dir, "*.bmb"))
+        selfhost_files = glob.glob(os.path.join(self.selfhost_dir, "*.bmb"))
+        all_files = [(f, self.stdlib_dir) for f in stdlib_files] + [(f, self.selfhost_dir) for f in selfhost_files]
         compiled = 0
         errors = []
 
-        for fpath in stdlib_files:
+        for fpath, base_d in all_files:
             fname = os.path.basename(fpath)
             try:
                 with open(fpath, "r", encoding="utf-8-sig") as f:
                     src = f.read()
-                mir = compile_source_to_mir(src, filename=fpath, base_dir=self.stdlib_dir)
+                mir = compile_source_to_mir(src, filename=fpath, base_dir=base_d)
                 if mir is None:
                     errors.append(f"{fname}: compilation returned None MIR")
                 else:
@@ -55,8 +58,8 @@ class PreReleaseGatekeeper:
 
         return {
             "stage": 1,
-            "name": "stdlib_syntax_and_mir_check",
-            "total_modules": len(stdlib_files),
+            "name": "stdlib_and_selfhost_syntax_mir_check",
+            "total_modules": len(all_files),
             "compiled_modules": compiled,
             "passed": len(errors) == 0,
             "errors": errors,
