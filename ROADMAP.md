@@ -354,19 +354,114 @@ Give developers world-class editor support, package management, and documentatio
 
 ---
 
-## ⚠️ Current Limitations & Flaws (What Black Mamba Lacks Today)
+## Phase 5.5 (`v2.0.0` – `v2.2.0`): Cloud Containers, Local LLM, Smalltalk Studio, Full-Stack Web & ORM ✅ *(COMPLETED & VERIFIED)*
 
-For full architectural transparency, every known limitation, missing feature, and trade-off in Black Mamba today is thoroughly documented in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md).
+- [x] **Zero-Base Container & Micro-VM Engine (`mamba/container.py` & `bmb container`)**:
+  - [x] Direct Linux ELF64 compilation packaged into valid OCI/Docker image tarballs (~20 KB total image size) with zero Docker daemon required.
+- [x] **Local GGUF LLM Parser & Chat CLI (`mamba/llm.py` & `bmb chat`)**:
+  - [x] GGUF v3 binary header parser, vocabulary extraction, and interactive terminal token streaming.
+- [x] **Self-Hosting HTML5 Web Backend (`mamba/backends/html_backend.py`)**:
+  - [x] Compiles `.bmb` applications directly to standalone HTML5/CSS3/Canvas/JS bundles (`website_src/landing.bmb`, `website_src/arena.bmb`).
+- [x] **Smalltalk-Style Live Object Studio & Inquisitor (`mamba/studio.py`, `mamba/inquisitor.py`, `bmb studio`)**:
+  - [x] Live browser-based object inspector, class browser, expression evaluator, and execution transcript.
+- [x] **Reactive Full-Stack Web Framework (`mamba/web.py`, `mamba/stdlib/web.bmb`, `bmb web`)**:
+  - [x] Declarative UI component tree (`Card`, `Button`, `Table`, `Badge`, `Alert`, `Form`, `ProgressBar`), SSR `@app.page` and REST `@app.api` routing, and hot-reload dev server.
+- [x] **Relational Database Engine & Type-Safe ORM (`mamba/db.py`, `mamba/stdlib/db.bmb`, `bmb db`)**:
+  - [x] Dual-mode SQLite3 (WAL persistent disk & `:memory:`), type-safe `Model`/`Field` definitions, parameterized chainable `Query` builder, ACID transactions, and ASCII/JSON/HTML table serializers.
 
-### Summary of Current Architecture & Design Boundaries:
-1. **Dynamic Cyclic Memory**: Ephemeral allocations resolved via compile-time lexical arenas; long-lived cyclic heap graphs resolved via `gc.bmb` generational region tracking & tracing cycle collector.
-2. **Platform Coverage**: Windows PE32+, Linux ELF64 (3.9 KB), macOS ARM64, CPython `.pyd`/`.so` extensions, WebAssembly 1.0 (1.7 KB), ANSI C11, LLVM IR, and Freestanding No-OS Embedded (`.bin`, `.hex`, `.elf`) shipped.
-3. **Strings**: Small String Optimization (SSO), zero-copy slicing, dynamic operations, linear-time regex engine (`regex.bmb`), and pure native Unicode engine (`unicode.bmb`) resolved.
-4. **Hardware & Structured Exceptions**: Multi-frame stack-unwinding structured exceptions (`try/except/else/finally/raise`) with custom exception hierarchies and payload extraction, zero-cost SEH `.pdata`/`.xdata` unwind tables, symbolic line-mapped VEH crash reports, PE32+ CodeView `RSDS` + COFF symbols, and ELF64 DWARF v4 `.debug_line` shipped.
-5. **Standard Library**: 29 pure `.bmb` modules (`alloc`, `array`, `async`, `chan`, `cluster`, `codegen`, `compiler`, `debug`, `embedded`, `gc`, `gui`, `hash`, `http`, `json`, `kv`, `math`, `os`, `random`, `regex`, `series`, `simd`, `socket`, `sql`, `tensor`, `test`, `thread`, `time`, `tls`, `unicode`) with zero CPython runtime dependencies.
-6. **Dynamic OOP & Static Fast Paths**: Full Dynamic C3 Multiple Inheritance with Diamond MRO, cooperative `super()`, polymorphic virtual vtables, runtime method monkey-patching (`setattr`), and dynamic instance attributes (`hasattr`, `getattr`, `setattr`, `isinstance`), paired with unboxed 1-cycle direct-dispatch value structs (`struct`).
-7. **High-Level Concurrency & Clustering**: Hardware atomics, `AtomicInt`, `Mutex`, `SpinLock`, native thread spawning, `par_for`, `par_map`, lock-free bounded MPMC channels, `Select` multiplexing, priority `Actor` loops (`chan.bmb`), and HMAC-authenticated TCP Actor Clusters (`cluster.bmb`) shipped.
-8. **Developer Tooling**: Full LSP daemon (`bmb-lsp`), VS Code extension, REPL (`bmb repl`), package manager (`bmb pkg` with Git, Path, and JSON Registry Index `--registry`), doc generator (`bmb doc`), and self-hosting native `.bmb -> .exe` compiler (`codegen.bmb`) shipped.
+---
+
+## ⚠️ Brutally Honest Gap Audit: What We Are Lacking & What We Must Improve Today
+
+For 100% engineering transparency, here are the **7 specific architectural gaps** in `v2.2.0` that we must solve to achieve our GUI-First, Agent-Native, Token-Sparse computing vision (additional historical boundaries are cataloged in [**`docs/LIMITATIONS.md`**](docs/LIMITATIONS.md)):
+
+### 1. Nested Composite Struct Layout in `mir.py` & `types.py`
+* **What We Lack**: Recursive struct size (`sizeof`) and multi-word offset calculation when embedding one `struct` by value inside another `struct`.
+* **Current Flaw**: Struct fields currently assume uniform 8-byte scalar offsets (`idx * 8`). Embedding a multi-field struct inside another struct misaligns subsequent fields unless flattened to scalar fields or passed by pointer.
+* **What We Must Improve**: Implement recursive `sizeof(T)` and `offsetof(Struct, field)` resolution in `mamba/types.py` and `mamba/mir.py` across JIT, PE32+, ELF64, and WASM.
+
+### 2. Self-Hosting Bootstrap Dependency (`24.1 MB` PyInstaller Wrapper vs Pure `.bmb` Binary)
+* **What We Lack**: Full port of the Python-based MIR optimizer (`mamba/mir.py`) and secondary backends (`elf_exe.py`, `arm64_macho.py`, `wasm_emitter.py`) into pure `.bmb`.
+* **Current Flaw**: While `compiler.bmb` + `codegen.bmb` self-compile core `.bmb -> .exe` in 1.63 ms without Python, `dist/bmb.exe` still uses PyInstaller (`24.1 MB`) to bundle the full Python CLI driver.
+* **What We Must Improve**: Port the remaining multi-target compiler passes into pure `.bmb`, shrinking `bmb.exe` from **24.1 MB down to < 150 KB** with zero Python runtime wrapper.
+
+### 3. Standard Library Depth (Thin Wrappers vs Full Native `.bmb` Engines)
+* **What We Lack**: Pure native `.bmb` implementations for newer high-level modules.
+* **Current Flaw**: While `series.bmb` (34 KB), `sql.bmb` (32 KB), `regex.bmb` (27 KB), and `tls.bmb` (26 KB) are complete native engines, newer modules (`llama.bmb`, `kernel.bmb`, `process.bmb`, `studio.bmb`) are lightweight stubs that delegate heavy execution to Python host modules (`mamba/llm.py`, `mamba/kernel.py`, `mamba/studio.py`).
+* **What We Must Improve**: Port GGUF quantized GEMV inference, process spawning, and Studio WebSocket handling directly into pure `.bmb`.
+
+### 4. GUI & Smalltalk Studio (HTTP Dashboard vs True Infinite 2D Morphic Canvas)
+* **What We Lack**: An infinite 2D zoomable Morphic spatial workspace with bidirectional visual-to-code AST binding and persistent heap snapshots (`.bmbimg`).
+* **Current Flaw**: `bmb studio` currently renders a tabular browser dashboard over HTTP, and `gui.bmb` outputs software-rasterized BMP/SVG frames. Dragging or resizing a visual widget does not yet automatically rewrite the underlying `.bmb` AST node in real time.
+* **What We Must Improve**: Build a WebGL/Canvas2D + WebSocket **Morphic Spatial Canvas** where code cards, live UI widgets, and database tables are wired together visually, backed by full memory image serialization (`bmb image save/load`).
+
+### 5. AI & LLM Token Efficiency (Flat Text Files vs Structural AST Delta Patching)
+* **What We Lack**: A content-addressed AST graph (`bmb://module/Struct/fn`) and structural delta patcher (`bmb patch`).
+* **Current Flaw**: AI agents still read and rewrite entire flat `.bmb` text files to modify a few lines of code, wasting 80%+ of prompt and output tokens on unchanged boilerplate.
+* **What We Must Improve**: Build `mamba/ast_graph.py` & `mamba/token_codec.py`—allowing LLMs to query compact 20-token signatures, emit 30-token surgical AST patches, and receive 1-line deterministic compiler diagnostics (**70%–90% LLM token reduction**).
+
+### 6. Embedded Agent Autonomy (Static Chat vs Closed-Loop Autonomous Engineer)
+* **What We Lack**: An autonomous ReAct / Neuro-Symbolic agent runtime (`mamba/agent.py` & `bmb agent`) integrated into the compiler and live memory inspector.
+* **Current Flaw**: `bmb chat` streams text tokens from GGUF models but cannot autonomously inspect live objects in `inquisitor.py`, run `db.py` migrations, profile hot loops, or hot-patch failing tests.
+* **What We Must Improve**: Wire an autonomous agent loop directly into the AST patcher, compiler diagnostics, live Studio canvas, and test runner.
+
+### 7. Web Reactivity (Inline JS Strings vs Compiled WebAssembly Signals)
+* **What We Lack**: Fine-grained reactive primitives (`Signal[T]`, `Computed[T]`, `Effect`) compiled to WebAssembly DOM host bindings.
+* **Current Flaw**: `mamba/web.py` and `html_backend.py` currently emit SSR HTML5 with string-interpolated JavaScript snippets.
+* **What We Must Improve**: Compile reactive state signals directly into `.wasm` modules that mutate DOM nodes with sub-millisecond latency and zero hand-written JS strings.
+
+---
+
+## 🚀 Future Roadmap Phases (`v2.3.0` $\rightarrow$ `v10.0.0`)
+
+### Phase 6 (`v2.3.0`): The GUI-First Living Morphic Canvas & Persistent Memory Image
+- [ ] **Recursive Composite Struct Layout Fix**: Full `sizeof(T)` and nested struct field offset calculation in `mamba/types.py` and `mamba/mir.py`.
+- [ ] **Infinite 2D Spatial Morphic Canvas (`mamba/canvas.py` & `canvas.bmb`)**:
+  - [ ] Zoomable, pannable 2D workspace (`bmb studio --canvas`) with interactive Code Morphs, Live Inspector Morphs, Database Table Morphs, and UI Widget Morphs.
+  - [ ] Bidirectional Visual-to-AST Binding: manipulating a UI widget on the canvas rewrites the corresponding `.bmb` AST node in `< 2 ms`; editing a code card hot-swaps the live function pointer in memory without losing app state.
+- [ ] **Smalltalk-Style Persistent Image Snapshots (`mamba/image.py` & `bmb image`)**:
+  - [ ] Freeze and serialize the entire live runtime heap, active objects, in-memory SQLite tables, and canvas layout into a portable `.bmbimg` snapshot with `< 5 ms` instant resume.
+
+### Phase 7 (`v2.4.0`): Neuro-Symbolic AST Core & Token-Sparse LLM Protocol (-85% Tokens)
+- [ ] **Content-Addressed AST Graph (`mamba/ast_graph.py` & `ast_graph.bmb`)**:
+  - [ ] Address every module, struct, class, function, and basic block via semantic URI (`bmb://module/Type/method`) and cryptographic SHA-256 structural hash.
+- [ ] **Token-Sparse S-Expression / Compact IR Codec (`mamba/token_codec.py`)**:
+  - [ ] Bijective, tokenizer-optimized compact syntax compressing `.bmb` code by **3.8x fewer LLM tokens** with lossless 1:1 round-trip conversion.
+- [ ] **Surgical AST Delta Patching CLI & API (`bmb patch`)**:
+  - [ ] Atomic AST mutations (`REPLACE_BODY`, `INSERT_FIELD`, `RENAME_SYMBOL`, `WRAP_TRY`) verified in `< 1 ms` by the type checker without re-emitting whole files.
+- [ ] **Pinpoint 20-Token Compiler Diagnostics (`mamba/diagnostics.py`)**:
+  - [ ] Single-line structured error tuples with exact byte offsets and deterministic fix hints, eliminating 1,500-token traceback bloat.
+
+### Phase 8 (`v2.5.0`): Embedded Agent Copilot (`bmb agent`) & Autonomous App Synthesizer
+- [ ] **Native Autonomous Agent Loop (`mamba/agent.py` & `bmb agent`)**:
+  - [ ] Closed-loop agent with direct memory access to `ast_graph`, `inquisitor`, `db`, `profile`, and `test`.
+- [ ] **WASM Reactive UI Signals (`mamba/stdlib/reactive.bmb`)**:
+  - [ ] `Signal[T]`, `Computed[T]`, and `Effect` primitives compiling directly to WebAssembly DOM updates.
+- [ ] **Prompt-to-Living-App Synthesizer**:
+  - [ ] Synthesize full-stack apps (SQLite ORM models + REST/WebSocket routes + reactive Morphic UI) from a single natural-language goal or canvas wireframe, verified automatically by generated unit tests.
+
+### Phase 9 (`v3.0.0`): Self-Healing Autonomous Runtime, 100% Pure `.bmb` Bootstrap & Unikernel Cloud
+- [ ] **Zero-Python Self-Hosted Compiler (`bmb.exe` < 150 KB)**:
+  - [ ] Complete port of all MIR optimization passes and binary linkers into pure `.bmb`, removing the PyInstaller wrapper.
+- [ ] **Autonomous Self-Healing Runtime Supervisor (`supervisor.bmb`)**:
+  - [ ] Capture deterministic crash/regression snapshots in production, synthesize and verify an AST fix in a shadow arena, and hot-swap the repaired function with zero downtime.
+- [ ] **SMT-Backed Formal Contract Verification (`bmb verify`)**:
+  - [ ] Compile-time `requires(...)` and `ensures(...)` verification ruling out bounds errors, division-by-zero, and null dereferences mathematically.
+- [ ] **Bare-Metal Cloud Unikernel Target (`bmb build --target unikernel`)**:
+  - [ ] Emit bootable 1.5 MB KVM/Firecracker micro-VM images booting in `0.4 ms` with zero Linux OS overhead.
+
+### Phase 10 – Phase 13 (`v3.5.0` – `v5.0.0`): The Post-Text & Neuromorphic Frontier
+- [ ] **Phase 10 (`v3.5.0`) — Zero-Syntax Semantic Hypergraph**: Eliminate plain-text source files in favor of a binary content-addressed semantic graph (`.bmbgraph`) with multi-perspective projections (code, visual flow, math) and direct LLM latent-vector synthesis.
+- [ ] **Phase 11 (`v4.0.0`) — Planetary CRDT Actor Substrate**: Globally distributed Conflict-Free Replicated Data Type (CRDT) object memory (`planet.bmb`) and object-capability security (`ocap`), turning the language runtime itself into a decentralized cloud OS.
+- [ ] **Phase 12 (`v4.5.0`) — Superoptimizing Neuro-Symbolic Compiler**: Monte-Carlo Tree Search (MCTS) kernel synthesizer discovering hardware-specific SIMD/GPU algorithms faster than human-written assembly, paired with machine-checkable equivalence proofs.
+- [ ] **Phase 13 (`v5.0.0`) — Neuromorphic, Photonic & Hard-Real-Time Core**: Direct compilation backends for Spiking Neural Networks (Neuromorphic silicon), Optical matrix co-processors, and sub-microsecond deterministic robotics/BCI loops.
+
+### Phase 14 – Phase 18 (`v6.0.0` – `v10.0.0`): Long-Range Omega Research Horizons
+- [ ] **Phase 14 (`v6.0.0`) — Programmable Matter & Molecular Compilation**: Compile spatial constraints into DNA-origami sequences, microfluidic routing, and reconfigurable smart-matter lattices.
+- [ ] **Phase 15 (`v7.0.0`) — Fault-Tolerant Quantum & Relativistic Consensus**: Native `qubit` superposition types lowering to OpenQASM 3.0 / topological quantum circuits, plus causal-order state sync for high-latency interplanetary networks.
+- [ ] **Phase 16 (`v8.0.0`) — Differentiable Physics & World-Twin Engine**: First-class automatic differentiation ($\nabla f$) across every language primitive for real-time multi-scale physical simulation.
+- [ ] **Phase 17 (`v9.0.0`) — Collective Multi-Agent Swarm Intelligence**: Self-organizing decentralized agent swarms autonomously discovering scientific and mathematical proofs.
+- [ ] **Phase 18 (`v10.0.0`) — Thermodynamic & Reversible Computing**: Reversible logic synthesis (Toffoli/Fredkin gates) approaching Landauer's thermodynamic limit ($\Delta E = k_B T \ln 2$).
 
 ---
 
@@ -395,10 +490,12 @@ For full architectural transparency, every known limitation, missing feature, an
 | **v1.5.0** | **Shipped** | High-Performance Domain Monopolies & Full Stdlib Parity | Complete Stdlib Parity (`collections.bmb`, `heap.bmb`, `iter.bmb`, `process.bmb`, `csv.bmb`, `pathlib.bmb`), Native Edge AI & Local LLM Inference Engine (`tensor.bmb` + `llama.bmb` / GGUF Q4_0 & Q8_0 GEMV), High-Throughput Web Microframework (`fastapi.bmb` parameterized routing), Native Performance Profiler (`bmb profile` interactive SVG flamegraph generator) and Automated Test Runner (`bmb test`), 83/83 Unit Tests & 35/35 Examples 100% Green |
 | **v2.0.0** | **Shipped** | The Global Cloud & Enterprise Dominance | Zero-Base Container & Micro-VM Engine (`bmb container` generating ~20 KB pure Python OCI image tarballs with zero Docker daemon), Standalone Local LLM Inference Engine & Chat CLI (`bmb chat` with GGUF token streaming), Centralized Package Registry & Publishing CLI (`bmb pkg publish`, `bmb pkg server`, and `bmb add`), Interactive In-Browser WebAssembly Arena & Playground (`examples/web_arena/index.html`), 87/87 Unit Tests & 36/36 Examples 100% Green |
 | **v2.2.0** | **Shipped** *(Current — Full-Stack & Live Systems Milestone)* | Full-Stack Web Framework, Smalltalk Studio & Native ORM | Self-Hosting HTML5 Web Compiler (`html5.py`), Smalltalk-Style Live Object Studio & Inquisitor (`bmb studio`), Reactive Full-Stack Web Framework (`mamba.web`), Relational Database Engine & Type-Safe ORM (`mamba.db`), 100% Native BMB Website & Arena on Vercel, 121/121 Unit Tests 100% Green |
-| **v2.3.0** | **In Active Development** | GUI-First Living Workspace & Agent-Native Canvas | Visual Smalltalk Morphic canvas, Autonomous Agent Copilot Loop (`bmb agent`), bidirectional visual component binding, live time-travel state debugging |
-| **v2.4.0** | **Planned** | Neuro-Symbolic Compression & Token-Sparse LLM Core | Structural AST/MIR semantic diffing (70-90% LLM token reduction), deterministic error-guided repair, zero-token introspection protocol |
-| **v2.5.0** | **Planned** | Autonomous App Synthesizer & Universal Cross-Platform GUI | Visual drag-and-drop reactive application builder, single-click compilation to native desktop/mobile/web, live self-generating UI |
-| **v3.0.0** | **Planned** | Autonomous Software Engineer Runtime & Unikernel Cloud | Self-testing, self-profiling, self-healing autonomous runtime, standalone bootable unikernels (`--target unikernel`), planetary virtual actor mesh |
+| **v2.3.0** | **Next Up** | GUI-First Living Morphic Canvas & Persistent Image | Nested composite struct layout fix, Infinite 2D zoomable Morphic workspace (`bmb studio --canvas`), bidirectional visual-to-AST hot-swapping, Smalltalk-style `.bmbimg` heap snapshots |
+| **v2.4.0** | **Planned** | Neuro-Symbolic AST Core & Token-Sparse LLM Protocol | Content-addressed AST graph (`bmb://`), compact token-sparse S-expression codec, surgical AST delta patching (`bmb patch` for 70-90% LLM token reduction), 20-token pinpoint diagnostics |
+| **v2.5.0** | **Planned** | Embedded Agent Copilot & Autonomous App Synthesizer | Autonomous ReAct/AST agent (`bmb agent`), fine-grained WASM reactive signals (`Signal[T]`), prompt-to-living-app synthesizer with auto-verification |
+| **v3.0.0** | **Planned** | Self-Healing Autonomous Runtime & Unikernel Cloud | 100% pure `.bmb` self-hosted compiler (`bmb.exe` < 150 KB, zero Python), self-healing runtime supervisor, SMT contract verification (`bmb verify`), 1.5 MB bare-metal unikernels |
+| **v3.5.0 – v5.0.0** | **Frontier** | Post-Text Hypergraph, Planetary CRDT OS & Neuromorphic | Zero-syntax `.bmbgraph` hypergraph, planetary CRDT actor substrate (`planet.bmb`), MCTS superoptimizer, Neuromorphic/Photonic/BCI targets |
+| **v6.0.0 – v10.0.0** | **Omega Research** | Programmable Matter, Quantum Consensus & Reversible Compute | DNA/molecular compilation, topological quantum `qubit` & relativistic consensus, differentiable world-twin physics, reversible thermodynamic logic |
 
 ---
 
