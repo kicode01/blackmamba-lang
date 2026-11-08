@@ -841,7 +841,7 @@ def cmd_replay(args: argparse.Namespace) -> int:
         if not os.path.exists(args.file):
             print(f"Error: File not found: {args.file}", file=sys.stderr)
             return 1
-        with open(args.file, "r", encoding="utf-8") as f:
+        with open(args.file, "r", encoding="utf-8-sig") as f:
             src = f.read()
         mod_name = os.path.splitext(os.path.basename(args.file))[0]
         recorder = TimeTravelRecorder(capacity=getattr(args, "capacity", 10000))

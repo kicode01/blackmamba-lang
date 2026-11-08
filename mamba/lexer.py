@@ -189,7 +189,7 @@ class LexerError(Exception):
 
 class Lexer:
     def __init__(self, source: str, filename: str = "<input.bmb>"):
-        self.source = source.replace("\r\n", "\n").replace("\r", "\n")
+        self.source = source.lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
         self.filename = filename
         self.pos = 0
         self.line = 1
