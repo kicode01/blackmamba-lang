@@ -555,6 +555,105 @@
       line-height: 1.4;
     }
 
+    
+    /* Morphic Canvas Spatial Workbench */
+    .morphic-canvas-world {
+      position: relative;
+      flex: 1;
+      min-height: 440px;
+      background-color: #05080f;
+      background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+      background-size: 18px 18px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      user-select: none;
+    }
+    .morphic-canvas-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #0d121c;
+      border-bottom: 1px solid var(--border);
+      padding: 6px 10px;
+      flex-wrap: wrap;
+    }
+    .canvas-tool-btn {
+      background: #161f30;
+      border: 1px solid var(--border);
+      color: #cbd5e1;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.15s ease;
+    }
+    .canvas-tool-btn:hover {
+      background: #1e293b;
+      color: #fff;
+      border-color: var(--emerald);
+    }
+    .morphic-node {
+      position: absolute;
+      background: #0f1624;
+      border: 1px solid #232d42;
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+      min-width: 170px;
+      cursor: move;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      z-index: 10;
+    }
+    .morphic-node:hover, .morphic-node.active-drag {
+      border-color: var(--emerald);
+      box-shadow: 0 12px 30px rgba(0, 255, 136, 0.2);
+      z-index: 20;
+    }
+    .morphic-node-header {
+      background: #162032;
+      padding: 5px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #94a3b8;
+      border-bottom: 1px solid #232d42;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .morphic-node-body {
+      padding: 10px;
+      font-size: 0.76rem;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: default;
+    }
+    .morphic-wire-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .wire-path {
+      fill: none;
+      stroke: #10b981;
+      stroke-width: 2.5;
+      stroke-dasharray: 6 3;
+      animation: morphicWireDash 1s linear infinite;
+    }
+    @keyframes morphicWireDash {
+      to {
+        stroke-dashoffset: -18;
+      }
+    }
+
     /* Toast Notification */
     .studio-toast {
       position: fixed;
@@ -579,7 +678,7 @@
   <!-- Top Navigation Header -->
   <header>
     <a href="index.html" class="brand">
-      <span>🐍 Black Mamba</span>
+      <span>⚡ TinyTalk</span>
       <span class="brand-badge">STUDIO</span>
     </a>
 
@@ -596,6 +695,9 @@
       <button class="btn-tool" onclick="window.Studio.switchRightTab('inquisitor')" style="color: #34d399; border-color: rgba(16,185,129,0.35);">
         🤖 Ask Inquisitor
       </button>
+      <button class="btn-tool" onclick="window.Studio.switchRightTab('canvas')" style="color: #38bdf8; border-color: rgba(56,189,248,0.35); font-weight: 700;">
+        🎨 Morphic Canvas
+      </button>
     </div>
 
     <div class="telemetry-strip">
@@ -607,6 +709,7 @@
     <nav class="nav-links">
       <a href="index.html">Home</a>
       <a href="arena.html">Playground</a>
+      <a href="packages.html">Packages</a>
       <a href="studio.html" class="active">Studio</a>
       <a href="https://github.com/kicode01/tinytalk-lang#readme" target="_blank">Docs</a>
       <a href="https://github.com/kicode01/tinytalk-lang" target="_blank">GitHub</a>
@@ -680,6 +783,9 @@
           <button class="right-tab-btn active" data-tab="inspector" onclick="window.Studio.switchRightTab('inspector')">
             🔍 Object Inspector
           </button>
+          <button class="right-tab-btn" data-tab="canvas" onclick="window.Studio.switchRightTab('canvas')">
+            🎨 Morphic Canvas
+          </button>
           <button class="right-tab-btn" data-tab="inquisitor" onclick="window.Studio.switchRightTab('inquisitor')">
             🤖 Socratic Inquisitor
           </button>
@@ -727,6 +833,102 @@
                   <button class="morphic-btn" onclick="window.Studio.morphicClick('increment', 1)">+ Increment (+1)</button>
                   <button class="morphic-btn" onclick="window.Studio.morphicClick('increment', 5)" style="background: #2563eb; color: #fff;">+ Add (+5)</button>
                   <button class="morphic-btn" onclick="window.Studio.morphicClick('reset')" style="background: #334155; color: #fff;">Reset</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- View: Morphic Canvas Spatial Workbench -->
+        <div class="right-panel-view" data-view="canvas">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h4 style="font-size: 0.85rem; color: #fff; display: flex; align-items: center; gap: 6px;">
+              <span>🎨 Smalltalk-80 Morphic Spatial Canvas</span>
+              <span style="font-size: 0.7rem; color: var(--emerald); font-family: var(--font-mono); font-weight: normal;">60 FPS Reactive Signal Bus</span>
+            </h4>
+          </div>
+
+          <div class="morphic-canvas-world" id="morphicCanvasWorld">
+            <!-- Toolbar -->
+            <div class="morphic-canvas-toolbar">
+              <button class="canvas-tool-btn" onclick="window.Studio.addMorph('slider')">+ Slider Morph</button>
+              <button class="canvas-tool-btn" onclick="window.Studio.addMorph('dial')">+ Telemetry Dial</button>
+              <button class="canvas-tool-btn" onclick="window.Studio.addMorph('signal')">+ Signal Trigger</button>
+              <button class="canvas-tool-btn" onclick="window.Studio.snapImage()">📸 Snap Image (.tntimg)</button>
+              <button class="canvas-tool-btn" onclick="window.Studio.exportCanvasHtml()">💾 Export HTML</button>
+              <button class="canvas-tool-btn" onclick="window.Studio.resetCanvas()" style="margin-left: auto;">↺ Reset</button>
+            </div>
+
+            <!-- Dynamic SVG Dataflow Wire Layer -->
+            <svg class="morphic-wire-svg" id="morphicWireSvg">
+              <path id="wirePath1" class="wire-path" d="M 0 0 C 0 0, 0 0, 0 0" />
+            </svg>
+
+            <!-- Node 1: Morphic Reactive Slider -->
+            <div class="morphic-node" id="morphSlider" style="left: 20px; top: 50px; width: 190px;">
+              <div class="morphic-node-header">
+                <span>🎚️ Reactive Slider</span>
+                <span style="color: var(--emerald);">0B Alloc</span>
+              </div>
+              <div class="morphic-node-body">
+                <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted);">
+                  <span>AppState.threshold</span>
+                  <span id="sliderValDisplay" style="color: var(--emerald); font-weight: 700; font-family: var(--font-mono);">42</span>
+                </div>
+                <input type="range" min="0" max="100" value="42" id="morphSliderInput" style="width: 100%; accent-color: var(--emerald);" oninput="window.Studio.updateSliderMorph(this.value)">
+                <div style="font-size: 0.68rem; color: #64748b; line-height: 1.3;">
+                  Mutates in-register float at 60 FPS without triggering GC.
+                </div>
+              </div>
+            </div>
+
+            <!-- Node 2: Hardware Telemetry Dial -->
+            <div class="morphic-node" id="morphDial" style="left: 20px; top: 190px; width: 190px;">
+              <div class="morphic-node-header">
+                <span>⚡ Hardware Telemetry</span>
+                <span style="color: #38bdf8;">x86-64</span>
+              </div>
+              <div class="morphic-node-body" style="align-items: center;">
+                <canvas id="morphicDialCanvas" width="160" height="75" style="display: block;"></canvas>
+                <div style="font-size: 0.68rem; color: #94a3b8; font-family: var(--font-mono); text-align: center;">
+                  CPU: <span id="morphicFreqVal" style="color: var(--emerald);">3.2 GHz</span> | GC: <span style="color: #38bdf8;">0.000 ms</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Node 3: Signal Trigger Bus -->
+            <div class="morphic-node" id="morphSignal" style="left: 20px; top: 320px; width: 190px;">
+              <div class="morphic-node-header">
+                <span>📡 Signal Bus</span>
+                <span style="color: #a855f7;">Signal:tick</span>
+              </div>
+              <div class="morphic-node-body">
+                <button class="morphic-btn" style="padding: 5px; font-size: 0.72rem;" onclick="window.Studio.triggerSignalPulse()">
+                  ⚡ Send Signal:tick
+                </button>
+                <div id="signalStatusLine" style="font-size: 0.68rem; color: #94a3b8; font-family: var(--font-mono);">
+                  Sent: 0 pulses
+                </div>
+              </div>
+            </div>
+
+            <!-- Node 4: Morphic Target System Window -->
+            <div class="morphic-node" id="morphWindow" style="left: 240px; top: 60px; width: 220px;">
+              <div class="morphic-node-header">
+                <span>🪟 AppState Receiver</span>
+                <span style="color: var(--emerald);">● Live</span>
+              </div>
+              <div class="morphic-node-body">
+                <div style="font-size: 0.82rem; font-weight: 700;">
+                  Counter: <span id="morphicReceiverCounter" style="color: var(--emerald); font-family: var(--font-mono);">42</span>
+                </div>
+                <div class="morphic-progress" style="margin-top: 2px;">
+                  <div class="morphic-bar" id="morphicReceiverBar" style="width: 42%;"></div>
+                </div>
+                <div style="display: flex; gap: 4px; margin-top: 6px;">
+                  <button class="morphic-btn" style="flex: 1; padding: 4px; font-size: 0.7rem;" onclick="window.Studio.morphicClick('increment', 1)">+1</button>
+                  <button class="morphic-btn" style="flex: 1; padding: 4px; font-size: 0.7rem; background: #2563eb; color: #fff;" onclick="window.Studio.morphicClick('increment', 5)">+5</button>
+                  <button class="morphic-btn" style="padding: 4px 8px; font-size: 0.7rem; background: #334155; color: #fff;" onclick="window.Studio.morphicClick('reset')">↺</button>
                 </div>
               </div>
             </div>

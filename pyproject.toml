@@ -42,10 +42,10 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://blackmamba-lang.vercel.app"
+Homepage = "https://tinytalk-lang.vercel.app"
 Documentation = "https://github.com/kicode01/tinytalk-lang#readme"
 Repository = "https://github.com/kicode01/tinytalk-lang.git"
-"Web Arena" = "https://blackmamba-lang.vercel.app/arena.html"
+"Web Arena" = "https://tinytalk-lang.vercel.app/arena.html"
 "Bug Tracker" = "https://github.com/kicode01/tinytalk-lang/issues"
 
 [project.scripts]

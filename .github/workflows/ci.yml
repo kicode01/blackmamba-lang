@@ -1,0 +1,76 @@
+name: TinyTalk CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-and-certify:
+    name: Test & Gatekeeper (${{ matrix.os }} - Py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Build Dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+
+      - name: Run Full Unit Test Discovery Suite (275 Tests)
+        run: |
+          python -m unittest discover tests
+
+      - name: Run 5-Stage Zero-Defect Gatekeeper
+        run: |
+          python -m tinytalk.cli gatekeeper
+
+      - name: Verify Flagship HFT Engine Native JIT Execution
+        run: |
+          python tnt.py run examples/tinytalk_hft_engine.tnt --stats
+
+      - name: Test Multi-Target Native Compilation Matrix
+        run: |
+          python tnt.py build examples/tinytalk_hft_engine.tnt --target all
+
+      - name: Test Wheel & Source Distribution Packaging
+        run: |
+          python setup.py sdist bdist_wheel
+
+  release-artifacts:
+    name: Package Release Distributions
+    needs: test-and-certify
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Build Wheel and Tarball
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: dist/*

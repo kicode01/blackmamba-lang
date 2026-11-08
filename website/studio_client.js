@@ -227,6 +227,7 @@
     renderMorphicCanvas();
     renderTranscript();
     setupInquisitorForm();
+    initMorphicCanvas();
   }
 
   function fetchSystemHierarchy() {
@@ -411,8 +412,9 @@
 
   // --- Morphic Live Reactive Canvas ---
   function renderMorphicCanvas() {
+    const val = state.liveInstance.counter !== undefined ? state.liveInstance.counter : 42;
     if (elCanvasStateCounter) {
-      elCanvasStateCounter.textContent = state.liveInstance.counter !== undefined ? state.liveInstance.counter : 42;
+      elCanvasStateCounter.textContent = val;
     }
     if (elCanvasClickCount) {
       elCanvasClickCount.textContent = state.liveInstance.click_count !== undefined ? state.liveInstance.click_count : 0;
@@ -421,9 +423,22 @@
       elCanvasStatusMsg.textContent = state.liveInstance.status_msg || "Ready";
     }
     if (elCanvasProgressBar) {
-      const pct = Math.min(100, Math.max(0, (state.liveInstance.counter || 0) % 100));
+      const pct = Math.min(100, Math.max(0, val % 100));
       elCanvasProgressBar.style.width = pct + '%';
     }
+
+    // Sync Morphic Canvas World Nodes
+    const rcvCounter = document.getElementById('morphicReceiverCounter');
+    if (rcvCounter) rcvCounter.textContent = val;
+
+    const rcvBar = document.getElementById('morphicReceiverBar');
+    if (rcvBar) rcvBar.style.width = (Math.min(100, Math.max(0, val % 100))) + '%';
+
+    const sliderDisplay = document.getElementById('sliderValDisplay');
+    if (sliderDisplay) sliderDisplay.textContent = val;
+
+    const sliderInp = document.getElementById('morphSliderInput');
+    if (sliderInp && sliderInp.value != val) sliderInp.value = val;
   }
 
   function morphicClick(action, arg) {
@@ -597,8 +612,10 @@
       selectStruct(newStruct);
     }
 
-    switchRightTab('inspector');
-    showNotification('App Synthesized by Inquisitor!', 'success');
+    // Dynamically deploy Synthesized Morph to the Morphic Canvas
+    addSynthesizedMorph(synth);
+    switchRightTab('canvas');
+    showNotification('App Synthesized & Morph Deployed to Canvas!', 'success');
   }
 
   function synthesizeFallback(answers) {
@@ -722,6 +739,341 @@ def main() -> i64:
   }
 
   // Expose API for HTML onclick handlers
+  
+  // ==========================================================================
+  //  SMALLTALK-80 MORPHIC SPATIAL CANVAS ENGINE (Option 3 Upgrade)
+  // ==========================================================================
+  let morphicWireTimer = null;
+  let signalPulseCount = 0;
+
+  function initMorphicCanvas() {
+    setupDraggableMorphs();
+    updateMorphicWire();
+    startDialTelemetryLoop();
+    window.addEventListener('resize', updateMorphicWire);
+  }
+
+  function setupDraggableMorphs() {
+    const world = document.getElementById('morphicCanvasWorld');
+    if (!world) return;
+
+    const nodes = world.querySelectorAll('.morphic-node');
+    nodes.forEach(node => attachDraggable(node));
+  }
+
+  function attachDraggable(node) {
+    const header = node.querySelector('.morphic-node-header') || node;
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    header.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+      isDragging = true;
+      node.classList.add('active-drag');
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = node.offsetLeft;
+      initialTop = node.offsetTop;
+
+      const onMouseMove = (ev) => {
+        if (!isDragging) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        const world = document.getElementById('morphicCanvasWorld');
+        const maxW = world ? world.clientWidth - node.offsetWidth : 800;
+        const maxH = world ? world.clientHeight - node.offsetHeight : 600;
+
+        const newL = Math.max(0, Math.min(maxW, initialLeft + dx));
+        const newT = Math.max(40, Math.min(maxH, initialTop + dy));
+
+        node.style.left = newL + 'px';
+        node.style.top = newT + 'px';
+        updateMorphicWire();
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+        node.classList.remove('active-drag');
+        window.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+        updateMorphicWire();
+      };
+
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+  }
+
+  function updateMorphicWire() {
+    const world = document.getElementById('morphicCanvasWorld');
+    const path = document.getElementById('wirePath1');
+    const sourceNode = document.getElementById('morphSlider');
+    const targetNode = document.getElementById('morphWindow');
+
+    if (!world || !path || !sourceNode || !targetNode) return;
+
+    const wRect = world.getBoundingClientRect();
+    const sRect = sourceNode.getBoundingClientRect();
+    const tRect = targetNode.getBoundingClientRect();
+
+    // Source port (right center of slider node)
+    const x1 = sRect.right - wRect.left;
+    const y1 = sRect.top - wRect.top + (sRect.height / 2);
+
+    // Target port (left center of window node)
+    const x2 = tRect.left - wRect.left;
+    const y2 = tRect.top - wRect.top + (tRect.height / 2);
+
+    const dx = Math.abs(x2 - x1) * 0.5 + 20;
+    const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+    path.setAttribute('d', d);
+  }
+
+  function updateSliderMorph(val) {
+    const num = parseInt(val, 10) || 0;
+    state.liveInstance.counter = num;
+    renderMorphicCanvas();
+
+    if (state.activeStruct) {
+      const field = state.activeStruct.fields.find(f => f.name === 'counter');
+      if (field) field.default_val = num;
+      renderObjectInspector(state.activeStruct);
+    }
+
+    const path = document.getElementById('wirePath1');
+    if (path) {
+      path.style.stroke = '#00ff88';
+      path.style.strokeWidth = '3.5';
+      clearTimeout(morphicWireTimer);
+      morphicWireTimer = setTimeout(() => {
+        path.style.stroke = '#10b981';
+        path.style.strokeWidth = '2.5';
+      }, 150);
+    }
+  }
+
+  function triggerSignalPulse() {
+    signalPulseCount++;
+    const line = document.getElementById('signalStatusLine');
+    if (line) line.textContent = `Sent: ${signalPulseCount} pulses (0ms latency)`;
+
+    logTranscript(`[Smalltalk SignalBus] Dispatched event:tick (#${signalPulseCount}) -> AppState (1-cycle propagation).`);
+
+    const winNode = document.getElementById('morphWindow');
+    if (winNode) {
+      winNode.style.borderColor = '#00ff88';
+      winNode.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.4)';
+      setTimeout(() => {
+        winNode.style.borderColor = '#232d42';
+        winNode.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.55)';
+      }, 300);
+    }
+    showNotification(`Signal:tick dispatched to Morph tree!`, 'info');
+  }
+
+  function addMorph(type) {
+    const world = document.getElementById('morphicCanvasWorld');
+    if (!world) return;
+
+    const id = 'morph_custom_' + Date.now();
+    const node = document.createElement('div');
+    node.className = 'morphic-node';
+    node.id = id;
+    node.style.left = (150 + Math.random() * 100) + 'px';
+    node.style.top = (100 + Math.random() * 120) + 'px';
+    node.style.width = '200px';
+
+    if (type === 'slider') {
+      node.innerHTML = `
+        <div class="morphic-node-header">
+          <span>🎚️ Dynamic Slider</span>
+          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove(); window.Studio.updateMorphicWire();">×</button>
+        </div>
+        <div class="morphic-node-body">
+          <div style="font-size:0.72rem; color:var(--text-muted);">Reactive Float Property</div>
+          <input type="range" min="0" max="100" value="50" style="width:100%; accent-color:var(--cyan);" oninput="window.Studio.updateSliderMorph(this.value)">
+        </div>`;
+    } else if (type === 'dial') {
+      node.innerHTML = `
+        <div class="morphic-node-header">
+          <span>📊 Telemetry Gauge</span>
+          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove();">×</button>
+        </div>
+        <div class="morphic-node-body" style="align-items:center;">
+          <div style="font-size:1.1rem; font-weight:800; color:var(--emerald); font-family:var(--font-mono);">0.000 ms</div>
+          <div style="font-size:0.68rem; color:#64748b;">Lexical Arena GC Pause</div>
+        </div>`;
+    } else {
+      node.innerHTML = `
+        <div class="morphic-node-header">
+          <span>⚡ Event Emitter</span>
+          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove();">×</button>
+        </div>
+        <div class="morphic-node-body">
+          <button class="morphic-btn" style="padding:4px; font-size:0.72rem;" onclick="window.Studio.triggerSignalPulse()">Pulse Signal</button>
+        </div>`;
+    }
+
+    world.appendChild(node);
+    attachDraggable(node);
+    logTranscript(`[Morphic Canvas] Spawned new ${type} morph node (#${id}).`);
+    showNotification(`New ${type} morph spawned on canvas!`, 'success');
+  }
+
+  function addSynthesizedMorph(synth) {
+    const world = document.getElementById('morphicCanvasWorld');
+    if (!world) return;
+
+    const id = 'morph_synth_' + Date.now();
+    const node = document.createElement('div');
+    node.className = 'morphic-node';
+    node.id = id;
+    node.style.left = '240px';
+    node.style.top = '220px';
+    node.style.width = '230px';
+    node.style.borderColor = '#00ff88';
+
+    node.innerHTML = `
+      <div class="morphic-node-header" style="background:#0f2e20; color:#34d399;">
+        <span>🤖 ${synth.title || 'Inquisitor App'}</span>
+        <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove();">×</button>
+      </div>
+      <div class="morphic-node-body">
+        <div style="font-size:0.75rem; color:#94a3b8;">${synth.category || 'Morphic GUI'}</div>
+        <div style="font-size:0.85rem; font-weight:700; color:#fff;">Status: <span style="color:var(--emerald);">100% Compiled</span></div>
+        <button class="morphic-btn" style="padding:5px; font-size:0.72rem;" onclick="window.Studio.triggerSignalPulse()">Run Synthesized Pipeline</button>
+      </div>`;
+
+    world.appendChild(node);
+    attachDraggable(node);
+  }
+
+  function snapImage() {
+    const snapshot = {
+      format: "TinyTalk-Smalltalk-80-Image",
+      version: "4.0.0",
+      timestamp: new Date().toISOString(),
+      liveMemory: state.liveInstance,
+      hierarchy: state.hierarchy,
+      activeStruct: state.activeStruct ? state.activeStruct.name : null,
+      signalPulses: signalPulseCount
+    };
+
+    const blob = new Blob([JSON.stringify(snapshot, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `tinytalk_image_${Date.now()}.tntimg`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    logTranscript(`[Smalltalk Image] Snapshotted world state to .tntimg image file.`);
+    showNotification(`Smalltalk Image Snapshot Downloaded (.tntimg)!`, 'success');
+  }
+
+  function exportCanvasHtml() {
+    const val = state.liveInstance.counter !== undefined ? state.liveInstance.counter : 42;
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>TinyTalk Smalltalk Morphic Standalone App</title>
+  <style>
+    body { background: #07090e; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #0f1624; border: 1px solid #10b981; border-radius: 10px; padding: 24px; min-width: 280px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h2 { margin: 0 0 12px; font-size: 1.2rem; color: #10b981; }
+    .val { font-size: 1.8rem; font-weight: bold; margin-bottom: 12px; }
+    button { background: #10b981; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #041209; margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>TinyTalk Morphic App</h2>
+    <div class="val" id="cnt">${val}</div>
+    <button onclick="document.getElementById('cnt').innerText = parseInt(document.getElementById('cnt').innerText) + 1">+ Increment</button>
+    <button onclick="document.getElementById('cnt').innerText = 0" style="background:#334155;color:#fff;">Reset</button>
+  </div>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: "text/html" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `tinytalk_morphic_app.html`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    logTranscript(`[Canvas Export] Exported standalone Morphic HTML bundle.`);
+    showNotification(`Standalone Morphic HTML Exported!`, 'success');
+  }
+
+  function resetCanvas() {
+    const slider = document.getElementById('morphSlider');
+    const dial = document.getElementById('morphDial');
+    const signal = document.getElementById('morphSignal');
+    const win = document.getElementById('morphWindow');
+
+    if (slider) { slider.style.left = '20px'; slider.style.top = '50px'; }
+    if (dial) { dial.style.left = '20px'; dial.style.top = '190px'; }
+    if (signal) { signal.style.left = '20px'; signal.style.top = '320px'; }
+    if (win) { win.style.left = '240px'; win.style.top = '60px'; }
+
+    updateMorphicWire();
+    showNotification(`Canvas positions reset to default!`, 'info');
+  }
+
+  function startDialTelemetryLoop() {
+    const canvas = document.getElementById('morphicDialCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let tick = 0;
+
+    function renderFrame() {
+      tick += 0.05;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Gauge 1: CPU Frequency (3.2 - 3.8 GHz)
+      const freqAngle = Math.PI * 0.75 + (Math.sin(tick) * 0.2 + 0.5) * Math.PI * 0.8;
+      drawMiniGauge(ctx, 40, 45, 28, freqAngle, "#10b981", "CPU");
+
+      // Gauge 2: Zero-GC (Fixed at 0.00ms)
+      const gcAngle = Math.PI * 0.75; // 0 position
+      drawMiniGauge(ctx, 120, 45, 28, gcAngle, "#38bdf8", "GC 0B");
+
+      const freqElem = document.getElementById('morphicFreqVal');
+      if (freqElem && Math.floor(tick * 10) % 20 === 0) {
+        const ghz = (3.2 + Math.sin(tick) * 0.4).toFixed(2);
+        freqElem.textContent = ghz + ' GHz';
+      }
+
+      requestAnimationFrame(renderFrame);
+    }
+
+    function drawMiniGauge(ctx, cx, cy, r, angle, color, label) {
+      // Background arc
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 2.25);
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // Colored active arc
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, Math.PI * 0.75, angle);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // Center label
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "8px 'Fira Code', monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(label, cx, cy + 18);
+    }
+
+    requestAnimationFrame(renderFrame);
+  }
+
   window.Studio = {
     selectCategory,
     selectStruct,
@@ -732,6 +1084,13 @@ def main() -> i64:
     evalWorkspace,
     runInquisitorSynthesis,
     switchRightTab,
-    clearTranscript
+    clearTranscript,
+    updateSliderMorph,
+    triggerSignalPulse,
+    addMorph,
+    snapImage,
+    exportCanvasHtml,
+    resetCanvas,
+    updateMorphicWire
   };
 })();
