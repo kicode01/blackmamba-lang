@@ -1358,6 +1358,76 @@ def cmd_realtime(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_spec(args: argparse.Namespace) -> int:
+    import json
+    from .spec import PropertyTestEngine, integers, strings, benchmark_spec_engine, SpecificationSynthesizer, AlgebraicLaws
+
+    action = getattr(args, "action", "check") or "check"
+
+    if action == "bench":
+        iters = getattr(args, "iters", 1000) or 1000
+        res = benchmark_spec_engine(iterations=iters)
+        if getattr(args, "json", False):
+            print(json.dumps(res, indent=2))
+        else:
+            print(f"[Black Mamba Spec] Property Engine Benchmark ({res['total_properties_evaluated']} evaluations):")
+            print(f"  Throughput:           {res['properties_per_second']:,.1f} props/sec")
+            print(f"  Elapsed Time:         {res['total_elapsed_seconds']:.4f} s")
+            print(f"  Commutativity Check:  {'PASSED' if res['commutativity_verified'] else 'FAILED'}")
+            print(f"  String Invariant:     {'PASSED' if res['string_length_verified'] else 'FAILED'}")
+        return 0
+
+    elif action == "synthesize":
+        synth = SpecificationSynthesizer()
+        demo_fn = lambda a, b: a + b
+        laws = synth.synthesize(demo_fn, integers(-1000, 1000))
+        laws_data = [
+            {
+                "law": l.law_name,
+                "verified": l.verified,
+                "description": l.description,
+                "formal_contract": l.formal_contract,
+            }
+            for l in laws
+        ]
+        if getattr(args, "json", False):
+            print(json.dumps(laws_data, indent=2))
+        else:
+            print("[Black Mamba Spec] Automated Specification Synthesis:")
+            for l in laws:
+                print(f"  [PROVEN] {l.law_name:<16} : {l.description}")
+                print(f"           Formal Contract : {l.formal_contract}")
+        return 0
+
+    else:
+        # action == "check"
+        seed = getattr(args, "seed", None)
+        iters = getattr(args, "iters", 100) or 100
+        engine = PropertyTestEngine(seed=seed)
+        strat = integers(-1000, 1000)
+
+        # Run 3 algebraic laws
+        r_comm = AlgebraicLaws.commutativity(engine, lambda a, b: a + b, strat, iters=iters)
+        r_assoc = AlgebraicLaws.associativity(engine, lambda a, b: a + b, strat, iters=iters)
+        r_ident = AlgebraicLaws.identity(engine, lambda a, b: a + b, 0, strat, iters=iters)
+
+        results = [r_comm, r_assoc, r_ident]
+        all_passed = all(r.passed for r in results)
+
+        if getattr(args, "json", False):
+            print(json.dumps([r.to_dict() for r in results], indent=2))
+        else:
+            print(f"[Black Mamba Spec] Property-Based Testing Report ({iters} iterations/prop, seed: {engine.seed}):")
+            for r in results:
+                status_tag = "[PASS]" if r.passed else "[FAIL]"
+                print(f"  {status_tag} {r.property_name:<30} ({r.iterations_run} runs, {r.elapsed_ms:.2f} ms)")
+                if not r.passed:
+                    print(f"         Counterexample: {r.counterexample} (shrunk in {r.shrink_steps} steps)")
+            overall = "ALL PROPERTIES SATISFIED" if all_passed else "PROPERTY VIOLATION DETECTED"
+            print(f"[Black Mamba Spec] Overall Status: {overall}")
+        return 0 if all_passed else 1
+
+
 def cmd_fuzz(args: argparse.Namespace) -> int:
     import json
     from .fuzzer import AdversarialFuzzer
@@ -1387,7 +1457,7 @@ def main(argv: Optional[list] = None) -> int:
         "run", "build", "inspect", "bench", "lsp", "repl", "pkg", "doc",
         "bindgen", "migrate", "profile", "test", "container", "chat",
         "add", "publish", "kernel", "deploy", "studio", "web", "db",
-        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime",
+        "ast", "patch", "image", "fuzz", "agent", "mcp", "swarm", "replay", "autograd", "shm", "gatekeeper", "selfhost", "verify", "supervisor", "wcet", "realtime", "spec",
     }
     if raw_args and not raw_args[0].startswith("-") and raw_args[0] not in known_cmds:
         if os.path.exists(raw_args[0]) or raw_args[0].endswith(".py") or raw_args[0].endswith(".bmb"):
@@ -1750,6 +1820,22 @@ def main(argv: Optional[list] = None) -> int:
     p_rt_chk = p_rt_sub.add_parser("sched-check", help="Run Rate-Monotonic Analysis (RMA) schedulability check")
     p_rt_chk.add_argument("--json", "-j", action="store_true", help="Output as JSON")
 
+    p_spec = sub.add_parser("spec", help="Formal codebase specification & property-based mutation fuzzing")
+    p_spec_sub = p_spec.add_subparsers(dest="action")
+    p_spec_chk = p_spec_sub.add_parser("check", help="Run property tests on algebraic invariants")
+    p_spec_chk.add_argument("file", nargs="?", default="", help="Optional target file")
+    p_spec_chk.add_argument("--iters", "-i", type=int, default=100, help="Property iterations per test (default: 100)")
+    p_spec_chk.add_argument("--seed", "-s", type=int, default=None, help="Random seed for reproducibility")
+    p_spec_chk.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_spec_syn = p_spec_sub.add_parser("synthesize", help="Synthesize formal algebraic laws & contracts")
+    p_spec_syn.add_argument("target", nargs="?", default="demo", help="Target function or module")
+    p_spec_syn.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
+    p_spec_bnc = p_spec_sub.add_parser("bench", help="Benchmark property evaluation and shrinkage engine")
+    p_spec_bnc.add_argument("--iters", "-i", type=int, default=1000, help="Iterations (default: 1000)")
+    p_spec_bnc.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -1827,6 +1913,8 @@ def main(argv: Optional[list] = None) -> int:
         return cmd_wcet(args)
     if args.command == "realtime":
         return cmd_realtime(args)
+    if args.command == "spec":
+        return cmd_spec(args)
     if args.command == "gatekeeper":
         setattr(args, "release", True)
         return cmd_test(args)

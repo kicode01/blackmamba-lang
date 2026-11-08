@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "3.1.0"
+__version__ = "3.2.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -115,6 +115,24 @@ from .contracts import FormalContractVerifier
 from .unikernel import UnikernelBuilder
 from .wcet import WCETAnalyzer
 from .realtime import ZeroJitterPool, HardRealTimeScheduler, benchmark_rt_pool
+from .spec import (
+    PropertyTestEngine,
+    PropertyResult,
+    Strategy,
+    IntegerStrategy,
+    FloatStrategy,
+    BooleanStrategy,
+    StringStrategy,
+    ListStrategy,
+    integers,
+    floats,
+    booleans,
+    strings,
+    lists,
+    AlgebraicLaws,
+    SpecificationSynthesizer,
+    benchmark_spec_engine,
+)
 
 
 def compile(source: str, filename: str = "<jit>", base_dir: str = "") -> NativeJITModule:
@@ -245,5 +263,21 @@ __all__ = [
     "ZeroJitterPool",
     "HardRealTimeScheduler",
     "benchmark_rt_pool",
+    "PropertyTestEngine",
+    "PropertyResult",
+    "Strategy",
+    "IntegerStrategy",
+    "FloatStrategy",
+    "BooleanStrategy",
+    "StringStrategy",
+    "ListStrategy",
+    "integers",
+    "floats",
+    "booleans",
+    "strings",
+    "lists",
+    "AlgebraicLaws",
+    "SpecificationSynthesizer",
+    "benchmark_spec_engine",
 ]
 
