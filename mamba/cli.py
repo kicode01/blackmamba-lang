@@ -743,6 +743,24 @@ def main(argv: Optional[list] = None) -> int:
     p_web_srv.add_argument("--port", "-p", type=int, default=3000, help="Port to serve on (default: 3000)")
     p_web_srv.add_argument("--host", default="127.0.0.1", help="Host address (default: 127.0.0.1)")
 
+    p_db = sub.add_parser("db", help="Full-stack database management, query execution, and schema inspection")
+    db_sub = p_db.add_subparsers(dest="action")
+
+    p_db_init = db_sub.add_parser("init", help="Initialize a new SQLite database with WAL mode")
+    p_db_init.add_argument("path", nargs="?", default="database.db", help="Database file path (default: database.db)")
+
+    p_db_qry = db_sub.add_parser("query", help="Execute a SQL statement and print results as an aligned table")
+    p_db_qry.add_argument("file", help="Database file path")
+    p_db_qry.add_argument("sql", help="SQL statement to execute")
+
+    p_db_tbl = db_sub.add_parser("tables", help="List all tables, column types, and row counts")
+    p_db_tbl.add_argument("file", help="Database file path")
+
+    p_db_dmp = db_sub.add_parser("dump", help="Dump database tables to JSON or SQL")
+    p_db_dmp.add_argument("file", help="Database file path")
+    p_db_dmp.add_argument("--table", "-t", help="Specific table to dump (optional)")
+    p_db_dmp.add_argument("--format", "-f", choices=["json", "sql"], default="json", help="Dump format (default: json)")
+
     args = parser.parse_args(argv)
     if args.command == "run":
         return cmd_run(args)
@@ -787,6 +805,9 @@ def main(argv: Optional[list] = None) -> int:
     if args.command == "web":
         from .web import cmd_web
         return cmd_web(args)
+    if args.command == "db":
+        from .db import cmd_db
+        return cmd_db(args)
 
     # If no subcommand is provided and running interactively, start REPL
     if args.command is None:

@@ -356,10 +356,18 @@ def sql_exec(db: SqlDb, query: str) -> SqlResult:
     if kw0 == "ROLLBACK":
         return _sql_rollback_tx(db)
 
-    # --- CREATE TABLE <name> (col1 INT, col2 TEXT, ...) ---
-    if kw0 == "CREATE" and toks.count >= 6 and toks.uppers[1] == "TABLE":
-        let tname: str = toks.items[2]
+    # --- CREATE TABLE [IF NOT EXISTS] <name> (col1 INT, col2 TEXT, ...) ---
+    if kw0 == "CREATE" and toks.count >= 4 and toks.uppers[1] == "TABLE":
+        let p: i64 = 2
+        let if_not_exists: i64 = 0
+        if p + 2 < toks.count and toks.uppers[p] == "IF" and toks.uppers[p + 1] == "NOT" and toks.uppers[p + 2] == "EXISTS":
+            if_not_exists = 1
+            p += 3
+        let tname: str = toks.items[p]
+        p += 1
         if _sql_find_table(db, tname) >= 0:
+            if if_not_exists == 1:
+                return _sql_ok_affected(0)
             return _sql_err("table already exists: " + tname)
         if db.table_count >= SQL_MAX_TABLES:
             return _sql_err("max table limit reached")
@@ -369,7 +377,6 @@ def sql_exec(db: SqlDb, query: str) -> SqlResult:
         t.col_count = 0
         t.row_count = 0
 
-        let p: i64 = 3
         if p < toks.count and toks.items[p] == "(":
             p += 1
         while p + 1 < toks.count and toks.items[p] != ")":
@@ -384,6 +391,8 @@ def sql_exec(db: SqlDb, query: str) -> SqlResult:
                 t.col_types[t.col_count] = SQL_COL_TEXT
             t.col_count += 1
             p += 2
+            while p < toks.count and toks.items[p] != "," and toks.items[p] != ")":
+                p += 1
             if p < toks.count and toks.items[p] == ",":
                 p += 1
         db.table_count += 1

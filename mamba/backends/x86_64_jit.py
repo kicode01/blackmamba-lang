@@ -1083,13 +1083,18 @@ class NativeJITModule:
                 return decode_sso_immediate(val)
             if 0 <= val < len(self.mir_module.string_pool):
                 return self.mir_module.string_pool[val].encode("utf-8")
-            p_desc = ctypes.cast(val, ctypes.POINTER(ctypes.c_int64))
-            n = p_desc[0]
-            data_addr = p_desc[1]
-            if n <= 0 or data_addr == 0:
+            if val < 4096:
                 return b""
-            raw = (ctypes.c_char * n).from_address(data_addr)
-            return bytes(raw)
+            try:
+                p_desc = ctypes.cast(val, ctypes.POINTER(ctypes.c_int64))
+                n = p_desc[0]
+                data_addr = p_desc[1]
+                if n <= 0 or n > 67_108_864 or data_addr < 4096:
+                    return b""
+                raw = (ctypes.c_char * n).from_address(data_addr)
+                return bytes(raw)
+            except Exception:
+                return b""
 
         self._get_str_bytes = get_str_bytes
         self._make_str_handle = make_str_handle
