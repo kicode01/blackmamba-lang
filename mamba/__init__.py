@@ -17,7 +17,7 @@ import inspect
 import textwrap
 from typing import Any, Callable, Optional, Union
 
-__version__ = "2.9.0"
+__version__ = "3.0.0"
 __author__ = "Black Mamba Compiler Team"
 
 from .cli import compile_source_to_mir
@@ -110,6 +110,9 @@ from .shm import (
 )
 from .gatekeeper import PreReleaseGatekeeper
 from .selfhost import SelfHostManager
+from .supervisor import SelfHealingSupervisor
+from .contracts import FormalContractVerifier
+from .unikernel import UnikernelBuilder
 
 
 def compile(source: str, filename: str = "<jit>", base_dir: str = "") -> NativeJITModule:
@@ -233,5 +236,8 @@ __all__ = [
     "benchmark_shm_throughput",
     "PreReleaseGatekeeper",
     "SelfHostManager",
+    "SelfHealingSupervisor",
+    "FormalContractVerifier",
+    "UnikernelBuilder",
 ]
 

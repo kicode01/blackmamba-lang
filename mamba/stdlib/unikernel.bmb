@@ -1,0 +1,36 @@
+# Black Mamba Standard Library: unikernel.bmb
+# Phase 9A (v3.0.0): Bare-Metal Cloud Unikernel Substrate (Firecracker & KVM)
+# 100% Pure Native Black Mamba (.bmb) with Zero CPython Runtime Dependencies.
+
+BOOT_MAGIC_FIRECRACKER = 1399743560     # 'HdrS' (0x53726448)
+PAGE_SIZE_4K = 4096
+UART_COM1_PORT = 1016                   # 0x3F8
+
+struct UnikernelHeader:
+    magic: i64
+    entry_rva: i64
+    memory_mb: i64
+    kernel_size_bytes: i64
+    boot_protocol: str
+
+def unikernel_header_new(entry_rva: i64, mem_mb: i64, k_size: i64) -> UnikernelHeader:
+    return UnikernelHeader(BOOT_MAGIC_FIRECRACKER, entry_rva, mem_mb, k_size, "Linux64_DirectBoot")
+
+struct UnikernelConfig:
+    vcpu_count: i64
+    ram_mb: i64
+    enable_serial: bool
+    cold_start_target_ms: f64
+
+def unikernel_config_default() -> UnikernelConfig:
+    return UnikernelConfig(1, 128, True, 0.4)
+
+def unikernel_compute_image_sectors(total_bytes: i64) -> i64:
+    let sector_size = 512
+    let rem = total_bytes % sector_size
+    if rem == 0:
+        return total_bytes // sector_size
+    return (total_bytes // sector_size) + 1
+
+def unikernel_verify_magic(magic: i64) -> bool:
+    return magic == BOOT_MAGIC_FIRECRACKER

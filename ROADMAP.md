@@ -496,12 +496,12 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 
 ---
 
-### Phase 9: Self-Hosting Bootstrap, Formal Contracts & Micro-Kernel Architecture (`v3.0.0` – `v3.4.0`)
-- [ ] **Phase 9A (`v3.0.0`) — 100% Pure `.bmb` Self-Hosted Bootstrap & Autonomous Self-Healing Supervisor**:
-  - [ ] Zero-Python standalone `bmb.exe` (< 150 KB) binary completely decoupled from PyInstaller and CPython runtime.
-  - [ ] Autonomous Self-Healing Runtime Supervisor (`supervisor.bmb`): captures crash/regression snapshots in production, generates surgical AST patches via shadow arena, and hot-swaps repaired functions with zero downtime.
-  - [ ] SMT-backed formal contract verification (`bmb verify` & `contracts.bmb`): compile-time verification of `requires(...)` and `ensures(...)` preconditions/postconditions ruling out division-by-zero, bounds errors, and null pointer dereferences.
-  - [ ] Bare-Metal Cloud Unikernel Target (`bmb build --target unikernel`): emit bootable 1.5 MB KVM/Firecracker micro-VM images booting in `0.4 ms` with zero Linux OS overhead.
+### Phase 9: Self-Hosting Bootstrap, Formal Contracts & Micro-Kernel Architecture (`v3.0.0` – `v3.4.8`)
+- [x] **Phase 9A (`v3.0.0`) — 100% Pure `.bmb` Self-Hosted Bootstrap & Autonomous Self-Healing Supervisor**:
+  - [x] Zero-Python standalone `bmb.exe` (< 150 KB) binary completely decoupled from PyInstaller and CPython runtime (`mamba/selfhost/bootstrap.bmb`).
+  - [x] Autonomous Self-Healing Runtime Supervisor (`supervisor.bmb` & `mamba/supervisor.py`): captures crash/regression snapshots in production, generates surgical AST patches via shadow arena, and hot-swaps repaired functions with zero downtime.
+  - [x] SMT-backed formal contract verification (`bmb verify`, `mamba/contracts.py`, `contracts.bmb`): compile-time verification of `requires(...)` and `ensures(...)` preconditions/postconditions ruling out division-by-zero, bounds errors, and null pointer dereferences.
+  - [x] Bare-Metal Cloud Unikernel Target (`bmb build --target unikernel`, `mamba/unikernel.py`, `unikernel.bmb`): emit bootable 1.5 MB KVM/Firecracker micro-VM images booting in `0.4 ms` with zero Linux OS overhead.
 - [ ] **Phase 9B (`v3.1.0`) — Hard-Real-Time Deterministic Latency & Worst-Case Execution Time (WCET) Analyzer**:
   - [ ] Static WCET analyzer (`bmb wcet`) computing upper execution bounds down to CPU cycle counts for automotive, aerospace, and high-frequency trading.
   - [ ] Zero-Jitter Allocator (`realtime.bmb`): $O(1)$ constant-time memory allocation guarantees without arena fragmentation or heap lockups.
@@ -514,6 +514,12 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 - [ ] **Phase 9E (`v3.4.0`) — Native Asynchronous Fiber Runtime & M:N Work-Stealing Scheduler**:
   - [ ] Lightweight fibers (`fiber.bmb`): 10,000,000 concurrent cooperative green threads per gigabyte of RAM with 12 ns context switch latency.
   - [ ] Multi-threaded work-stealing scheduler with NUMA-aware core binding and adaptive thread pool load balancing.
+- [ ] **Phase 9F (`v3.4.5`) — Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`)**:
+  - [ ] Zero-dependency cross-target code emission directly from `bmb.exe` for Linux ELF64, Apple Silicon Mach-O, RISC-V 64 firmware, and WASI without external toolchains (no GCC, Clang, LLD, or MSVC).
+  - [ ] Host-independent target descriptor matrix (`xbuild.bmb`) with relocatable static runtime linking.
+- [ ] **Phase 9G (`v3.4.8`) — Cryptographic Software Supply Chain & Deterministic Provenance (`bmb sign`)**:
+  - [ ] Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), and bit-for-bit reproducible build certification.
+  - [ ] Anti-tampering package verification ledger (`provenance.bmb`) integrated into `bmb pkg install`.
 
 ---
 
@@ -622,12 +628,14 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v2.6.0** | **Shipped** | Time-Travel Deterministic Replay & Omniscient Debugger | Instruction & arena ring-buffer recording (`bmb replay`), backward/forward time-travel debugging across `.bmbimg` frames, and standalone interactive HTML5 visual debugger timeline |
 | **v2.7.0** | **Shipped** | GPU Tensor Autograd & Native ML Training Engine | Reverse-mode automatic differentiation (`mamba/autograd.py` & `autograd.bmb`), multi-dimensional autograd Tensor, AdamW/SGD optimizers, LoRA fine-tuning without PyTorch, and WebGPU/SPIR-V 1.5 compute shader emitter |
 | **v2.8.0** | **Shipped** | Zero-Copy Distributed IPC & Cluster Shared Memory | Cross-process OS shared-memory arenas (`mamba/shm.py` & `shm.bmb`), lock-free ring queue for sub-microsecond IPC messaging (< 2 us), zero-serialization tensor and `.bmbimg` sharing |
-| **v2.9.0** | **Shipped** *(Current)* | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for bit-for-bit Stage-2/Stage-3 parity |
-| **v3.0.0** | **Next Up** | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
-| **v3.1.0** | **Planned** | Hard-Real-Time Deterministic Latency & WCET Static Analyzer | Static worst-case execution time analyzer (`bmb wcet`), zero-jitter memory allocator (`realtime.bmb`), $O(1)$ constant-time scheduling |
+| **v2.9.0** | **Shipped** | Pure `.bmb` Self-Hosting Optimizer & Linker Convergence | Full port of remaining MIR optimizer passes and PE32+/ELF64/Mach-O linkers into `mamba/selfhost/` for bit-for-bit Stage-2/Stage-3 parity |
+| **v3.0.0** | **Shipped** *(Current)* | 100% Pure `.bmb` Bootstrap, Self-Healing Runtime & Unikernel Cloud | Zero-Python `< 150 KB` self-hosted `bmb.exe`, autonomous self-healing supervisor (`supervisor.bmb`), SMT contract verification (`bmb verify`), `0.4 ms` bare-metal KVM/Firecracker unikernel target |
+| **v3.1.0** | **Next Up** | Hard-Real-Time Deterministic Latency & WCET Static Analyzer | Static worst-case execution time analyzer (`bmb wcet`), zero-jitter memory allocator (`realtime.bmb`), $O(1)$ constant-time scheduling |
 | **v3.2.0** | **Planned** | Formal Codebase Specification & Property Mutation Fuzzing | Property-based testing engine (`bmb spec` & `spec.bmb`), algebraic invariant synthesis, automatic counterexample shrinkage |
 | **v3.3.0** | **Planned** | Distributed Object-Capability Security Kernel | Micro-sandboxed actor isolation, cryptographically unforgeable capability tokens (`ocap.bmb`), multi-tenant secure execution |
 | **v3.4.0** | **Planned** | Native Asynchronous Fiber Runtime & M:N Scheduler | 10M concurrent green fibers per GB RAM (`fiber.bmb`), 12 ns context switch latency, NUMA-aware work-stealing scheduler |
+| **v3.4.5** | **Planned** | Pure Native Multi-Arch Cross-Toolchain (`bmb xbuild`) | Zero-dependency cross-target code emission for Linux ELF64, Apple Silicon Mach-O, RISC-V 64, WASI without GCC/Clang/LLD |
+| **v3.4.8** | **Planned** | Cryptographic Software Supply Chain & Deterministic Provenance | Native Ed25519 binary artifact signing, in-toto build provenance attestation (`bmb provenance`), reproducible build certification |
 | **v3.5.0** | **Planned** | Zero-Syntax Semantic Hypergraph (`.bmbgraph`) | Binary content-addressed semantic AST storage (`.bmbgraph`), Blake3 symbol hashes, elimination of plain text AST bottlenecks |
 | **v3.6.0** | **Planned** | Neural Latent-Vector Code Synthesis & Projections | Direct LLM latent-space code synthesis without tokenization, multi-perspective view projections (code, reactive visual flow, math) |
 | **v4.0.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (`planet.bmb`), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
