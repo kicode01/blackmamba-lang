@@ -1,6 +1,6 @@
-# Black Mamba (`.bmb`) Engineering Roadmap
+# TinyTalk (`.tnt`) & Black Mamba (`.bmb`) Engineering Roadmap
 
-> **Mission**: Build the fastest, cleanest, and most portable Python-family programming language in the world, maintaining zero borrow-checker cognitive burden while compiling to bare-metal native code, tiny standalone binaries, and lightweight WebAssembly.
+> **Mission**: Build the world's fastest, cleanest, and most expressive systems programming substrate: Smalltalk-80 live object heritage, Pythonic ergonomic simplicity, C/ASM bare-metal performance, zero-syntax semantic hypergraphs, and zero borrow-checker cognitive burden while compiling to bare-metal native code, tiny standalone binaries, and lightweight WebAssembly.
 
 ---
 
@@ -24,6 +24,10 @@
 │ Vector 6[DONE]│ Complete Self-Hosting Compiler (Lexer, Parser & PE32+ .exe) │
 │ Vector 7[DONE]│ Embedded & Bare-Metal Target (No-OS / Cortex-M / RISC-V)    │
 │ Vector 8[DONE]│ Native Debug Symbols & Diagnostics (CodeView RSDS / DWARF 4)│
+│ Phase 10[DONE]│ Zero-Syntax Hypergraph, Neural Synthesis & VCS (v3.5-v3.9)  │
+│ Phase 11A[DONE│ TinyTalk Revolution, Morphic Canvas, Registry & HFT (v4.0.0) │
+│ Phase 11B[NEXT│ Planetary CRDT Actor Substrate & Kernel-Bypass RDMA (v4.1.0)│
+│ Phase 11C[PLAN│ Zero-Knowledge Distributed State Verifier (v4.2.0)          │
 └───────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -545,15 +549,19 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 
 ---
 
-### Phase 11: Planetary CRDT Actor Substrate & Kernel-Bypass Networking (`v4.0.0` – `v4.2.0`)
-- [ ] **Phase 11A (`v4.0.0`) — Planetary CRDT Actor Substrate & Multi-Region Consensus**:
-  - [ ] Globally distributed Conflict-Free Replicated Data Type (CRDT) object memory (`planet.bmb`) with causal consistency and delta-state sync.
-  - [ ] Turns the language runtime into a decentralized global cloud OS: transparent cross-datacenter actor migration with automatic state replication.
-- [ ] **Phase 11B (`v4.1.0`) — Sub-Microsecond Kernel-Bypass & RDMA Network Transport**:
-  - [ ] Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`) bypassing the OS TCP/IP kernel stack.
-  - [ ] Direct network card memory access (zero copy) achieving 100 Gbps line-rate packet ingestion at < 1 microsecond wire latency.
+### Phase 11: The TinyTalk Revolution, Planetary CRDT & Kernel-Bypass Transport (`v4.0.0` – `v4.2.0`)
+- [x] **Phase 11A (`v4.0.0`) — The TinyTalk Revolution (.tnt), Living Morphic Canvas & Web Package Registry ✅**:
+  - [x] Smalltalk-80 Live Object Model with zero borrow-checker mental overhead and pure unboxed hardware registers.
+  - [x] Interactive In-Browser Morphic Canvas in Smalltalk Studio (`studio.html` & `studio_client.js`) with 60 FPS reactive sliders, SVG dataflow wires, hardware telemetry gauges, and Inquisitor agent synthesis.
+  - [x] Official Web Package Registry (`packages.html`) featuring 8 zero-cost packages (`tnt/hft`, `tnt/http`, `tnt/db`, `tnt/tensor`, `tnt/canvas`, `tnt/crypto`, `tnt/wasm`, `tnt/actor`) with one-click install & Arena execution.
+  - [x] Flagship High-Frequency Trading & Order Book Engine (`examples/tinytalk_hft_engine.tnt`) with sub-microsecond VWAP and Auto-TCO book sweeping.
+  - [x] Multi-OS CI/CD Pipeline (`.github/workflows/ci.yml`) and PyPI twin-distribution wheel packaging (`tinytalk_lang-4.0.0-py3-none-any.whl`).
+  - [x] 100% backward compatibility for `.bmb` source files, CLI commands (`bmb`, `blackmamba`), and `import mamba`.
+- [ ] **Phase 11B (`v4.1.0`) — Planetary CRDT Actor Substrate & Sub-Microsecond Kernel-Bypass Transport [NEXT IN ROADMAP 🎯]**:
+  - [ ] **Planetary CRDT Actor Substrate** (`tinytalk/stdlib/planet.tnt` & `planet.bmb`): Globally distributed Conflict-Free Replicated Data Types (PN-Counter, LWW-Register, OR-Set), causal vector clocks, and delta-state sync for decentralized multi-region actor synchronization without central coordinators.
+  - [ ] **Sub-Microsecond Kernel-Bypass & RDMA Network Transport** (`tinytalk/stdlib/rdma.tnt` & `dpdk.tnt`): Native InfiniBand/RoCE RDMA and Linux XDP/DPDK user-space ring-buffer packet ingestion (< 1 us wire latency, 100 Gbps line-rate) feeding the flagship HFT engine and distributed actors directly.
 - [ ] **Phase 11C (`v4.2.0`) — Zero-Knowledge Distributed State Verifier**:
-  - [ ] Native SNARK/STARK proof emission (`zk.bmb`) for Black Mamba execution states.
+  - [ ] Native SNARK/STARK proof emission (`zk.tnt` & `zk.bmb`) for TinyTalk execution states.
   - [ ] Cryptographic execution validity proofs enabling decentralized zero-trust computation verifiability across untrusted nodes.
 
 ---
@@ -654,9 +662,8 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.7.0** | **Shipped** | Semantic 3-Way Graph VCS & Structural Diff | Graph-aware diff & merge replacing line-based Git with zero-conflict structural rebasing |
 | **v3.8.0** | **Shipped** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
 | **v3.9.0** | **Shipped** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |
-| **v4.0.0** | **Shipped** *(Current)* | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Explosive Performance, Zero-Syntax Semantic Hypergraph & 100% Dual .bmb Compatibility |
-| **v4.1.0** | **Planned** | Planetary CRDT Actor Substrate & Multi-Region Consensus | Globally distributed CRDT memory (planet.bmb), cross-datacenter transparent actor migration, zero-coordinator causal state sync |
-| **v4.1.0** | **Planned** | Sub-Microsecond Kernel-Bypass & RDMA Network Transport | Native DPDK/XDP and InfiniBand/RoCE RDMA transport (`rdma.bmb`, `dpdk.bmb`), 100 Gbps line-rate packet ingestion at < 1 us wire latency |
+| **v4.0.0** | **Shipped** *(Current)* | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Living Morphic Canvas, Web Package Registry, Flagship HFT Engine, CI/CD Packaging Matrix & 100% Dual .bmb Compatibility |
+| **v4.1.0** | **Next Target** | Planetary CRDT Actor Substrate & Kernel-Bypass Transport | Globally distributed CRDT memory (`planet.tnt`), causal vector clocks, cross-datacenter transparent actor migration, Sub-Microsecond Kernel-Bypass RDMA/DPDK transport (`rdma.tnt`, < 1 us wire latency) |
 | **v4.2.0** | **Planned** | Zero-Knowledge Distributed State Verifier | Native SNARK/STARK proof emission (`zk.bmb`), cryptographically verifiable execution state for trustless distributed compute |
 | **v4.5.0** | **Planned** | Superoptimizing Neuro-Symbolic Compiler | Monte-Carlo Tree Search (MCTS) assembly kernel synthesizer, Z3 machine-checkable equivalence proofs for hardware algorithms |
 | **v5.0.0** | **Planned** | Neuromorphic Silicon & Optical Matrix Co-Processor | Direct Spiking Neural Network (SNN) silicon backend (Intel Loihi 2), coherent optical matrix multiplier compilation |
