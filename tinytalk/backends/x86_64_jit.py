@@ -2188,15 +2188,30 @@ class NativeJITModule:
     def _allocate_executable_memory(self) -> None:
         raw_code = bytes(self.code_buf.code)
         self.exec_size = max(4096, len(raw_code))
-        kernel32 = ctypes.windll.kernel32
-        kernel32.VirtualAlloc.restype = ctypes.c_void_p
-        kernel32.VirtualAlloc.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_ulong, ctypes.c_ulong]
+        if sys.platform == "win32":
+            kernel32 = ctypes.windll.kernel32
+            kernel32.VirtualAlloc.restype = ctypes.c_void_p
+            kernel32.VirtualAlloc.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_ulong, ctypes.c_ulong]
 
-        ptr = kernel32.VirtualAlloc(None, self.exec_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
-        if not ptr:
-            raise MemoryError("VirtualAlloc failed to allocate executable x86-64 memory")
-        self.exec_ptr = ptr
-        ctypes.memmove(self.exec_ptr, raw_code, len(raw_code))
+            ptr = kernel32.VirtualAlloc(None, self.exec_size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)
+            if not ptr:
+                raise MemoryError("VirtualAlloc failed to allocate executable x86-64 memory")
+            self.exec_ptr = ptr
+            ctypes.memmove(self.exec_ptr, raw_code, len(raw_code))
+        else:
+            # Cross-platform POSIX memory allocation for Linux and macOS runners
+            import mmap
+            flags = mmap.MAP_PRIVATE | getattr(mmap, "MAP_ANONYMOUS", getattr(mmap, "MAP_ANON", 0x20))
+            try:
+                mm = mmap.mmap(-1, self.exec_size, flags=flags, prot=mmap.PROT_READ | mmap.PROT_WRITE | mmap.PROT_EXEC)
+                self._posix_mmap = mm
+                self.exec_ptr = ctypes.c_void_p.from_buffer(mm).value
+                mm.write(raw_code)
+                mm.seek(0)
+            except Exception:
+                buf = (ctypes.c_uint8 * self.exec_size).from_buffer_copy(raw_code)
+                self._posix_buf = buf
+                self.exec_ptr = ctypes.addressof(buf)
 
     def __getattr__(self, name: str) -> Any:
         if name in self.func_offsets:
@@ -2281,7 +2296,13 @@ class NativeJITModule:
                 pass
         self._active_sockets.clear()
         if self.exec_ptr:
-            kernel32 = ctypes.windll.kernel32
-            kernel32.VirtualFree.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_ulong]
-            kernel32.VirtualFree(self.exec_ptr, 0, MEM_RELEASE)
+            if sys.platform == "win32":
+                kernel32 = ctypes.windll.kernel32
+                kernel32.VirtualFree.argtypes = [ctypes.c_void_p, ctypes.c_size_t, ctypes.c_ulong]
+                kernel32.VirtualFree(self.exec_ptr, 0, MEM_RELEASE)
+            elif hasattr(self, "_posix_mmap"):
+                try:
+                    self._posix_mmap.close()
+                except Exception:
+                    pass
             self.exec_ptr = None

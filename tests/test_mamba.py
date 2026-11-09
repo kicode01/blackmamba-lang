@@ -1,6 +1,7 @@
 """
 Black Mamba (.bmb) Comprehensive Compiler & Runtime Test Suite.
 """
+from __future__ import annotations
 
 import os
 import sys
