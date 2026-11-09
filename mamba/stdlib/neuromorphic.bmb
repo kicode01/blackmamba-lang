@@ -1,0 +1,24 @@
+# Black Mamba Neuromorphic SNN Standard Library (neuromorphic.bmb)
+# Leaky Integrate-and-Fire Dynamics & Synaptic Spike Rates
+
+struct LIFConfig:
+    decay: f64
+    v_threshold: f64
+    v_reset: f64
+    refractory_steps: i64
+
+def default_lif_config() -> LIFConfig:
+    return LIFConfig(0.9, 1.0, 0.0, 1)
+
+def compute_membrane_decay(v_prev: f64, current: f64, decay: f64) -> f64:
+    return (v_prev * decay) + current
+
+def check_spike(v_membrane: f64, v_threshold: f64) -> bool:
+    if v_membrane >= v_threshold:
+        return True
+    return False
+
+def calculate_spike_rate(spikes: i64, total_steps: i64) -> f64:
+    if total_steps <= 0:
+        return 0.0
+    return (spikes * 1.0) / (total_steps * 1.0)

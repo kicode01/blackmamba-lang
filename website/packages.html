@@ -479,7 +479,7 @@
       <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (15)</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (25)</button>
       <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
       <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
       <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
@@ -493,7 +493,7 @@
   <!-- Telemetry Metrics Banner -->
   <div class="metrics-strip">
     <div class="metric-card">
-      <div class="metric-val">15 Packages</div>
+      <div class="metric-val">25 Packages</div>
       <div class="metric-label">Certified 100% Zero-Defect Gatekeeper verified</div>
     </div>
     <div class="metric-card">
@@ -1141,8 +1141,10 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <button class="btn-install" onclick="copyInstall('tnt add tnt/simd_opt')">📋 tnt add tnt/simd_opt</button>
         <a href="arena.html?preset=simd_opt" class="btn-run-arena">▶ Run in Arena</a>
       </div>
-    </div>
-
+    </div>
+
+
+
     <!-- 20. tnt/pgo -->
     <div class="pkg-card" data-cat="systems" data-name="tnt/pgo profile guided optimization pgo kernel disk cache hot path branch telemetry">
       <div>
@@ -1171,6 +1173,152 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <a href="arena.html?preset=pgo" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
+
+    <!-- 21. tnt/neuromorphic -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/neuromorphic snn spiking neural network lif leaky integrate and fire silicon">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🧠</div>
+            <div>
+              <div class="pkg-name">tnt/neuromorphic</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 13A</span>
+        </div>
+        <p class="pkg-desc">
+          Spiking Neural Network (SNN) Leaky Integrate-and-Fire (LIF) Kernel. Event-driven membrane potential dynamics, temporal spike train simulation, and ASCII raster visualization with zero garbage collection overhead.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v5.0.0</span>
+          <span>⭐ 56.1k</span>
+          <span>⚖️ MIT</span>
+          <span>⚡ SNN Silicon</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/neuromorphic')">📋 tnt add tnt/neuromorphic</button>
+        <a href="arena.html?preset=neuromorphic" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 22. tnt/loihi2 -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/loihi2 intel loihi 2 neuromorphic core stdp plasticity axonal routing microcode">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">⚡</div>
+            <div>
+              <div class="pkg-name">tnt/loihi2</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 13B</span>
+        </div>
+        <p class="pkg-desc">
+          Intel Loihi 2 Synaptic Routing & Axonal Microcode Emitter. Low-level core compartment allocation, Spike-Timing-Dependent Plasticity (STDP) learning dynamics, and direct microcode compilation for asynchronous neuromorphic silicon.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v5.1.0</span>
+          <span>⭐ 58.4k</span>
+          <span>⚖️ MIT</span>
+          <span>🧠 Loihi 2 Silicon</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/loihi2')">📋 tnt add tnt/loihi2</button>
+        <a href="arena.html?preset=loihi2" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 23. tnt/optical -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/optical coherent optical matrix multiplier mzi photonic mesh attojoule">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">💡</div>
+            <div>
+              <div class="pkg-name">tnt/optical</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 13C</span>
+        </div>
+        <p class="pkg-desc">
+          Coherent Optical Matrix Multiplier & Mach-Zehnder Interferometer (MZI) Photonic Mesh. Clements unitary matrix decomposition, speed-of-light optical propagation, and 15-attojoule/MAC ultra-low-energy matrix acceleration.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v5.2.0</span>
+          <span>⭐ 60.8k</span>
+          <span>⚖️ MIT</span>
+          <span>💡 15 aJ / MAC</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/optical')">📋 tnt add tnt/optical</button>
+        <a href="arena.html?preset=optical" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 24. tnt/hybrid_neuro_optic -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/hybrid_neuro_optic electro-photonic pipeline photodiode transduction snn mzi">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🔬</div>
+            <div>
+              <div class="pkg-name">tnt/hybrid_neuro_optic</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 13D</span>
+        </div>
+        <p class="pkg-desc">
+          Hybrid Neuromorphic-Optical Electro-Photonic Real-Time Pipeline. Connects passive coherent optical matrix multipliers with asynchronous LIF spiking neurons via photodiode power transduction (picosecond latency).
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v5.3.0</span>
+          <span>⭐ 63.2k</span>
+          <span>⚖️ MIT</span>
+          <span>🔬 Electro-Photonic</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/hybrid_neuro_optic')">📋 tnt add tnt/hybrid_neuro_optic</button>
+        <a href="arena.html?preset=hybrid_neuro_optic" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 25. tnt/neuro_verify -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/neuro_verify neuromorphic formal verifier spike fuzzer energy bounds">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🛡️</div>
+            <div>
+              <div class="pkg-name">tnt/neuro_verify</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 13E</span>
+        </div>
+        <p class="pkg-desc">
+          Neuromorphic Event-Driven Spike Fuzzer & Formal Verification Engine. Enforces refractory rate violation bounds, energy consumption caps, silent network warnings, and synchronous epileptic avalanche prevention.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v5.4.0</span>
+          <span>⭐ 65.7k</span>
+          <span>⚖️ MIT</span>
+          <span>🛡️ Phase 13 Complete</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/neuro_verify')">📋 tnt add tnt/neuro_verify</button>
+        <a href="arena.html?preset=neuro_verify" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
 
 
 

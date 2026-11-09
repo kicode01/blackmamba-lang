@@ -1,0 +1,13 @@
+# TinyTalk Coherent Optical Mesh Standard Library (optical.tnt)
+# Photonic Phase Shift and Sub-Femtojoule Energy Accounting
+
+struct OpticalMeshSpec:
+    dimension: i64
+    layers: i64
+    energy_per_mac_aj: f64
+
+def default_optical_spec(dim: i64) -> OpticalMeshSpec:
+    return OpticalMeshSpec(dim, dim, 15.0)
+
+def calculate_photonic_energy(ops: i64, attojoules_per_op: f64) -> f64:
+    return (ops * 1.0) * attojoules_per_op * 0.000000000000000001

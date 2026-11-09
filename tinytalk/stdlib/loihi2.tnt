@@ -1,0 +1,14 @@
+# TinyTalk Intel Loihi 2 Microcode Standard Library (loihi2.tnt)
+# Compartmental Routing and Axonal Routing Metadata
+
+struct LoihiCoreSpec:
+    core_id: i64
+    max_compartments: i64
+
+def make_core_spec(core_id: i64) -> LoihiCoreSpec:
+    return LoihiCoreSpec(core_id, 128)
+
+def compute_stdp_decay(delta_t: i64, tau: f64) -> f64:
+    if delta_t == 0:
+        return 1.0
+    return 1.0 / (1.0 + (delta_t * 1.0) / tau)

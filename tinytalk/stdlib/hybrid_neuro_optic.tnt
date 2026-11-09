@@ -1,0 +1,13 @@
+# TinyTalk Hybrid Electro-Photonic Pipeline Standard Library (hybrid_neuro_optic.tnt)
+# Photodiode Transduction and Heterogeneous Latency Accounting
+
+struct NeuroOpticSpec:
+    dimension: i64
+    responsivity_a_per_w: f64
+    latency_ps: f64
+
+def default_neuro_optic_spec(dim: i64) -> NeuroOpticSpec:
+    return NeuroOpticSpec(dim, 0.85, 2.5)
+
+def compute_photocurrent(optical_power: f64, responsivity: f64) -> f64:
+    return optical_power * responsivity
