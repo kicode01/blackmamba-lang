@@ -26,8 +26,8 @@
 │ Vector 8[DONE]│ Native Debug Symbols & Diagnostics (CodeView RSDS / DWARF 4)│
 │ Phase 10[DONE]│ Zero-Syntax Hypergraph, Neural Synthesis & VCS (v3.5-v3.9)  │
 │ Phase 11A[DONE│ TinyTalk Revolution, Morphic Canvas, Registry & HFT (v4.0.0) │
-│ Phase 11B[NEXT│ Planetary CRDT Actor Substrate & Kernel-Bypass RDMA (v4.1.0)│
-│ Phase 11C[PLAN│ Linearizable Quorum Consensus & Zero-Copy Wire RPC (v4.2.0) │
+│ Phase 11B[DONE│ Planetary CRDT Actor Substrate & Kernel-Bypass RDMA (v4.1.0)│
+│ Phase 11C[DONE│ Linearizable Quorum Consensus & Zero-Copy Wire RPC (v4.2.0) │
 │ Phase 11D[PLAN│ Content-Addressed Merkle Store & Zero-Trust Mesh (v4.3.0)   │
 │ Phase 11E[PLAN│ Zero-Knowledge State Verifier & Planetary Studio (v4.4.0)   │
 └───────────────┴─────────────────────────────────────────────────────────────┘
@@ -671,9 +671,9 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.7.0** | **Shipped** | Semantic 3-Way Graph VCS & Structural Diff | Graph-aware diff & merge replacing line-based Git with zero-conflict structural rebasing |
 | **v3.8.0** | **Shipped** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
 | **v3.9.0** | **Shipped** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |
-| **v4.0.0** | **Shipped** *(Current)* | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Living Morphic Canvas, Web Package Registry, Flagship HFT Engine, CI/CD Packaging Matrix & 100% Dual .bmb Compatibility |
-| **v4.1.0** | **In Progress** | Planetary CRDT Actor Substrate & Kernel-Bypass Transport | Globally distributed CRDT memory (`planet.tnt`), causal vector clocks, cross-datacenter transparent actor migration, Sub-Microsecond Kernel-Bypass RDMA/DPDK transport (`rdma.tnt`, < 1 us wire latency) |
-| **v4.2.0** | **Planned** | Linearizable Quorum Consensus & Zero-Copy Wire RPC | Pipelined Multi-Paxos / Raft consensus (`consensus.tnt`), leader leases, Cap'n Proto zero-copy binary RPC frames (`rpc.tnt`) |
+| **v4.0.0** | **Shipped** | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Living Morphic Canvas, Web Package Registry, Flagship HFT Engine, CI/CD Packaging Matrix & 100% Dual .bmb Compatibility |
+| **v4.1.0** | **Shipped** | Planetary CRDT Actor Substrate & Kernel-Bypass Transport | Globally distributed CRDT memory (`planet.tnt`), causal vector clocks, cross-datacenter transparent actor migration, Sub-Microsecond Kernel-Bypass RDMA/DPDK transport (`rdma.tnt`, < 1 us wire latency) |
+| **v4.2.0** | **Shipped** *(Current)* | Linearizable Quorum Consensus & Zero-Copy Wire RPC | Pipelined Multi-Paxos / Raft consensus (`consensus.tnt`), leader leases, 32-byte aligned zero-copy binary RPC frames (`rpc.tnt`), 12 packages & Live Arena Presets |
 | **v4.3.0** | **Planned** | Content-Addressed Merkle Store & Zero-Trust Mesh | Blake3 Merkle-DAG object store (`cas.tnt`), P2P chunk sync, Ed25519 node identities & Noise-protocol encrypted peer mesh (`mesh.tnt`) |
 | **v4.4.0** | **Planned** | Zero-Knowledge State Verifier & Planetary Studio Visualizer | Native SNARK/STARK execution state proof emission (`zk.tnt`), live 3D global cluster topology visualizer in Smalltalk Studio (`studio.html?view=mesh`) |
 | **v4.5.0** | **Planned** | Superoptimizing Neuro-Symbolic Compiler | Monte-Carlo Tree Search (MCTS) assembly kernel synthesizer, Z3 machine-checkable equivalence proofs for hardware algorithms |

@@ -1,0 +1,21 @@
+# TinyTalk Wire RPC Module (rpc.tnt)
+# Phase 11C: Zero-Copy Binary Wire RPC (v4.2.0)
+
+struct RPCHeader:
+    magic: i32
+    version: i16
+    flags: i16
+    msg_id: i64
+    method_id: i32
+    payload_len: i32
+    checksum: i32
+    reserved: i32
+
+fn rpc_header_size() -> i64:
+    return 32
+
+fn rpc_is_request(flags: i16) -> bool:
+    return (flags & 1) != 0
+
+fn rpc_is_response(flags: i16) -> bool:
+    return (flags & 2) != 0

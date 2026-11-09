@@ -1,0 +1,22 @@
+# Black Mamba Consensus Module (consensus.bmb)
+# Phase 11C: Linearizable Quorum Consensus (v4.2.0)
+
+struct LogEntry:
+    index: int
+    term: int
+    cmd_id: int
+    committed: bool
+
+struct RaftState:
+    current_term: int
+    voted_for: int
+    commit_index: int
+    last_applied: int
+    is_leader: bool
+
+def raft_init(term: int) -> RaftState:
+    return RaftState(term, -1, 0, 0, False)
+
+def raft_is_quorum(votes: int, total_nodes: int) -> bool:
+    required = (total_nodes // 2) + 1
+    return votes >= required

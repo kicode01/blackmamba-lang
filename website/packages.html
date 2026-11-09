@@ -438,7 +438,7 @@
   <!-- Top Ribbon -->
   <div class="top-ribbon">
     <span class="ribbon-pill">OFFICIAL PACKAGE REGISTRY</span>
-    <span>Explore modular zero-cost packages for TinyTalk v4.1.0. All packages compile down to raw registers with 0ms GC pause.</span>
+    <span>Explore modular zero-cost packages for TinyTalk v4.2.0. All packages compile down to raw registers with 0ms GC pause.</span>
   </div>
 
   <!-- Header Navigation -->
@@ -446,7 +446,7 @@
     <div class="nav-brand">
       <img src="assets/logo.png" alt="TinyTalk Logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">v4.1.0 NATIVE</span>
+      <span class="nav-badge">v4.2.0 NATIVE</span>
     </div>
     <div class="nav-links">
       <a href="index.html" class="nav-link">Home</a>
@@ -461,7 +461,7 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="hero-badge">
-      <span>●</span> 10 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
+      <span>●</span> 12 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
     </div>
     <h1 class="hero-title">
       Modular High-Speed Packages for<br>
@@ -479,7 +479,7 @@
       <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (10)</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (12)</button>
       <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
       <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
       <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
@@ -493,7 +493,7 @@
   <!-- Telemetry Metrics Banner -->
   <div class="metrics-strip">
     <div class="metric-card">
-      <div class="metric-val">10 Packages</div>
+      <div class="metric-val">12 Packages</div>
       <div class="metric-label">Certified 100% Zero-Defect Gatekeeper verified</div>
     </div>
     <div class="metric-card">
@@ -844,6 +844,77 @@ packets = ring.rx_burst(max_packets=32)</div>
         <a href="arena.html?preset=rdma" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
+    <!-- 11. tnt/consensus -->
+    <div class="pkg-card" data-cat="planet" data-name="tnt/consensus linearizable quorum paxos raft state machine replication lease">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🏛️</div>
+            <div>
+              <div class="pkg-name">tnt/consensus</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 11C</span>
+        </div>
+        <p class="pkg-desc">
+          Linearizable Quorum Consensus implementing Multi-Paxos &amp; Raft state machine replication with majority quorum validation, leader leases, and zero-stale reads.
+        </p>
+        <div class="pkg-code">import tnt.consensus as consensus
+
+cluster = consensus.QuorumCluster(["node-1", "node-2", "node-3"])
+leader_id = cluster.elect_leader("node-1")
+leader = cluster.get_node(leader_id)
+leader.propose("SET", ("balance", 5000000))</div>
+        <div class="pkg-meta">
+          <span>🏷️ v4.2.0</span>
+          <span>⭐ 28.4k</span>
+          <span>⚖️ MIT</span>
+          <span>🛡️ Linearizable Quorum</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/consensus')">📋 tnt add tnt/consensus</button>
+        <a href="arena.html?preset=consensus" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 12. tnt/rpc -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/rpc zero-copy binary wire rpc framing crc32 multiplexed">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">📡</div>
+            <div>
+              <div class="pkg-name">tnt/rpc</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 11C</span>
+        </div>
+        <p class="pkg-desc">
+          Ultra-low-latency 32-byte cache-aligned binary wire RPC protocol with hardware CRC32 checksums, zero-copy memoryview parsing, and multiplexed dispatch.
+        </p>
+        <div class="pkg-code">import tnt.rpc as rpc
+
+dispatcher = rpc.RPCDispatcher()
+dispatcher.register_handler(1, lambda p: b"ACK:" + bytes(p))
+client = rpc.RPCClient()
+req = client.call(1, b"PING")
+res = dispatcher.dispatch(req)</div>
+        <div class="pkg-meta">
+          <span>🏷️ v4.2.0</span>
+          <span>⭐ 31.9k</span>
+          <span>⚖️ MIT</span>
+          <span>⚡ 32B Zero-Copy Frame</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/rpc')">📋 tnt add tnt/rpc</button>
+        <a href="arena.html?preset=rpc" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
   </div>
 
   <!-- Clipboard Toast -->

@@ -26,7 +26,7 @@ def get_server_version() -> str:
         from . import __version__
         return __version__
     except Exception:
-        return "4.1.0"
+        return "4.2.0"
 
 SERVER_VERSION = get_server_version()
 
