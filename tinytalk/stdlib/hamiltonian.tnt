@@ -1,0 +1,16 @@
+# TinyTalk Hamiltonian Dynamics Standard Library (hamiltonian.tnt)
+# Symplectic Phase Space Integration and Energy Conservation
+
+struct PhaseSpacePoint:
+    q_pos: f64
+    p_mom: f64
+    total_energy: f64
+
+def compute_kinetic_energy(momentum: f64, mass: f64) -> f64:
+    return (momentum * momentum) / (2.0 * mass)
+
+def compute_harmonic_potential(q: f64, spring_k: f64) -> f64:
+    return 0.5 * spring_k * q * q
+
+def make_phase_space_point(q: f64, p: f64, e: f64) -> PhaseSpacePoint:
+    return PhaseSpacePoint(q, p, e)

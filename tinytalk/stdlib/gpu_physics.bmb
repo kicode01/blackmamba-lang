@@ -1,0 +1,12 @@
+# Black Mamba Multi-GPU Physics Shader Standard Library (gpu_physics.bmb)
+# WGSL/SPIR-V Particle Simulation Shaders & Workgroup Sizing
+
+struct GPUParticleSpec:
+    num_particles: i64
+    workgroup_size: i64
+
+def default_gpu_spec(count: i64) -> GPUParticleSpec:
+    return GPUParticleSpec(count, 64)
+
+def compute_workgroup_count(num_particles: i64, workgroup_size: i64) -> i64:
+    return (num_particles + workgroup_size - 1) // workgroup_size

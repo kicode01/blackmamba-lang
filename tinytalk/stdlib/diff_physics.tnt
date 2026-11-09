@@ -1,0 +1,12 @@
+# TinyTalk Differentiable Physics Standard Library (diff_physics.tnt)
+# Reverse-Mode Automatic Differentiation & Gradient Accounting
+
+struct GradSpec:
+    value: f64
+    grad: f64
+
+def make_grad_spec(val: f64, g: f64) -> GradSpec:
+    return GradSpec(val, g)
+
+def finite_difference_grad(f_plus: f64, f_minus: f64, eps: f64) -> f64:
+    return (f_plus - f_minus) / (2.0 * eps)

@@ -21,7 +21,7 @@ import importlib
 
 import pkgutil
 
-__version__ = "7.0.0"
+__version__ = "8.0.0"
 __author__ = "TinyTalk Team"
 
 from .cli import compile_source_to_mir

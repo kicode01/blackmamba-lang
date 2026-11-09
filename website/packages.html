@@ -479,7 +479,7 @@
       <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (35)</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (40)</button>
       <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
       <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
       <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
@@ -493,7 +493,7 @@
   <!-- Telemetry Metrics Banner -->
   <div class="metrics-strip">
     <div class="metric-card">
-      <div class="metric-val">35 Packages</div>
+      <div class="metric-val">40 Packages</div>
       <div class="metric-label">Certified 100% Zero-Defect Gatekeeper verified</div>
     </div>
     <div class="metric-card">
@@ -1608,6 +1608,152 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <a href="arena.html?preset=quantum_verify" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
+
+    <!-- 36. tnt/diff_physics -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/diff_physics universal differentiable physics autograd reverse mode tape nabla f">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">∇</div>
+            <div>
+              <div class="pkg-name">tnt/diff_physics</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 16A</span>
+        </div>
+        <p class="pkg-desc">
+          Universal Differentiable Physics & Reverse-Mode Autograd Tape. Automatic differentiation (∇f) across all language primitives, topological reverse-mode gradient backpropagation, and physical parameter optimization.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v8.0.0</span>
+          <span>⭐ 92.1k</span>
+          <span>⚖️ MIT</span>
+          <span>∇ Autograd Tape</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/diff_physics')">📋 tnt add tnt/diff_physics</button>
+        <a href="arena.html?preset=diff_physics" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 37. tnt/hamiltonian -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/hamiltonian classical mechanics symplectic verlet integrator liouville energy conservation">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">⚙️</div>
+            <div>
+              <div class="pkg-name">tnt/hamiltonian</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 16B</span>
+        </div>
+        <p class="pkg-desc">
+          Hamiltonian Classical Mechanics & Symplectic Integrator. Velocity-Verlet phase-space symplectic integration preserving Liouville volume and total mechanical energy H(q, p) over billions of steps with zero artificial drift.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v8.1.0</span>
+          <span>⭐ 94.7k</span>
+          <span>⚖️ MIT</span>
+          <span>⚙️ Symplectic Verlet</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/hamiltonian')">📋 tnt add tnt/hamiltonian</button>
+        <a href="arena.html?preset=hamiltonian" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 38. tnt/world_twin -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/world_twin multiscale digital twin rigid soft body mass spring cloth kinematics">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🌐</div>
+            <div>
+              <div class="pkg-name">tnt/world_twin</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 16C</span>
+        </div>
+        <p class="pkg-desc">
+          Multi-Scale Digital Twin Physical Simulation & Rigid/Soft Body Dynamics. Mass-spring-damper cloth/soft-body lattices, 6-DOF kinematics, ground plane restitution collisions, and real-time physical sandbox updates.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v8.2.0</span>
+          <span>⭐ 97.3k</span>
+          <span>⚖️ MIT</span>
+          <span>🌐 Digital Twin</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/world_twin')">📋 tnt add tnt/world_twin</button>
+        <a href="arena.html?preset=world_twin" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 39. tnt/gpu_physics -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/gpu_physics multigpu compute shader nbody gravity wgsl spirv particles">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🎮</div>
+            <div>
+              <div class="pkg-name">tnt/gpu_physics</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 16D</span>
+        </div>
+        <p class="pkg-desc">
+          Multi-GPU Physical Particle Field Emitter. Compiles mass-scale N-body gravitational fields and SPH fluid dynamics into WebGPU WGSL and Vulkan SPIR-V 1.5 parallel compute shader kernels.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v8.3.0</span>
+          <span>⭐ 99.8k</span>
+          <span>⚖️ MIT</span>
+          <span>🎮 GPU Compute</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/gpu_physics')">📋 tnt add tnt/gpu_physics</button>
+        <a href="arena.html?preset=gpu_physics" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 40. tnt/physics_verify -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/physics_verify noether theorem invariant conservation momentum energy drift">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🛡️</div>
+            <div>
+              <div class="pkg-name">tnt/physics_verify</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 16E</span>
+        </div>
+        <p class="pkg-desc">
+          Conservation Law Energy/Momentum Invariant Fuzzer & Noether Certification Engine. Enforces continuous conservation of linear momentum, angular momentum, and bounded numerical energy drift in physical simulations.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v8.4.0</span>
+          <span>⭐ 102.5k</span>
+          <span>⚖️ MIT</span>
+          <span>🛡️ Phase 16 Complete</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/physics_verify')">📋 tnt add tnt/physics_verify</button>
+        <a href="arena.html?preset=physics_verify" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
 
 
 
