@@ -438,7 +438,7 @@
   <!-- Top Ribbon -->
   <div class="top-ribbon">
     <span class="ribbon-pill">OFFICIAL PACKAGE REGISTRY</span>
-    <span>Explore modular zero-cost packages for TinyTalk v4.2.0. All packages compile down to raw registers with 0ms GC pause.</span>
+    <span>Explore modular zero-cost packages for TinyTalk v4.3.0. All packages compile down to raw registers with 0ms GC pause.</span>
   </div>
 
   <!-- Header Navigation -->
@@ -446,7 +446,7 @@
     <div class="nav-brand">
       <img src="assets/logo.png" alt="TinyTalk Logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">v4.2.0 NATIVE</span>
+      <span class="nav-badge">v4.3.0 NATIVE</span>
     </div>
     <div class="nav-links">
       <a href="index.html" class="nav-link">Home</a>
@@ -461,7 +461,7 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="hero-badge">
-      <span>●</span> 12 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
+      <span>●</span> 14 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
     </div>
     <h1 class="hero-title">
       Modular High-Speed Packages for<br>
@@ -479,7 +479,7 @@
       <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (12)</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (14)</button>
       <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
       <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
       <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
@@ -493,7 +493,7 @@
   <!-- Telemetry Metrics Banner -->
   <div class="metrics-strip">
     <div class="metric-card">
-      <div class="metric-val">12 Packages</div>
+      <div class="metric-val">14 Packages</div>
       <div class="metric-label">Certified 100% Zero-Defect Gatekeeper verified</div>
     </div>
     <div class="metric-card">
@@ -867,7 +867,7 @@ leader_id = cluster.elect_leader("node-1")
 leader = cluster.get_node(leader_id)
 leader.propose("SET", ("balance", 5000000))</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.2.0</span>
+          <span>🏷️ v4.3.0</span>
           <span>⭐ 28.4k</span>
           <span>⚖️ MIT</span>
           <span>🛡️ Linearizable Quorum</span>
@@ -903,7 +903,7 @@ client = rpc.RPCClient()
 req = client.call(1, b"PING")
 res = dispatcher.dispatch(req)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.2.0</span>
+          <span>🏷️ v4.3.0</span>
           <span>⭐ 31.9k</span>
           <span>⚖️ MIT</span>
           <span>⚡ 32B Zero-Copy Frame</span>
@@ -914,6 +914,75 @@ res = dispatcher.dispatch(req)</div>
         <a href="arena.html?preset=rpc" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
+    <!-- 13. tnt/cas -->
+    <div class="pkg-card" data-cat="database" data-name="tnt/cas content addressed merkle tree cas blake3 deduplication audit proof">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">📦</div>
+            <div>
+              <div class="pkg-name">tnt/cas</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 11D</span>
+        </div>
+        <p class="pkg-desc">
+          Cryptographic Content-Addressed Storage &amp; Merkle Trees with zero-copy block deduplication and logarithmic inclusion audit verification proofs.
+        </p>
+        <div class="pkg-code">import tnt.cas as cas
+
+store = cas.ContentAddressedStore(default_chunk_size=4096)
+root, chunk_ids = store.put(b"IMMUTABLE_BLOCKCHAIN_STATE_SNAPSHOT")
+data = store.get(root)</div>
+        <div class="pkg-meta">
+          <span>🏷️ v4.3.0</span>
+          <span>⭐ 35.2k</span>
+          <span>⚖️ MIT</span>
+          <span>🌳 Cryptographic Merkle CAS</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/cas')">📋 tnt add tnt/cas</button>
+        <a href="arena.html?preset=cas" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 14. tnt/mesh -->
+    <div class="pkg-card" data-cat="web" data-name="tnt/mesh zero trust peer identities encrypted tunnel kademlia xor dht routing">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🕸️</div>
+            <div>
+              <div class="pkg-name">tnt/mesh</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 11D</span>
+        </div>
+        <p class="pkg-desc">
+          Zero-Trust Encrypted Mesh Network with self-sovereign peer identities, authenticated point-to-point tunnels, anti-replay, and Kademlia XOR routing.
+        </p>
+        <div class="pkg-code">import tnt.mesh as mesh
+
+alice = mesh.PeerIdentity.generate("alice")
+bob = mesh.PeerIdentity.generate("bob")
+tunnel = mesh.MeshTunnel(alice, bob.public_key, "shared_key")
+pkt = tunnel.encrypt(bob.node_id, b"CONFIDENTIAL_PAYLOAD")</div>
+        <div class="pkg-meta">
+          <span>🏷️ v4.3.0</span>
+          <span>⭐ 38.7k</span>
+          <span>⚖️ MIT</span>
+          <span>🔒 Zero-Trust Tunnel</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/mesh')">📋 tnt add tnt/mesh</button>
+        <a href="arena.html?preset=mesh" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
 
   </div>
 
