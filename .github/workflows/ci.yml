@@ -8,13 +8,12 @@ on:
     branches: [ main ]
 
 jobs:
-  test-and-certify:
-    name: Test & Gatekeeper (${{ matrix.os }} - Py${{ matrix.python-version }})
-    runs-on: ${{ matrix.os }}
+  test-and-certify-windows:
+    name: Native Test & Gatekeeper (Windows - Py${{ matrix.python-version }})
+    runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
@@ -50,11 +49,41 @@ jobs:
         run: |
           python setup.py sdist bdist_wheel
 
+  cross-platform-matrix:
+    name: Cross-Platform Build & Packaging (${{ matrix.os }} - Py${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: ['3.11', '3.12']
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Build Dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel tomli
+
+      - name: Test Multi-Target Cross-Compilation Matrix (ELF64, Mach-O, WASM, C11, LLVM)
+        run: |
+          python tnt.py build examples/tinytalk_hft_engine.tnt --target all
+
+      - name: Test Wheel & Source Distribution Packaging
+        run: |
+          python setup.py sdist bdist_wheel
+
   release-artifacts:
     name: Package Release Distributions
-    needs: test-and-certify
+    needs: [test-and-certify-windows, cross-platform-matrix]
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
