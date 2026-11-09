@@ -63,7 +63,7 @@ def main() -> i64:
         self.assertIn("tabViewInquisitor", html)
 
     def test_cli_build_target_html(self):
-        """Verifies that running `python bmb.py build <file.tnt> --target html` succeeds."""
+        """Verifies that running `python tnt.py build <file.tnt> --target html` succeeds."""
         with tempfile.NamedTemporaryFile("w", suffix=".tnt", delete=False, encoding="utf-8") as tf:
             tf.write("""
 def main() -> i64:
@@ -74,7 +74,7 @@ def main() -> i64:
 
         out_html = tf_path.replace(".tnt", ".html")
         try:
-            cmd = ["python", "bmb.py", "build", tf_path, "--target", "html", "-o", out_html]
+            cmd = ["python", "tnt.py", "build", tf_path, "--target", "html", "-o", out_html]
             res = subprocess.run(cmd, cwd=self.workspace_dir, capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, f"CLI build failed: {res.stderr}\n{res.stdout}")
             self.assertTrue(os.path.exists(out_html), "Output HTML file should exist")

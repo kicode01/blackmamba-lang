@@ -4,6 +4,8 @@ include pyproject.toml
 include setup.py
 include tnt.bat
 include tnt.py
+include bmb.bat
+include bmb.py
 include website_server.tnt
 recursive-include tinytalk *.py *.tnt
 recursive-include assets *.png *.ico

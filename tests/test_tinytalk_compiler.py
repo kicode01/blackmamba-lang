@@ -1455,7 +1455,7 @@ def dot_product(x1: f64, y1: f64, x2: f64, y2: f64) -> f64:
 
             # 5. CLI invocation test via bmb doc
             cli_res = subprocess.run(
-                ["python", "bmb.py", "doc", mod_file, "-o", os.path.join(tmp_dir, "cli_docs")],
+                ["python", "tnt.py", "doc", mod_file, "-o", os.path.join(tmp_dir, "cli_docs")],
                 capture_output=True,
                 text=True,
                 check=True,
