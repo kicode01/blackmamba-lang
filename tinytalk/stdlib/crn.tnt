@@ -1,0 +1,12 @@
+# TinyTalk Chemical Reaction Network Standard Library (crn.tnt)
+# Gillespie Stochastic Propensity and Mass Action Rates
+
+struct ReactionSpec:
+    name: str
+    rate_constant_k: f64
+
+def make_reaction_spec(name: str, k: f64) -> ReactionSpec:
+    return ReactionSpec(name, k)
+
+def compute_unimolecular_propensity(population: i64, rate_k: f64) -> f64:
+    return (population * 1.0) * rate_k

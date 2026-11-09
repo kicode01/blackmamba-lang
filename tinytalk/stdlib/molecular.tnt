@@ -1,0 +1,14 @@
+# TinyTalk Molecular Wang Tile Standard Library (molecular.tnt)
+# Abstract Tile Assembly Model (aTAM) Binding Thresholds
+
+struct TileSpec:
+    tile_type: str
+    temperature_tau: i64
+
+def make_tile_spec(name: str, tau: i64) -> TileSpec:
+    return TileSpec(name, tau)
+
+def check_tau_threshold(strength: i64, tau: i64) -> bool:
+    if strength >= tau:
+        return True
+    return False

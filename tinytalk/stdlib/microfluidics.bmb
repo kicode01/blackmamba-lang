@@ -1,0 +1,14 @@
+# Black Mamba Microfluidics Standard Library (microfluidics.bmb)
+# Electrowetting-on-Dielectric (EWOD) Droplet Kinematics
+
+struct DropletSpec:
+    droplet_id: i64
+    volume_nl: f64
+    pos_x: i64
+    pos_y: i64
+
+def make_droplet_spec(id: i64, vol: f64, x: i64, y: i64) -> DropletSpec:
+    return DropletSpec(id, vol, x, y)
+
+def compute_split_volume(parent_vol: f64) -> f64:
+    return parent_vol * 0.5
