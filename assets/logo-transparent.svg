@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+      <defs>
+        <radialGradient id="bg-obsidian" cx="50%" cy="45%" r="65%">
+          <stop offset="0%" stop-color="#12182B"/>
+          <stop offset="60%" stop-color="#080912"/>
+          <stop offset="100%" stop-color="#040508"/>
+        </radialGradient>
+        <linearGradient id="cyan-fill" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.95"/>
+          <stop offset="50%" stop-color="#00A8FF" stop-opacity="0.75"/>
+          <stop offset="100%" stop-color="#0066FF" stop-opacity="0.45"/>
+        </linearGradient>
+        <linearGradient id="cyan-rim" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#A6FAFF"/><stop offset="100%" stop-color="#0099FF"/>
+        </linearGradient>
+        <linearGradient id="amber-fill" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#FFD438" stop-opacity="0.95"/>
+          <stop offset="50%" stop-color="#FFA012" stop-opacity="0.75"/>
+          <stop offset="100%" stop-color="#FF5D00" stop-opacity="0.45"/>
+        </linearGradient>
+        <linearGradient id="amber-rim" x1="100%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#FFF2B8"/><stop offset="100%" stop-color="#FF8800"/>
+        </linearGradient>
+        <linearGradient id="coral-fill" x1="50%" y1="100%" x2="50%" y2="0%">
+          <stop offset="0%" stop-color="#FF2A85" stop-opacity="0.95"/>
+          <stop offset="50%" stop-color="#FF0055" stop-opacity="0.75"/>
+          <stop offset="100%" stop-color="#B8006E" stop-opacity="0.45"/>
+        </linearGradient>
+        <linearGradient id="coral-rim" x1="50%" y1="100%" x2="50%" y2="0%">
+          <stop offset="0%" stop-color="#FFA8D3"/><stop offset="100%" stop-color="#FF0066"/>
+        </linearGradient>
+        <linearGradient id="circle-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.55"/>
+          <stop offset="50%" stop-color="#FFD438" stop-opacity="0.55"/>
+          <stop offset="100%" stop-color="#FF2A85" stop-opacity="0.55"/>
+        </linearGradient>
+        <radialGradient id="spark-halo" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+          <stop offset="35%" stop-color="#C2F5FF" stop-opacity="0.6"/>
+          <stop offset="70%" stop-color="#00E5FF" stop-opacity="0.2"/>
+          <stop offset="100%" stop-color="#00E5FF" stop-opacity="0"/>
+        </radialGradient>
+      </defs>
+      
+      <circle cx="128" cy="116" r="50" fill="none" stroke="url(#circle-grad)" stroke-width="12" stroke-opacity="0.5"/>
+      <g transform="translate(128, 116) rotate(-120)">
+        <path d="M 0 104 C -48 78 -60 36 -38 -24 C -24 -36 24 -36 38 -24 C 60 36 48 78 0 104 Z M 0 74 C -34 52 -40 22 -24 -16 C -16 -24 16 -24 24 -16 C 40 22 34 52 0 74 Z" fill="url(#cyan-fill)" fill-rule="evenodd"/>
+        <path d="M 0 104 C -48 78 -60 36 -38 -24 C -24 -36 24 -36 38 -24 C 60 36 48 78 0 104 Z" fill="none" stroke="url(#cyan-rim)" stroke-width="2" stroke-opacity="0.9"/>
+        <path d="M 0 74 C -34 52 -40 22 -24 -16 C -16 -24 16 -24 24 -16 C 40 22 34 52 0 74 Z" fill="none" stroke="url(#cyan-rim)" stroke-width="1.25" stroke-opacity="0.8"/>
+      </g>
+      <g transform="translate(128, 116) rotate(120)">
+        <path d="M 0 104 C -48 78 -60 36 -38 -24 C -24 -36 24 -36 38 -24 C 60 36 48 78 0 104 Z M 0 74 C -34 52 -40 22 -24 -16 C -16 -24 16 -24 24 -16 C 40 22 34 52 0 74 Z" fill="url(#amber-fill)" fill-rule="evenodd"/>
+        <path d="M 0 104 C -48 78 -60 36 -38 -24 C -24 -36 24 -36 38 -24 C 60 36 48 78 0 104 Z" fill="none" stroke="url(#amber-rim)" stroke-width="2" stroke-opacity="0.9"/>
+        <path d="M 0 74 C -34 52 -40 22 -24 -16 C -16 -24 16 -24 24 -16 C 40 22 34 52 0 74 Z" fill="none" stroke="url(#amber-rim)" stroke-width="1.25" stroke-opacity="0.8"/>
+      </g>
+      <g transform="translate(128, 116) rotate(0)">
+        <path d="M 0 104 C -48 78 -60 36 -38 -24 C -24 -36 24 -36 38 -24 C 60 36 48 78 0 104 Z M 0 74 C -34 52 -40 22 -24 -16 C -16 -24 16 -24 24 -16 C 40 22 34 52 0 74 Z" fill="url(#coral-fill)" fill-rule="evenodd"/>
+        <path d="M 0 104 C -48 78 -60 36 -38 -24 C -24 -36 24 -36 38 -24 C 60 36 48 78 0 104 Z" fill="none" stroke="url(#coral-rim)" stroke-width="2" stroke-opacity="0.9"/>
+        <path d="M 0 74 C -34 52 -40 22 -24 -16 C -16 -24 16 -24 24 -16 C 40 22 34 52 0 74 Z" fill="none" stroke="url(#coral-rim)" stroke-width="1.25" stroke-opacity="0.8"/>
+      </g>
+      <ellipse cx="128" cy="90" rx="28" ry="14" fill="#66FFAA" fill-opacity="0.18"/>
+      <ellipse cx="146" cy="126" rx="16" ry="26" fill="#FFAA33" fill-opacity="0.18"/>
+      <ellipse cx="110" cy="126" rx="16" ry="26" fill="#CC44FF" fill-opacity="0.18"/>
+      <circle cx="128" cy="116" r="16" fill="url(#spark-halo)"/>
+      <path d="M 104 116 Q 128 114 152 116 Q 128 118 104 116 Z" fill="#FFFFFF" fill-opacity="0.8"/>
+      <path d="M 128 92 Q 126 116 128 140 Q 130 116 128 92 Z" fill="#FFFFFF" fill-opacity="0.8"/>
+      <polygon points="128,106 131,114 137,116 131,118 128,126 125,118 119,116 125,114" fill="#FFFFFF"/>
+      <circle cx="128" cy="116" r="1.75" fill="#FFFFFF"/>
+    </svg>
