@@ -1,22 +1,7 @@
-"""
-Black Mamba Zero-Knowledge State Verifier Shim (v4.4.0)
-Backward-compatibility alias pointing directly to tinytalk.zk.
-"""
+"""Backward compatibility shim forwarding to tinytalk.zk."""
+import sys
+import tinytalk.zk as _target
+from tinytalk.zk import *
 
-from tinytalk.zk import (
-    FIELD_PRIME,
-    R1CSConstraint,
-    ZKProof,
-    R1CSCircuit,
-    ZKProver,
-    ZKVerifier,
-)
-
-__all__ = [
-    "FIELD_PRIME",
-    "R1CSConstraint",
-    "ZKProof",
-    "R1CSCircuit",
-    "ZKProver",
-    "ZKVerifier",
-]
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target

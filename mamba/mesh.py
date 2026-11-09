@@ -1,22 +1,7 @@
-"""
-Black Mamba Zero-Trust Mesh Network Shim (v4.3.0)
-Backward-compatibility alias pointing directly to tinytalk.mesh.
-"""
+"""Backward compatibility shim forwarding to tinytalk.mesh."""
+import sys
+import tinytalk.mesh as _target
+from tinytalk.mesh import *
 
-from tinytalk.mesh import (
-    xor_distance,
-    PeerIdentity,
-    MeshPacket,
-    MeshTunnelError,
-    MeshTunnel,
-    MeshRouter,
-)
-
-__all__ = [
-    "xor_distance",
-    "PeerIdentity",
-    "MeshPacket",
-    "MeshTunnelError",
-    "MeshTunnel",
-    "MeshRouter",
-]
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target

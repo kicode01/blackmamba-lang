@@ -1,18 +1,7 @@
-"""
-Black Mamba Content-Addressed Merkle CAS Shim (v4.3.0)
-Backward-compatibility alias pointing directly to tinytalk.cas.
-"""
+"""Backward compatibility shim forwarding to tinytalk.cas."""
+import sys
+import tinytalk.cas as _target
+from tinytalk.cas import *
 
-from tinytalk.cas import (
-    hash_content,
-    MerkleNode,
-    MerkleTree,
-    ContentAddressedStore,
-)
-
-__all__ = [
-    "hash_content",
-    "MerkleNode",
-    "MerkleTree",
-    "ContentAddressedStore",
-]
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target

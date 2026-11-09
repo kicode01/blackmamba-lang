@@ -3,7 +3,7 @@ Black Mamba (bmb) Documentation Generator Package.
 Provides AST docstring extraction, metadata indexing, and static HTML rendering.
 """
 
-from .extractor import ConstDoc, FieldDoc, FuncDoc, MethodDoc, ModuleDoc, PackageDoc, extract_module_doc, extract_package_doc
+from .extractor import ConstDoc, FieldDoc, FuncDoc, MethodDoc, ModuleDoc, PackageDoc, StructDoc, extract_module_doc, extract_package_doc
 from .generator import DocGenerator
 from .html_renderer import render_html_documentation
 

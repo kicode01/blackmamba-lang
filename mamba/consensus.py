@@ -1,18 +1,7 @@
-"""
-Black Mamba Linearizable Quorum Consensus Shim (v4.2.0)
-Backward-compatibility alias pointing directly to tinytalk.consensus.
-"""
+"""Backward compatibility shim forwarding to tinytalk.consensus."""
+import sys
+import tinytalk.consensus as _target
+from tinytalk.consensus import *
 
-from tinytalk.consensus import (
-    NodeRole,
-    LogEntry,
-    RaftNode,
-    QuorumCluster,
-)
-
-__all__ = [
-    "NodeRole",
-    "LogEntry",
-    "RaftNode",
-    "QuorumCluster",
-]
+# Forward module directly in sys.modules
+sys.modules[__name__] = _target

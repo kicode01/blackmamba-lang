@@ -5,7 +5,6 @@ This module ensures 100% seamless backward compatibility for existing codebases.
 """
 import sys
 import importlib
-import pkgutil
 import tinytalk
 from tinytalk import *
 
@@ -13,15 +12,13 @@ from tinytalk import *
 __version__ = tinytalk.__version__
 __author__ = tinytalk.__author__
 
-# Ensure sys.modules["mamba"] is tinytalk and all submodules are synchronized
-sys.modules[__name__] = tinytalk
-
-if hasattr(tinytalk, "__path__"):
-    for mod_info in pkgutil.walk_packages(tinytalk.__path__, "tinytalk."):
-        tnt_name = mod_info.name
-        bmb_name = "mamba." + tnt_name[9:]
-        try:
-            m = importlib.import_module(tnt_name)
-            sys.modules[bmb_name] = m
-        except Exception:
-            pass
+def __getattr__(name: str):
+    """Dynamically forward submodule lookups on mamba to tinytalk."""
+    if hasattr(tinytalk, name):
+        return getattr(tinytalk, name)
+    try:
+        mod = importlib.import_module(f"tinytalk.{name}")
+        sys.modules[f"mamba.{name}"] = mod
+        return mod
+    except ImportError:
+        raise AttributeError(f"module 'mamba' has no attribute '{name}'")

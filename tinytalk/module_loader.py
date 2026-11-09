@@ -8,7 +8,7 @@ and unifying their declarations into the target compilation unit.
 
 import os
 import sys
-from typing import Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from .ast_nodes import (
     ArrayLit,
     Assign,
