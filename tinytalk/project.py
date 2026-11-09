@@ -120,7 +120,8 @@ class ProjectionEngine:
             elif node.kind == NodeKind.STRUCT:
                 name = node.payload.get("name", "S")
                 fields = " \\times ".join(f['type'] for f in node.payload.get("fields", []))
-                lines.append(f"\\mathbb{{{name}}} \\cong {fields if fields else '\\emptyset'}")
+                fields_repr = fields if fields else r"\emptyset"
+                lines.append(f"\\mathbb{{{name}}} \\cong {fields_repr}")
         return "\n".join(lines) + "\n"
 
     @staticmethod
