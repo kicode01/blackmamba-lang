@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="tinytalk-lang",
-    version="4.4.0",
+    version="4.5.0",
     description="TinyTalk (.tnt) & Black Mamba (.bmb) — Smalltalk Live Heritage, Explosive Performance & Zero-Syntax Substrate",
     long_description=open("README.md", encoding="utf-8").read(),
     long_description_content_type="text/markdown",
