@@ -2,21 +2,21 @@
 # Phase 11C: Linearizable Quorum Consensus (v4.2.0)
 
 struct LogEntry:
-    index: i64
-    term: i64
-    cmd_id: i64
+    index: int
+    term: int
+    cmd_id: int
     committed: bool
 
 struct RaftState:
-    current_term: i64
-    voted_for: i64
-    commit_index: i64
-    last_applied: i64
+    current_term: int
+    voted_for: int
+    commit_index: int
+    last_applied: int
     is_leader: bool
 
-fn raft_init(term: i64) -> RaftState:
+def raft_init(term: int) -> RaftState:
     return RaftState(term, -1, 0, 0, False)
 
-fn raft_is_quorum(votes: i64, total_nodes: i64) -> bool:
+def raft_is_quorum(votes: int, total_nodes: int) -> bool:
     required = (total_nodes // 2) + 1
     return votes >= required

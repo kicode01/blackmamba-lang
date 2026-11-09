@@ -1,0 +1,50 @@
+# TinyTalk Self-Hosting Compiler Substrate: escape.tnt
+# Phase 8F (v2.9.0): Pure .tnt Escape Analysis & Lexical Arena Lifetimes Pass
+# 100% Pure Native TinyTalk (.tnt) with Zero CPython Runtime Dependencies.
+
+from mir_types import (
+    MIRInstruction, MIRFunc, mir_dummy_instr, mir_instr_new,
+    OP_NOP, OP_RET, OP_ALLOC_ARR, OP_STR_CONCAT, OP_STR_SLICE,
+    OP_ARENA_SAVE, OP_ARENA_RESTORE
+)
+
+def has_heap_allocations(func_def: MIRFunc) -> bool:
+    for i in 0..func_def.instr_count:
+        let op = func_def.instructions[i].op
+        if op == OP_ALLOC_ARR or op == OP_STR_CONCAT or op == OP_STR_SLICE:
+            return True
+    return False
+
+def return_type_is_scalar(ret_type: str) -> bool:
+    if ret_type == "i64" or ret_type == "f64" or ret_type == "bool" or ret_type == "void":
+        return True
+    return False
+
+def optimize_escape_analysis(func_def: MIRFunc) -> i64:
+    if not has_heap_allocations(func_def):
+        return 0
+    if not return_type_is_scalar(func_def.return_type):
+        return 0
+
+    # Allocations do not escape: inject ARENA_SAVE at entry and ARENA_RESTORE before RET
+    let extra_slots = 2
+    let new_cap = func_def.instr_count + extra_slots + 8
+    let new_arr = [mir_dummy_instr()] * new_cap
+    
+    # 1. Insert ARENA_SAVE at function start
+    new_arr[0] = mir_instr_new(OP_ARENA_SAVE, "%arena_sp", "", "", 0, "i64", 1)
+    let write_idx = 1
+    
+    for i in 0..func_def.instr_count:
+        let ins = func_def.instructions[i]
+        if ins.op == OP_RET:
+            # Insert ARENA_RESTORE before RET
+            new_arr[write_idx] = mir_instr_new(OP_ARENA_RESTORE, "", "%arena_sp", "", 0, "", ins.line)
+            write_idx += 1
+        new_arr[write_idx] = ins
+        write_idx += 1
+        
+    func_def.instructions = new_arr
+    func_def.instr_count = write_idx
+    func_def.instr_cap = new_cap
+    return 1

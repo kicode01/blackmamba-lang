@@ -63,6 +63,10 @@ class TransmutationEngine:
         return res.mamba_code if hasattr(res, "mamba_code") else str(res)
 
     @classmethod
+    def tnt_to_graph(cls, tnt_source: str, module_name: str = "main") -> HyperGraph:
+        return cls.bmb_to_graph(tnt_source, module_name)
+
+    @classmethod
     def bmb_to_graph(cls, bmb_source: str, module_name: str = "main") -> HyperGraph:
         """Transmutes Black Mamba source into a content-addressed HyperGraph."""
         return source_to_hypergraph(bmb_source, module_name=module_name)
@@ -202,6 +206,9 @@ def main() -> i64:
 def transmute_py_to_bmb(py_source: str) -> str:
     return TransmutationEngine.py_to_bmb(py_source)
 
+
+def transmute_tnt_to_graph(tnt_source: str) -> HyperGraph:
+    return TransmutationEngine.tnt_to_graph(tnt_source)
 
 def transmute_bmb_to_graph(bmb_source: str) -> HyperGraph:
     return TransmutationEngine.bmb_to_graph(bmb_source)

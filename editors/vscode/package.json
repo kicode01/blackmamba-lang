@@ -1,7 +1,7 @@
 {
   "name": "vscode-tinytalk",
-  "displayName": "TinyTalk & Black Mamba Language Support",
-  "description": "Rich language support and Language Server Protocol client for TinyTalk (.tnt) and Black Mamba (.bmb)",
+  "displayName": "TinyTalk Language Support",
+  "description": "Rich language support and Language Server Protocol client for TinyTalk (.tnt)",
   "version": "8.0.0",
   "publisher": "tinytalk",
   "icon": "icon.png",
@@ -15,16 +15,13 @@
     "tinytalk",
     "tnt",
     "smalltalk",
-    "mamba",
-    "bmb",
     "compiler",
     "native",
     "jit"
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:tnt",
-    "onLanguage:bmb"
+    "onLanguage:tnt"
   ],
   "contributes": {
     "languages": [
@@ -38,17 +35,6 @@
           ".tnt"
         ],
         "configuration": "./language-configuration.json"
-      },
-      {
-        "id": "bmb",
-        "aliases": [
-          "Black Mamba",
-          "bmb"
-        ],
-        "extensions": [
-          ".bmb"
-        ],
-        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -56,26 +42,16 @@
         "language": "tnt",
         "scopeName": "source.tnt",
         "path": "./syntaxes/tnt.tmLanguage.json"
-      },
-      {
-        "language": "bmb",
-        "scopeName": "source.bmb",
-        "path": "./syntaxes/bmb.tmLanguage.json"
       }
     ],
     "configuration": {
       "type": "object",
-      "title": "TinyTalk & Black Mamba",
+      "title": "TinyTalk",
       "properties": {
         "tnt.lsp.path": {
           "type": "string",
           "default": "tnt",
           "description": "Path to the tnt executable"
-        },
-        "bmb.lsp.path": {
-          "type": "string",
-          "default": "bmb",
-          "description": "Path to the bmb executable (legacy)"
         }
       }
     }

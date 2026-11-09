@@ -1,0 +1,45 @@
+# ==============================================================================
+#  BLACK MAMBA STANDARD LIBRARY: autograd.tnt
+#  GPU Tensor Autograd & Native ML Training Primitives (Phase 8D / v2.7.0)
+# ==============================================================================
+
+struct TensorGrad:
+    val: f64 = 0.0
+    grad: f64 = 0.0
+    requires_grad: bool = False
+
+struct LinearLayer:
+    in_features: i64 = 1
+    out_features: i64 = 1
+    weight: f64 = 0.5
+    bias: f64 = 0.0
+
+struct LoRALayer:
+    in_features: i64 = 1
+    out_features: i64 = 1
+    rank: i64 = 2
+    alpha: f64 = 16.0
+    scale: f64 = 8.0
+
+fn make_tensor_grad(val: f64, req_grad: bool) -> TensorGrad:
+    return TensorGrad(val, 0.0, req_grad)
+
+fn linear_forward(x: f64, w: f64, b: f64) -> f64:
+    return (x * w) + b
+
+fn relu_forward(x: f64) -> f64:
+    if x > 0.0:
+        return x
+    return 0.0
+
+fn relu_backward(x: f64, grad_out: f64) -> f64:
+    if x > 0.0:
+        return grad_out
+    return 0.0
+
+fn mse_loss(pred: f64, target: f64) -> f64:
+    let diff = pred - target
+    return diff * diff
+
+fn sgd_step(param: f64, grad: f64, lr: f64) -> f64:
+    return param - (grad * lr)

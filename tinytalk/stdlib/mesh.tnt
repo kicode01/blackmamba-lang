@@ -9,11 +9,11 @@ struct MeshPeer:
 struct MeshEnvelope:
     sender_id: str
     recipient_id: str
-    seq: i64
-    payload_len: i64
+    seq: int
+    payload_len: int
 
-fn mesh_peer_new(node_id: str, pub_key: str) -> MeshPeer:
+def mesh_peer_new(node_id: str, pub_key: str) -> MeshPeer:
     return MeshPeer(node_id, pub_key, True)
 
-fn mesh_is_valid_seq(seq: i64, last_seen: i64) -> bool:
+def mesh_is_valid_seq(seq: int, last_seen: int) -> bool:
     return seq > last_seen

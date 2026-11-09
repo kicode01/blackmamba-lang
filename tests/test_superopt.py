@@ -14,7 +14,7 @@ from tinytalk.superopt import (
     SSAInstruction,
     CPU_ARCH_PROFILES
 )
-import mamba.superopt as mamba_superopt
+import tinytalk.superopt as mamba_superopt
 
 
 class TestSuperoptimizer(unittest.TestCase):
@@ -282,7 +282,7 @@ class TestSuperoptimizer(unittest.TestCase):
                 self.assertEqual(orig_res, opt_res, f"Fuzzer mismatch for input {test_val} on {instrs}")
 
     def test_backward_compatibility_shim(self):
-        """Verify mamba.superopt forwards cleanly to tinytalk.superopt."""
+        """Verify tinytalk.superopt forwards cleanly to tinytalk.superopt."""
         self.assertIs(mamba_superopt.CPUCostModel, CPUCostModel)
         self.assertIs(mamba_superopt.PeepholeOptimizer, PeepholeOptimizer)
         self.assertIs(mamba_superopt.SSAInstruction, SSAInstruction)

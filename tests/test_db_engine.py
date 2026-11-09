@@ -1,6 +1,6 @@
 """
-Unit tests for Black Mamba Database Engine & Type-Safe ORM (mamba.db / bmb db).
-Tests connection, Model, Field, Query builder, aggregates, transactions, CLI, and native .bmb.
+Unit tests for TinyTalk Database Engine & Type-Safe ORM (tinytalk.db / bmb db).
+Tests connection, Model, Field, Query builder, aggregates, transactions, CLI, and native .tnt.
 """
 
 import os
@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 import argparse
-from mamba.db import (
+from tinytalk.db import (
     Database,
     Model,
     Field,
@@ -22,8 +22,8 @@ from mamba.db import (
     connect,
     cmd_db,
 )
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestUser(Model):
@@ -188,7 +188,7 @@ class TestMambaDatabaseEngine(unittest.TestCase):
             self.assertEqual(ret_dump, 0)
 
     def test_native_bmb_database_app(self):
-        app_bmb = os.path.join(os.path.dirname(__file__), "..", "examples", "database_app.bmb")
+        app_bmb = os.path.join(os.path.dirname(__file__), "..", "examples", "database_app.tnt")
         self.assertTrue(os.path.exists(app_bmb))
 
         with open(app_bmb, "r", encoding="utf-8") as f:

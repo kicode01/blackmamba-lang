@@ -23,9 +23,11 @@ class PackageManager:
 
     def __init__(self, project_dir: Optional[str] = None):
         self.project_dir = os.path.abspath(project_dir or os.getcwd())
-        self.manifest_path = os.path.join(self.project_dir, "mamba.toml")
-        self.lock_path = os.path.join(self.project_dir, "mamba.lock")
-        self.vendor_dir = os.path.join(self.project_dir, ".mamba", "packages")
+        tnt_m = os.path.join(self.project_dir, "tinytalk.toml")
+        bmb_m = os.path.join(self.project_dir, "mamba.toml")
+        self.manifest_path = tnt_m if os.path.exists(tnt_m) else (bmb_m if os.path.exists(bmb_m) else tnt_m)
+        self.lock_path = os.path.join(self.project_dir, "tinytalk.lock")
+        self.vendor_dir = os.path.join(self.project_dir, ".tinytalk", "packages")
 
     def init_project(
         self,
@@ -41,7 +43,7 @@ class PackageManager:
         src_dir = os.path.join(proj_dir, "src")
         os.makedirs(src_dir, exist_ok=True)
 
-        entry_file = "src/lib.bmb" if is_lib else "src/main.bmb"
+        entry_file = "src/lib.tnt" if is_lib else "src/main.tnt"
         entry_path = os.path.join(proj_dir, entry_file)
 
         if not os.path.exists(entry_path):
@@ -69,14 +71,14 @@ class PackageManager:
             build_target="exe",
             opt_level="speed",
         )
-        manifest_file = os.path.join(proj_dir, "mamba.toml")
+        manifest_file = os.path.join(proj_dir, "tinytalk.toml")
         manifest.save(manifest_file)
 
         # Generate .gitignore
         gitignore_path = os.path.join(proj_dir, ".gitignore")
         if not os.path.exists(gitignore_path):
             with open(gitignore_path, "w", encoding="utf-8") as f:
-                f.write("build/\n.mamba/\n*.exe\n*.wasm\n*.wat\n*.ll\n")
+                f.write("build/\n.tinytalk/\n*.exe\n*.wasm\n*.wat\n*.ll\n")
 
         return manifest
 

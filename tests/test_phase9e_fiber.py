@@ -1,23 +1,23 @@
-# Black Mamba Test Suite: Phase 9E (v3.4.0)
+# TinyTalk Test Suite: Phase 9E (v3.4.0)
 # Native Asynchronous Fiber Runtime & M:N Work-Stealing Scheduler
 
 import unittest
 import os
 import time
-from mamba.fiber import (
+from tinytalk.fiber import (
     Fiber,
     FiberState,
     WorkStealingScheduler,
     benchmark_fiber_scheduler,
 )
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestPhase9EFiberRuntime(unittest.TestCase):
     """
     Validates cooperative green fibers, Chase-Lev work stealing,
-    M:N multithreaded scheduling, and pure .bmb fiber execution.
+    M:N multithreaded scheduling, and pure .tnt fiber execution.
     """
 
     def test_01_fiber_lifecycle(self):
@@ -96,14 +96,14 @@ class TestPhase9EFiberRuntime(unittest.TestCase):
         self.assertGreater(res["context_switches_per_second"], 50000.0)
 
     def test_05_pure_bmb_fiber_module(self):
-        """Verify pure .bmb stdlib module compiles to MIR and executes in native JIT."""
-        fiber_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "fiber.bmb")
+        """Verify pure .tnt stdlib module compiles to MIR and executes in native JIT."""
+        fiber_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "fiber.tnt")
         self.assertTrue(os.path.exists(fiber_path))
 
         with open(fiber_path, "r", encoding="utf-8") as f:
             src = f.read()
 
-        mir = compile_source_to_mir(src, filename="fiber.bmb")
+        mir = compile_source_to_mir(src, filename="fiber.tnt")
         self.assertIsNotNone(mir)
         self.assertGreaterEqual(len(mir.functions), 6)
 

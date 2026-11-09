@@ -5,15 +5,15 @@ import os
 import tempfile
 import unittest
 
-from mamba import (
+from tinytalk import (
     NodeKind,
     HyperNode,
     HyperGraph,
     source_to_hypergraph,
     benchmark_hypergraph_engine,
 )
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestPhase10AGraph(unittest.TestCase):
@@ -53,14 +53,14 @@ def main() -> i64:
         self.assertNotEqual(root_hash, new_root_hash)
 
     def test_02_binary_serialization_and_deserialization(self):
-        """Test serializing HyperGraph to binary .bmbgraph format and deserializing."""
+        """Test serializing HyperGraph to binary .tntgraph format and deserializing."""
         graph = source_to_hypergraph(self.sample_src, module_name="test_pkg")
         data = graph.to_bytes()
 
         self.assertTrue(data.startswith(b"TNTG") or data.startswith(b"BMBG"))
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            file_path = os.path.join(tmpdir, "test.bmbgraph")
+            file_path = os.path.join(tmpdir, "test.tntgraph")
             graph.save(file_path)
             self.assertTrue(os.path.exists(file_path))
 
@@ -88,14 +88,14 @@ def main() -> i64:
         self.assertTrue(bench["zero_syntax_verified"])
 
     def test_05_pure_bmb_graph_compilation(self):
-        """Test pure .bmb graph.bmb standard library compilation and JIT execution."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "graph.bmb")
+        """Test pure .tnt graph.tnt standard library compilation and JIT execution."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "graph.tnt")
         self.assertTrue(os.path.exists(stdlib_path))
 
         with open(stdlib_path, "r", encoding="utf-8") as f:
             bmb_src = f.read()
 
-        mir = compile_source_to_mir(bmb_src, filename="graph.bmb")
+        mir = compile_source_to_mir(bmb_src, filename="graph.tnt")
         self.assertGreaterEqual(len(mir.functions), 5)
 
         jit_mod = NativeJITModule(mir)

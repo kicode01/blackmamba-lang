@@ -5,7 +5,7 @@ import os
 import tempfile
 import unittest
 
-from mamba import (
+from tinytalk import (
     GraphMIREmitter,
     compile_hypergraph_to_mir,
     compile_hypergraph_to_jit,
@@ -14,17 +14,17 @@ from mamba import (
     source_to_hypergraph,
     HyperGraph,
 )
-from mamba.cli import compile_source_to_mir
+from tinytalk.cli import compile_source_to_mir
 
 
 class TestPhase10EGraphMIR(unittest.TestCase):
     def test_01_stdlib_graph_mir_bmb_compilation(self):
-        """Verify that mamba/stdlib/graph_mir.bmb compiles to native MIR cleanly."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "graph_mir.bmb")
-        self.assertTrue(os.path.exists(stdlib_path), "graph_mir.bmb not found")
+        """Verify that mamba/stdlib/graph_mir.tnt compiles to native MIR cleanly."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "graph_mir.tnt")
+        self.assertTrue(os.path.exists(stdlib_path), "graph_mir.tnt not found")
         with open(stdlib_path, "r", encoding="utf-8") as f:
             src = f.read()
-        mir = compile_source_to_mir(src, filename="graph_mir.bmb")
+        mir = compile_source_to_mir(src, filename="graph_mir.tnt")
         self.assertGreaterEqual(len(mir.functions), 4)
 
     def test_02_direct_graph_to_mir_compilation(self):

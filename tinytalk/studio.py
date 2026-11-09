@@ -38,11 +38,11 @@ class StudioSystemModel:
     """
 
     CATEGORIES = {
-        "Kernel & Core": ["alloc.bmb", "gc.bmb", "time.bmb", "os.bmb", "math.bmb", "random.bmb"],
-        "GUI & Smalltalk Morphic": ["gui.bmb", "web.bmb"],
-        "Data Science & Series": ["series.bmb", "tensor.bmb", "simd.bmb", "json.bmb", "csv.bmb"],
-        "Networking & Web": ["http.bmb", "socket.bmb", "fastapi.bmb", "requests.bmb"],
-        "Concurrency & Actors": ["async.bmb", "chan.bmb", "thread.bmb", "cluster.bmb"],
+        "Kernel & Core": ["alloc.tnt", "gc.tnt", "time.tnt", "os.tnt", "math.tnt", "random.tnt"],
+        "GUI & Smalltalk Morphic": ["gui.tnt", "web.tnt"],
+        "Data Science & Series": ["series.tnt", "tensor.tnt", "simd.tnt", "json.tnt", "csv.tnt"],
+        "Networking & Web": ["http.tnt", "socket.tnt", "fastapi.tnt", "requests.tnt"],
+        "Concurrency & Actors": ["async.tnt", "chan.tnt", "thread.tnt", "cluster.tnt"],
     }
 
     def __init__(self, workspace_dir: Optional[str] = None):
@@ -75,7 +75,7 @@ class StudioSystemModel:
         for root, dirs, files in os.walk(self.workspace_dir):
             dirs[:] = [d for d in dirs if d not in skip_dirs]
             for f in files:
-                if f.endswith(".bmb") and not f.endswith("_test.bmb"):
+                if f.endswith(".tnt") and not f.endswith("_test.tnt"):
                     path = os.path.join(root, f)
                     mod_info = self._parse_file_info(path, is_stdlib=False)
                     workspace_structs.extend(mod_info.get("structs", []))

@@ -4,15 +4,15 @@
 import os
 import unittest
 
-from mamba import (
+from tinytalk import (
     ViewType,
     ProjectionEngine,
     VirtualDocumentProvider,
     benchmark_projections,
     source_to_hypergraph,
 )
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestPhase10BProject(unittest.TestCase):
@@ -56,7 +56,7 @@ def main() -> i64:
     def test_02_virtual_document_provider(self):
         """Test VirtualDocumentProvider for LSP live buffer synchronization."""
         provider = VirtualDocumentProvider()
-        uri = "bmb-virtual://workspace/complex.bmb"
+        uri = "bmb-virtual://workspace/complex.tnt"
 
         doc = provider.get_document(uri, self.graph, ViewType.PYTHON)
         self.assertIn("struct Complex:", doc)
@@ -74,14 +74,14 @@ def main() -> i64:
         self.assertEqual(len(bench["supported_views"]), 4)
 
     def test_04_pure_bmb_project_compilation(self):
-        """Test pure .bmb project.bmb standard library compilation and JIT execution."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "project.bmb")
+        """Test pure .tnt project.tnt standard library compilation and JIT execution."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "project.tnt")
         self.assertTrue(os.path.exists(stdlib_path))
 
         with open(stdlib_path, "r", encoding="utf-8") as f:
             bmb_src = f.read()
 
-        mir = compile_source_to_mir(bmb_src, filename="project.bmb")
+        mir = compile_source_to_mir(bmb_src, filename="project.tnt")
         self.assertGreaterEqual(len(mir.functions), 3)
 
         jit_mod = NativeJITModule(mir)

@@ -3,10 +3,10 @@ import sqlite3
 import tempfile
 import unittest
 
-from mamba.backends.x86_64_jit import NativeJITModule
-from mamba.canvas import MorphicCanvas
-from mamba.cli import compile_source_to_mir, main as cli_main
-from mamba.image import ImageManager
+from tinytalk.backends.x86_64_jit import NativeJITModule
+from tinytalk.canvas import MorphicCanvas
+from tinytalk.cli import compile_source_to_mir, main as cli_main
+from tinytalk.image import ImageManager
 
 
 def run_jit_captured(source: str) -> str:
@@ -77,7 +77,7 @@ fn compute_heating_power(target: f64, current: f64) -> f64:
             self.assertEqual(canvas.live_app_state["Thermostat.target_temp"], 25.75)
 
             html_doc = canvas.render_html()
-            self.assertIn("Black Mamba Morphic Canvas", html_doc)
+            self.assertIn("TinyTalk Morphic Canvas", html_doc)
             self.assertIn("Thermostat", html_doc)
         finally:
             canvas.close()
@@ -96,7 +96,7 @@ fn compute_heating_power(target: f64, current: f64) -> f64:
 
         try:
             with tempfile.TemporaryDirectory() as tmpdir:
-                img_path = os.path.join(tmpdir, "workspace.bmbimg")
+                img_path = os.path.join(tmpdir, "workspace.tntimg")
                 save_rep = ImageManager.save_image(
                     img_path,
                     canvas=canvas,
@@ -138,10 +138,10 @@ fn compute_heating_power(target: f64, current: f64) -> f64:
 
     def test_cli_studio_canvas_and_image_subcommands(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_path = os.path.join(tmpdir, "app.bmb")
+            src_path = os.path.join(tmpdir, "app.tnt")
             html_path = os.path.join(tmpdir, "canvas.html")
-            img_path = os.path.join(tmpdir, "app.bmbimg")
-            restored_src = os.path.join(tmpdir, "restored.bmb")
+            img_path = os.path.join(tmpdir, "app.tntimg")
+            restored_src = os.path.join(tmpdir, "restored.tnt")
             with open(src_path, "w", encoding="utf-8") as f:
                 f.write(self.SAMPLE_APP)
 
@@ -159,7 +159,7 @@ fn compute_heating_power(target: f64, current: f64) -> f64:
 import canvas
 import image
 
-card = canvas.make_morph_card("c1", "code", "bmb://app/step", 10.0, 20.0, 300.0, 180.0)
+card = canvas.make_morph_card("c1", "code", "tnt://app/step", 10.0, 20.0, 300.0, 180.0)
 canvas.translate_morph(card, 15.5, 4.5)
 vp = canvas.CanvasViewport(50.0, 50.0, 2.0)
 wx = canvas.screen_to_world_x(vp, 150.0)

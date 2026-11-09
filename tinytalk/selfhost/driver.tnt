@@ -1,0 +1,88 @@
+# TinyTalk Self-Hosting Compiler Substrate: driver.tnt
+# Phase 8F (v2.9.0): Pure .tnt Self-Hosted Compiler Driver Orchestrator
+# 100% Pure Native TinyTalk (.tnt) with Zero CPython Runtime Dependencies.
+
+from mir_types import (
+    MIRFunc, MIRInstruction, mir_func_new, mir_instr_new, mir_func_add_instr,
+    OP_MOV, OP_ADD_I64, OP_MUL_I64, OP_CONST_I64, OP_RET, OP_PRINT
+)
+from dce import optimize_dce
+from constfold import optimize_constfold
+from inline import optimize_tco
+from escape import optimize_escape_analysis
+from struct_layout import layout_info_new, layout_add_field
+from pe_builder import pe_builder_new, pe_add_section, pe_compute_total_file_size
+from elf_builder import elf_builder_new, elf_add_load_segment, elf_compute_binary_size
+from macho_builder import macho_builder_new, macho_add_segment, macho_compute_binary_size
+from parity import hash_func_mir, verify_mir_parity
+
+struct SelfHostPipelineResult:
+    func_name: str
+    original_instr_count: i64
+    optimized_instr_count: i64
+    dce_removed: i64
+    const_folded: i64
+    tco_applied: i64
+    arena_reclaimed: i64
+    pe_file_bytes: i64
+    elf_file_bytes: i64
+    macho_file_bytes: i64
+    mir_hash: i64
+
+def run_selfhost_optimization_pipeline(func_def: MIRFunc) -> SelfHostPipelineResult:
+    let orig_count = func_def.instr_count
+    
+    # 1. Tail-Call Optimization pass
+    let tco_count = optimize_tco(func_def)
+    
+    # 2. Iterative Constant Folding & DCE convergence
+    let folded_count = 0
+    let dce_count = 0
+    for iter in 0..3:
+        folded_count += optimize_constfold(func_def)
+        dce_count += optimize_dce(func_def)
+        
+    # 3. Escape Analysis & Arena Lifetimes pass
+    let arena_count = optimize_escape_analysis(func_def)
+    
+    # 4. Binary Linker sizing across all 3 native targets
+    let pe_b = pe_builder_new()
+    pe_add_section(pe_b, ".text", func_def.instr_count * 8, 1610612768)
+    let pe_size = pe_compute_total_file_size(pe_b)
+    
+    let elf_b = elf_builder_new()
+    elf_add_load_segment(elf_b, 5, func_def.instr_count * 8)
+    let elf_size = elf_compute_binary_size(elf_b)
+    
+    let macho_b = macho_builder_new()
+    macho_add_segment(macho_b, "__TEXT", 5, func_def.instr_count * 8)
+    let macho_size = macho_compute_binary_size(macho_b)
+    
+    let h = hash_func_mir(func_def)
+    
+    return SelfHostPipelineResult(
+        func_def.name,
+        orig_count,
+        func_def.instr_count,
+        dce_count,
+        folded_count,
+        tco_count,
+        arena_count,
+        pe_size,
+        elf_size,
+        macho_size,
+        h
+    )
+
+def test_selfhost_smoke_function() -> SelfHostPipelineResult:
+    let fn_test = mir_func_new("smoke_kernel", "i64", 2)
+    # %t0 = 2
+    mir_func_add_instr(fn_test, mir_instr_new(OP_CONST_I64, "%t0", "", "", 2, "i64", 1))
+    # %t1 = %t0 * 4 (strength reduced to shift << 2)
+    mir_func_add_instr(fn_test, mir_instr_new(OP_MUL_I64, "%t1", "%t0", "", 4, "i64", 2))
+    # %t_dead = 999 (unused, eliminated by DCE)
+    mir_func_add_instr(fn_test, mir_instr_new(OP_CONST_I64, "%t_dead", "", "", 999, "i64", 3))
+    # RET %t1
+    mir_func_add_instr(fn_test, mir_instr_new(OP_RET, "", "%t1", "", 0, "i64", 4))
+    
+    return run_selfhost_optimization_pipeline(fn_test)

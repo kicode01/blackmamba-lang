@@ -5,14 +5,14 @@ import os
 import tempfile
 import unittest
 
-from mamba import (
+from tinytalk import (
     TargetPlatform,
     SUPPORTED_TARGETS,
     CrossCompiler,
     benchmark_xbuild_matrix,
 )
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestPhase9FXBuild(unittest.TestCase):
@@ -113,7 +113,7 @@ def main() -> i64:
         compiler = CrossCompiler()
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_file = os.path.join(tmpdir, "app.bmb")
+            src_file = os.path.join(tmpdir, "app.tnt")
             with open(src_file, "w", encoding="utf-8") as f:
                 f.write(self.sample_src)
 
@@ -130,8 +130,8 @@ def main() -> i64:
         self.assertGreater(bench["builds_per_second"], 10.0)
 
     def test_06_pure_bmb_xbuild_compilation(self):
-        """Test compiling and running pure .bmb xbuild.bmb standard library."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "xbuild.bmb")
+        """Test compiling and running pure .tnt xbuild.tnt standard library."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "xbuild.tnt")
         self.assertTrue(os.path.exists(stdlib_path))
 
         with open(stdlib_path, "r", encoding="utf-8") as f:

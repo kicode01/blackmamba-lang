@@ -1,29 +1,29 @@
 import os
 import unittest
 import subprocess
-from mamba.parser import Parser
-from mamba.lexer import Lexer
-from mamba.ast_nodes import StructDef, FuncDef
+from tinytalk.parser import Parser
+from tinytalk.lexer import Lexer
+from tinytalk.ast_nodes import StructDef, FuncDef
 
 class TestDeclarativeWebAndInquisitor(unittest.TestCase):
     """
-    Tests for Black Mamba Declarative Web & CSS Engine (web.bmb)
+    Tests for TinyTalk Declarative Web & CSS Engine (web.tnt)
     and the Offline Inquisitor Symbolic App Architect.
     """
 
     def setUp(self):
         self.workspace_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-        self.web_bmb_path = os.path.join(self.workspace_dir, "mamba", "stdlib", "web.bmb")
-        self.bmbc_wasm_path = os.path.join(self.workspace_dir, "website", "bmbc_wasm.js")
+        self.web_bmb_path = os.path.join(self.workspace_dir, "tinytalk", "stdlib", "web.tnt")
+        self.tntc_wasm_path = os.path.join(self.workspace_dir, "website", "bmbc_wasm.js")
 
     def test_web_bmb_stdlib_syntax_and_ast(self):
-        """Verifies that mamba/stdlib/web.bmb is syntactically valid and parses into an AST."""
-        self.assertTrue(os.path.exists(self.web_bmb_path), "web.bmb must exist")
+        """Verifies that mamba/stdlib/web.tnt is syntactically valid and parses into an AST."""
+        self.assertTrue(os.path.exists(self.web_bmb_path), "web.tnt must exist")
         with open(self.web_bmb_path, "r", encoding="utf-8") as f:
             source = f.read()
 
         tokens = list(Lexer(source).tokenize())
-        self.assertGreater(len(tokens), 50, "Should have lexed tokens from web.bmb")
+        self.assertGreater(len(tokens), 50, "Should have lexed tokens from web.tnt")
 
         # Verify Parser constructs AST module cleanly
         mod = Parser.from_source(source).parse_module()
@@ -45,7 +45,7 @@ class TestDeclarativeWebAndInquisitor(unittest.TestCase):
         """Executes Node test verifying all 4 Inquisitor app domains synthesize and run offline."""
         test_script = f"""
         const path = require('path');
-        const bmbcPath = {repr(self.bmbc_wasm_path.replace(os.sep, '/'))};
+        const bmbcPath = {repr(self.tntc_wasm_path.replace(os.sep, '/'))};
         require(bmbcPath);
         const compiler = globalThis.MambaCompiler;
         if (!compiler || !compiler.Inquisitor) {{
@@ -54,8 +54,8 @@ class TestDeclarativeWebAndInquisitor(unittest.TestCase):
         const domains = ['web_dashboard', 'quant_terminal', 'edge_ai', 'serverless_api'];
         for (const d of domains) {{
             const synth = compiler.Inquisitor.synthesizeApp({{ domain: d }});
-            if (!synth || !synth.bmb) process.exit(2);
-            const res = compiler.executeBmbSourceInBrowser(synth.bmb);
+            if (!synth || !((synth.tnt || synth.bmb) || synth.bmb)) process.exit(2);
+            const res = compiler.executeBmbSourceInBrowser(((synth.tnt || synth.bmb) || synth.bmb));
             if (!res.ok || res.returnValue !== 0 || !res.htmlOutput) {{
                 console.error("Failed on domain:", d, res.error);
                 process.exit(3);

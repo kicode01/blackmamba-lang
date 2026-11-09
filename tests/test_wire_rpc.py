@@ -16,7 +16,7 @@ from tinytalk.rpc import (
     RPCDispatcher,
     RPCClient
 )
-import mamba.rpc as m_rpc
+import tinytalk.rpc as m_rpc
 
 
 class TestWireRPC(unittest.TestCase):

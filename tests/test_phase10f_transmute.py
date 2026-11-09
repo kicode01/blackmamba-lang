@@ -4,7 +4,7 @@
 import os
 import unittest
 
-from mamba import (
+from tinytalk import (
     TransmuteFormat,
     RefactorReport,
     TransmutationEngine,
@@ -16,21 +16,21 @@ from mamba import (
     benchmark_transmute_pipeline,
     source_to_hypergraph,
 )
-from mamba.cli import compile_source_to_mir
+from tinytalk.cli import compile_source_to_mir
 
 
 class TestPhase10FTransmute(unittest.TestCase):
     def test_01_stdlib_transmute_bmb_compilation(self):
-        """Verify that mamba/stdlib/transmute.bmb compiles to native MIR cleanly."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "transmute.bmb")
-        self.assertTrue(os.path.exists(stdlib_path), "transmute.bmb not found")
+        """Verify that mamba/stdlib/transmute.tnt compiles to native MIR cleanly."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "transmute.tnt")
+        self.assertTrue(os.path.exists(stdlib_path), "transmute.tnt not found")
         with open(stdlib_path, "r", encoding="utf-8") as f:
             src = f.read()
-        mir = compile_source_to_mir(src, filename="transmute.bmb")
+        mir = compile_source_to_mir(src, filename="transmute.tnt")
         self.assertGreaterEqual(len(mir.functions), 3)
 
     def test_02_lossless_roundtrip_verification(self):
-        """Verify lossless .bmb <-> .bmbgraph <-> .bmb roundtrip with execution parity."""
+        """Verify lossless .tnt <-> .tntgraph <-> .tnt roundtrip with execution parity."""
         sample_src = """def ackermann(m: i64, n: i64) -> i64:
     if m == 0:
         return n + 1

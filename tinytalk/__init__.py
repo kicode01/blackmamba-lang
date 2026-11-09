@@ -267,7 +267,7 @@ def jit(fn_or_source: Union[Callable, str, None] = None) -> Any:
             src = textwrap.dedent(src)
             # Filter out decorators from source line before parsing
             lines = src.splitlines()
-            cleaned_lines = [l for l in lines if not l.strip().startswith("@mamba.jit") and not l.strip().startswith("@jit")]
+            cleaned_lines = [l for l in lines if not any(l.strip().startswith(prefix) for prefix in ("@tinytalk.jit", "@mamba.jit", "@jit"))]
             cleaned_src = "\n".join(cleaned_lines)
             mod = compile(cleaned_src, filename=fn_or_source.__name__)
             return getattr(mod, fn_or_source.__name__)
@@ -439,9 +439,5 @@ def __getattr__(name: str):
         raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
-# Backward compatibility fallback
-if "mamba" not in sys.modules:
-    try:
-        import mamba
-    except ImportError:
-        sys.modules["mamba"] = sys.modules[__name__]
+# Alias mamba namespace to tinytalk in memory to prevent import errors during transition
+sys.modules["mamba"] = sys.modules[__name__]

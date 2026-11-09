@@ -3,8 +3,8 @@ Phase 3 Unit Tests: Universal Python Bridge, Drop-In Execution & PyPI Ecosystem 
 Tests:
 - Transparent Python Bridge (`from python import ...`, `from python.<pkg> import ...`)
 - Python Dynamic Evaluation Intrinsics (`py_eval`, `py_eval_f64`, `py_eval_str`)
-- Python-to-Black Mamba Automated Migration Engine (`mamba.migrate`)
-- Native Top-PyPI Parity Modules (`requests.bmb`, `pydantic.bmb`, `fastapi.bmb`, `pytest.bmb`)
+- Python-to-TinyTalk Automated Migration Engine (`tinytalk.migrate`)
+- Native Top-PyPI Parity Modules (`requests.tnt`, `pydantic.tnt`, `fastapi.tnt`, `pytest.tnt`)
 - Drop-In Python (.py) Script Execution
 """
 
@@ -12,17 +12,17 @@ import os
 import sys
 import tempfile
 import unittest
-from mamba.parser import Parser
-from mamba.mir import MIRBuilder
-from mamba.backends.x86_64_jit import NativeJITModule
-from mamba.migrate import migrate_source, PythonToMambaMigrator
-from mamba.cli import compile_source_to_mir
+from tinytalk.parser import Parser
+from tinytalk.mir import MIRBuilder
+from tinytalk.backends.x86_64_jit import NativeJITModule
+from tinytalk.migrate import migrate_source, PythonToMambaMigrator
+from tinytalk.cli import compile_source_to_mir
 
 
 class TestPhase3BridgeAndMigrate(unittest.TestCase):
 
     def _run_mamba(self, source: str) -> int:
-        mir = compile_source_to_mir(source, "<test_phase3.bmb>")
+        mir = compile_source_to_mir(source, "<test_phase3.tnt>")
         jit = NativeJITModule(mir)
         try:
             return jit.run_main()

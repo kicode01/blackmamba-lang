@@ -1,4 +1,4 @@
-# Unit tests for Phase 9A (v3.0.0): 100% Pure .bmb Bootstrap, Self-Healing Runtime & Unikernel Cloud
+# Unit tests for Phase 9A (v3.0.0): 100% Pure .tnt Bootstrap, Self-Healing Runtime & Unikernel Cloud
 # Validates autonomous supervisor, SMT formal contracts, bare-metal unikernel generation, and bootstrap footprint.
 
 import os
@@ -6,11 +6,11 @@ import tempfile
 import unittest
 from types import SimpleNamespace
 
-from mamba.supervisor import SelfHealingSupervisor
-from mamba.contracts import FormalContractVerifier
-from mamba.unikernel import UnikernelBuilder
-from mamba.selfhost import SelfHostManager
-from mamba.cli import main
+from tinytalk.supervisor import SelfHealingSupervisor
+from tinytalk.contracts import FormalContractVerifier
+from tinytalk.unikernel import UnikernelBuilder
+from tinytalk.selfhost import SelfHostManager
+from tinytalk.cli import main
 
 
 class TestPhase9AV300(unittest.TestCase):
@@ -112,7 +112,7 @@ def main() -> i64:
         """Verify self-hosted bootstrap module compiles cleanly and conforms to < 150 KB."""
         sh = SelfHostManager()
         status = sh.get_selfhost_status()
-        bootstrap_mod = [m for m in status["modules"] if m["name"] == "bootstrap.bmb"]
+        bootstrap_mod = [m for m in status["modules"] if m["name"] == "bootstrap.tnt"]
         self.assertEqual(len(bootstrap_mod), 1)
         self.assertTrue(bootstrap_mod[0]["mir_valid"])
 
@@ -126,7 +126,7 @@ def main() -> i64:
         self.assertEqual(ret_sup_sim, 0)
 
         # 2. Verify command
-        with tempfile.NamedTemporaryFile(suffix=".bmb", delete=False, mode="w", encoding="utf-8") as tf:
+        with tempfile.NamedTemporaryFile(suffix=".tnt", delete=False, mode="w", encoding="utf-8") as tf:
             tf.write("requires(d != 0)\ndef div(n: i64, d: i64) -> i64:\n    return n // d\n")
             v_path = tf.name
 

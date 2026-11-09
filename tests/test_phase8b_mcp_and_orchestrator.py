@@ -6,8 +6,8 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from mamba.mcp import BlackMambaMCPServer, MCP_PROTOCOL_VERSION, SERVER_VERSION
-from mamba.orchestrator import (
+from tinytalk.mcp import BlackMambaMCPServer, MCP_PROTOCOL_VERSION, SERVER_VERSION
+from tinytalk.orchestrator import (
     ASTSymbolLockManager,
     SymbolConflictError,
     LockMode,
@@ -15,7 +15,7 @@ from mamba.orchestrator import (
     SwarmAgent,
     AgentSwarm,
 )
-from mamba.cli import main as bmb_main
+from tinytalk.cli import main as bmb_main
 
 
 class TestPhase8BMCPServerAndOrchestrator(unittest.TestCase):
@@ -91,7 +91,7 @@ fn get_distance_sq(p: Point) -> i64:
         text_data = json.loads(insp_res["result"]["content"][0]["text"])
         self.assertEqual(text_data["symbol_count"], 2)
 
-        # Encode to token-sparse .bmbs
+        # Encode to token-sparse .tnts
         enc_req = {
             "jsonrpc": "2.0",
             "id": 5,
@@ -153,7 +153,7 @@ struct Config:
     timeout: i64 = 5000
     retries: i64 = 3
 """
-        image_path = os.path.join(self.tmpdir, "test_snapshot.bmbimg")
+        image_path = os.path.join(self.tmpdir, "test_snapshot.tntimg")
         save_req = {
             "jsonrpc": "2.0",
             "id": 8,
@@ -185,23 +185,23 @@ struct Config:
     def test_mcp_resources_list_and_read(self):
         res_list = self.server.handle_request({"jsonrpc": "2.0", "id": 10, "method": "resources/list"})
         resources = res_list["result"]["resources"]
-        self.assertTrue(any(r["uri"] == "bmb://workspace/status" for r in resources))
+        self.assertTrue(any(r["uri"] == "tnt://workspace/status" for r in resources))
 
         read_res = self.server.handle_request({
             "jsonrpc": "2.0",
             "id": 11,
             "method": "resources/read",
-            "params": {"uri": "bmb://workspace/status"},
+            "params": {"uri": "tnt://workspace/status"},
         })
         contents = read_res["result"]["contents"]
-        self.assertEqual(contents[0]["uri"], "bmb://workspace/status")
+        self.assertEqual(contents[0]["uri"], "tnt://workspace/status")
         parsed = json.loads(contents[0]["text"])
         self.assertEqual(parsed["version"], SERVER_VERSION)
 
     # --- AST SYMBOL LOCK MANAGER TESTS ---
     def test_ast_symbol_lock_exclusive_and_shared(self):
         mgr = ASTSymbolLockManager()
-        uri = "bmb://math/Vec3/norm"
+        uri = "tnt://math/Vec3/norm"
 
         # Agent 1 acquires exclusive write
         mgr.acquire(uri, "agent-1", LockMode.EXCLUSIVE_WRITE)

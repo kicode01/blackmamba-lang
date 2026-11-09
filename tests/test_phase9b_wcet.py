@@ -5,9 +5,9 @@ import os
 import tempfile
 import unittest
 
-from mamba.realtime import ZeroJitterPool, HardRealTimeScheduler, benchmark_rt_pool
-from mamba.wcet import WCETAnalyzer
-from mamba.cli import main
+from tinytalk.realtime import ZeroJitterPool, HardRealTimeScheduler, benchmark_rt_pool
+from tinytalk.wcet import WCETAnalyzer
+from tinytalk.cli import main
 
 
 class TestPhase9BWCET(unittest.TestCase):
@@ -84,7 +84,7 @@ def compute_control_pulse(current: i64, target: i64) -> i64:
 
     def test_cli_wcet_command(self):
         """Verify CLI command for `bmb wcet`."""
-        with tempfile.NamedTemporaryFile(suffix=".bmb", delete=False, mode="w", encoding="utf-8") as tf:
+        with tempfile.NamedTemporaryFile(suffix=".tnt", delete=False, mode="w", encoding="utf-8") as tf:
             tf.write("def pid_loop(err: i64) -> i64:\n    return err * 3\n")
             w_path = tf.name
 

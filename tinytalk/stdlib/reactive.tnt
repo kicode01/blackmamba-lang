@@ -1,0 +1,83 @@
+# ==============================================================================
+#  BLACK MAMBA STANDARD LIBRARY: reactive.tnt
+#  Fine-Grained Reactive Signals & UI State Primitives (Phase 8 / v2.4.0)
+# ==============================================================================
+
+class SignalI64:
+    """Reactive mutable integer state container."""
+    def __init__(self, initial_value: i64):
+        self.value = initial_value
+        self.sub_count = 0
+        self.dirty = 0
+
+    def get(self) -> i64:
+        return self.value
+
+    def set(self, new_value: i64) -> void:
+        if self.value != new_value:
+            self.value = new_value
+            self.dirty = 1
+
+    def update(self, delta: i64) -> void:
+        self.set(self.value + delta)
+
+
+class SignalF64:
+    """Reactive mutable floating-point state container."""
+    def __init__(self, initial_value: f64):
+        self.value = initial_value
+        self.sub_count = 0
+        self.dirty = 0
+
+    def get(self) -> f64:
+        return self.value
+
+    def set(self, new_value: f64) -> void:
+        if self.value != new_value:
+            self.value = new_value
+            self.dirty = 1
+
+    def update(self, delta: f64) -> void:
+        self.set(self.value + delta)
+
+
+class SignalStr:
+    """Reactive mutable string state container."""
+    def __init__(self, initial_value: str):
+        self.value = initial_value
+        self.sub_count = 0
+        self.dirty = 0
+
+    def get(self) -> str:
+        return self.value
+
+    def set(self, new_value: str) -> void:
+        self.value = new_value
+        self.dirty = 1
+
+
+class ComputedI64:
+    """Derived reactive integer computation with cached state."""
+    def __init__(self, initial_value: i64):
+        self.cached_value = initial_value
+        self.is_dirty = 0
+
+    def get(self) -> i64:
+        return self.cached_value
+
+    def invalidate(self, new_value: i64) -> void:
+        self.cached_value = new_value
+        self.is_dirty = 0
+
+
+fn make_signal_i64(initial_value: i64) -> SignalI64:
+    return SignalI64(initial_value)
+
+fn make_signal_f64(initial_value: f64) -> SignalF64:
+    return SignalF64(initial_value)
+
+fn make_signal_str(initial_value: str) -> SignalStr:
+    return SignalStr(initial_value)
+
+fn make_computed_i64(initial_value: i64) -> ComputedI64:
+    return ComputedI64(initial_value)

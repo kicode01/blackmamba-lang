@@ -4,7 +4,7 @@
 import os
 import unittest
 
-from mamba import (
+from tinytalk import (
     DiffOp,
     NodeDelta,
     GraphDiffResult,
@@ -16,17 +16,17 @@ from mamba import (
     benchmark_vcs_engine,
     source_to_hypergraph,
 )
-from mamba.cli import compile_source_to_mir
+from tinytalk.cli import compile_source_to_mir
 
 
 class TestPhase10DVCS(unittest.TestCase):
     def test_01_stdlib_vcs_bmb_compilation(self):
-        """Verify that mamba/stdlib/vcs.bmb compiles to native MIR cleanly."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "vcs.bmb")
-        self.assertTrue(os.path.exists(stdlib_path), "vcs.bmb not found")
+        """Verify that mamba/stdlib/vcs.tnt compiles to native MIR cleanly."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "vcs.tnt")
+        self.assertTrue(os.path.exists(stdlib_path), "vcs.tnt not found")
         with open(stdlib_path, "r", encoding="utf-8") as f:
             src = f.read()
-        mir = compile_source_to_mir(src, filename="vcs.bmb")
+        mir = compile_source_to_mir(src, filename="vcs.tnt")
         self.assertGreaterEqual(len(mir.functions), 4)
 
     def test_02_graph_structural_diff(self):
@@ -93,7 +93,7 @@ def f2(y: i64) -> i64:
         self.assertEqual(len(merge.conflicts), 0)
         self.assertIsNotNone(merge.merged_graph)
 
-        from mamba.project import ProjectionEngine
+        from tinytalk.project import ProjectionEngine
         merged_py = ProjectionEngine.project_python(merge.merged_graph)
         self.assertIn("Token", merged_py)
         self.assertIn("f1", merged_py)

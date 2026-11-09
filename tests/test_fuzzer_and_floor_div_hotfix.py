@@ -10,10 +10,10 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from mamba.cli import main as bmb_main
-from mamba.fuzzer import AdversarialFuzzer, run_cpython_oracle, run_mamba_jit, run_mamba_pe_exe
-from mamba.mir import MIRBuilder, MIROptimizer
-from mamba.parser import Parser
+from tinytalk.cli import main as bmb_main
+from tinytalk.fuzzer import AdversarialFuzzer, run_cpython_oracle, run_mamba_jit, run_mamba_pe_exe
+from tinytalk.mir import MIRBuilder, MIROptimizer
+from tinytalk.parser import Parser
 
 
 class TestFloorDivAndFuzzerHotfix(unittest.TestCase):

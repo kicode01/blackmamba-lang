@@ -1,5 +1,5 @@
 """
-Unit & Integration Tests for Black Mamba Phase 8A (v2.4.0):
+Unit & Integration Tests for TinyTalk Phase 8A (v2.4.0):
 - Fine-Grained Reactive Signals (Signal, Computed, Effect, batch)
 - Reactive UI & WASM DOM Bindings (ReactiveNode, DOMPatch, compile_reactive_wasm_bundle)
 - Embedded Autonomous Copilot & App Synthesizer (AutonomousAgent, bmb agent)
@@ -13,10 +13,10 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from mamba.agent import AgentAction, AutonomousAgent, HealResult, SynthesisResult
-from mamba.cli import main as bmb_main
-from mamba.image import ImageManager
-from mamba.reactive import (
+from tinytalk.agent import AgentAction, AutonomousAgent, HealResult, SynthesisResult
+from tinytalk.cli import main as bmb_main
+from tinytalk.image import ImageManager
+from tinytalk.reactive import (
     Computed,
     DOMPatch,
     Effect,
@@ -148,7 +148,7 @@ class TestPhase8AgentAndReactive(unittest.TestCase):
             res = agent.synthesize_app(
                 goal="Build an inventory management dashboard with stock alerts",
                 output_dir=tmpdir,
-                snapshot_name="inventory_test.bmbimg",
+                snapshot_name="inventory_test.tntimg",
                 verify=True,
             )
             self.assertTrue(res.tests_passed, msg=res.test_output)
@@ -171,7 +171,7 @@ class TestPhase8AgentAndReactive(unittest.TestCase):
             res = agent.synthesize_app(
                 goal="Real-time live chat room with message counter",
                 output_dir=tmpdir,
-                snapshot_name="chat_test.bmbimg",
+                snapshot_name="chat_test.tntimg",
                 verify=True,
             )
             self.assertTrue(res.tests_passed, msg=res.test_output)
@@ -180,7 +180,7 @@ class TestPhase8AgentAndReactive(unittest.TestCase):
 
     def test_autonomous_agent_self_healing_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_file = os.path.join(tmpdir, "math_mod.bmb")
+            src_file = os.path.join(tmpdir, "math_mod.tnt")
             with open(src_file, "w", encoding="utf-8") as f:
                 f.write("""
 fn compute(x: i64) -> i64:

@@ -669,7 +669,7 @@ def cmd_web(args: argparse.Namespace) -> int:
 
 def scaffold_new_web_project(project_name: str) -> int:
     os.makedirs(project_name, exist_ok=True)
-    app_bmb = os.path.join(project_name, "app.bmb")
+    app_bmb = os.path.join(project_name, "app.tnt")
     sample_code = """# Black Mamba Full-Stack Reactive Web Application
 from web import Container, Card, H1, H2, Paragraph, Button, Badge, Alert, render_page
 

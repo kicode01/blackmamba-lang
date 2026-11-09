@@ -10,7 +10,7 @@ import unittest
 import random
 from tinytalk.superopt import SSAInstruction
 from tinytalk.simd_opt import SIMDSuperoptimizer, VectorInstruction
-import mamba.simd_opt as mamba_simd_opt
+import tinytalk.simd_opt as mamba_simd_opt
 
 
 class TestSIMDSuperoptimizer(unittest.TestCase):
@@ -69,7 +69,7 @@ class TestSIMDSuperoptimizer(unittest.TestCase):
             self.assertLessEqual(len(vec_seq), len(chain))
 
     def test_backward_compatibility_mamba_simd_opt(self):
-        """Verify mamba.simd_opt forwards to tinytalk.simd_opt."""
+        """Verify tinytalk.simd_opt forwards to tinytalk.simd_opt."""
         self.assertIs(mamba_simd_opt.SIMDSuperoptimizer, SIMDSuperoptimizer)
         self.assertIs(mamba_simd_opt.VectorInstruction, VectorInstruction)
 

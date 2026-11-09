@@ -2,7 +2,7 @@
 # Verification of PreReleaseGatekeeper pipeline
 
 import unittest
-from mamba.gatekeeper import PreReleaseGatekeeper
+from tinytalk.gatekeeper import PreReleaseGatekeeper
 
 
 class TestPreReleaseGatekeeper(unittest.TestCase):

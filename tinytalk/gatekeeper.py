@@ -31,16 +31,16 @@ class PreReleaseGatekeeper:
         self.workspace_dir = os.path.abspath(workspace_dir or os.getcwd())
         tinytalk_stdlib = os.path.join(self.workspace_dir, "tinytalk", "stdlib")
         tinytalk_selfhost = os.path.join(self.workspace_dir, "tinytalk", "selfhost")
-        self.stdlib_dir = tinytalk_stdlib if os.path.exists(tinytalk_stdlib) else os.path.join(self.workspace_dir, "mamba", "stdlib")
-        self.selfhost_dir = tinytalk_selfhost if os.path.exists(tinytalk_selfhost) else os.path.join(self.workspace_dir, "mamba", "selfhost")
+        self.stdlib_dir = tinytalk_stdlib
+        self.selfhost_dir = tinytalk_selfhost
 
     def stage1_stdlib_syntax_and_mir_check(self) -> Dict[str, Any]:
         """
         Stage 1: Verify every single standard library and self-hosted module compiles to valid MIR
         with zero parser, lexer, or typechecker exceptions.
         """
-        stdlib_files = glob.glob(os.path.join(self.stdlib_dir, "*.tnt")) + glob.glob(os.path.join(self.stdlib_dir, "*.bmb"))
-        selfhost_files = glob.glob(os.path.join(self.selfhost_dir, "*.tnt")) + glob.glob(os.path.join(self.selfhost_dir, "*.bmb"))
+        stdlib_files = glob.glob(os.path.join(self.stdlib_dir, "*.tnt"))
+        selfhost_files = glob.glob(os.path.join(self.selfhost_dir, "*.tnt"))
         all_files = [(f, self.stdlib_dir) for f in set(stdlib_files)] + [(f, self.selfhost_dir) for f in set(selfhost_files)]
         compiled = 0
         errors = []

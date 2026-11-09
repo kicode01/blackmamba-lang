@@ -1,0 +1,106 @@
+# TinyTalk Self-Hosting Compiler Substrate: constfold.tnt
+# Phase 8F (v2.9.0): Pure .tnt Constant Folding & Strength Reduction Pass
+# 100% Pure Native TinyTalk (.tnt) with Zero CPython Runtime Dependencies.
+
+from mir_types import (
+    MIRInstruction, MIRFunc,
+    OP_NOP, OP_MOV, OP_ADD_I64, OP_SUB_I64, OP_MUL_I64, OP_DIV_I64,
+    OP_MOD_I64, OP_SHL_I64, OP_SHR_I64, OP_AND_I64, OP_OR_I64, OP_XOR_I64,
+    OP_CMP_EQ_I64, OP_CMP_NE_I64, OP_CMP_LT_I64, OP_CMP_LE_I64, OP_CMP_GT_I64, OP_CMP_GE_I64,
+    OP_CONST_I64, OP_CONST_F64, OP_CONST_STR
+)
+
+def is_power_of_two(val: i64) -> i64:
+    if val <= 0:
+        return -1
+    let shift = 0
+    let cur = 1
+    while shift < 62:
+        if cur == val:
+            return shift
+        cur = cur * 2
+        shift += 1
+    return -1
+
+def eval_binop_i64(op: i64, a: i64, b: i64) -> i64:
+    if op == OP_ADD_I64:
+        return a + b
+    if op == OP_SUB_I64:
+        return a - b
+    if op == OP_MUL_I64:
+        return a * b
+    if op == OP_DIV_I64:
+        if b != 0:
+            return a // b
+        return 0
+    if op == OP_MOD_I64:
+        if b != 0:
+            return a % b
+        return 0
+    if op == OP_SHL_I64:
+        if b >= 0 and b < 63:
+            return a << b
+        return 0
+    if op == OP_SHR_I64:
+        if b >= 0 and b < 63:
+            return a >> b
+        return 0
+    if op == OP_AND_I64:
+        return a & b
+    if op == OP_OR_I64:
+        return a | b
+    if op == OP_XOR_I64:
+        return a ^ b
+    if op == OP_CMP_EQ_I64:
+        return 1 if a == b else 0
+    if op == OP_CMP_NE_I64:
+        return 1 if a != b else 0
+    if op == OP_CMP_LT_I64:
+        return 1 if a < b else 0
+    if op == OP_CMP_LE_I64:
+        return 1 if a <= b else 0
+    if op == OP_CMP_GT_I64:
+        return 1 if a > b else 0
+    if op == OP_CMP_GE_I64:
+        return 1 if a >= b else 0
+    return 0
+
+def optimize_constfold(func_def: MIRFunc) -> i64:
+    let folded = 0
+    let n = func_def.instr_count
+    for i in 0..n:
+        let ins = func_def.instructions[i]
+        
+        # Check if instruction is a binary arithmetic operation with immediate constants
+        if ins.op == OP_MUL_I64:
+            # Check strength reduction for power of 2
+            let shift = is_power_of_two(ins.val_i64)
+            if shift >= 0:
+                func_def.instructions[i].op = OP_SHL_I64
+                func_def.instructions[i].val_i64 = shift
+                folded += 1
+            elif ins.val_i64 == 1:
+                # Identity multiplication: x * 1 = x
+                func_def.instructions[i].op = OP_MOV
+                folded += 1
+            elif ins.val_i64 == 0:
+                # Zero multiplication: x * 0 = 0
+                func_def.instructions[i].op = OP_CONST_I64
+                func_def.instructions[i].val_i64 = 0
+                func_def.instructions[i].arg1 = ""
+                func_def.instructions[i].arg2 = ""
+                folded += 1
+                
+        elif ins.op == OP_ADD_I64:
+            if ins.val_i64 == 0:
+                # Identity addition: x + 0 = x
+                func_def.instructions[i].op = OP_MOV
+                folded += 1
+                
+        elif ins.op == OP_SUB_I64:
+            if ins.val_i64 == 0:
+                # Identity subtraction: x - 0 = x
+                func_def.instructions[i].op = OP_MOV
+                folded += 1
+
+    return folded

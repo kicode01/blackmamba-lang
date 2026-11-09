@@ -1,16 +1,16 @@
 """
-Unit and Integration Tests for Black Mamba Phase 4:
+Unit and Integration Tests for TinyTalk Phase 4:
 "The High-Performance Domain Monopolies & Full Stdlib Parity"
 
 Verifies:
-1. collections.bmb (Deque, Counter, DefaultDict, OrderedDict)
-2. heap.bmb (MinHeap, PriorityQueue, heappush, heappop, bisect_left, bisect_right, insort_i64)
-3. iter.bmb (chain_i64, take_i64, drop_i64, repeat_i64, accumulate_sum, MemoCache)
-4. process.bmb (process_run, process_check_output, ProcessResult)
-5. csv.bmb (CsvDoc, csv_parse, csv_dumps)
-6. pathlib.bmb (Path, .name(), .stem(), .suffix(), .parent(), .join(), .as_posix())
-7. tensor.bmb & llama.bmb (tensor_rmsnorm, tensor_softmax, q8_0_dot, q4_0_dot, GGUFHeader, LlamaConfig)
-8. fastapi.bmb (parameterized route matching, parse_query_param, dispatch)
+1. collections.tnt (Deque, Counter, DefaultDict, OrderedDict)
+2. heap.tnt (MinHeap, PriorityQueue, heappush, heappop, bisect_left, bisect_right, insort_i64)
+3. iter.tnt (chain_i64, take_i64, drop_i64, repeat_i64, accumulate_sum, MemoCache)
+4. process.tnt (process_run, process_check_output, ProcessResult)
+5. csv.tnt (CsvDoc, csv_parse, csv_dumps)
+6. pathlib.tnt (Path, .name(), .stem(), .suffix(), .parent(), .join(), .as_posix())
+7. tensor.tnt & llama.tnt (tensor_rmsnorm, tensor_softmax, q8_0_dot, q4_0_dot, GGUFHeader, LlamaConfig)
+8. fastapi.tnt (parameterized route matching, parse_query_param, dispatch)
 9. profile.py (Profiler, interactive SVG flamegraph generation)
 10. cli.py (cmd_test test runner discovery & execution)
 """
@@ -19,17 +19,17 @@ import os
 import sys
 import tempfile
 import unittest
-from mamba.parser import Parser
-from mamba.mir import MIRBuilder
-from mamba.backends.x86_64_jit import NativeJITModule
-from mamba.profile import Profiler
-from mamba.cli import main as cli_main
+from tinytalk.parser import Parser
+from tinytalk.mir import MIRBuilder
+from tinytalk.backends.x86_64_jit import NativeJITModule
+from tinytalk.profile import Profiler
+from tinytalk.cli import main as cli_main
 
 
 def _compile_and_run(source: str, base_dir: str = "") -> int:
-    ast_mod = Parser.from_source(source, "<test.bmb>").parse_module()
+    ast_mod = Parser.from_source(source, "<test.tnt>").parse_module()
     resolved_base = base_dir or os.path.join(os.path.dirname(__file__), "..")
-    mir = MIRBuilder().build(ast_mod, base_dir=resolved_base, filename="<test.bmb>")
+    mir = MIRBuilder().build(ast_mod, base_dir=resolved_base, filename="<test.tnt>")
     jit = NativeJITModule(mir)
     return jit.run_main()
 
@@ -254,19 +254,19 @@ def main() -> i64:
 from pathlib import path, Path
 
 def main() -> i64:
-    p = path("src/mamba/compiler.bmb")
-    if p.name() != "compiler.bmb":
+    p = path("src/mamba/compiler.tnt")
+    if p.name() != "compiler.tnt":
         return 1
     if p.stem() != "compiler":
         return 2
-    if p.suffix() != ".bmb":
+    if p.suffix() != ".tnt":
         return 3
     parent = p.parent()
     if parent.as_posix() != "src/mamba":
         return 4
 
-    p2 = parent.join("runtime.bmb")
-    if p2.as_posix() != "src/mamba/runtime.bmb":
+    p2 = parent.join("runtime.tnt")
+    if p2.as_posix() != "src/mamba/runtime.tnt":
         return 5
     return 66
 """
@@ -368,8 +368,8 @@ def main() -> i64:
     s = compute_sum(1000)
     return s
 """
-        ast_mod = Parser.from_source(code, "<prof.bmb>").parse_module()
-        mir = MIRBuilder().build(ast_mod, base_dir=os.getcwd(), filename="<prof.bmb>")
+        ast_mod = Parser.from_source(code, "<prof.tnt>").parse_module()
+        mir = MIRBuilder().build(ast_mod, base_dir=os.getcwd(), filename="<prof.tnt>")
         profiler = Profiler(mir)
         times = profiler.profile_execution(iterations=3)
         self.assertIn("compute_sum", times)
@@ -391,7 +391,7 @@ def main() -> i64:
 
     def test_cli_test_command(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            test_file = os.path.join(tmpdir, "test_demo.bmb")
+            test_file = os.path.join(tmpdir, "test_demo.tnt")
             with open(test_file, "w", encoding="utf-8") as f:
                 f.write("""
 def test_alpha() -> i64:

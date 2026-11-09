@@ -1,0 +1,63 @@
+# TinyTalk Standard Library: contracts.tnt
+# Phase 9A (v3.0.0): SMT-Backed Formal Contract Verification Substrate
+# 100% Pure Native TinyTalk (.tnt) with Zero CPython Runtime Dependencies.
+
+CONTRACT_REQUIRES = 1
+CONTRACT_ENSURES = 2
+CONTRACT_INVARIANT = 3
+
+struct ContractCondition:
+    kind: i64
+    var_name: str
+    cmp_op: str          # ">", ">=", "<", "<=", "==", "!="
+    bound_val: i64
+    is_satisfied: bool
+
+def contract_condition_new(kind: i64, var_name: str, op: str, bound: i64) -> ContractCondition:
+    return ContractCondition(kind, var_name, op, bound, False)
+
+def dummy_contract() -> ContractCondition:
+    return ContractCondition(0, "", "", 0, False)
+
+struct FunctionContract:
+    func_name: str
+    condition_count: i64
+    conditions: Array[ContractCondition]
+
+def function_contract_new(func_name: str) -> FunctionContract:
+    let conds = [dummy_contract()] * 8
+    return FunctionContract(func_name, 0, conds)
+
+def contract_add_condition(fc: FunctionContract, cond: ContractCondition) -> i64:
+    if fc.condition_count >= len(fc.conditions):
+        let new_cap = len(fc.conditions) * 2
+        let new_arr = [dummy_contract()] * new_cap
+        for i in 0..fc.condition_count:
+            new_arr[i] = fc.conditions[i]
+        fc.conditions = new_arr
+    fc.conditions[fc.condition_count] = cond
+    fc.condition_count += 1
+    return fc.condition_count
+
+def verify_integer_constraint(val: i64, cmp_op: str, bound: i64) -> bool:
+    if cmp_op == ">":
+        return val > bound
+    if cmp_op == ">=":
+        return val >= bound
+    if cmp_op == "<":
+        return val < bound
+    if cmp_op == "<=":
+        return val <= bound
+    if cmp_op == "==":
+        return val == bound
+    if cmp_op == "!=":
+        return val != bound
+    return False
+
+def verify_function_contract(fc: FunctionContract, arg_val: i64) -> bool:
+    for i in 0..fc.condition_count:
+        let cond = fc.conditions[i]
+        let ok = verify_integer_constraint(arg_val, cond.cmp_op, cond.bound_val)
+        if not ok:
+            return False
+    return True

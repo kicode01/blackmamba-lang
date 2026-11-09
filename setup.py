@@ -11,15 +11,12 @@ setup(
     url="https://github.com/kicode01/tinytalk-lang",
     packages=find_packages(),
     package_data={
-        "mamba": ["stdlib/*.tnt", "stdlib/*.bmb", "selfhost/*.tnt", "selfhost/*.bmb"],
-        "tinytalk": ["stdlib/*.tnt", "stdlib/*.bmb", "selfhost/*.tnt", "selfhost/*.bmb"],
+        "tinytalk": ["stdlib/*.tnt", "selfhost/*.tnt"],
     },
     entry_points={
         "console_scripts": [
             "tnt=tinytalk.cli:main",
             "tinytalk=tinytalk.cli:main",
-            "bmb=tinytalk.cli:main",
-            "blackmamba=tinytalk.cli:main",
         ],
     },
     classifiers=[

@@ -32,7 +32,7 @@ class SelfHostManager:
         """Returns sorted list of all modules in selfhost/."""
         if not os.path.exists(self.selfhost_dir):
             return []
-        files = glob.glob(os.path.join(self.selfhost_dir, "*.tnt")) + glob.glob(os.path.join(self.selfhost_dir, "*.bmb"))
+        files = glob.glob(os.path.join(self.selfhost_dir, "*.tnt")) + glob.glob(os.path.join(self.selfhost_dir, "*.tnt"))
         return sorted(list(set([os.path.basename(f) for f in files])))
 
     def get_selfhost_status(self) -> Dict[str, Any]:
@@ -122,7 +122,7 @@ def kernel_compute(a: i64, b: i64) -> i64:
         stage1_hash = hashlib.sha256(stage1_repr.encode("utf-8")).hexdigest()
 
         # Stage 2: Pure .bmb self-host driver execution
-        driver_path = os.path.join(self.selfhost_dir, "driver.bmb")
+        driver_path = os.path.join(self.selfhost_dir, "driver.tnt")
         with open(driver_path, "r", encoding="utf-8-sig") as f:
             driver_src = f.read()
         mir2 = compile_source_to_mir(driver_src, filename=driver_path, base_dir=self.selfhost_dir)

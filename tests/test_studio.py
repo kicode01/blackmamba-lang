@@ -1,5 +1,5 @@
 """
-Unit and Integration Tests for Black Mamba Smalltalk Studio & Inquisitor Agent
+Unit and Integration Tests for TinyTalk Smalltalk Studio & Inquisitor Agent
 File: tests/test_studio.py
 
 Verifies:
@@ -21,14 +21,14 @@ import urllib.request
 import urllib.error
 import http.server
 
-from mamba.studio import (
+from tinytalk.studio import (
     StudioSystemModel,
     StudioInspector,
     StudioWorkspace,
     StudioRequestHandler,
 )
-from mamba.inquisitor import InquisitorEngine
-from mamba.parser import Parser
+from tinytalk.inquisitor import InquisitorEngine
+from tinytalk.parser import Parser
 
 
 class TestStudioAndInquisitor(unittest.TestCase):

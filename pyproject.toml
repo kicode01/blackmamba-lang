@@ -51,12 +51,9 @@ Repository = "https://github.com/kicode01/tinytalk-lang.git"
 [project.scripts]
 tnt = "tinytalk.cli:main"
 tinytalk = "tinytalk.cli:main"
-bmb = "tinytalk.cli:main"
-blackmamba = "tinytalk.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["tinytalk*", "mamba*"]
+include = ["tinytalk*"]
 
 [tool.setuptools.package-data]
-"tinytalk" = ["stdlib/*.tnt", "stdlib/*.bmb", "selfhost/*.tnt", "selfhost/*.bmb"]
-"mamba" = ["stdlib/*.tnt", "stdlib/*.bmb", "selfhost/*.tnt", "selfhost/*.bmb"]
+"tinytalk" = ["stdlib/*.tnt", "selfhost/*.tnt"]

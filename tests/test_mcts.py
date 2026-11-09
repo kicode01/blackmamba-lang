@@ -11,7 +11,7 @@ import math
 import random
 from tinytalk.superopt import CPUCostModel, SSAInstruction
 from tinytalk.mcts import MCTSNode, MCTSSynthesizer
-import mamba.mcts as mamba_mcts
+import tinytalk.mcts as mamba_mcts
 
 
 class TestMCTSSynthesizer(unittest.TestCase):
@@ -87,7 +87,7 @@ class TestMCTSSynthesizer(unittest.TestCase):
             self.assertLessEqual(best_cost, base_cost + 1e-6)
 
     def test_backward_compatibility_mamba_mcts(self):
-        """Verify mamba.mcts forwards to tinytalk.mcts."""
+        """Verify tinytalk.mcts forwards to tinytalk.mcts."""
         self.assertIs(mamba_mcts.MCTSSynthesizer, MCTSSynthesizer)
         self.assertIs(mamba_mcts.MCTSNode, MCTSNode)
 

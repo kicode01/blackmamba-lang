@@ -1,9 +1,9 @@
-# Unit tests for Phase 8F (v2.9.0): Pure .bmb Self-Hosting Optimizer & Linker Convergence
+# Unit tests for Phase 8F (v2.9.0): Pure .tnt Self-Hosting Optimizer & Linker Convergence
 # Validates self-hosted modules, optimizer passes, binary emitters, and bit-for-bit stage parity.
 
 import unittest
-from mamba.selfhost import SelfHostManager
-from mamba.cli import main
+from tinytalk.selfhost import SelfHostManager
+from tinytalk.cli import main
 
 
 class TestPhase8FSelfHost(unittest.TestCase):
@@ -12,21 +12,21 @@ class TestPhase8FSelfHost(unittest.TestCase):
         self.sh = SelfHostManager()
 
     def test_selfhost_module_inventory(self):
-        """Verify that all 11 pure .bmb self-hosted compiler modules compile to valid MIR."""
+        """Verify that all 11 pure .tnt self-hosted compiler modules compile to valid MIR."""
         modules = self.sh.list_selfhost_modules()
         expected = [
-            "bootstrap.bmb",
-            "constfold.bmb",
-            "dce.bmb",
-            "driver.bmb",
-            "elf_builder.bmb",
-            "escape.bmb",
-            "inline.bmb",
-            "macho_builder.bmb",
-            "mir_types.bmb",
-            "parity.bmb",
-            "pe_builder.bmb",
-            "struct_layout.bmb",
+            "bootstrap.tnt",
+            "constfold.tnt",
+            "dce.tnt",
+            "driver.tnt",
+            "elf_builder.tnt",
+            "escape.tnt",
+            "inline.tnt",
+            "macho_builder.tnt",
+            "mir_types.tnt",
+            "parity.tnt",
+            "pe_builder.tnt",
+            "struct_layout.tnt",
         ]
         self.assertEqual(modules, expected)
         status = self.sh.get_selfhost_status()

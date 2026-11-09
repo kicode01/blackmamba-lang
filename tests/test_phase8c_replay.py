@@ -6,8 +6,8 @@ import unittest
 from io import StringIO
 from unittest.mock import patch
 
-from mamba.replay import TimeTravelRecorder, ReplayTrace, OmniscientDebugger
-from mamba.cli import main as bmb_main
+from tinytalk.replay import TimeTravelRecorder, ReplayTrace, OmniscientDebugger
+from tinytalk.cli import main as bmb_main
 
 
 class TestPhase8CTimeTravelReplay(unittest.TestCase):
@@ -180,7 +180,7 @@ fn main() -> i64:
         recorder = TimeTravelRecorder()
         trace = recorder.record_source(src, module_name="test_rt")
 
-        trace_file = os.path.join(self.tmpdir, "test.bmbreplay")
+        trace_file = os.path.join(self.tmpdir, "test.tntreplay")
         bytes_written = trace.save(trace_file, compress=True)
         self.assertTrue(bytes_written > 0)
 
@@ -205,12 +205,12 @@ fn main() -> i64:
 
         with open(html_file, "r", encoding="utf-8") as f:
             content = f.read()
-        self.assertIn("Black Mamba Omniscient Debugger", content)
+        self.assertIn("TinyTalk Omniscient Debugger", content)
         self.assertIn("timelineSlider", content)
         self.assertIn("updateView", content)
 
     def test_cli_replay_record_and_inspect_json(self):
-        src_path = os.path.join(self.tmpdir, "app.bmb")
+        src_path = os.path.join(self.tmpdir, "app.tnt")
         with open(src_path, "w", encoding="utf-8") as f:
             f.write("""
 fn main() -> i64:
@@ -218,7 +218,7 @@ fn main() -> i64:
     counter += 5
     return counter
 """)
-        trace_path = os.path.join(self.tmpdir, "app.bmbreplay")
+        trace_path = os.path.join(self.tmpdir, "app.tntreplay")
         html_path = os.path.join(self.tmpdir, "app.html")
 
         # 1. Test CLI Record

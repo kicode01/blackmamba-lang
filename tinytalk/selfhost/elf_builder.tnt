@@ -1,0 +1,69 @@
+# TinyTalk Self-Hosting Compiler Substrate: elf_builder.tnt
+# Phase 8F (v2.9.0): Pure .tnt ELF64 64-bit Linux Binary Linker & Emitter
+# 100% Pure Native TinyTalk (.tnt) with Zero CPython Runtime Dependencies.
+
+# ==============================================================================
+# ELF64 Architectural Constants
+# ==============================================================================
+
+ELF_CLASS_64 = 2
+ELF_DATA_LSB = 1
+ELF_ET_EXEC = 2
+ELF_EM_X86_64 = 62
+ELF_PT_LOAD = 1
+
+ELF_PF_X = 1
+ELF_PF_W = 2
+ELF_PF_R = 4
+
+PAGE_SIZE = 4096
+DEFAULT_LINUX_BASE = 4194304            # 0x400000
+
+struct ELFProgramHeader:
+    ptype: i64
+    flags: i64
+    offset: i64
+    vaddr: i64
+    paddr: i64
+    filesz: i64
+    memsz: i64
+    alignment: i64
+
+def elf_dummy_phdr() -> ELFProgramHeader:
+    return ELFProgramHeader(0, 0, 0, 0, 0, 0, 0, 0)
+
+struct ELFBuilder:
+    machine: i64
+    entry_point: i64
+    base_vaddr: i64
+    ph_count: i64
+    program_headers: Array[ELFProgramHeader]
+
+def elf_builder_new() -> ELFBuilder:
+    let h = [elf_dummy_phdr()] * 8
+    return ELFBuilder(ELF_EM_X86_64, DEFAULT_LINUX_BASE + 4096, DEFAULT_LINUX_BASE, 0, h)
+
+def elf_align_page(val: i64) -> i64:
+    let rem = val % PAGE_SIZE
+    if rem == 0:
+        return val
+    return val + (PAGE_SIZE - rem)
+
+def elf_add_load_segment(builder: ELFBuilder, flags: i64, raw_size: i64) -> i64:
+    let offset = 4096
+    let vaddr = builder.base_vaddr + 4096
+    if builder.ph_count > 0:
+        let last = builder.program_headers[builder.ph_count - 1]
+        offset = elf_align_page(last.offset + last.filesz)
+        vaddr = elf_align_page(last.vaddr + last.memsz)
+        
+    let phdr = ELFProgramHeader(ELF_PT_LOAD, flags, offset, vaddr, vaddr, raw_size, elf_align_page(raw_size), PAGE_SIZE)
+    builder.program_headers[builder.ph_count] = phdr
+    builder.ph_count += 1
+    return vaddr
+
+def elf_compute_binary_size(builder: ELFBuilder) -> i64:
+    if builder.ph_count == 0:
+        return 4096
+    let last = builder.program_headers[builder.ph_count - 1]
+    return last.offset + last.filesz

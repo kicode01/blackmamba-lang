@@ -11,7 +11,7 @@ from tinytalk.mesh import (
     MeshTunnel,
     MeshRouter
 )
-import mamba.mesh as m_mesh
+import tinytalk.mesh as m_mesh
 
 
 class TestZeroTrustMesh(unittest.TestCase):

@@ -6,14 +6,14 @@ import json
 import tempfile
 import unittest
 
-from mamba import (
+from tinytalk import (
     ArtifactSigner,
     SLSAProvenanceBuilder,
     benchmark_provenance_signing,
 )
-from mamba.provenance import compute_file_sha256
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.provenance import compute_file_sha256
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestPhase9GProvenance(unittest.TestCase):
@@ -77,7 +77,7 @@ class TestPhase9GProvenance(unittest.TestCase):
     def test_03_slsa_level_3_attestation_schema(self):
         """Test generating in-toto SLSA Level 3 provenance statements."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_file = os.path.join(tmpdir, "app.bmb")
+            src_file = os.path.join(tmpdir, "app.tnt")
             bin_file = os.path.join(tmpdir, "app.exe")
             prov_file = os.path.join(tmpdir, "app.exe.provenance.json")
 
@@ -110,14 +110,14 @@ class TestPhase9GProvenance(unittest.TestCase):
         self.assertTrue(bench["reproducible_certified"])
 
     def test_05_pure_bmb_provenance_compilation(self):
-        """Test compiling pure .bmb provenance.bmb standard library to MIR and JIT execution."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "provenance.bmb")
+        """Test compiling pure .tnt provenance.tnt standard library to MIR and JIT execution."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "provenance.tnt")
         self.assertTrue(os.path.exists(stdlib_path))
 
         with open(stdlib_path, "r", encoding="utf-8") as f:
             bmb_src = f.read()
 
-        mir = compile_source_to_mir(bmb_src, filename="provenance.bmb")
+        mir = compile_source_to_mir(bmb_src, filename="provenance.tnt")
         self.assertGreaterEqual(len(mir.functions), 5)
 
         jit_mod = NativeJITModule(mir)

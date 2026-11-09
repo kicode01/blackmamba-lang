@@ -1,11 +1,11 @@
 """
-Unit and Integration Tests for Black Mamba v2.1 (Pillar 0 & Part 1 Interactive Web Playground):
+Unit and Integration Tests for TinyTalk v2.1 (Pillar 0 & Part 1 Interactive Web Playground):
 
 Verifies:
 1. Pillar 0.1 & Part 1: In-Browser WebAssembly Compiler (`website/bmbc_wasm.js`) & Interactive Playground (`website/arena.html`)
-2. Pillar 0.2: Interactive Jupyter Notebook Kernel (`mamba/kernel.py`, `kernel.bmb`, `bmb kernel`)
-3. Pillar 0.3: Native GPU Compute Backend (`mamba/backends/gpu_shader.py`, `gpu.bmb`, `--target webgpu` & `--target spirv`)
-4. Pillar 0.4: Zero-Cold-Start Serverless Cloud Engine (`mamba/deploy.py`, `cloud.bmb`, `bmb deploy --target all`)
+2. Pillar 0.2: Interactive Jupyter Notebook Kernel (`mamba/kernel.py`, `kernel.tnt`, `bmb kernel`)
+3. Pillar 0.3: Native GPU Compute Backend (`mamba/backends/gpu_shader.py`, `gpu.tnt`, `--target webgpu` & `--target spirv`)
+4. Pillar 0.4: Zero-Cold-Start Serverless Cloud Engine (`mamba/deploy.py`, `cloud.tnt`, `bmb deploy --target all`)
 """
 
 import json
@@ -16,16 +16,16 @@ import tempfile
 import unittest
 import zipfile
 
-from mamba.backends.gpu_shader import (
+from tinytalk.backends.gpu_shader import (
     SPIRV_GENERATOR_BMB,
     SPIRV_MAGIC,
     SPIRV_VERSION_1_5,
     SPIRVShaderBackend,
     WebGPUShaderBackend,
 )
-from mamba.cli import compile_source_to_mir, main as cli_main
-from mamba.deploy import ServerlessDeployBuilder
-from mamba.kernel import BlackMambaJupyterKernel
+from tinytalk.cli import compile_source_to_mir, main as cli_main
+from tinytalk.deploy import ServerlessDeployBuilder
+from tinytalk.kernel import BlackMambaJupyterKernel
 
 
 class TestPillar0AndPlaygroundV21(unittest.TestCase):
@@ -78,7 +78,7 @@ class TestPillar0AndPlaygroundV21(unittest.TestCase):
             nb_path = os.path.join(tmpdir, "test_notebook.ipynb")
             sample_nb = {
                 "cells": [
-                    {"cell_type": "markdown", "metadata": {}, "source": ["# Black Mamba Notebook"]},
+                    {"cell_type": "markdown", "metadata": {}, "source": ["# TinyTalk Notebook"]},
                     {"cell_type": "code", "metadata": {}, "source": ["a = 100\n", "b = 200\n", "print(a + b)"], "outputs": [], "execution_count": None},
                     {"cell_type": "code", "metadata": {}, "source": ["a * 3"], "outputs": [], "execution_count": None},
                 ],
@@ -108,7 +108,7 @@ def kernel_mad(a: i64, b: i64) -> i64:
 def main() -> i64:
     return kernel_mad(3, 4)
 """
-        mir = compile_source_to_mir(src, "gpu_test.bmb")
+        mir = compile_source_to_mir(src, "gpu_test.tnt")
 
         # 1. WebGPU WGSL Shader verification
         wgsl_backend = WebGPUShaderBackend(mir, workgroup_size=(64, 1, 1))
@@ -137,7 +137,7 @@ def main() -> i64:
 
         # 3. CLI build --target webgpu and --target spirv
         with tempfile.TemporaryDirectory() as tmpdir:
-            bmb_file = os.path.join(tmpdir, "shader.bmb")
+            bmb_file = os.path.join(tmpdir, "shader.tnt")
             with open(bmb_file, "w", encoding="utf-8") as f:
                 f.write(src)
             wgsl_out = os.path.join(tmpdir, "shader.wgsl")
@@ -152,7 +152,7 @@ def main() -> i64:
 
     def test_pillar0_4_serverless_cloud_deploy(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_file = os.path.join(tmpdir, "edge_fn.bmb")
+            src_file = os.path.join(tmpdir, "edge_fn.tnt")
             with open(src_file, "w", encoding="utf-8") as f:
                 f.write("""
 from cloud import cloud_event_new, cloud_response_json

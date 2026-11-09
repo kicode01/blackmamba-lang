@@ -11,7 +11,7 @@ from tinytalk.zk import (
     ZKProver,
     ZKVerifier
 )
-import mamba.zk as m_zk
+import tinytalk.zk as m_zk
 
 
 class TestZKVerifier(unittest.TestCase):

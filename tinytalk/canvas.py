@@ -457,7 +457,7 @@ class MorphicCanvas:
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<title>Black Mamba 2D Morphic Canvas — {self.module_name}</title>
+<title>TinyTalk 2D Morphic Canvas — {self.module_name}</title>
 <style>
   body {{ margin:0; background:#090d16; color:#e2e8f0; font-family:Inter,system-ui,sans-serif; overflow:hidden; }}
   #toolbar {{ position:fixed; top:12px; left:12px; z-index:10; background:#111827cc; border:1px solid #1f2937; padding:8px 14px; border-radius:8px; display:flex; gap:12px; align-items:center; }}
@@ -470,7 +470,7 @@ class MorphicCanvas:
 </head>
 <body>
 <div id="toolbar">
-  <strong>Black Mamba Morphic Canvas</strong>
+  <strong>TinyTalk Morphic Canvas</strong>
   <span class="badge">bmb://{self.module_name}</span>
   <span class="badge">{len(self.morphs)} Morphs | {len(self.wires)} Wires</span>
 </div>

@@ -1,5 +1,5 @@
 """
-Unit and Integration Tests for Black Mamba Phase 5 & v2.0 Production Milestone:
+Unit and Integration Tests for TinyTalk Phase 5 & v2.0 Production Milestone:
 "The Global Cloud & Enterprise Dominance — v2.0"
 
 Verifies:
@@ -15,11 +15,11 @@ import json
 import tarfile
 import tempfile
 import unittest
-from mamba.container import ContainerBuilder
-from mamba.llm import create_demo_gguf, GGUFModel, LocalLLM
-from mamba.pkg.manifest import PackageManifest
-from mamba.pkg.cli import cmd_pkg_init, cmd_pkg_publish
-from mamba.cli import main as cli_main
+from tinytalk.container import ContainerBuilder
+from tinytalk.llm import create_demo_gguf, GGUFModel, LocalLLM
+from tinytalk.pkg.manifest import PackageManifest
+from tinytalk.pkg.cli import cmd_pkg_init, cmd_pkg_publish
+from tinytalk.cli import main as cli_main
 import argparse
 
 
@@ -27,7 +27,7 @@ class TestPhase5EnterpriseV2(unittest.TestCase):
 
     def test_container_builder_elf_and_tarball(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_file = os.path.join(tmpdir, "service.bmb")
+            src_file = os.path.join(tmpdir, "service.tnt")
             with open(src_file, "w", encoding="utf-8") as f:
                 f.write("""
 def main() -> i64:
@@ -110,7 +110,7 @@ def main() -> i64:
                 os.chdir(proj_dir)
                 init_args = argparse.Namespace(directory=proj_dir, name="mypkg", lib=True, bin=False)
                 cmd_pkg_init(init_args)
-                self.assertTrue(os.path.exists(os.path.join(proj_dir, "mamba.toml")))
+                self.assertTrue(os.path.exists(os.path.join(proj_dir, "tinytalk.toml")))
 
                 # Publish package to local registry
                 pub_args = argparse.Namespace(registry=reg_dir)
@@ -134,7 +134,7 @@ def main() -> i64:
 
     def test_cli_container_command(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            src_file = os.path.join(tmpdir, "app.bmb")
+            src_file = os.path.join(tmpdir, "app.tnt")
             with open(src_file, "w", encoding="utf-8") as f:
                 f.write("def main() -> i64:\n    return 42\n")
 

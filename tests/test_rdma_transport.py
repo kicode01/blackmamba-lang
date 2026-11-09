@@ -1,7 +1,7 @@
 """Unit tests for TinyTalk Kernel-Bypass RDMA Transport (Phase 11B - v4.1.0)."""
 import unittest
 from tinytalk.rdma import KernelBypassRing, RDMATransport
-import mamba.rdma as mamba_rdma
+import tinytalk.rdma as mamba_rdma
 
 
 class TestRDMATransport(unittest.TestCase):

@@ -9,7 +9,7 @@ from tinytalk.consensus import (
     RaftNode,
     QuorumCluster
 )
-import mamba.consensus as m_consensus
+import tinytalk.consensus as m_consensus
 
 
 class TestQuorumConsensus(unittest.TestCase):

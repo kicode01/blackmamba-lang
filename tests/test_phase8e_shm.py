@@ -7,11 +7,11 @@ import time
 import unittest
 import argparse
 
-from mamba.shm import (
+from tinytalk.shm import (
     SharedMemoryArena, SharedRingQueue, benchmark_shm_throughput, SHM_MAGIC, RING_MAGIC
 )
-from mamba.autograd import Tensor
-from mamba.cli import cmd_shm, compile_source_to_mir
+from tinytalk.autograd import Tensor
+from tinytalk.cli import cmd_shm, compile_source_to_mir
 
 
 class TestPhase8ESharedMemory(unittest.TestCase):
@@ -21,7 +21,7 @@ class TestPhase8ESharedMemory(unittest.TestCase):
         arena = SharedMemoryArena(name=name, size=65536, create=True)
         try:
             self.assertEqual(arena.size, 65536)
-            data = b"Black Mamba High Speed Distributed IPC"
+            data = b"TinyTalk High Speed Distributed IPC"
             written = arena.write_bytes(data)
             self.assertEqual(written, len(data))
 
@@ -124,7 +124,7 @@ class TestPhase8ESharedMemory(unittest.TestCase):
         wrt_args = argparse.Namespace(
             action="write",
             name=arena_name,
-            data="Black Mamba Cluster Protocol Payload",
+            data="TinyTalk Cluster Protocol Payload",
             json=True,
         )
         self.assertEqual(cmd_shm(wrt_args), 0)
@@ -154,7 +154,7 @@ class TestPhase8ESharedMemory(unittest.TestCase):
         self.assertEqual(cmd_shm(unl_args), 0)
 
     def test_native_bmb_shm_stdlib(self):
-        stdlib_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "mamba", "stdlib", "shm.bmb")
+        stdlib_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tinytalk", "stdlib", "shm.tnt")
         self.assertTrue(os.path.exists(stdlib_path))
         with open(stdlib_path, "r", encoding="utf-8") as f:
             src = f.read()

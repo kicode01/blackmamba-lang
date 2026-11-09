@@ -1,5 +1,5 @@
 """
-Unit tests for Black Mamba Full-Stack Reactive Web Framework (mamba.web / bmb web).
+Unit tests for TinyTalk Full-Stack Reactive Web Framework (tinytalk.web / bmb web).
 Tests VNode, Style, Component primitives, render_page, WebApp, and CLI commands.
 """
 
@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 import argparse
-from mamba.web import (
+from tinytalk.web import (
     Style,
     VNode,
     Div,
@@ -37,8 +37,8 @@ from mamba.web import (
     scaffold_new_web_project,
     cmd_web,
 )
-from mamba.backends.html_backend import HtmlBackend
-from mamba.cli import compile_source_to_mir
+from tinytalk.backends.html_backend import HtmlBackend
+from tinytalk.cli import compile_source_to_mir
 
 
 class TestMambaWebFramework(unittest.TestCase):
@@ -146,7 +146,7 @@ class TestMambaWebFramework(unittest.TestCase):
             proj_path = os.path.join(tmp_dir, "test_proj")
             res = scaffold_new_web_project(proj_path)
             self.assertEqual(res, 0)
-            app_bmb = os.path.join(proj_path, "app.bmb")
+            app_bmb = os.path.join(proj_path, "app.tnt")
             self.assertTrue(os.path.exists(app_bmb))
             with open(app_bmb, "r", encoding="utf-8") as f:
                 content = f.read()
@@ -154,8 +154,8 @@ class TestMambaWebFramework(unittest.TestCase):
             self.assertIn("render_page", content)
 
     def test_fullstack_dashboard_compilation(self):
-        dashboard_bmb = os.path.join(os.path.dirname(__file__), "..", "examples", "fullstack_dashboard.bmb")
-        self.assertTrue(os.path.exists(dashboard_bmb), "examples/fullstack_dashboard.bmb must exist")
+        dashboard_bmb = os.path.join(os.path.dirname(__file__), "..", "examples", "fullstack_dashboard.tnt")
+        self.assertTrue(os.path.exists(dashboard_bmb), "examples/fullstack_dashboard.tnt must exist")
 
         with open(dashboard_bmb, "r", encoding="utf-8") as f:
             src = f.read()
@@ -172,7 +172,7 @@ class TestMambaWebFramework(unittest.TestCase):
         self.assertIn("All 16 cores operating with 0.000 ms garbage-collection pause latency.", html)
 
     def test_cmd_web_build(self):
-        dashboard_bmb = os.path.join(os.path.dirname(__file__), "..", "examples", "fullstack_dashboard.bmb")
+        dashboard_bmb = os.path.join(os.path.dirname(__file__), "..", "examples", "fullstack_dashboard.tnt")
         with tempfile.TemporaryDirectory() as tmp_dir:
             args = argparse.Namespace(
                 action="build",

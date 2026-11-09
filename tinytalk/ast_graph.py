@@ -826,7 +826,7 @@ class ASTGraph:
 
         for stmt in self.program.statements:
             if isinstance(stmt, FuncDef):
-                uri = f"bmb://{self.module_name}/{stmt.name}"
+                uri = f"tnt://{self.module_name}/{stmt.name}"
                 node = self._make_fn_node(stmt, uri=uri, parent=None, known_structs=known_structs)
                 self.nodes[uri] = node
                 self.short_index[stmt.name] = uri
@@ -867,11 +867,12 @@ class ASTGraph:
                     fields=[(f.name, f.type_ann) for f in stmt.fields],
                     methods=[m.name for m in stmt.methods],
                 )
+                uri = f"tnt://{self.module_name}/{stmt.name}"
                 self.nodes[uri] = s_node
                 self.short_index[stmt.name] = uri
 
                 for m in stmt.methods:
-                    m_uri = f"bmb://{self.module_name}/{stmt.name}/{m.name}"
+                    m_uri = f"tnt://{self.module_name}/{stmt.name}/{m.name}"
                     m_node = self._make_fn_node(m, uri=m_uri, parent=stmt.name, known_structs=known_structs)
                     self.nodes[m_uri] = m_node
                     self.short_index[f"{stmt.name}/{m.name}"] = m_uri
@@ -976,11 +977,17 @@ class ASTGraph:
             return query
         if query in self.short_index:
             return self.short_index[query]
-        if query.startswith("bmb://"):
+        if query.startswith("bmb://") or query.startswith("tnt://"):
             tail = query.split("/", 3)[-1]
             if tail in self.short_index:
                 return self.short_index[tail]
         raise KeyError(f"Symbol URI not found: '{query}'. Available: {list(self.nodes.keys())}")
+
+    def __contains__(self, query: object) -> bool:
+        if not isinstance(query, str):
+            return False
+        q = ("tnt://" + query[6:]) if query.startswith("bmb://") else query
+        return q in self.nodes or q in self.short_index
 
     def inspect(self, query: str) -> ASTSymbolNode:
         uri = self.resolve_uri(query)
@@ -1000,7 +1007,7 @@ class ASTGraph:
         Allows an LLM to understand all types, fields, signatures, and call edges
         in ~15-25% of the full file's token count.
         """
-        lines = [f"@mod bmb://{self.module_name}"]
+        lines = [f"@mod tnt://{self.module_name}"]
         for uri, node in self.nodes.items():
             if node.kind == "method":
                 continue
@@ -1038,7 +1045,7 @@ class PinpointDiagnostic:
 
     def to_compact_str(self) -> str:
         """Format as a <= 20-token single-line diagnostic for fast LLM repair."""
-        short_uri = self.uri[6:] if self.uri.startswith("bmb://") else self.uri
+        short_uri = self.uri[6:] if (self.uri.startswith("bmb://") or self.uri.startswith("tnt://")) else self.uri
         hint = f"|FIX:{self.fix_hint}" if self.fix_hint else ""
         return f"!ERR[{self.code}]@{short_uri}:{self.line}:{self.summary}{hint}"
 
@@ -1232,7 +1239,7 @@ class ASTPatcher:
     @staticmethod
     def _extract_target_parts(target_uri: str) -> Tuple[str, Optional[str]]:
         clean = target_uri.strip()
-        if clean.startswith("bmb://"):
+        if clean.startswith("bmb://") or clean.startswith("tnt://"):
             parts = clean[6:].split("/")
             if len(parts) >= 3:
                 return parts[1], parts[2]

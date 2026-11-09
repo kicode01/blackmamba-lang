@@ -1,6 +1,6 @@
 # ==============================================================================
-#  BLACK MAMBA SELF-HOSTED STUDIO FRONTEND: website_src/studio.bmb
-#  Compiles via: bmb build website_src/studio.bmb --target html -o website/studio.html
+#  BLACK MAMBA SELF-HOSTED STUDIO FRONTEND: website_src/studio.tnt
+#  Compiles via: bmb build website_src/studio.tnt --target html -o website/studio.html
 # ==============================================================================
 
 def render_studio_html() -> str:
@@ -9,7 +9,7 @@ def render_studio_html() -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Studio — Black Mamba Smalltalk-80 Reactive Environment & Inquisitor Agent</title>
+  <title>Studio — TinyTalk Smalltalk-80 Reactive Environment & Inquisitor Agent</title>
   <link rel="icon" type="image/x-icon" href="assets/bmb.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -585,7 +585,7 @@ def render_studio_html() -> str:
   <!-- Top Navigation Header -->
   <header>
     <a href="index.html" class="brand">
-      <span>🐍 Black Mamba</span>
+      <span>🐍 TinyTalk</span>
       <span class="brand-badge">STUDIO</span>
     </a>
 
@@ -717,7 +717,7 @@ def render_studio_html() -> str:
           <div class="morphic-container">
             <div class="morphic-window">
               <div class="morphic-header">
-                <span style="color: var(--emerald);">●</span> Smalltalk Live Window (gui.bmb)
+                <span style="color: var(--emerald);">●</span> Smalltalk Live Window (gui.tnt)
               </div>
               <div class="morphic-body">
                 <div style="font-size: 0.95rem; font-weight: 700;">
@@ -742,7 +742,7 @@ def render_studio_html() -> str:
         <!-- View 2: Socratic Inquisitor Agent -->
         <div class="right-panel-view" data-view="inquisitor">
           <div class="inquisitor-card">
-            <div class="inquisitor-title">🤖 Black Mamba Inquisitor: Offline App Architect</div>
+            <div class="inquisitor-title">🤖 TinyTalk Inquisitor: Offline App Architect</div>
             <div class="inquisitor-sub">Interview-driven Socratic synthesis. Clarify domain, types, and interactions to generate bug-free code.</div>
 
             <div style="margin-bottom: 10px;">

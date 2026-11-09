@@ -1,0 +1,71 @@
+# TinyTalk Self-Hosting Compiler Substrate: dce.tnt
+# Phase 8F (v2.9.0): Pure .tnt Dead Code Elimination (DCE) Pass
+# 100% Zero-CPython-overhead pure native compiler optimization.
+
+from mir_types import (
+    MIRInstruction, MIRFunc, mir_dummy_instr,
+    OP_NOP, OP_MOV, OP_ADD_I64, OP_SUB_I64, OP_MUL_I64, OP_DIV_I64,
+    OP_MOD_I64, OP_SHL_I64, OP_SHR_I64, OP_AND_I64, OP_OR_I64, OP_XOR_I64,
+    OP_CMP_EQ_I64, OP_CMP_NE_I64, OP_CMP_LT_I64, OP_CMP_LE_I64, OP_CMP_GT_I64, OP_CMP_GE_I64,
+    OP_CONST_I64, OP_CONST_F64, OP_CONST_STR,
+    OP_CALL, OP_RET, OP_JMP, OP_JZ, OP_JNZ, OP_LABEL,
+    OP_PRINT, OP_ALLOC_ARR, OP_LOAD_IDX, OP_STORE_IDX,
+    OP_ARENA_SAVE, OP_ARENA_RESTORE
+)
+
+def is_side_effect_free(op: i64) -> bool:
+    if op == OP_MOV:
+        return True
+    if op == OP_ADD_I64 or op == OP_SUB_I64 or op == OP_MUL_I64 or op == OP_DIV_I64:
+        return True
+    if op == OP_MOD_I64 or op == OP_SHL_I64 or op == OP_SHR_I64:
+        return True
+    if op == OP_AND_I64 or op == OP_OR_I64 or op == OP_XOR_I64:
+        return True
+    if op >= OP_CMP_EQ_I64 and op <= OP_CMP_GE_I64:
+        return True
+    if op == OP_CONST_I64 or op == OP_CONST_F64 or op == OP_CONST_STR:
+        return True
+    if op == OP_LOAD_IDX:
+        return True
+    return False
+
+def var_is_used(var_name: str, func_def: MIRFunc) -> bool:
+    if len(var_name) == 0:
+        return False
+    for i in 0..func_def.instr_count:
+        let ins = func_def.instructions[i]
+        if ins.arg1 == var_name:
+            return True
+        if ins.arg2 == var_name:
+            return True
+        if ins.op == OP_STORE_IDX and ins.dst == var_name:
+            return True
+    return False
+
+def optimize_dce(func_def: MIRFunc) -> i64:
+    let removed = 0
+    let n = func_def.instr_count
+    for i in 0..n:
+        let ins = func_def.instructions[i]
+        if is_side_effect_free(ins.op):
+            if len(ins.dst) > 0:
+                # If variable starts with '%t' and is not used anywhere, mark as NOP
+                if not var_is_used(ins.dst, func_def):
+                    func_def.instructions[i].op = OP_NOP
+                    func_def.instructions[i].dst = ""
+                    func_def.instructions[i].arg1 = ""
+                    func_def.instructions[i].arg2 = ""
+                    removed += 1
+    
+    # Compact instruction array removing NOPs
+    if removed > 0:
+        let write_idx = 0
+        for read_idx in 0..n:
+            let cur = func_def.instructions[read_idx]
+            if cur.op != OP_NOP:
+                func_def.instructions[write_idx] = cur
+                write_idx += 1
+        func_def.instr_count = write_idx
+        
+    return removed

@@ -4,30 +4,30 @@ Validates:
 - First-class .tnt file execution and module loader resolution.
 - Binary .tntgraph hypergraph format with TNTG magic signature.
 - Persistent .tntimg memory snapshots with TNTIMG01 signature.
-- Dual backward compatibility with .bmb and bmb CLI.
+- Dual backward compatibility with .tnt and bmb CLI.
 """
 
 import os
 import tempfile
 import unittest
 
-import mamba
-from mamba.graph import HyperGraph, NodeKind, source_to_hypergraph, TNTG_MAGIC, BMBG_MAGIC
-from mamba.image import ImageManager, LoadedMambaImage, IMAGE_MAGIC, LEGACY_IMAGE_MAGIC
-from mamba.module_loader import resolve_module_file
-from mamba.transmute import TransmutationEngine
-from mamba.cli import main, compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+import tinytalk
+from tinytalk.graph import HyperGraph, NodeKind, source_to_hypergraph, TNTG_MAGIC, BMBG_MAGIC
+from tinytalk.image import ImageManager, LoadedMambaImage, IMAGE_MAGIC, LEGACY_IMAGE_MAGIC
+from tinytalk.module_loader import resolve_module_file
+from tinytalk.transmute import TransmutationEngine
+from tinytalk.cli import main, compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestTinyTalkV400(unittest.TestCase):
     def test_01_tinytalk_version_and_branding(self):
         """Verify version 4.x or higher is active."""
-        major = int(mamba.__version__.split(".")[0])
+        major = int(tinytalk.__version__.split(".")[0])
         self.assertGreaterEqual(major, 4)
 
     def test_02_tnt_file_module_resolution(self):
-        """Verify that resolve_module_file finds .tnt files before .bmb files."""
+        """Verify that resolve_module_file finds .tnt files before .tnt files."""
         tmp_dir = tempfile.mkdtemp()
         tnt_file = os.path.join(tmp_dir, "my_math.tnt")
         with open(tnt_file, "w", encoding="utf-8") as f:
@@ -56,7 +56,7 @@ def main() -> i64:
         self.assertEqual(len(graph.nodes), len(restored.nodes))
 
         # Test JIT execution of restored .tntgraph
-        from mamba.graph_mir import compile_hypergraph_to_jit
+        from tinytalk.graph_mir import compile_hypergraph_to_jit
         jit = compile_hypergraph_to_jit(restored)
         self.assertEqual(jit.main(), 42)
 
@@ -96,7 +96,7 @@ def main() -> i64:
 def main() -> i64:
     return multiply(6, 7)
 """
-        graph = TransmutationEngine.bmb_to_graph(src)
+        graph = TransmutationEngine.tnt_to_graph(src)
         tnt_code = TransmutationEngine.graph_to_bmb(graph)
         self.assertIn("def multiply", tnt_code)
         self.assertIn("def main", tnt_code)

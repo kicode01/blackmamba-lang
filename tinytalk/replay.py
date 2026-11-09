@@ -523,7 +523,7 @@ class OmniscientDebugger:
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Black Mamba Omniscient Debugger — {self.trace.module_name}</title>
+<title>TinyTalk Omniscient Debugger — {self.trace.module_name}</title>
 <style>
   :root {{
     --bg-main: #0d1117;
@@ -567,7 +567,7 @@ class OmniscientDebugger:
 </head>
 <body>
 <header>
-  <h1><span>⏱️ Black Mamba Omniscient Debugger</span> <span class="tag">v2.6.0 Time-Travel</span></h1>
+  <h1><span>⏱️ TinyTalk Omniscient Debugger</span> <span class="tag">v2.6.0 Time-Travel</span></h1>
   <div>Module: <strong>{self.trace.module_name}</strong> | Total Steps: <strong>{self.trace.total_steps}</strong></div>
 </header>
 <div class="main-layout">

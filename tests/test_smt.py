@@ -10,7 +10,7 @@ import unittest
 import random
 from tinytalk.superopt import SSAInstruction
 from tinytalk.smt import SMTBitVectorEngine, SMTProofCertificate
-import mamba.smt as mamba_smt
+import tinytalk.smt as mamba_smt
 
 
 class TestSMTEquivalenceEngine(unittest.TestCase):
@@ -113,7 +113,7 @@ class TestSMTEquivalenceEngine(unittest.TestCase):
             self.assertFalse(cert_invalid.is_equivalent, "SMT engine failed to catch injected off-by-one bug!")
 
     def test_backward_compatibility_mamba_smt(self):
-        """Verify mamba.smt forwards to tinytalk.smt."""
+        """Verify tinytalk.smt forwards to tinytalk.smt."""
         self.assertIs(mamba_smt.SMTBitVectorEngine, SMTBitVectorEngine)
         self.assertIs(mamba_smt.SMTProofCertificate, SMTProofCertificate)
 

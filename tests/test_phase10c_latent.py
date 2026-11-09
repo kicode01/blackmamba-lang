@@ -4,7 +4,7 @@
 import os
 import unittest
 
-from mamba import (
+from tinytalk import (
     CodebookCategory,
     CodebookVector,
     LatentSynthesizer,
@@ -12,17 +12,17 @@ from mamba import (
     synthesize_to_code,
     benchmark_latent_synthesis,
 )
-from mamba.cli import compile_source_to_mir
+from tinytalk.cli import compile_source_to_mir
 
 
 class TestPhase10CLatent(unittest.TestCase):
     def test_01_stdlib_latent_bmb_compilation(self):
-        """Verify that mamba/stdlib/latent.bmb compiles to native MIR cleanly."""
-        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "latent.bmb")
-        self.assertTrue(os.path.exists(stdlib_path), "latent.bmb not found")
+        """Verify that mamba/stdlib/latent.tnt compiles to native MIR cleanly."""
+        stdlib_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "latent.tnt")
+        self.assertTrue(os.path.exists(stdlib_path), "latent.tnt not found")
         with open(stdlib_path, "r", encoding="utf-8") as f:
             src = f.read()
-        mir = compile_source_to_mir(src, filename="latent.bmb")
+        mir = compile_source_to_mir(src, filename="latent.tnt")
         self.assertGreaterEqual(len(mir.functions), 4)
 
     def test_02_vector_embedding_and_codebook(self):

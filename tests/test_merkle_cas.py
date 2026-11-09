@@ -9,7 +9,7 @@ from tinytalk.cas import (
     MerkleTree,
     ContentAddressedStore
 )
-import mamba.cas as m_cas
+import tinytalk.cas as m_cas
 
 
 class TestMerkleCAS(unittest.TestCase):

@@ -73,8 +73,8 @@ STDLIB_DIR = _get_stdlib_dir()
 
 
 def resolve_module_file(module_name: str, base_dir: str) -> Optional[str]:
-    # Support both TinyTalk (.tnt) and Black Mamba (.bmb)
-    exts = [".tnt", ".bmb"]
+    # Pure TinyTalk (.tnt) native resolution
+    exts = [".tnt"]
 
     # 1. Standard Library
     for ext in exts:
@@ -96,7 +96,7 @@ def resolve_module_file(module_name: str, base_dir: str) -> Optional[str]:
 
     # 4. Package Manager Vendor Directories (.tinytalk/packages or .mamba/packages)
     search_dirs = [base_dir, os.path.dirname(base_dir), os.getcwd()]
-    vendor_dirs = [".tinytalk", ".mamba"]
+    vendor_dirs = [".tinytalk"]
     for sdir in search_dirs:
         for vdir in vendor_dirs:
             pkg_dir = os.path.join(sdir, vdir, "packages", module_name)

@@ -1,7 +1,7 @@
 # TinyTalk Official Website — Landing Page
-# Source: website_src/landing.bmb
+# Source: website_src/landing.tnt
 # Target: Production Static HTML5 Document (--target html)
-# Compiled by: Black Mamba v2.2.0 HTML5 Backend (0.012 ms SSR)
+# Compiled by: TinyTalk v2.2.0 HTML5 Backend (0.012 ms SSR)
 
 def render_landing_html() -> str:
     html = """<!DOCTYPE html>
@@ -241,7 +241,7 @@ def render_landing_html() -> str:
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
-    .bmb-col { color: var(--brand); font-weight: 700; }
+    .tnt-col { color: var(--brand); font-weight: 700; }
     .py-col { color: #f87171; }
 
     /* Compilation Targets Matrix */
@@ -293,15 +293,15 @@ def render_landing_html() -> str:
   <!-- Self-Hosting Verification Banner -->
   <div class="dogfood-banner">
     <span class="dogfood-pill">SELF-HOSTED .BMB</span>
-    <span>This entire website was authored in pure Black Mamba (<code>website_src/landing.bmb</code>) and compiled via <code>bmb build --target html</code> in 0.012 ms with 0 bytes of React/Node.js overhead.</span>
-    <a href="https://github.com/kicode01/tinytalk-lang/blob/main/website_src/landing.bmb" target="_blank" style="color: var(--brand); text-decoration: underline;">[View .bmb Source]</a>
+    <span>This entire website was authored in pure TinyTalk (<code>website_src/landing.tnt</code>) and compiled via <code>bmb build --target html</code> in 0.012 ms with 0 bytes of React/Node.js overhead.</span>
+    <a href="https://github.com/kicode01/tinytalk-lang/blob/main/website_src/landing.tnt" target="_blank" style="color: var(--brand); text-decoration: underline;">[View .tnt Source]</a>
   </div>
 
   <!-- Header -->
   <header>
     <div class="nav-brand">
       <span style="color: var(--brand); font-size: 1.3rem;">⚡</span>
-      <span>Black Mamba</span>
+      <span>TinyTalk</span>
       <span style="background: rgba(0,255,136,0.12); color: #34d399; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono);">v2.2.0</span>
     </div>
     <div class="nav-links">
@@ -323,7 +323,7 @@ def render_landing_html() -> str:
       <span class="hero-gradient">5.5 KB Standalone Executables.</span>
     </h1>
     <p class="hero-desc">
-      Black Mamba compiles Pythonic source code down to raw 64-bit hardware registers, unboxed SIMD vectors, standalone PE32+/ELF64 binaries, and zero-latency WebAssembly.
+      TinyTalk compiles Pythonic source code down to raw 64-bit hardware registers, unboxed SIMD vectors, standalone PE32+/ELF64 binaries, and zero-latency WebAssembly.
     </p>
     <div class="hero-ctas">
       <a href="/arena.html" class="btn-primary">▶ Open In-Browser Arena</a>
@@ -364,7 +364,7 @@ def render_landing_html() -> str:
         <tr>
           <th>Benchmark / Workload</th>
           <th>CPython 3.14</th>
-          <th>Black Mamba (v2.2.0)</th>
+          <th>TinyTalk (v2.2.0)</th>
           <th>Advantage</th>
         </tr>
       </thead>
@@ -396,7 +396,7 @@ def render_landing_html() -> str:
         <tr>
           <td><strong>Declarative Web &amp; CSS Rendering</strong></td>
           <td class="py-col">2.40 ms (Jinja2 / CPython)</td>
-          <td class="bmb-col">0.012 ms (web.bmb SSR)</td>
+          <td class="bmb-col">0.012 ms (web.tnt SSR)</td>
           <td><strong>200x Faster SSR</strong></td>
         </tr>
         <tr>
@@ -456,7 +456,7 @@ def render_landing_html() -> str:
 
   <!-- Footer -->
   <footer>
-    <p>Black Mamba Programming Language &bull; Open-Source under the MIT License</p>
+    <p>TinyTalk Programming Language &bull; Open-Source under the MIT License</p>
     <p style="margin-top: 8px;">GitHub: <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" style="color: var(--brand);">github.com/kicode01/tinytalk-lang</a> &bull; Live Arena: <a href="/arena.html" style="color: var(--brand);">blackmamba-lang.vercel.app/arena.html</a></p>
   </footer>
 

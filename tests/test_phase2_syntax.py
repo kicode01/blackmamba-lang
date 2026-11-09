@@ -1,5 +1,5 @@
 """
-Phase 2 Unit Tests: Python Syntactic Parity & Ergonomics for Black Mamba (.bmb)
+Phase 2 Unit Tests: Python Syntactic Parity & Ergonomics for TinyTalk (.tnt)
 Tests:
 - Context Managers (`with` & `async with`)
 - List & Dict Comprehensions
@@ -10,11 +10,11 @@ Tests:
 """
 
 import unittest
-from mamba.lexer import Lexer, TokenType
-from mamba.parser import Parser
-from mamba.mir import MIRBuilder
-from mamba.backends.x86_64_jit import NativeJITModule
-from mamba.ast_nodes import WithStmt, ListComp, DictComp, DictLit, YieldExpr, MatchStmt
+from tinytalk.lexer import Lexer, TokenType
+from tinytalk.parser import Parser
+from tinytalk.mir import MIRBuilder
+from tinytalk.backends.x86_64_jit import NativeJITModule
+from tinytalk.ast_nodes import WithStmt, ListComp, DictComp, DictLit, YieldExpr, MatchStmt
 
 
 class TestPhase2SyntacticParity(unittest.TestCase):
@@ -218,11 +218,11 @@ def main() -> i64:
 
     def test_phase2_full_showcase(self):
         import os
-        showcase_path = os.path.join(os.path.dirname(__file__), "..", "examples", "syntax_parity_showcase.bmb")
+        showcase_path = os.path.join(os.path.dirname(__file__), "..", "examples", "syntax_parity_showcase.tnt")
         with open(showcase_path, "r", encoding="utf-8") as f:
             src = f.read()
         ast = Parser.from_source(src, showcase_path).parse_module()
-        mir = MIRBuilder().build(ast, base_dir=os.path.dirname(showcase_path), filename="syntax_parity_showcase.bmb")
+        mir = MIRBuilder().build(ast, base_dir=os.path.dirname(showcase_path), filename="syntax_parity_showcase.tnt")
         jit = NativeJITModule(mir)
         res = jit.run_main()
         out = jit.get_output()

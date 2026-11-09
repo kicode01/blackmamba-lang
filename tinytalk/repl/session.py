@@ -1,5 +1,5 @@
 """
-Black Mamba (bmb) Interactive REPL — Session & Execution Engine.
+TinyTalk (bmb) Interactive REPL — Session & Execution Engine.
 Provides incremental compilation, live variable state persistence,
 dynamic expression evaluation, and compiler inspection commands.
 """
@@ -68,7 +68,7 @@ class ReplSession:
 
     def execute(self, source: str) -> ReplResult:
         """
-        Executes a single line or block of Black Mamba code or meta-command.
+        Executes a single line or block of TinyTalk code or meta-command.
         """
         stripped = source.strip()
         if not stripped:
@@ -126,7 +126,7 @@ class ReplSession:
 
         if clean in ("help", "h", "?"):
             help_text = (
-                "Black Mamba (.bmb) Interactive REPL Commands:\n"
+                "TinyTalk (.tnt) Interactive REPL Commands:\n"
                 "  :help, :h, ?      Show this help reference\n"
                 "  :vars             Inspect all active variables, types, and values\n"
                 "  :funcs            List defined session functions and signatures\n"
@@ -134,7 +134,7 @@ class ReplSession:
                 "  :mir              Display optimized SSA Mid-Level IR of last run\n"
                 "  :asm              Display emitted native x86-64 machine code disassembly\n"
                 "  :reset            Clear session environment and reset state\n"
-                "  :exit, :quit, :q  Exit the Black Mamba REPL\n"
+                "  :exit, :quit, :q  Exit the TinyTalk REPL\n"
                 "\n"
                 "Tips:\n"
                 "  - Enter expressions (e.g. 10 + 20) to evaluate and print results\n"
@@ -291,7 +291,7 @@ class ReplSession:
             return ReplResult(error=f"Execution error: {e}", output="".join(output_buffer))
 
     def _build_program(self, fn_name: str, body_lines: List[str], ret_type: str = "i64") -> str:
-        """Constructs a complete compilable Black Mamba module string."""
+        """Constructs a complete compilable TinyTalk module string."""
         parts: List[str] = []
 
         # Imports

@@ -1,10 +1,10 @@
-# Black Mamba Test Suite: Phase 9C (v3.2.0)
+# TinyTalk Test Suite: Phase 9C (v3.2.0)
 # Formal Codebase Specification & Property-Based Mutation Fuzzing
 
 import unittest
 import os
 import json
-from mamba.spec import (
+from tinytalk.spec import (
     PropertyTestEngine,
     PropertyResult,
     IntegerStrategy,
@@ -21,14 +21,14 @@ from mamba.spec import (
     SpecificationSynthesizer,
     benchmark_spec_engine,
 )
-from mamba.cli import compile_source_to_mir
-from mamba.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir
+from tinytalk.backends.x86_64_jit import NativeJITModule
 
 
 class TestPhase9CSpecificationFuzzing(unittest.TestCase):
     """
     Validates QuickCheck/Hypothesis-style property testing, automated
-    invariant exploration, counterexample shrinkage, and pure .bmb execution.
+    invariant exploration, counterexample shrinkage, and pure .tnt execution.
     """
 
     def setUp(self):
@@ -153,14 +153,14 @@ class TestPhase9CSpecificationFuzzing(unittest.TestCase):
         self.assertTrue(bench["string_length_verified"])
 
     def test_06_pure_bmb_spec_module(self):
-        """Verify pure .bmb stdlib module (spec.bmb) compiles to MIR and executes in JIT."""
-        spec_bmb_path = os.path.join(os.path.dirname(__file__), "..", "mamba", "stdlib", "spec.bmb")
+        """Verify pure .tnt stdlib module (spec.tnt) compiles to MIR and executes in JIT."""
+        spec_bmb_path = os.path.join(os.path.dirname(__file__), "..", "tinytalk", "stdlib", "spec.tnt")
         self.assertTrue(os.path.exists(spec_bmb_path))
 
         with open(spec_bmb_path, "r", encoding="utf-8") as f:
             src = f.read()
 
-        mir = compile_source_to_mir(src, filename="spec.bmb")
+        mir = compile_source_to_mir(src, filename="spec.tnt")
         self.assertIsNotNone(mir)
         self.assertGreaterEqual(len(mir.functions), 8)
 

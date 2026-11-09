@@ -461,7 +461,7 @@ def cmd_test(args: argparse.Namespace) -> int:
         import json
         from .gatekeeper import PreReleaseGatekeeper
         gk = PreReleaseGatekeeper()
-        print("[Black Mamba Gatekeeper] Running 5-Stage Zero-Defect Pre-Release Quality Pipeline...")
+        print("[TinyTalk Gatekeeper] Running 5-Stage Zero-Defect Pre-Release Quality Pipeline...")
         report = gk.run_all_stages()
         if getattr(args, "json", False):
             print(json.dumps(report, indent=2))
@@ -476,9 +476,9 @@ def cmd_test(args: argparse.Namespace) -> int:
                         print(f"         Error: {err}")
             print("=" * 60)
             if report["all_passed"]:
-                print(f"[Black Mamba Gatekeeper] CERTIFICATION SUCCESS: All stages passed in {report['total_elapsed_seconds']:.2f}s! Release safe to publish.")
+                print(f"[TinyTalk Gatekeeper] CERTIFICATION SUCCESS: All stages passed in {report['total_elapsed_seconds']:.2f}s! Release safe to publish.")
             else:
-                print(f"[Black Mamba Gatekeeper] CERTIFICATION FAILED: Critical defects detected. Aborting release.")
+                print(f"[TinyTalk Gatekeeper] CERTIFICATION FAILED: Critical defects detected. Aborting release.")
         return 0 if report["all_passed"] else 1
 
     target_path = args.path or "."

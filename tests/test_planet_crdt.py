@@ -1,7 +1,7 @@
 """Unit tests for TinyTalk Planetary CRDT Substrate (Phase 11B - v4.1.0)."""
 import unittest
 from tinytalk.planet import VectorClock, PNCounter, LWWRegister, ORSet, PlanetaryActor
-import mamba.planet as mamba_planet
+import tinytalk.planet as mamba_planet
 
 
 class TestPlanetaryCRDT(unittest.TestCase):
@@ -122,7 +122,7 @@ class TestPlanetaryCRDT(unittest.TestCase):
         self.assertEqual(state["sets"]["open_orders"], ["order-102"])
 
     def test_mamba_backward_compatibility_shim(self):
-        # Ensure import mamba.planet works identically
+        # Ensure import tinytalk.planet works identically
         mc = mamba_planet.PNCounter("compat-node")
         mc.increment(7)
         self.assertEqual(mc.value, 7)

@@ -430,7 +430,7 @@ class BlackMambaMCPServer:
                     "result": {
                         "resources": [
                             {
-                                "uri": "bmb://workspace/status",
+                                "uri": "tnt://workspace/status",
                                 "name": "Workspace Status",
                                 "description": "Current active Black Mamba compiler workspace path and version.",
                                 "mimeType": "application/json",
@@ -441,7 +441,7 @@ class BlackMambaMCPServer:
 
             elif method == "resources/read":
                 uri = params.get("uri")
-                if uri == "bmb://workspace/status":
+                if uri in ("bmb://workspace/status", "tnt://workspace/status"):
                     status_content = json.dumps({
                         "workspace": self.workspace_dir,
                         "version": SERVER_VERSION,

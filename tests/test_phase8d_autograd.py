@@ -7,11 +7,11 @@ import math
 import unittest
 import argparse
 
-from mamba.autograd import (
+from tinytalk.autograd import (
     Tensor, Linear, LoRALinear, MSELoss, CrossEntropyLoss,
     SGD, AdamW, emit_gpu_tensor_shader
 )
-from mamba.cli import cmd_autograd, compile_source_to_mir
+from tinytalk.cli import cmd_autograd, compile_source_to_mir
 
 
 class TestPhase8DAutograd(unittest.TestCase):
@@ -230,7 +230,7 @@ class TestPhase8DAutograd(unittest.TestCase):
         self.assertEqual(rc, 0)
 
     def test_native_bmb_autograd_stdlib(self):
-        stdlib_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "mamba", "stdlib", "autograd.bmb")
+        stdlib_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "tinytalk", "stdlib", "autograd.tnt")
         self.assertTrue(os.path.exists(stdlib_path))
         with open(stdlib_path, "r", encoding="utf-8") as f:
             src = f.read()

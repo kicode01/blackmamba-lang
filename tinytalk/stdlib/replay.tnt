@@ -1,0 +1,43 @@
+# TinyTalk Standard Library: replay.tnt
+# Native Time-Travel Execution Frame & Ring Buffer Primitives
+
+struct ReplayFrame:
+    step: i64 = 0
+    line: i64 = 0
+    arena_gen: i64 = 0
+    val: i64 = 0
+
+class ReplayBuffer:
+    def __init__(self, capacity: i64):
+        self.capacity = capacity
+        self.total_frames = 0
+        self.cursor = 0
+        self.last_val = 0
+
+    def record(self, line: i64, val: i64) -> i64:
+        self.total_frames = self.total_frames + 1
+        self.cursor = self.total_frames
+        self.last_val = val
+        return self.total_frames
+
+    def seek(self, target_step: i64) -> i64:
+        if target_step >= 0:
+            if target_step <= self.total_frames:
+                self.cursor = target_step
+        return self.cursor
+
+    def step_forward(self, count: i64) -> i64:
+        new_pos = self.cursor + count
+        if new_pos <= self.total_frames:
+            self.cursor = new_pos
+        else:
+            self.cursor = self.total_frames
+        return self.cursor
+
+    def step_backward(self, count: i64) -> i64:
+        new_pos = self.cursor - count
+        if new_pos >= 0:
+            self.cursor = new_pos
+        else:
+            self.cursor = 0
+        return self.cursor

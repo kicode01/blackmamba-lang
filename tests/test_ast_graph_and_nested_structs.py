@@ -3,8 +3,8 @@ import os
 import tempfile
 import unittest
 
-import mamba
-from mamba.ast_graph import (
+import tinytalk
+from tinytalk.ast_graph import (
     ASTDeltaOp,
     ASTFormatter,
     ASTGraph,
@@ -14,10 +14,10 @@ from mamba.ast_graph import (
     count_llm_tokens,
     make_pinpoint_diagnostic,
 )
-from mamba.backends.x86_64_jit import NativeJITModule
-from mamba.cli import compile_source_to_mir, main as cli_main
-from mamba.parser import Parser
-from mamba.types import TypeInferencer
+from tinytalk.backends.x86_64_jit import NativeJITModule
+from tinytalk.cli import compile_source_to_mir, main as cli_main
+from tinytalk.parser import Parser
+from tinytalk.types import TypeInferencer
 
 
 def run_jit_captured(source: str) -> str:
@@ -183,17 +183,17 @@ fn run_sim() -> f64:
 
     def test_ast_graph_content_addressed_uris_and_skeleton(self):
         graph = ASTGraph.from_source(self.SAMPLE_MODULE, module_name="physics")
-        self.assertIn("bmb://physics/Vec3", graph.nodes)
-        self.assertIn("bmb://physics/Vec3/norm_sq", graph.nodes)
-        self.assertIn("bmb://physics/Vec3/scale", graph.nodes)
-        self.assertIn("bmb://physics/Particle", graph.nodes)
-        self.assertIn("bmb://physics/step_particle", graph.nodes)
-        self.assertIn("bmb://physics/total_kinetic_energy", graph.nodes)
-        self.assertIn("bmb://physics/run_sim", graph.nodes)
+        self.assertIn("tnt://physics/Vec3", graph.nodes)
+        self.assertIn("tnt://physics/Vec3/norm_sq", graph.nodes)
+        self.assertIn("tnt://physics/Vec3/scale", graph.nodes)
+        self.assertIn("tnt://physics/Particle", graph.nodes)
+        self.assertIn("tnt://physics/step_particle", graph.nodes)
+        self.assertIn("tnt://physics/total_kinetic_energy", graph.nodes)
+        self.assertIn("tnt://physics/run_sim", graph.nodes)
 
         # Verify short URI lookup
         norm_node = graph.inspect("Vec3/norm_sq")
-        self.assertEqual(norm_node.uri, "bmb://physics/Vec3/norm_sq")
+        self.assertEqual(norm_node.uri, "tnt://physics/Vec3/norm_sq")
         self.assertEqual(norm_node.signature, "@F norm_sq(self)->f")
         self.assertEqual(len(norm_node.sha256), 12)
 
@@ -201,11 +201,11 @@ fn run_sim() -> f64:
         ke_node = graph.inspect("total_kinetic_energy")
         self.assertIn(".norm_sq", ke_node.calls)
         self.assertIn("Particle", ke_node.types_used)
-        self.assertIn("bmb://physics/run_sim", graph.callers_of("total_kinetic_energy"))
+        self.assertIn("tnt://physics/run_sim", graph.callers_of("total_kinetic_energy"))
 
         # Verify skeleton compactness
         skeleton = graph.to_skeleton()
-        self.assertIn("@mod bmb://physics", skeleton)
+        self.assertIn("@mod tnt://physics", skeleton)
         self.assertIn("@S Vec3{x:f,y:f,z:f}", skeleton)
         self.assertIn("@F step_particle(p:Particle,dt:f)->v", skeleton)
         self.assertLess(count_llm_tokens(skeleton), count_llm_tokens(self.SAMPLE_MODULE) * 0.45)
@@ -228,13 +228,13 @@ fn run_sim() -> f64:
     def test_surgical_ast_patcher_ops_and_atomic_rollback(self):
         patcher = ASTPatcher()
 
-        # 1. Surgical REPLACE_SYMBOL using compact .bmbs syntax on a single function
+        # 1. Surgical REPLACE_SYMBOL using compact .tnts syntax on a single function
         res1 = patcher.apply_patch(
             self.SAMPLE_MODULE,
             [
                 ASTDeltaOp(
                     op="REPLACE_SYMBOL",
-                    target_uri="bmb://physics/total_kinetic_energy",
+                    target_uri="tnt://physics/total_kinetic_energy",
                     code="@F total_kinetic_energy(p:Particle)->f:\n ^p.mass * p.vel.norm_sq()",
                 )
             ],
@@ -252,19 +252,19 @@ fn run_sim() -> f64:
             [
                 ASTDeltaOp(
                     op="ADD_FIELD",
-                    target_uri="bmb://physics/Particle",
+                    target_uri="tnt://physics/Particle",
                     field_name="charge",
                     field_type="f",
                     default_expr="2.5",
                 ),
                 ASTDeltaOp(
                     op="ADD_METHOD",
-                    target_uri="bmb://physics/Vec3",
+                    target_uri="tnt://physics/Vec3",
                     code="@F sum_coords(self)->f:\n ^self.x + self.y + self.z",
                 ),
                 ASTDeltaOp(
                     op="RENAME_SYMBOL",
-                    target_uri="bmb://physics/total_kinetic_energy",
+                    target_uri="tnt://physics/total_kinetic_energy",
                     new_name="calc_ke",
                 ),
             ],
@@ -282,7 +282,7 @@ fn run_sim() -> f64:
             [
                 ASTDeltaOp(
                     op="REPLACE_SYMBOL",
-                    target_uri="bmb://physics/calc_ke",
+                    target_uri="tnt://physics/calc_ke",
                     code="fn calc_ke(p: Particle) -> f64:\n    return (p.mass +",
                 )
             ],
@@ -298,7 +298,7 @@ fn run_sim() -> f64:
     def test_token_efficiency_benchmark_exceeds_75_percent_savings(self):
         report = benchmark_token_efficiency(
             self.SAMPLE_MODULE,
-            target_uri="bmb://physics/Vec3/norm_sq",
+            target_uri="tnt://physics/Vec3/norm_sq",
             module_name="physics",
         )
         self.assertGreaterEqual(report.edit_savings_pct, 80.0)
@@ -306,9 +306,9 @@ fn run_sim() -> f64:
 
     def test_cli_ast_and_patch_subcommands(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            bmb_path = os.path.join(tmpdir, "sim.bmb")
-            bmbs_path = os.path.join(tmpdir, "sim.bmbs")
-            decoded_path = os.path.join(tmpdir, "sim_decoded.bmb")
+            bmb_path = os.path.join(tmpdir, "sim.tnt")
+            bmbs_path = os.path.join(tmpdir, "sim.tnts")
+            decoded_path = os.path.join(tmpdir, "sim_decoded.tnt")
             with open(bmb_path, "w", encoding="utf-8") as f:
                 f.write(self.SAMPLE_MODULE)
 
@@ -327,7 +327,7 @@ fn run_sim() -> f64:
                 "--op",
                 "ADD_FIELD",
                 "--uri",
-                "bmb://sim/Particle",
+                "tnt://sim/Particle",
                 "--field-name",
                 "spin",
                 "--field-type",
@@ -355,7 +355,7 @@ print(delta.meta.span.end_line)
 print(sav)
 """
         out = run_jit_captured(src).strip().splitlines()
-        self.assertEqual(out, ["bmb://engine/RigidBody/integrate", "12", "24", "88.0"])
+        self.assertEqual(out, ["tnt://engine/RigidBody/integrate", "12", "24", "88.0"])
 
 
 if __name__ == "__main__":

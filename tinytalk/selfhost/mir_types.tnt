@@ -1,0 +1,93 @@
+# TinyTalk Self-Hosting Compiler Substrate: mir_types.tnt
+# Phase 8F (v2.9.0): Mid-Level Intermediate Representation (MIR) Data Structures
+# 100% Pure Native TinyTalk (.tnt) with Zero CPython Runtime Dependencies.
+
+# ==============================================================================
+# 1. MIR Operation Codes
+# ==============================================================================
+
+OP_NOP = 0
+OP_MOV = 1
+OP_ADD_I64 = 2
+OP_SUB_I64 = 3
+OP_MUL_I64 = 4
+OP_DIV_I64 = 5
+OP_MOD_I64 = 6
+OP_SHL_I64 = 7
+OP_SHR_I64 = 8
+OP_AND_I64 = 9
+OP_OR_I64 = 10
+OP_XOR_I64 = 11
+
+OP_CMP_EQ_I64 = 12
+OP_CMP_NE_I64 = 13
+OP_CMP_LT_I64 = 14
+OP_CMP_LE_I64 = 15
+OP_CMP_GT_I64 = 16
+OP_CMP_GE_I64 = 17
+
+OP_CONST_I64 = 20
+OP_CONST_F64 = 21
+OP_CONST_STR = 22
+
+OP_CALL = 30
+OP_RET = 31
+OP_JMP = 32
+OP_JZ = 33
+OP_JNZ = 34
+OP_LABEL = 35
+
+OP_PRINT = 40
+OP_ALLOC_ARR = 41
+OP_LOAD_IDX = 42
+OP_STORE_IDX = 43
+OP_STR_CONCAT = 44
+OP_STR_SLICE = 45
+
+OP_ARENA_SAVE = 50
+OP_ARENA_RESTORE = 51
+
+# ==============================================================================
+# 2. MIR Instruction & Function Definitions
+# ==============================================================================
+
+struct MIRInstruction:
+    op: i64
+    dst: str
+    arg1: str
+    arg2: str
+    val_i64: i64
+    val_f64: f64
+    val_type: str
+    line: i64
+
+def mir_dummy_instr() -> MIRInstruction:
+    return MIRInstruction(0, "", "", "", 0, 0.0, "", 0)
+
+def mir_instr_new(op: i64, dst: str, arg1: str, arg2: str, val_i64: i64, val_type: str, line: i64) -> MIRInstruction:
+    return MIRInstruction(op, dst, arg1, arg2, val_i64, 0.0, val_type, line)
+
+struct MIRFunc:
+    name: str
+    return_type: str
+    param_count: i64
+    instr_count: i64
+    instr_cap: i64
+    is_tco: bool
+    instructions: Array[MIRInstruction]
+
+def mir_func_new(name: str, return_type: str, param_count: i64) -> MIRFunc:
+    let instrs = [mir_dummy_instr()] * 64
+    return MIRFunc(name, return_type, param_count, 0, 64, False, instrs)
+
+def mir_func_add_instr(func_def: MIRFunc, ins: MIRInstruction) -> i64:
+    if func_def.instr_count >= func_def.instr_cap:
+        let new_cap = func_def.instr_cap * 2
+        let new_arr = [mir_dummy_instr()] * new_cap
+        for i in 0..func_def.instr_count:
+            new_arr[i] = func_def.instructions[i]
+        func_def.instructions = new_arr
+        func_def.instr_cap = new_cap
+    func_def.instructions[func_def.instr_count] = ins
+    func_def.instr_count += 1
+    return func_def.instr_count

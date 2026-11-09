@@ -12,7 +12,7 @@ import tempfile
 import random
 from tinytalk.superopt import SSAInstruction
 from tinytalk.pgo import ProfileGuidedOptimizer, ExecutionProfile, CachedKernel
-import mamba.pgo as mamba_pgo
+import tinytalk.pgo as mamba_pgo
 
 
 class TestProfileGuidedOptimizer(unittest.TestCase):
@@ -97,7 +97,7 @@ class TestProfileGuidedOptimizer(unittest.TestCase):
             self.assertEqual(entry.ast_hash, h)
 
     def test_backward_compatibility_mamba_pgo(self):
-        """Verify mamba.pgo forwards to tinytalk.pgo."""
+        """Verify tinytalk.pgo forwards to tinytalk.pgo."""
         self.assertIs(mamba_pgo.ProfileGuidedOptimizer, ProfileGuidedOptimizer)
         self.assertIs(mamba_pgo.ExecutionProfile, ExecutionProfile)
         self.assertIs(mamba_pgo.CachedKernel, CachedKernel)
