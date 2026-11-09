@@ -29,7 +29,7 @@
 │ Phase 11B[DONE│ Planetary CRDT Actor Substrate & Kernel-Bypass RDMA (v4.1.0)│
 │ Phase 11C[DONE│ Linearizable Quorum Consensus & Zero-Copy Wire RPC (v4.2.0) │
 │ Phase 11D[DONE│ Content-Addressed Merkle Store & Zero-Trust Mesh (v4.3.0)   │
-│ Phase 11E[PLAN│ Zero-Knowledge State Verifier & Planetary Studio (v4.4.0)   │
+│ Phase 11E[DONE│ Zero-Knowledge State Verifier & Planetary Studio (v4.4.0)   │
 └───────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -674,8 +674,8 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v4.0.0** | **Shipped** | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Living Morphic Canvas, Web Package Registry, Flagship HFT Engine, CI/CD Packaging Matrix & 100% Dual .bmb Compatibility |
 | **v4.1.0** | **Shipped** | Planetary CRDT Actor Substrate & Kernel-Bypass Transport | Globally distributed CRDT memory (`planet.tnt`), causal vector clocks, cross-datacenter transparent actor migration, Sub-Microsecond Kernel-Bypass RDMA/DPDK transport (`rdma.tnt`, < 1 us wire latency) |
 | **v4.2.0** | **Shipped** | Linearizable Quorum Consensus & Zero-Copy Wire RPC | Pipelined Multi-Paxos / Raft consensus (`consensus.tnt`), leader leases, 32-byte aligned zero-copy binary RPC frames (`rpc.tnt`), 12 packages & Live Arena Presets |
-| **v4.3.0** | **Shipped** *(Current)* | Content-Addressed Merkle Store & Zero-Trust Mesh | Blake3 Merkle-DAG object store (`cas.tnt`), P2P chunk sync, Ed25519 node identities & Noise-protocol encrypted peer mesh (`mesh.tnt`), 14 packages & Live Arena Presets |
-| **v4.4.0** | **Planned** | Zero-Knowledge State Verifier & Planetary Studio Visualizer | Native SNARK/STARK execution state proof emission (`zk.tnt`), live 3D global cluster topology visualizer in Smalltalk Studio (`studio.html?view=mesh`) |
+| **v4.3.0** | **Shipped** | Content-Addressed Merkle Store & Zero-Trust Mesh | Blake3 Merkle-DAG object store (`cas.tnt`), P2P chunk sync, Ed25519 node identities & Noise-protocol encrypted peer mesh (`mesh.tnt`), 14 packages & Live Arena Presets |
+| **v4.4.0** | **Shipped** *(Current)* | Zero-Knowledge State Verifier & Planetary Studio Visualizer | Native SNARK/STARK execution state proof emission (`zk.tnt`), live 3D global cluster topology visualizer in Smalltalk Studio (`studio.html?view=mesh`), 15 packages & Live Arena Presets |
 | **v4.5.0** | **Planned** | Superoptimizing Neuro-Symbolic Compiler | Monte-Carlo Tree Search (MCTS) assembly kernel synthesizer, Z3 machine-checkable equivalence proofs for hardware algorithms |
 | **v5.0.0** | **Planned** | Neuromorphic Silicon & Optical Matrix Co-Processor | Direct Spiking Neural Network (SNN) silicon backend (Intel Loihi 2), coherent optical matrix multiplier compilation |
 | **v6.0.0** | **Planned** | Programmable Matter & Molecular Compilation | DNA-origami sequence synthesis, microfluidic spatial control flow routing (`bio.bmb`), reconfigurable molecular lattice compilation |

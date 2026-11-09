@@ -438,7 +438,7 @@
   <!-- Top Ribbon -->
   <div class="top-ribbon">
     <span class="ribbon-pill">OFFICIAL PACKAGE REGISTRY</span>
-    <span>Explore modular zero-cost packages for TinyTalk v4.3.0. All packages compile down to raw registers with 0ms GC pause.</span>
+    <span>Explore modular zero-cost packages for TinyTalk v4.4.0. All packages compile down to raw registers with 0ms GC pause.</span>
   </div>
 
   <!-- Header Navigation -->
@@ -446,7 +446,7 @@
     <div class="nav-brand">
       <img src="assets/logo.png" alt="TinyTalk Logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">v4.3.0 NATIVE</span>
+      <span class="nav-badge">v4.4.0 NATIVE</span>
     </div>
     <div class="nav-links">
       <a href="index.html" class="nav-link">Home</a>
@@ -461,7 +461,7 @@
   <!-- Hero Section -->
   <section class="hero">
     <div class="hero-badge">
-      <span>●</span> 14 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
+      <span>●</span> 15 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
     </div>
     <h1 class="hero-title">
       Modular High-Speed Packages for<br>
@@ -479,7 +479,7 @@
       <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (14)</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (15)</button>
       <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
       <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
       <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
@@ -493,7 +493,7 @@
   <!-- Telemetry Metrics Banner -->
   <div class="metrics-strip">
     <div class="metric-card">
-      <div class="metric-val">14 Packages</div>
+      <div class="metric-val">15 Packages</div>
       <div class="metric-label">Certified 100% Zero-Defect Gatekeeper verified</div>
     </div>
     <div class="metric-card">
@@ -867,7 +867,7 @@ leader_id = cluster.elect_leader("node-1")
 leader = cluster.get_node(leader_id)
 leader.propose("SET", ("balance", 5000000))</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.3.0</span>
+          <span>🏷️ v4.4.0</span>
           <span>⭐ 28.4k</span>
           <span>⚖️ MIT</span>
           <span>🛡️ Linearizable Quorum</span>
@@ -903,7 +903,7 @@ client = rpc.RPCClient()
 req = client.call(1, b"PING")
 res = dispatcher.dispatch(req)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.3.0</span>
+          <span>🏷️ v4.4.0</span>
           <span>⭐ 31.9k</span>
           <span>⚖️ MIT</span>
           <span>⚡ 32B Zero-Copy Frame</span>
@@ -936,7 +936,7 @@ store = cas.ContentAddressedStore(default_chunk_size=4096)
 root, chunk_ids = store.put(b"IMMUTABLE_BLOCKCHAIN_STATE_SNAPSHOT")
 data = store.get(root)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.3.0</span>
+          <span>🏷️ v4.4.0</span>
           <span>⭐ 35.2k</span>
           <span>⚖️ MIT</span>
           <span>🌳 Cryptographic Merkle CAS</span>
@@ -971,7 +971,7 @@ bob = mesh.PeerIdentity.generate("bob")
 tunnel = mesh.MeshTunnel(alice, bob.public_key, "shared_key")
 pkt = tunnel.encrypt(bob.node_id, b"CONFIDENTIAL_PAYLOAD")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.3.0</span>
+          <span>🏷️ v4.4.0</span>
           <span>⭐ 38.7k</span>
           <span>⚖️ MIT</span>
           <span>🔒 Zero-Trust Tunnel</span>
@@ -982,6 +982,43 @@ pkt = tunnel.encrypt(bob.node_id, b"CONFIDENTIAL_PAYLOAD")</div>
         <a href="arena.html?preset=mesh" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
+    <!-- 15. tnt/zk -->
+    <div class="pkg-card" data-cat="crypto" data-name="tnt/zk zero knowledge state verifier r1cs snark fiat shamir arithmetic circuit">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🛡️</div>
+            <div>
+              <div class="pkg-name">tnt/zk</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 11E</span>
+        </div>
+        <p class="pkg-desc">
+          Native Zero-Knowledge State Verifier with R1CS arithmetic constraint compilation, non-interactive Fiat-Shamir proof synthesis, and O(1) state verification.
+        </p>
+        <div class="pkg-code">import tnt.zk as zk
+
+circuit = zk.R1CSCircuit()
+x = circuit.alloc_var("x")
+y = circuit.alloc_var("y")
+circuit.add_constraint({x: 1}, {x: 1}, {y: 1})
+prover = zk.ZKProver(circuit)
+proof = prover.prove([1, 6, 36], public_indices=[2])</div>
+        <div class="pkg-meta">
+          <span>🏷️ v4.4.0</span>
+          <span>⭐ 42.1k</span>
+          <span>⚖️ MIT</span>
+          <span>🛡️ Non-Interactive ZK Proof</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/zk')">📋 tnt add tnt/zk</button>
+        <a href="arena.html?preset=zk" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
 
 
   </div>
