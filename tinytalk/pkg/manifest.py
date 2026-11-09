@@ -10,7 +10,37 @@ from typing import Any, Dict, List, Optional
 try:
     import tomllib
 except ImportError:
-    import tomli as tomllib  # type: ignore
+    try:
+        import tomli as tomllib  # type: ignore
+    except ImportError:
+        class _TomlFallback:
+            @staticmethod
+            def load(f):
+                content = f.read()
+                if isinstance(content, bytes):
+                    content = content.decode("utf-8", errors="replace")
+                return _TomlFallback.loads(content)
+
+            @staticmethod
+            def loads(s):
+                import re
+                res = {}
+                current_section = res
+                for line in s.splitlines():
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    m = re.match(r"^\[(.*)\]$", line)
+                    if m:
+                        sec = m.group(1).strip()
+                        res[sec] = {}
+                        current_section = res[sec]
+                        continue
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        current_section[k.strip()] = v.strip().strip('"').strip("'")
+                return res
+        tomllib = _TomlFallback()
 
 
 @dataclass

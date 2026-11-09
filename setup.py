@@ -28,5 +28,8 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Programming Language :: Python :: 3",
     ],
+    install_requires=[
+        "tomli>=1.1.0;python_version<'3.11'",
+    ],
     python_requires=">=3.8",
 )
