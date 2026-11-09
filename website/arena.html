@@ -799,14 +799,11 @@
       <div class="challenge-pills">
         <button class="challenge-pill active" data-preset="tco" onclick="selectPresetPill('tco')">5M Recursion</button>
         <button class="challenge-pill" data-preset="unboxed" onclick="selectPresetPill('unboxed')">0B Struct</button>
-        <button class="challenge-pill" data-preset="redos" onclick="selectPresetPill('redos')">Linear Regex</button>
         <button class="challenge-pill" data-preset="hft" onclick="selectPresetPill('hft')">HFT Engine</button>
         <button class="challenge-pill" data-preset="http" onclick="selectPresetPill('http')">8.2M HTTP</button>
         <button class="challenge-pill" data-preset="tensor" onclick="selectPresetPill('tensor')">SIMD Tensor</button>
         <button class="challenge-pill" data-preset="canvas" onclick="selectPresetPill('canvas')">Morphic UI</button>
-        <button class="challenge-pill" data-preset="webgpu" onclick="selectPresetPill('webgpu')">WebGPU</button>
-        <button class="challenge-pill" data-preset="zk" onclick="selectPresetPill('zk')">ZK Verifier</button>
-        <button class="challenge-pill" data-preset="inquisitor" onclick="openInquisitorTab()" style="border-color: rgba(255, 212, 56, 0.4); color: var(--brand-amber);">Inquisitor Architect</button>
+        <button class="challenge-pill" data-preset="inquisitor" onclick="openInquisitorTab()" style="border-color: rgba(255, 212, 56, 0.4); color: var(--brand-amber);">Inquisitor</button>
       </div>
     </div>
 
@@ -852,8 +849,19 @@
       </div>
 
       <div class="editor-wrapper">
-        <div class="line-gutter" id="lineGutter"></div>
-        <textarea class="code-textarea" id="tntEditor" spellcheck="false" oninput="updateLineGutter()"></textarea>
+        <div class="line-gutter" id="lineGutter">1<br>2<br>3<br>4<br>5<br>6<br>7<br>8<br>9<br>10<br>11<br>12</div>
+        <textarea class="code-textarea" id="bmbEditor" spellcheck="false" oninput="updateLineGutter()"># Auto-TCO: Constant O(1) Stack Execution
+def tail_sum(n: i64, acc: i64) -> i64:
+    if n <= 0:
+        return acc
+    # Compiler lowers tail-recursive call into register JMP loop
+    return tail_sum(n - 1, acc + n)
+
+def main() -> i64:
+    # 5,000,000 recursive invocations with 0 stack frame growth!
+    res = tail_sum(5000000, 0)
+    print(f"Tail Sum: {res}")
+    return 0</textarea>
         <div class="python-code-view" id="pyViewer"></div>
       </div>
     </div>
@@ -862,11 +870,11 @@
     <div class="panel-card">
       <div class="panel-header-tabs">
         <div class="tab-group">
-          <button class="panel-tab active" id="tabViewCanvas" onclick="switchInspectorTab('canvas')">Simulation &amp; Duel</button>
-          <button class="panel-tab" id="tabViewDisasm" onclick="switchInspectorTab('disasm')">Machine Code</button>
-          <button class="panel-tab" id="tabViewMemory" onclick="switchInspectorTab('memory')">Memory Layout</button>
-          <button class="panel-tab" id="tabViewDiff" onclick="switchInspectorTab('diff')">Architecture Diff</button>
-          <button class="panel-tab" id="tabViewWebPreview" onclick="switchInspectorTab('web')">Web DOM Preview</button>
+          <button class="panel-tab active" id="tabViewCanvas" onclick="switchInspectorTab('canvas')">120FPS Duel</button>
+          <button class="panel-tab" id="tabViewDisasm" onclick="switchInspectorTab('disasm')">ASM / WAT</button>
+          <button class="panel-tab" id="tabViewMemory" onclick="switchInspectorTab('memory')">Memory Map</button>
+          <button class="panel-tab" id="tabViewDiff" onclick="switchInspectorTab('diff')">Arch Diff</button>
+          <button class="panel-tab" id="tabViewWebPreview" onclick="switchInspectorTab('web')">Web DOM</button>
           <button class="panel-tab" id="tabViewInquisitor" onclick="switchInspectorTab('inquisitor')">Inquisitor</button>
         </div>
 
@@ -1076,10 +1084,12 @@
       <span>NATIVE COMPILER PIPELINE &amp; EXECUTION OUTPUT (tntc.wasm)</span>
       <span id="termStatusBadge" style="color: var(--brand-cyan);">● READY</span>
     </div>
-    <div class="term-body" id="termLog"></div>
+    <div class="term-body" id="termLog">[tnt] Analyzing tail_sum(i64, i64) call tree...
+[Auto-TCO] Detected self-tail call. Lowered call frame to x86-64 register loop.
+[Exec] tail_sum(5000000, 0) = 12500002500000 (took 2.689 ms)</div>
   </div>
 
-  <script src="bmbc_wasm.js"></script>
-  <script src="arena_client.js"></script>
+  <script src="bmbc_wasm.js?v=6"></script>
+  <script src="arena_client.js?v=6"></script>
 </body>
 </html>

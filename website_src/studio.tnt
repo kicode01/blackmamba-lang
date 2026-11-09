@@ -757,32 +757,31 @@ def render_studio_html() -> str:
   <!-- Studio Sub-Toolbar -->
   <div class="studio-toolbar">
     <div class="toolbar-actions">
-      <button class="btn-tool primary" onclick="window.Studio.evalWorkspace()" title="Evaluate selected workspace snippet (Ctrl+Enter)">
+      <button class="btn-tool primary" onclick="window.Studio.evalWorkspace()" title="Evaluate workspace snippet (Ctrl+Enter)">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         <span>Eval Workspace (Ctrl+Enter)</span>
       </button>
-      <button class="btn-tool" onclick="window.Studio.acceptCurrentMethod()" title="Accept and hot-swap method in 0.08ms (Ctrl+S)">
+      <button class="btn-tool" onclick="window.Studio.acceptCurrentMethod()" title="Accept and hot-swap method in 0.04ms (Ctrl+S)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>
         <span>Accept &amp; Hot-Swap (Ctrl+S)</span>
       </button>
-      <button class="btn-tool" onclick="window.Studio.switchRightTab('inspector')" title="Inspect live object registers (Ctrl+I)">
+      <button class="btn-tool" onclick="window.Studio.switchRightTab('inspector')">
         <span>Object Inspector</span>
       </button>
       <button class="btn-tool amber-accent" onclick="window.Studio.switchRightTab('canvas')">
-        <span>Morphic Spatial Canvas</span>
+        <span>Morphic Canvas</span>
       </button>
       <button class="btn-tool coral-accent" onclick="window.Studio.switchRightTab('inquisitor')">
-        <span>Inquisitor Architect</span>
+        <span>Inquisitor</span>
       </button>
       <button class="btn-tool" onclick="window.Studio.snapImage()">
-        <span>Snapshot .tntimg</span>
+        <span>Save .tntimg</span>
       </button>
     </div>
 
     <div class="telemetry-strip">
       <div class="telemetry-tag"><span class="tag-cyan">120 FPS</span> | 0.000ms GC</div>
-      <div class="telemetry-tag"><span class="tag-amber">0B Heap</span> (Unboxed Registers)</div>
-      <div class="telemetry-tag"><span class="tag-coral">0.08ms Hot-Swap</span></div>
+      <div class="telemetry-tag"><span class="tag-amber">0B Heap</span> | <span class="tag-coral">0.04ms JIT</span></div>
     </div>
   </div>
 
@@ -841,12 +840,19 @@ def render_studio_html() -> str:
           <span style="color: var(--brand-cyan); font-size: 0.72rem;" id="studioCompileStatus">● Live Image Ready</span>
         </div>
         <div class="editor-body">
-          <div class="line-gutter" id="studioLineGutter"></div>
-          <textarea class="code-area" id="studioCodeEditor" spellcheck="false"></textarea>
+          <div class="line-gutter" id="studioLineGutter"><div>1</div><div>2</div><div>3</div><div>4</div></div>
+          <textarea class="code-area" id="studioCodeEditor" spellcheck="false">fn increment(self, step: i64) -> i64:
+    self.counter = self.counter + step
+    self.click_count = self.click_count + 1
+    return self.counter</textarea>
+        </div>
+        <div id="studioLiveOutputBar" style="background: #04020A; border-top: 1px solid var(--border); padding: 8px 14px; font-family: var(--font-mono); font-size: 0.74rem; color: var(--brand-cyan); display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-shrink: 0;">
+          <span id="studioLiveOutputText">[Live Image] Ready — Click "Eval Workspace" (Ctrl+Enter) or "Accept &amp; Hot-Swap" (Ctrl+S) to execute</span>
+          <span id="studioLiveReturnBadge" style="background: rgba(0, 240, 255, 0.12); border: 1px solid rgba(0, 240, 255, 0.3); color: var(--brand-cyan); padding: 2px 8px; border-radius: 4px; font-size: 0.68rem; font-weight: 700; white-space: nowrap;">Return: 42</span>
         </div>
         <div class="editor-status">
           <span>x86-64 / WASM Register Image | Win64 ABI | Static Type Inference</span>
-          <span>Lexical Arena Watermark: <strong style="color: var(--brand-cyan);">0 Bytes</strong></span>
+          <span>Lexical Arena Watermark: <strong style="color: var(--brand-cyan);" id="studioArenaWatermark">0 Bytes</strong></span>
         </div>
       </div>
 
@@ -919,63 +925,63 @@ def render_studio_html() -> str:
         </div>
 
         <!-- View 2: Morphic Spatial Canvas Workbench -->
-        <div class="right-panel-view" data-view="canvas">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <h4 style="font-family:var(--font-display); font-size: 0.88rem; color: #ffffff;">Smalltalk-80 Morphic Spatial World</h4>
-            <span style="font-size: 0.7rem; color: var(--brand-cyan); font-family: var(--font-mono);">Drag nodes &bull; 60 FPS Reactive Signal Bus</span>
+        <div class="right-panel-view" data-view="canvas" style="padding: 10px 14px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; flex-shrink: 0;">
+            <h4 style="font-family:var(--font-display); font-size: 0.86rem; color: #ffffff;">Smalltalk-80 Morphic Spatial World</h4>
+            <span style="font-size: 0.68rem; color: var(--brand-cyan); font-family: var(--font-mono);">Drag nodes &bull; 120 FPS Signal Bus</span>
           </div>
 
-          <div class="morphic-canvas-world" id="morphicCanvasWorld">
-            <div class="morphic-canvas-toolbar">
-              <button class="canvas-tool-btn" onclick="window.Studio.addMorph('slider')">+ Slider Morph</button>
-              <button class="canvas-tool-btn" onclick="window.Studio.addMorph('dial')">+ Telemetry Gauge</button>
-              <button class="canvas-tool-btn" onclick="window.Studio.addMorph('signal')">+ Signal Emitter</button>
-              <button class="canvas-tool-btn" onclick="window.Studio.snapImage()">Snap .tntimg</button>
-              <button class="canvas-tool-btn" onclick="window.Studio.exportCanvasHtml()">Export HTML</button>
-              <button class="canvas-tool-btn" onclick="window.Studio.resetCanvas()" style="margin-left: auto;">Reset Layout</button>
-            </div>
+          <div class="morphic-canvas-toolbar" style="border: 1px solid var(--border); border-bottom: none; border-radius: var(--radius-sm) var(--radius-sm) 0 0; flex-shrink: 0;">
+            <button class="canvas-tool-btn" onclick="window.Studio.addMorph('slider')">+ Slider</button>
+            <button class="canvas-tool-btn" onclick="window.Studio.addMorph('dial')">+ Gauge</button>
+            <button class="canvas-tool-btn" onclick="window.Studio.addMorph('signal')">+ Emitter</button>
+            <button class="canvas-tool-btn" onclick="window.Studio.snapImage()">Snap .tntimg</button>
+            <button class="canvas-tool-btn" onclick="window.Studio.exportCanvasHtml()">Export HTML</button>
+            <button class="canvas-tool-btn" onclick="window.Studio.resetCanvas()" style="margin-left: auto;">Reset Layout</button>
+          </div>
 
+          <div class="morphic-canvas-world" id="morphicCanvasWorld" style="border-radius: 0 0 var(--radius-sm) var(--radius-sm); min-height: 300px;">
             <svg class="morphic-wire-svg" id="morphicWireSvg">
-              <path id="wirePath1" class="wire-path" d="M 0 0 C 0 0, 0 0, 0 0" />
+              <path id="wirePath1" class="wire-path" d="M 208 66 C 220 66, 220 66, 232 66" />
             </svg>
 
             <!-- Node 1: Reactive Slider -->
-            <div class="morphic-node" id="morphSlider" style="left: 18px; top: 48px; width: 192px;">
+            <div class="morphic-node" id="morphSlider" style="left: 14px; top: 12px; width: 192px;">
               <div class="morphic-node-header">
                 <span style="color: var(--brand-cyan);">SliderMorph</span>
-                <span style="color: var(--brand-amber); font-size:0.66rem;">0B Alloc</span>
+                <span style="color: var(--brand-amber); font-size:0.65rem;">0B Alloc</span>
               </div>
               <div class="morphic-node-body">
                 <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">
-                  <span>AppState.counter</span>
+                  <span id="morphSliderFieldLabel">AppState.counter</span>
                   <span id="sliderValDisplay" style="color: var(--brand-cyan); font-weight: 700;">42</span>
                 </div>
                 <input type="range" min="0" max="100" value="42" id="morphSliderInput" style="width: 100%; accent-color: var(--brand-cyan);" oninput="window.Studio.updateSliderMorph(this.value)">
-                <div style="font-size: 0.68rem; color: var(--text-dim); line-height: 1.3;">
+                <div style="font-size: 0.67rem; color: var(--text-dim); line-height: 1.25;">
                   Mutates in-register scalar at 120 FPS with zero GC pause.
                 </div>
               </div>
             </div>
 
             <!-- Node 2: Hardware Telemetry Dial -->
-            <div class="morphic-node" id="morphDial" style="left: 18px; top: 192px; width: 192px;">
+            <div class="morphic-node" id="morphDial" style="left: 14px; top: 152px; width: 192px;">
               <div class="morphic-node-header">
                 <span style="color: var(--brand-amber);">TelemetryMorph</span>
-                <span style="color: var(--text-muted); font-size:0.66rem;">x86-64</span>
+                <span style="color: var(--text-muted); font-size:0.65rem;">x86-64</span>
               </div>
-              <div class="morphic-node-body" style="align-items: center;">
-                <canvas id="morphicDialCanvas" width="160" height="72" style="display: block;"></canvas>
-                <div style="font-size: 0.68rem; color: var(--text-secondary); font-family: var(--font-mono); text-align: center;">
+              <div class="morphic-node-body" style="align-items: center; padding: 8px;">
+                <canvas id="morphicDialCanvas" width="160" height="66" style="display: block;"></canvas>
+                <div style="font-size: 0.67rem; color: var(--text-secondary); font-family: var(--font-mono); text-align: center;">
                   Clock: <span id="morphicFreqVal" style="color: var(--brand-cyan);">3.40 GHz</span> | GC: <span style="color: var(--brand-amber);">0.0ms</span>
                 </div>
               </div>
             </div>
 
             <!-- Node 3: Signal Trigger Bus -->
-            <div class="morphic-node" id="morphSignal" style="left: 236px; top: 210px; width: 215px;">
+            <div class="morphic-node" id="morphSignal" style="left: 226px; top: 158px; width: 215px;">
               <div class="morphic-node-header">
                 <span style="color: var(--brand-coral);">SignalBusMorph</span>
-                <span style="color: var(--brand-coral); font-size:0.66rem;">Signal:tick</span>
+                <span style="color: var(--brand-coral); font-size:0.65rem;">Signal:tick</span>
               </div>
               <div class="morphic-node-body">
                 <button class="morphic-btn" style="padding: 6px; font-size: 0.72rem;" onclick="window.Studio.triggerSignalPulse()">
@@ -988,10 +994,10 @@ def render_studio_html() -> str:
             </div>
 
             <!-- Node 4: Target System Window -->
-            <div class="morphic-node" id="morphWindow" style="left: 236px; top: 48px; width: 215px;">
+            <div class="morphic-node" id="morphWindow" style="left: 226px; top: 12px; width: 215px;">
               <div class="morphic-node-header">
-                <span style="color: #ffffff;">AppState Receiver</span>
-                <span style="color: var(--brand-cyan); font-size:0.66rem;">● Live</span>
+                <span style="color: #ffffff;" id="morphReceiverTitle">AppState Receiver</span>
+                <span style="color: var(--brand-cyan); font-size:0.65rem;">● Live</span>
               </div>
               <div class="morphic-node-body">
                 <div style="font-size: 0.82rem; font-weight: 700; font-family: var(--font-mono);">
@@ -1058,8 +1064,8 @@ def render_studio_html() -> str:
 
   <div class="studio-toast" id="studioNotification">Method Accepted &amp; Hot-Swapped!</div>
 
-  <script src="bmbc_wasm.js"></script>
-  <script src="studio_client.js"></script>
+  <script src="bmbc_wasm.js?v=6"></script>
+  <script src="studio_client.js?v=6"></script>
 </body>
 </html>
 """

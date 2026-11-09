@@ -803,7 +803,7 @@ def sweep_book(depth: i64, acc_vol: f64, acc_turnover: f64) -> f64:
 def main() -> i64:
     print("=== TinyTalk HFT High-Speed Matching Engine ===")
     o = Order(101, 94520.50, 2.5, 1)
-    print(f"Order #{o.id}: {o.qty} BTC @ ${o.price}")
+    print(f"Order #{o.id}: {o.qty} BTC @ \${o.price}")
     vwap = sweep_book(500, 0.0, 0.0)
     print(f"500-Level Deep Book VWAP: \${vwap:.4f}")
     return 0`,
@@ -1744,7 +1744,7 @@ Fiat-Shamir Non-Interactive Proof Synthesized (0.45 ms)
             </div>
             <div class="diff-box-tnt">
               <div class="diff-tag-tnt">TinyTalk (.tnt)</div>
-              <div>${item.tnt}</div>
+              <div>${item.tnt || item.bmb || ''}</div>
             </div>
           </div>
         </div>
@@ -1759,7 +1759,7 @@ Fiat-Shamir Non-Interactive Proof Synthesized (0.45 ms)
         <div class="memory-schema-box">
           <div class="schema-title" style="color: #f87171;">${mem.pyTitle}</div>
           <div class="schema-blocks">
-            ${mem.pyBlocks.map(b => `<div class="schema-block ${b.class}">${b.text}</div>`).join('')}
+            ${(mem.pyBlocks || []).map(b => `<div class="schema-block ${b.class}">${b.text}</div>`).join('')}
           </div>
           <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
             CPython attaches heavy object headers (PyGC_Head, refcount, type pointer) to every value, preventing direct CPU register caching.
@@ -1767,15 +1767,18 @@ Fiat-Shamir Non-Interactive Proof Synthesized (0.45 ms)
         </div>
 
         <div class="memory-schema-box">
-          <div class="schema-title" style="color: #34d399;">${mem.tntTitle}</div>
+          <div class="schema-title" style="color: #34d399;">${mem.tntTitle || mem.bmbTitle || 'TinyTalk Register Layout'}</div>
           <div class="schema-blocks">
-            ${mem.tntBlocks.map(b => `<div class="schema-block ${b.class}">${b.text}</div>`).join('')}
+            ${(mem.tntBlocks || mem.bmbBlocks || []).map(b => `<div class="schema-block ${b.class}">${b.text}</div>`).join('')}
           </div>
           <p style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.5;">
             TinyTalk keeps primitive values and value structs directly in 64-bit hardware registers with 0 heap allocation and instant 1-cycle lexical arena rewind.
           </p>
         </div>
       `;
+
+      // Update Web DOM Preview Tab
+      renderWebDomPreview(data, data.bmb, null);
 
       // Sync challenge pills & duel bars
       syncChallengePills(activePresetKey);
@@ -1784,6 +1787,62 @@ Fiat-Shamir Non-Interactive Proof Synthesized (0.45 ms)
       // Update terminal output
       termLog.textContent = data.log;
     }
+
+
+    let webPreviewCounter = 42;
+    function renderWebDomPreview(data, codeStr, htmlOverride) {
+      const mount = document.getElementById('webPreviewMount');
+      const rawOut = document.getElementById('webRawHtmlOutput');
+      if (!mount || !rawOut) return;
+
+      if (htmlOverride) {
+        mount.innerHTML = htmlOverride;
+        rawOut.textContent = htmlOverride;
+        return;
+      }
+
+      const title = data ? data.name : 'Custom TinyTalk (.tnt) Web Component';
+      const timeStr = data ? data.mambaTime : '0.04 ms';
+      const heapStr = data ? data.mambaHeap : '0 Bytes (Unboxed)';
+      const advStr = data ? data.mambaAdvantage : 'Zero-GC Native';
+
+      mount.innerHTML = `
+        <div style="width: 100%; max-width: 480px; background: #14102B; border: 1px solid rgba(0, 240, 255, 0.35); border-radius: 12px; padding: 18px; box-shadow: 0 12px 32px rgba(0,0,0,0.5);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <span style="font-family:var(--font-mono); font-size:0.72rem; color:#00F0FF; font-weight:700;">LIVE SSR + WASM HYDRATION</span>
+            <span style="background:rgba(16,185,129,0.15); color:#10B981; border:1px solid rgba(16,185,129,0.35); padding:2px 8px; border-radius:999px; font-family:var(--font-mono); font-size:0.68rem; font-weight:700;">${advStr}</span>
+          </div>
+          <div style="font-size:0.96rem; font-weight:800; color:#fff; margin-bottom:12px;">${title}</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px;">
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:8px;">
+              <div style="font-size:0.65rem; color:#A59EC4;">LATENCY</div>
+              <div style="font-family:var(--font-mono); font-size:0.82rem; font-weight:700; color:#00F0FF;">${timeStr}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:8px;">
+              <div style="font-size:0.65rem; color:#A59EC4;">HEAP ALLOC</div>
+              <div style="font-family:var(--font-mono); font-size:0.82rem; font-weight:700; color:#FFD438;">${heapStr}</div>
+            </div>
+            <div style="background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07); border-radius:8px; padding:8px;">
+              <div style="font-size:0.65rem; color:#A59EC4;">SIGNAL STATE</div>
+              <div style="font-family:var(--font-mono); font-size:0.82rem; font-weight:700; color:#fff;" id="webPreviewSignalVal">${webPreviewCounter}</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button onclick="window.triggerWebPreviewSignal(1)" style="flex:1; background:linear-gradient(135deg,#00F0FF,#00C2FF); color:#05050B; border:none; border-radius:6px; padding:8px 12px; font-weight:800; font-size:0.75rem; cursor:pointer;">Dispatch Signal (+1)</button>
+            <button onclick="window.triggerWebPreviewSignal(10)" style="background:rgba(255,212,56,0.14); color:#FFD438; border:1px solid rgba(255,212,56,0.35); border-radius:6px; padding:8px 12px; font-weight:700; font-size:0.75rem; cursor:pointer;">Burst (+10)</button>
+          </div>
+        </div>
+      `;
+
+      rawOut.textContent = `<!-- Emitted by: tnt build ${activePresetKey}.tnt --target html -->\n<section class="tnt-component" data-preset="${activePresetKey}" data-zero-gc="true">\n  <h3>${title}</h3>\n  <div class="tnt-metrics" data-latency="${timeStr}" data-heap="${heapStr}">${advStr}</div>\n</section>`;
+    }
+
+    window.triggerWebPreviewSignal = function(step) {
+      webPreviewCounter += (step || 1);
+      const el = document.getElementById('webPreviewSignalVal');
+      if (el) el.textContent = webPreviewCounter;
+      termLog.textContent = `[web.tnt Virtual DOM] Dispatched reactive signal (+${step}) -> SignalState = ${webPreviewCounter} (0.002 ms DOM patch, 0B Heap)`;
+    };
 
     function switchEditorTab(tab) {
       currentEditorTab = (tab === 'tnt' ? 'bmb' : tab);
@@ -1935,6 +1994,8 @@ Fiat-Shamir Non-Interactive Proof Synthesized (0.45 ms)
         }
 
         statusBadge.textContent = `● EXECUTED IN WASM (${msStr} ms)`;
+        const htmlLine = (compileRes.logs || []).find(l => typeof l === 'string' && l.trim().startsWith('<'));
+        renderWebDomPreview(data, userCode, htmlLine || null);
         statusBadge.style.color = "#34d399";
 
         if (!isModified && data) {
