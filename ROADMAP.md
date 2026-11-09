@@ -27,7 +27,9 @@
 │ Phase 10[DONE]│ Zero-Syntax Hypergraph, Neural Synthesis & VCS (v3.5-v3.9)  │
 │ Phase 11A[DONE│ TinyTalk Revolution, Morphic Canvas, Registry & HFT (v4.0.0) │
 │ Phase 11B[NEXT│ Planetary CRDT Actor Substrate & Kernel-Bypass RDMA (v4.1.0)│
-│ Phase 11C[PLAN│ Zero-Knowledge Distributed State Verifier (v4.2.0)          │
+│ Phase 11C[PLAN│ Linearizable Quorum Consensus & Zero-Copy Wire RPC (v4.2.0) │
+│ Phase 11D[PLAN│ Content-Addressed Merkle Store & Zero-Trust Mesh (v4.3.0)   │
+│ Phase 11E[PLAN│ Zero-Knowledge State Verifier & Planetary Studio (v4.4.0)   │
 └───────────────┴─────────────────────────────────────────────────────────────┘
 ```
 
@@ -549,7 +551,7 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 
 ---
 
-### Phase 11: The TinyTalk Revolution, Planetary CRDT & Kernel-Bypass Transport (`v4.0.0` – `v4.2.0`)
+### Phase 11: The Planetary Decentralized Operating Substrate (`v4.0.0` – `v4.4.0`)
 - [x] **Phase 11A (`v4.0.0`) — The TinyTalk Revolution (.tnt), Living Morphic Canvas & Web Package Registry ✅**:
   - [x] Smalltalk-80 Live Object Model with zero borrow-checker mental overhead and pure unboxed hardware registers.
   - [x] Interactive In-Browser Morphic Canvas in Smalltalk Studio (`studio.html` & `studio_client.js`) with 60 FPS reactive sliders, SVG dataflow wires, hardware telemetry gauges, and Inquisitor agent synthesis.
@@ -557,12 +559,19 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
   - [x] Flagship High-Frequency Trading & Order Book Engine (`examples/tinytalk_hft_engine.tnt`) with sub-microsecond VWAP and Auto-TCO book sweeping.
   - [x] Multi-OS CI/CD Pipeline (`.github/workflows/ci.yml`) and PyPI twin-distribution wheel packaging (`tinytalk_lang-4.0.0-py3-none-any.whl`).
   - [x] 100% backward compatibility for `.bmb` source files, CLI commands (`bmb`, `blackmamba`), and `import mamba`.
-- [ ] **Phase 11B (`v4.1.0`) — Planetary CRDT Actor Substrate & Sub-Microsecond Kernel-Bypass Transport [NEXT IN ROADMAP 🎯]**:
-  - [ ] **Planetary CRDT Actor Substrate** (`tinytalk/stdlib/planet.tnt` & `planet.bmb`): Globally distributed Conflict-Free Replicated Data Types (PN-Counter, LWW-Register, OR-Set), causal vector clocks, and delta-state sync for decentralized multi-region actor synchronization without central coordinators.
-  - [ ] **Sub-Microsecond Kernel-Bypass & RDMA Network Transport** (`tinytalk/stdlib/rdma.tnt` & `dpdk.tnt`): Native InfiniBand/RoCE RDMA and Linux XDP/DPDK user-space ring-buffer packet ingestion (< 1 us wire latency, 100 Gbps line-rate) feeding the flagship HFT engine and distributed actors directly.
-- [ ] **Phase 11C (`v4.2.0`) — Zero-Knowledge Distributed State Verifier**:
-  - [ ] Native SNARK/STARK proof emission (`zk.tnt` & `zk.bmb`) for TinyTalk execution states.
-  - [ ] Cryptographic execution validity proofs enabling decentralized zero-trust computation verifiability across untrusted nodes.
+- [ ] **Phase 11B (`v4.1.0`) — Planetary CRDTs & Sub-Microsecond Kernel-Bypass Transport [ACTIVE 🎯]**:
+  - [ ] **Planetary CRDT Actor Substrate** (`tinytalk/stdlib/planet.tnt` & `mamba/planet.py`): Globally distributed Conflict-Free Replicated Data Types (`PNCounter`, `LWWRegister`, `ORSet`), causal vector clocks (`VectorClock`), and delta-state sync for decentralized multi-region actor synchronization without central coordinators.
+  - [ ] **Sub-Microsecond Kernel-Bypass & RDMA Network Transport** (`tinytalk/stdlib/rdma.tnt` & `mamba/rdma.py`): Native InfiniBand/RoCE RDMA and Linux XDP/DPDK user-space ring-buffer packet ingestion (< 1 us wire latency, 100 Gbps line-rate) feeding the flagship HFT engine and distributed actors directly.
+  - [ ] Pre-release certification gatekeeper, comprehensive unit testing, and Web Package Registry cards (`tnt/planet`, `tnt/rdma`).
+- [ ] **Phase 11C (`v4.2.0`) — Linearizable Quorum Consensus & Zero-Copy Wire RPC [PLANNED ⚡]**:
+  - [ ] **Linearizable Quorum Consensus** (`tinytalk/stdlib/consensus.tnt` & `mamba/consensus.py`): Pipelined Multi-Paxos / Raft state-machine replication for operations requiring strict linearizability (distributed locks, leader leases, atomic balance transfers).
+  - [ ] **Zero-Copy Planetary RPC** (`tinytalk/stdlib/rpc.tnt` & `mamba/rpc.py`): Cap'n Proto-style unboxed message frames where receiving nodes traverse structs directly from network memory buffers with zero deserialization overhead.
+- [ ] **Phase 11D (`v4.3.0`) — Content-Addressed Merkle Store & Zero-Trust Mesh [PLANNED 🌐]**:
+  - [ ] **Content-Addressed Merkle Object Store** (`tinytalk/stdlib/cas.tnt` & `mamba/cas.py`): Blake3-indexed distributed object graph: deduplicates Smalltalk `.tntimg` snapshots and actor heaps globally with P2P chunk replication.
+  - [ ] **Zero-Trust Peer-to-Peer Mesh & Identity** (`tinytalk/stdlib/mesh.tnt` & `mamba/mesh.py`): Ed25519 node identities and Noise Protocol (`Noise_XX`) encrypted tunnels between edge nodes with latency-aware actor work-stealing.
+- [ ] **Phase 11E (`v4.4.0`) — Zero-Knowledge State Verifier & Planetary Studio Visualizer [PLANNED 🛡️]**:
+  - [ ] **Zero-Knowledge State Proofs** (`tinytalk/stdlib/zk.tnt` & `mamba/zk.py`): Native SNARK/STARK proof emission for actor state transitions, allowing untrusted worker nodes to execute compute and return a cryptographic proof of correctness.
+  - [ ] **Planetary Studio & Global Mesh Visualizer** (`studio.html?view=mesh`): Live interactive 3D WebGL / Canvas global map in Smalltalk Studio showing node clusters across regions (US, EU, Asia), real-time ping latencies, active actor migrations, and CRDT sync waves.
 
 ---
 
@@ -663,8 +672,10 @@ To guarantee zero critical bugs, regressions, or broken releases, every package 
 | **v3.8.0** | **Shipped** | Direct Hypergraph-to-MIR Compiler Pipeline | Direct graph lowering to SSA MIR and machine code in < 0.2 ms with cross-module inlining |
 | **v3.9.0** | **Shipped** | Lossless Transmutation & Continuous Refactoring | 100% lossless .py <-> .bmb <-> .bmbgraph transmutation and continuous spec evolution |
 | **v4.0.0** | **Shipped** *(Current)* | The TinyTalk Revolution (.tnt) | Smalltalk Live Object Heritage, Living Morphic Canvas, Web Package Registry, Flagship HFT Engine, CI/CD Packaging Matrix & 100% Dual .bmb Compatibility |
-| **v4.1.0** | **Next Target** | Planetary CRDT Actor Substrate & Kernel-Bypass Transport | Globally distributed CRDT memory (`planet.tnt`), causal vector clocks, cross-datacenter transparent actor migration, Sub-Microsecond Kernel-Bypass RDMA/DPDK transport (`rdma.tnt`, < 1 us wire latency) |
-| **v4.2.0** | **Planned** | Zero-Knowledge Distributed State Verifier | Native SNARK/STARK proof emission (`zk.bmb`), cryptographically verifiable execution state for trustless distributed compute |
+| **v4.1.0** | **In Progress** | Planetary CRDT Actor Substrate & Kernel-Bypass Transport | Globally distributed CRDT memory (`planet.tnt`), causal vector clocks, cross-datacenter transparent actor migration, Sub-Microsecond Kernel-Bypass RDMA/DPDK transport (`rdma.tnt`, < 1 us wire latency) |
+| **v4.2.0** | **Planned** | Linearizable Quorum Consensus & Zero-Copy Wire RPC | Pipelined Multi-Paxos / Raft consensus (`consensus.tnt`), leader leases, Cap'n Proto zero-copy binary RPC frames (`rpc.tnt`) |
+| **v4.3.0** | **Planned** | Content-Addressed Merkle Store & Zero-Trust Mesh | Blake3 Merkle-DAG object store (`cas.tnt`), P2P chunk sync, Ed25519 node identities & Noise-protocol encrypted peer mesh (`mesh.tnt`) |
+| **v4.4.0** | **Planned** | Zero-Knowledge State Verifier & Planetary Studio Visualizer | Native SNARK/STARK execution state proof emission (`zk.tnt`), live 3D global cluster topology visualizer in Smalltalk Studio (`studio.html?view=mesh`) |
 | **v4.5.0** | **Planned** | Superoptimizing Neuro-Symbolic Compiler | Monte-Carlo Tree Search (MCTS) assembly kernel synthesizer, Z3 machine-checkable equivalence proofs for hardware algorithms |
 | **v5.0.0** | **Planned** | Neuromorphic Silicon & Optical Matrix Co-Processor | Direct Spiking Neural Network (SNN) silicon backend (Intel Loihi 2), coherent optical matrix multiplier compilation |
 | **v6.0.0** | **Planned** | Programmable Matter & Molecular Compilation | DNA-origami sequence synthesis, microfluidic spatial control flow routing (`bio.bmb`), reconfigurable molecular lattice compilation |

@@ -22,8 +22,8 @@ from mamba.backends.x86_64_jit import NativeJITModule
 
 class TestTinyTalkV400(unittest.TestCase):
     def test_01_tinytalk_version_and_branding(self):
-        """Verify version 4.0.0 is active."""
-        self.assertEqual(mamba.__version__, "4.0.0")
+        """Verify version 4.x is active."""
+        self.assertTrue(mamba.__version__.startswith("4."))
 
     def test_02_tnt_file_module_resolution(self):
         """Verify that resolve_module_file finds .tnt files before .bmb files."""

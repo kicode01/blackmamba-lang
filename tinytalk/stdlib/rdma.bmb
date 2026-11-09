@@ -1,0 +1,29 @@
+# Black Mamba Sub-Microsecond Kernel-Bypass RDMA Transport (Phase 11B - v4.1.0)
+# Direct memory-mapped packet ring buffer with zero OS kernel socket overhead
+
+struct RdmaRingSlot:
+    pkt_ptr: i64
+    pkt_len: i64
+    timestamp_ns: i64
+
+struct RdmaQueue:
+    capacity: i64
+    head: i64
+    tail: i64
+    dropped: i64
+
+    fn available(self) -> i64:
+        return self.capacity - (self.tail - self.head)
+
+    fn is_full(self) -> i64:
+        if (self.tail - self.head) >= self.capacity:
+            return 1
+        return 0
+
+    fn is_empty(self) -> i64:
+        if self.head >= self.tail:
+            return 1
+        return 0
+
+def make_rdma_queue(capacity: i64) -> RdmaQueue:
+    return RdmaQueue(capacity, 0, 0, 0)

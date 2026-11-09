@@ -21,7 +21,7 @@ import importlib
 
 import pkgutil
 
-__version__ = "4.0.0"
+__version__ = "4.1.0"
 __author__ = "TinyTalk Team"
 
 # 100% backward compatibility alias: Ensure all tinytalk submodules map to mamba in sys.modules
