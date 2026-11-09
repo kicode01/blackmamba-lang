@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <link rel="stylesheet" href="assets/theme.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -20,19 +21,19 @@
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #060609;
-      --bg-surface: #0e0e14;
-      --bg-surface-elevated: #161622;
-      --bg-code: #030306;
+      --bg: #070510;
+      --bg-surface: #0C0A1C;
+      --bg-surface-elevated: #14102B;
+      --bg-code: #05030C;
       --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(255, 255, 255, 0.2);
-      --brand: #00e5ff;
-      --brand-glow: rgba(0, 229, 255, 0.25);
-      --accent-cyan: #38bdf8;
-      --accent-amber: #f59e0b;
-      --accent-purple: #c084fc;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
+      --border-hover: rgba(0, 240, 255, 0.32);
+      --brand: #00F0FF;
+      --brand-glow: rgba(0, 240, 255, 0.25);
+      --accent-cyan: #00F0FF;
+      --accent-amber: #FFD438;
+      --accent-purple: #A855F7;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
       --font-sans: 'Open Runde', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
       --radius-sm: 6px;
@@ -444,35 +445,45 @@
 </head>
 <body>
 
-  <!-- Top Ribbon -->
-  <div class="top-ribbon">
-    <span class="ribbon-pill">OFFICIAL PACKAGE REGISTRY</span>
-    <span>Explore modular zero-cost packages for TinyTalk v8.0.0. All packages compile down to raw registers with 0ms GC pause.</span>
+  <!-- Cosmic Midnight Violet Ambient Background -->
+  <div class="cosmic-bg-mesh"></div>
+  <div class="cosmic-grid-overlay"></div>
+
+  <!-- Unified Announcement Bar -->
+  <div class="tnt-announcement-bar">
+    <span class="tnt-ribbon-pill">Official Registry</span>
+    <span>40 Zero-Cost Native Packages &bull; Compiled to Unboxed Registers with 0.000ms GC Pause</span>
+    <a href="arena.html" class="tnt-ribbon-link">Run Live in Web Arena &rarr;</a>
   </div>
 
-  <!-- Header Navigation -->
-  <header>
-    <div class="nav-brand">
-      <img src="assets/logo.png" alt="TinyTalk Logo">
+  <!-- Unified Header Navigation -->
+  <header class="tnt-navbar">
+    <a href="index.html" class="tnt-brand">
+      <img src="assets/logo.svg" alt="TinyTalk Logo" class="tnt-brand-logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">v8.0.0 NATIVE</span>
-    </div>
-    <div class="nav-links">
-      <a href="index.html" class="nav-link">Home</a>
-      <a href="docs.html" class="nav-link">Docs</a>
-      <a href="arena.html" class="nav-link">Playground</a>
-      <a href="packages.html" class="nav-link active" style="color: var(--brand);">Packages</a>
-      <a href="studio.html" class="nav-link">Smalltalk Studio</a>
-      <a href="dashboard.html" class="nav-link">Dashboard</a>
-      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="nav-link">GitHub ↗</a>
-      <a href="arena.html" class="btn-arena">▶ Launch Arena</a>
+      <span class="tnt-version-pill">Packages</span>
+    </a>
+    <nav class="tnt-nav-links">
+      <a href="index.html" class="tnt-nav-link">Overview</a>
+      <a href="docs.html" class="tnt-nav-link">Docs</a>
+      <a href="arena.html" class="tnt-nav-link">Web Arena</a>
+      <a href="studio.html" class="tnt-nav-link">Morphic Studio</a>
+      <a href="packages.html" class="tnt-nav-link active">Packages</a>
+      <a href="dashboard.html" class="tnt-nav-link">Telemetry</a>
+    </nav>
+    <div class="tnt-nav-actions">
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" rel="noopener" class="tnt-btn-github">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a href="arena.html" class="tnt-btn-primary">Launch Arena &rarr;</a>
     </div>
   </header>
 
   <!-- Hero Section -->
-  <section class="hero">
+  <section class="hero" style="position:relative;z-index:1;">
     <div class="hero-badge">
-      <span>●</span> 15 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
+      <span style="color:#00F0FF;">●</span> 40 OFFICIAL PACKAGES &bull; ZERO ALLOCATION &bull; MULTI-TARGET NATIVE
     </div>
     <h1 class="hero-title">
       Modular High-Speed Packages for<br>

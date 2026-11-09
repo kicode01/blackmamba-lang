@@ -1,0 +1,421 @@
+/* ==========================================================================
+   TINYTALK (.TNT) — OFFICIAL PRODUCTION DESIGN SYSTEM
+   Theme: Cosmic Midnight Violet (Treatment 3) & Quantum Triquetra Palette
+   Typography: Open Runde (SF Pro Rounded), Inter, JetBrains Mono
+   ========================================================================== */
+
+:root {
+  /* Cosmic Midnight Violet Core Surfaces */
+  --bg: #070510;
+  --bg-abyss: #05030C;
+  --bg-surface: #0C0A1C;
+  --bg-surface-elevated: #14102B;
+  --bg-surface-hover: #1B1538;
+  --bg-card: rgba(15, 12, 34, 0.76);
+  --bg-glass: rgba(12, 10, 28, 0.82);
+  --bg-code: #06040E;
+
+  /* Borders & Specular Highlights */
+  --border: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-hover: rgba(0, 240, 255, 0.32);
+  --border-focus: #00F0FF;
+  --border-amber: rgba(255, 212, 56, 0.32);
+  --border-coral: rgba(255, 42, 133, 0.32);
+
+  /* Quantum Triquetra Tri-Pillar Accents */
+  --brand: #00F0FF;
+  --brand-cyan: #00F0FF;
+  --brand-amber: #FFD438;
+  --brand-coral: #FF2A85;
+  --brand-violet: #8B5CF6;
+
+  /* Legacy alias mappings for seamless component compatibility */
+  --brand-glow: rgba(0, 240, 255, 0.22);
+  --amber-glow: rgba(255, 212, 56, 0.20);
+  --coral-glow: rgba(255, 42, 133, 0.20);
+  --accent-cyan: #00F0FF;
+  --accent-amber: #FFD438;
+  --accent-gold: #FFD438;
+  --accent-rose: #FF2A85;
+  --accent-purple: #A855F7;
+  --accent-indigo: #818CF8;
+  --accent-emerald: #10B981;
+  --emerald: #00F0FF;
+  --emerald-glow: rgba(0, 240, 255, 0.22);
+
+  /* Typography Hierarchy */
+  --text: #F8FAFC;
+  --text-secondary: #CBD5E1;
+  --text-muted: #94A3B8;
+  --text-dim: #64748B;
+
+  /* Font Stacks */
+  --font-sans: 'Open Runde', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+  --font-display: 'Open Runde', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Inter", sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Monaco, Consolas, monospace;
+
+  /* Geometry */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  selection-background-color: rgba(0, 240, 255, 0.25);
+}
+
+::selection {
+  background: rgba(0, 240, 255, 0.22);
+  color: #ffffff;
+}
+
+/* Custom Cosmic Scrollbars */
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: rgba(7, 5, 16, 0.6);
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 240, 255, 0.35);
+}
+
+/* Cosmic Midnight Violet Ambient Background Mesh */
+.cosmic-bg-mesh {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(0, 240, 255, 0.07) 0%, transparent 42%),
+    radial-gradient(circle at 82% 14%, rgba(255, 212, 56, 0.05) 0%, transparent 40%),
+    radial-gradient(circle at 50% 48%, rgba(139, 92, 246, 0.08) 0%, transparent 55%),
+    radial-gradient(circle at 50% 88%, rgba(255, 42, 133, 0.05) 0%, transparent 48%);
+}
+
+.cosmic-grid-overlay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 25%, #000 30%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 25%, #000 30%, transparent 100%);
+}
+
+/* Unified Top Announcement Bar */
+.tnt-announcement-bar {
+  position: relative;
+  z-index: 102;
+  background: linear-gradient(90deg, #0D0920 0%, #171033 50%, #0D0920 100%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 7px 20px;
+  text-align: center;
+  font-size: 0.78rem;
+  font-family: var(--font-sans);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tnt-ribbon-pill {
+  background: linear-gradient(135deg, #00F0FF 0%, #FFD438 52%, #FF2A85 100%);
+  color: #070510;
+  font-family: var(--font-mono);
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tnt-ribbon-link {
+  color: var(--brand-cyan);
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.15s ease;
+}
+.tnt-ribbon-link:hover {
+  opacity: 0.85;
+  text-decoration: underline;
+}
+
+/* Unified Glassmorphic Navigation Header */
+.tnt-navbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(7, 5, 16, 0.84);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.tnt-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  text-decoration: none;
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  letter-spacing: -0.025em;
+  flex-shrink: 0;
+}
+
+.tnt-brand-logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  box-shadow: 0 0 18px rgba(0, 240, 255, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease;
+}
+
+.tnt-brand:hover .tnt-brand-logo {
+  transform: scale(1.05);
+  box-shadow: 0 0 24px rgba(0, 240, 255, 0.32), 0 0 0 1px rgba(0, 240, 255, 0.35);
+}
+
+.tnt-version-pill {
+  background: rgba(0, 240, 255, 0.1);
+  border: 1px solid rgba(0, 240, 255, 0.28);
+  color: var(--brand-cyan);
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.tnt-nav-links {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.tnt-nav-link {
+  color: var(--text-muted);
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tnt-nav-link:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tnt-nav-link.active {
+  color: #ffffff;
+  background: rgba(0, 240, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.25);
+}
+
+.tnt-nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.tnt-btn-github {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.84rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.tnt-btn-github:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.tnt-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: linear-gradient(135deg, #00F0FF 0%, #38BDF8 100%);
+  color: #05030C;
+  font-weight: 800;
+  font-size: 0.85rem;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  box-shadow: 0 0 20px rgba(0, 240, 255, 0.25);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.tnt-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 28px rgba(0, 240, 255, 0.45);
+  color: #000000;
+}
+
+/* Unified Production Footer */
+.tnt-footer {
+  position: relative;
+  z-index: 1;
+  background: #05030C;
+  border-top: 1px solid var(--border);
+  padding: 56px 32px 40px;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+}
+
+.tnt-footer-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.6fr repeat(3, 1fr);
+  gap: 40px;
+  padding-bottom: 40px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.tnt-footer-brand-col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tnt-footer-tagline {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  max-width: 340px;
+  line-height: 1.6;
+}
+
+.tnt-footer-triquetra-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.tnt-pillar-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.tnt-footer-col h4 {
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 14px;
+}
+
+.tnt-footer-col ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.tnt-footer-col a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.tnt-footer-col a:hover {
+  color: var(--brand-cyan);
+}
+
+.tnt-footer-bottom {
+  max-width: 1240px;
+  margin: 28px auto 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 960px) {
+  .tnt-navbar {
+    padding: 0 16px;
+  }
+  .tnt-nav-links {
+    display: none;
+  }
+  .tnt-footer-inner {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .tnt-footer-inner {
+    grid-template-columns: 1fr;
+  }
+}

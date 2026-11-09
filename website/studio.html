@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <link rel="stylesheet" href="assets/fonts/fonts.css">
+  <link rel="stylesheet" href="assets/theme.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -19,18 +20,19 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #07090e;
-      --card-bg: #0c1017;
-      --border: #1e2638;
-      --border-focus: #00e5ff;
-      --emerald: #00e5ff;
-      --emerald-glow: rgba(0, 229, 255, 0.25);
-      --cyan: #38bdf8;
-      --amber: #f59e0b;
-      --purple: #a855f7;
-      --text: #f1f5f9;
-      --text-muted: #94a3b8;
-      --font-mono: 'Fira Code', monospace;
+      --bg: #070510;
+      --card-bg: #0C0A1C;
+      --border: rgba(255, 255, 255, 0.09);
+      --border-focus: #00F0FF;
+      --emerald: #00F0FF;
+      --emerald-glow: rgba(0, 240, 255, 0.24);
+      --cyan: #00F0FF;
+      --amber: #FFD438;
+      --coral: #FF2A85;
+      --purple: #A855F7;
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -48,7 +50,7 @@
     /* Top Studio Header */
     header {
       height: 48px;
-      background: #0a0e14;
+      background: rgba(12, 10, 28, 0.94); backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -86,7 +88,7 @@
     }
 
     .btn-tool {
-      background: #161f30;
+      background: #14102B;
       border: 1px solid var(--border);
       color: #e2e8f0;
       padding: 5px 12px;
@@ -101,7 +103,7 @@
     }
 
     .btn-tool:hover {
-      background: #1e293b;
+      background: #1B1538;
       border-color: var(--emerald);
       color: #fff;
     }
@@ -114,7 +116,7 @@
     }
 
     .btn-tool.primary:hover {
-      background: #059669;
+      background: #38BDF8;
       color: #fff;
     }
 
@@ -164,14 +166,14 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
-      background: #06080d;
+      background: #070510;
     }
 
     /* Smalltalk 4-Column System Browser (Top Half) */
     .system-browser {
       height: 220px;
       min-height: 180px;
-      background: #090d14;
+      background: #0A0818;
       border-bottom: 2px solid var(--border);
       display: grid;
       grid-template-columns: 1fr 1fr 1fr 1fr;
@@ -192,7 +194,7 @@
 
     .browser-header {
       height: 28px;
-      background: #0e131d;
+      background: #120E26;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -263,13 +265,13 @@
       display: flex;
       flex-direction: column;
       border-right: 1px solid var(--border);
-      background: #080b10;
+      background: #06040E;
       overflow: hidden;
     }
 
     .editor-header {
       height: 32px;
-      background: #0d121b;
+      background: #100C22;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -289,7 +291,7 @@
 
     .line-gutter {
       width: 44px;
-      background: #080b10;
+      background: #06040E;
       border-right: 1px solid rgba(255, 255, 255, 0.05);
       color: #475569;
       font-family: var(--font-mono);
@@ -319,7 +321,7 @@
 
     .editor-status {
       height: 24px;
-      background: #0b0f16;
+      background: #0A0818;
       border-top: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -334,13 +336,13 @@
     .right-pane {
       display: flex;
       flex-direction: column;
-      background: #080b11;
+      background: #080614;
       overflow: hidden;
     }
 
     .right-tabs {
       height: 34px;
-      background: #0d121c;
+      background: #110D24;
       border-bottom: 1px solid var(--border);
       display: flex;
       align-items: center;
@@ -369,7 +371,7 @@
     }
 
     .right-tab-btn.active {
-      background: #161f30;
+      background: #14102B;
       color: var(--emerald);
       border-color: rgba(0, 229, 255, 0.4);
     }
@@ -396,7 +398,7 @@
     }
 
     .inspect-table th {
-      background: #111723;
+      background: #14102B;
       color: var(--text-muted);
       padding: 6px 8px;
       text-align: left;
@@ -407,11 +409,11 @@
     .inspect-table td {
       padding: 6px 8px;
       border: 1px solid var(--border);
-      background: #0c1018;
+      background: #0C0A1C;
     }
 
     .inspect-input {
-      background: #151c2a;
+      background: #161130;
       border: 1px solid var(--border);
       color: var(--emerald);
       font-family: var(--font-mono);
@@ -435,7 +437,7 @@
 
     /* View 2: Socratic Inquisitor Interview */
     .inquisitor-card {
-      background: #0e1420;
+      background: #0F0C22;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 12px;
@@ -468,7 +470,7 @@
       font-size: 0.76rem;
       border: 1px solid transparent;
       margin-bottom: 4px;
-      background: #090d14;
+      background: #0A0818;
     }
 
     .opt-label:hover {
@@ -479,7 +481,7 @@
     /* Live Morphic Canvas Container */
     .morphic-container {
       margin-top: 10px;
-      background: #0b0f17;
+      background: #0A0818;
       border: 1px solid var(--border);
       border-radius: 8px;
       padding: 14px;
@@ -489,7 +491,7 @@
     }
 
     .morphic-window {
-      background: #111724;
+      background: #120E26;
       border: 1px solid #232d42;
       border-radius: 6px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
@@ -497,7 +499,7 @@
     }
 
     .morphic-header {
-      background: #172033;
+      background: #191334;
       padding: 6px 10px;
       font-size: 0.72rem;
       font-weight: 700;
@@ -527,13 +529,13 @@
       transition: all 0.15s ease;
     }
     .morphic-btn:hover {
-      background: #059669;
+      background: #38BDF8;
       color: #fff;
     }
 
     .morphic-progress {
       height: 8px;
-      background: #1e293b;
+      background: #1B1538;
       border-radius: 4px;
       overflow: hidden;
     }
@@ -570,7 +572,7 @@
       position: relative;
       flex: 1;
       min-height: 440px;
-      background-color: #05080f;
+      background-color: #06040E;
       background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
       background-size: 18px 18px;
       border: 1px solid var(--border);
@@ -582,13 +584,13 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      background: #0d121c;
+      background: #110D24;
       border-bottom: 1px solid var(--border);
       padding: 6px 10px;
       flex-wrap: wrap;
     }
     .canvas-tool-btn {
-      background: #161f30;
+      background: #14102B;
       border: 1px solid var(--border);
       color: #cbd5e1;
       padding: 4px 8px;
@@ -602,13 +604,13 @@
       transition: all 0.15s ease;
     }
     .canvas-tool-btn:hover {
-      background: #1e293b;
+      background: #1B1538;
       color: #fff;
       border-color: var(--emerald);
     }
     .morphic-node {
       position: absolute;
-      background: #0f1624;
+      background: #110D24;
       border: 1px solid #232d42;
       border-radius: 6px;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
@@ -623,7 +625,7 @@
       z-index: 20;
     }
     .morphic-node-header {
-      background: #162032;
+      background: #181232;
       padding: 5px 8px;
       font-size: 0.72rem;
       font-weight: 700;
@@ -687,8 +689,9 @@
   <!-- Top Navigation Header -->
   <header>
     <a href="index.html" class="brand">
-      <span>⚡ TinyTalk</span>
-      <span class="brand-badge">STUDIO</span>
+      <img src="assets/logo.svg" alt="TinyTalk Logo" style="width:28px;height:28px;border-radius:7px;box-shadow:0 0 14px rgba(0,240,255,0.22);">
+      <span>TinyTalk</span>
+      <span class="brand-badge">MORPHIC STUDIO</span>
     </a>
 
     <div class="toolbar-actions">
@@ -696,32 +699,32 @@
         ▶ Eval (Ctrl+Enter)
       </button>
       <button class="btn-tool" onclick="window.Studio.acceptCurrentMethod()" title="Accept and recompile method (Ctrl+S)">
-        💾 Accept (Ctrl+S)
+        Accept (Ctrl+S)
       </button>
       <button class="btn-tool" onclick="window.Studio.switchRightTab('inspector')" title="Inspect live object memory (Ctrl+I)">
-        🔍 Inspect (Ctrl+I)
+        Inspect (Ctrl+I)
       </button>
-      <button class="btn-tool" onclick="window.Studio.switchRightTab('inquisitor')" style="color: #38bdf8; border-color: rgba(0,229,255,0.35);">
-        🤖 Ask Inquisitor
+      <button class="btn-tool" onclick="window.Studio.switchRightTab('inquisitor')" style="color: #FFD438; border-color: rgba(255,212,56,0.35);">
+        Inquisitor Agent
       </button>
-      <button class="btn-tool" onclick="window.Studio.switchRightTab('canvas')" style="color: #38bdf8; border-color: rgba(56,189,248,0.35); font-weight: 700;">
-        🎨 Morphic Canvas
+      <button class="btn-tool" onclick="window.Studio.switchRightTab('canvas')" style="color: #00F0FF; border-color: rgba(0,240,255,0.35); font-weight: 700;">
+        Morphic Canvas
       </button>
     </div>
 
     <div class="telemetry-strip">
-      <div class="telemetry-tag"><span class="tag-green">120 FPS</span> | Zero-GC</div>
+      <div class="telemetry-tag"><span class="tag-green">120 FPS</span> | 0.000ms GC</div>
       <div class="telemetry-tag"><span class="tag-cyan">0B Heap</span> (Unboxed)</div>
-      <div class="telemetry-tag"><span class="tag-amber">Sub-2ms JIT</span></div>
+      <div class="telemetry-tag"><span class="tag-amber">0.08ms Hot-Swap</span></div>
     </div>
 
     <nav class="nav-links">
-      <a href="index.html">Home</a>
-      <a href="arena.html">Playground</a>
-      <a href="docs.html" class="nav-link">Docs</a>
-      <a href="packages.html">Packages</a>
+      <a href="index.html">Overview</a>
+      <a href="docs.html">Docs</a>
+      <a href="arena.html">Web Arena</a>
       <a href="studio.html" class="active">Studio</a>
-      <a href="https://github.com/kicode01/tinytalk-lang#readme" target="_blank">Docs</a>
+      <a href="packages.html">Packages</a>
+      <a href="dashboard.html">Telemetry</a>
       <a href="https://github.com/kicode01/tinytalk-lang" target="_blank">GitHub</a>
     </nav>
   </header>

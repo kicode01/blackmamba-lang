@@ -1,6 +1,6 @@
-# TinyTalk Official Documentation Portal
+# TinyTalk Official Website — Documentation Guide
 # Source: website_src/docs.tnt
-# Target: Production HTML5 Document (--target html)
+# Target: Production Static HTML5 Document (--target html)
 # Compiled by: TinyTalk HTML5 Backend (0.012 ms SSR)
 
 def render_docs_html() -> str:
@@ -9,421 +9,403 @@ def render_docs_html() -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TinyTalk Documentation — Official Language Guide & Standard Library</title>
-  <meta name="description" content="Comprehensive official guide for TinyTalk (.tnt): installation, syntax, quantum computing, differentiable physics, neuromorphic silicon, DNA origami, and CLI reference.">
-  <link rel="icon" type="image/x-icon" href="assets/tnt.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png?v=3">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png?v=3">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=3">
+  <link rel="icon" type="image/x-icon" href="assets/tnt.ico?v=3">
+  <link rel="shortcut icon" href="favicon.ico?v=3">
+  <title>Documentation — TinyTalk (.tnt) Official Language Guide & Standard Library</title>
+  <meta name="description" content="Comprehensive official guide for TinyTalk (.tnt): installation, static type inference, lexical arena memory, Smalltalk live images, CLI reference, and frontier hardware lowering.">
+
+  <!-- Fonts & Production Theme -->
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/theme.css">
+
   <style>
-    :root {
-      --bg: #070913;
-      --bg-surface: #0e1322;
-      --bg-surface-elevated: #161c30;
-      --bg-card: rgba(16, 23, 42, 0.7);
-      --bg-code: #030712;
-      --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(56, 189, 248, 0.3);
-      --border-focus: #00e5ff;
-      --brand: #00e5ff;
-      --brand-glow: rgba(0, 229, 255, 0.25);
-      --accent-cyan: #38bdf8;
-      --accent-indigo: #818cf8;
-      --accent-purple: #c084fc;
-      --accent-rose: #f43f5e;
-      --accent-amber: #f59e0b;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --radius-sm: 8px;
-      --radius-md: 12px;
-      --radius-lg: 18px;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-sans);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-
-    /* Ambient background gradient meshes */
-    .bg-mesh {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      pointer-events: none;
-      z-index: 0;
-      background: 
-        radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.06) 0%, transparent 45%),
-        radial-gradient(circle at 90% 15%, rgba(129, 140, 248, 0.06) 0%, transparent 45%),
-        radial-gradient(circle at 50% 80%, rgba(244, 63, 94, 0.04) 0%, transparent 50%);
-    }
-
-    a { color: inherit; text-decoration: none; }
-
-    /* Top Announcement Ribbon */
-    .announcement-ribbon {
-      position: relative;
-      z-index: 101;
-      background: linear-gradient(90deg, #0b152d, #03203f, #0d1e38);
-      border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-      padding: 7px 16px;
-      text-align: center;
-      font-size: 0.8rem;
-      font-family: var(--font-mono);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .ribbon-pill {
-      background: linear-gradient(135deg, #00e5ff, #38bdf8);
-      color: #04101e;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 0.72rem;
-    }
-
-    /* Navigation Header */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(7, 9, 19, 0.85);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 32px;
-      height: 64px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-weight: 800;
-      font-size: 1.25rem;
-    }
-    .brand-logo-img {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      box-shadow: 0 0 12px var(--brand-glow);
-    }
-    .nav-badge {
-      background: rgba(0, 229, 255, 0.12);
-      border: 1px solid rgba(0, 229, 255, 0.3);
-      color: var(--brand);
-      font-size: 0.72rem;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-    }
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 28px;
-      font-size: 0.92rem;
-      font-weight: 600;
-    }
-    .nav-link {
-      color: var(--text-muted);
-      transition: color 0.15s ease;
-    }
-    .nav-link:hover, .nav-link.active { color: #fff; }
-    .btn-arena-nav {
-      background: linear-gradient(135deg, #00e5ff 0%, #0284c7 100%);
-      color: #030f1e;
-      font-weight: 800;
-      padding: 8px 18px;
-      border-radius: var(--radius-sm);
-      box-shadow: 0 0 16px var(--brand-glow);
-      transition: all 0.2s ease;
-    }
-    .btn-arena-nav:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 0 24px rgba(0, 229, 255, 0.45);
-      color: #000;
-    }
-
-    /* Docs Layout */
     .docs-layout {
       position: relative;
       z-index: 1;
-      max-width: 1400px;
+      max-width: 1380px;
       width: 100%;
       margin: 0 auto;
       display: grid;
-      grid-template-columns: 280px minmax(0, 1fr);
+      grid-template-columns: 270px minmax(0, 1fr) 220px;
       gap: 40px;
-      padding: 40px 32px;
+      padding: 40px 32px 80px;
       flex: 1;
     }
 
-    /* Sidebar Navigation */
+    @media (max-width: 1180px) {
+      .docs-layout {
+        grid-template-columns: 250px minmax(0, 1fr);
+      }
+      .docs-toc {
+        display: none;
+      }
+    }
+
+    @media (max-width: 860px) {
+      .docs-layout {
+        grid-template-columns: 1fr;
+        padding: 24px 18px 60px;
+      }
+      .docs-sidebar {
+        position: static !important;
+        height: auto !important;
+        border-right: none !important;
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 20px;
+      }
+    }
+
+    /* Left Sticky Sidebar */
     .docs-sidebar {
       position: sticky;
-      top: 96px;
-      height: calc(100vh - 120px);
+      top: 88px;
+      height: calc(100vh - 110px);
       overflow-y: auto;
-      padding-right: 16px;
+      padding-right: 18px;
       border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      gap: 28px;
+      gap: 24px;
     }
+
+    .sidebar-search {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 12px;
+      color: #fff;
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+
+    .sidebar-search:focus {
+      border-color: var(--brand-cyan);
+      box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.15);
+    }
+
     .sidebar-group-title {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       font-family: var(--font-mono);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      color: var(--brand);
+      color: var(--brand-cyan);
       font-weight: 700;
-      margin-bottom: 12px;
+      margin-bottom: 8px;
     }
+
     .sidebar-links {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 4px;
     }
+
     .sidebar-link {
-      font-size: 0.9rem;
+      font-size: 0.86rem;
       color: var(--text-muted);
-      padding: 6px 12px;
-      border-radius: 6px;
+      padding: 6px 10px;
+      border-radius: var(--radius-xs);
       transition: all 0.15s ease;
       display: flex;
       align-items: center;
       gap: 8px;
-    }
-    .sidebar-link:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.04);
-      transform: translateX(3px);
-    }
-    .sidebar-link.active {
-      color: var(--brand);
-      background: rgba(0, 229, 255, 0.1);
-      font-weight: 700;
+      text-decoration: none;
+      font-weight: 500;
     }
 
-    /* Main Content */
+    .sidebar-link:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .sidebar-link.active {
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.1);
+      font-weight: 700;
+      border-left: 2px solid var(--brand-cyan);
+    }
+
+    /* Main Content Area */
     .docs-main {
-      max-width: 960px;
+      max-width: 820px;
       min-width: 0;
     }
+
     .docs-header {
-      margin-bottom: 48px;
+      margin-bottom: 44px;
       padding-bottom: 28px;
       border-bottom: 1px solid var(--border);
     }
+
     .docs-badge {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-family: var(--font-mono);
-      font-size: 0.8rem;
-      color: var(--brand);
+      font-size: 0.75rem;
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      padding: 3px 10px;
+      border-radius: 999px;
       font-weight: 700;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
     }
+
     .docs-title {
-      font-size: clamp(2.2rem, 4vw, 3.2rem);
+      font-family: var(--font-display);
+      font-size: clamp(2.1rem, 3.8vw, 3rem);
       font-weight: 800;
       letter-spacing: -0.03em;
-      margin-bottom: 16px;
-      background: linear-gradient(135deg, #fff 40%, var(--brand) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      margin-bottom: 14px;
+      color: #ffffff;
     }
+
     .docs-intro {
-      font-size: 1.15rem;
+      font-size: 1.08rem;
       color: var(--text-muted);
       line-height: 1.7;
     }
 
-    /* Document Sections */
     .doc-section {
-      margin-bottom: 64px;
-      scroll-margin-top: 96px;
+      margin-bottom: 56px;
+      scroll-margin-top: 90px;
     }
+
     .doc-section h2 {
-      font-size: 1.8rem;
+      font-family: var(--font-display);
+      font-size: 1.6rem;
       font-weight: 800;
       letter-spacing: -0.02em;
-      color: #fff;
-      margin-bottom: 16px;
+      color: #ffffff;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-subtle);
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
+
     .doc-section h3 {
-      font-size: 1.3rem;
+      font-family: var(--font-display);
+      font-size: 1.18rem;
       font-weight: 700;
-      color: var(--accent-cyan);
-      margin: 28px 0 12px;
+      color: var(--brand-amber);
+      margin: 24px 0 10px;
     }
+
     .doc-section p {
-      font-size: 1rem;
-      color: var(--text-muted);
-      margin-bottom: 18px;
+      font-size: 0.96rem;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
       line-height: 1.7;
+    }
+
+    .doc-section p code {
+      font-family: var(--font-mono);
+      font-size: 0.86em;
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.18);
+      padding: 1px 6px;
+      border-radius: 4px;
     }
 
     /* Code Blocks */
     .code-block {
       background: var(--bg-code);
-      border: 1px solid rgba(56, 189, 248, 0.2);
+      border: 1px solid var(--border);
       border-radius: var(--radius-md);
       overflow: hidden;
-      margin: 20px 0 28px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      margin: 16px 0 26px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
     }
+
     .code-header {
-      background: rgba(255, 255, 255, 0.03);
-      padding: 10px 18px;
+      background: var(--bg-surface-elevated);
+      padding: 9px 16px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       font-family: var(--font-mono);
-      font-size: 0.75rem;
+      font-size: 0.73rem;
       color: var(--text-muted);
       border-bottom: 1px solid var(--border);
     }
+
     .code-content {
-      padding: 18px 20px;
+      padding: 16px 20px;
       overflow-x: auto;
       font-family: var(--font-mono);
-      font-size: 0.88rem;
-      line-height: 1.6;
-      color: #e2e8f0;
-    }
-    .copy-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 4px 10px;
-      border-radius: 4px;
-      cursor: pointer;
-      font-family: var(--font-sans);
-      font-size: 0.75rem;
-      font-weight: 600;
-      transition: all 0.15s ease;
-    }
-    .copy-btn:hover {
-      background: rgba(0, 229, 255, 0.15);
-      color: var(--brand);
-      border-color: rgba(0, 229, 255, 0.3);
+      font-size: 0.84rem;
+      line-height: 1.65;
+      color: #E2E8F0;
+      margin: 0;
     }
 
-    /* Command & API Tables */
+    .copy-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      padding: 3px 10px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-family: var(--font-sans);
+      font-size: 0.72rem;
+      font-weight: 700;
+      transition: all 0.15s ease;
+    }
+
+    .copy-btn:hover {
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--brand-cyan);
+      border-color: rgba(0, 240, 255, 0.35);
+    }
+
+    /* API Table */
     .api-table {
       width: 100%;
       border-collapse: collapse;
-      margin: 20px 0 32px;
-      font-size: 0.9rem;
+      margin: 18px 0 28px;
+      font-size: 0.88rem;
       background: var(--bg-surface);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
       overflow: hidden;
     }
+
     .api-table th, .api-table td {
-      padding: 14px 18px;
+      padding: 12px 16px;
       text-align: left;
       border-bottom: 1px solid var(--border);
     }
+
     .api-table th {
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--brand);
+      background: var(--bg-surface-elevated);
+      color: var(--brand-cyan);
       font-family: var(--font-mono);
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
-    }
-    .api-table td code {
-      font-family: var(--font-mono);
-      color: var(--accent-cyan);
-      background: rgba(56, 189, 248, 0.08);
-      padding: 2px 6px;
-      border-radius: 4px;
+      letter-spacing: 0.05em;
     }
 
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 40px 32px;
-      text-align: center;
-      font-size: 0.85rem;
+    .api-table td code {
+      font-family: var(--font-mono);
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.82rem;
+    }
+
+    /* Right Table of Contents */
+    .docs-toc {
+      position: sticky;
+      top: 88px;
+      height: fit-content;
+      border-left: 1px solid var(--border);
+      padding-left: 18px;
+    }
+
+    .toc-title {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
       color: var(--text-muted);
-      background: var(--bg-surface);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .toc-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.8rem;
+    }
+
+    .toc-list a {
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 0.15s ease;
+    }
+
+    .toc-list a:hover {
+      color: var(--brand-cyan);
     }
   </style>
 </head>
 <body>
 
-  <!-- Ambient Glow Background Mesh -->
-  <div class="bg-mesh"></div>
+  <!-- Cosmic Background -->
+  <div class="cosmic-bg-mesh"></div>
+  <div class="cosmic-grid-overlay"></div>
 
-  <!-- Announcement Ribbon -->
-  <div class="announcement-ribbon">
-    <span class="ribbon-pill">TINYTALK v8.0.0</span>
-    <span>Official Documentation &bull; Pure .tnt Language Specification</span>
-    <a href="/arena.html" style="color: var(--brand); text-decoration: underline; font-weight: 700;">Open In-Browser Arena &rarr;</a>
+  <!-- Unified Announcement Bar -->
+  <div class="tnt-announcement-bar announcement-ribbon">
+    <span class="tnt-ribbon-pill">TinyTalk v8.0</span>
+    <span>Official Language Specification &amp; Standard Library Reference</span>
+    <a href="arena.html" class="tnt-ribbon-link">Open Interactive Arena &rarr;</a>
   </div>
 
-  <!-- Header -->
-  <header>
-    <a href="/" class="nav-brand">
-      <img src="assets/logo.png" alt="TinyTalk Logo" class="brand-logo-img" />
+  <!-- Unified Header -->
+  <header class="tnt-navbar">
+    <a href="index.html" class="tnt-brand">
+      <img src="assets/logo.svg" alt="TinyTalk Logo" class="tnt-brand-logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">Docs</span>
+      <span class="tnt-version-pill">Docs</span>
     </a>
-    <nav class="nav-links">
-      <a href="/" class="nav-link">Home</a>
-      <a href="/arena.html" class="nav-link">Web Arena</a>
-      <a href="/docs.html" class="nav-link active">Documentation</a>
-      <a href="/packages.html" class="nav-link">Packages</a>
-      <a href="/studio.html" class="nav-link">Smalltalk Studio</a>
-      <a href="/dashboard.html" class="nav-link">Telemetry Dashboard</a>
-      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="nav-link">GitHub</a>
-      <a href="/arena.html" class="btn-arena-nav">Launch Arena &rarr;</a>
+
+    <nav class="tnt-nav-links">
+      <a href="index.html" class="tnt-nav-link">Overview</a>
+      <a href="docs.html" class="tnt-nav-link active">Docs</a>
+      <a href="arena.html" class="tnt-nav-link">Web Arena</a>
+      <a href="studio.html" class="tnt-nav-link">Morphic Studio</a>
+      <a href="packages.html" class="tnt-nav-link">Packages</a>
+      <a href="dashboard.html" class="tnt-nav-link">Telemetry</a>
     </nav>
+
+    <div class="tnt-nav-actions">
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" rel="noopener" class="tnt-btn-github">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a href="arena.html" class="tnt-btn-primary">Launch Arena &rarr;</a>
+    </div>
   </header>
 
-  <!-- Docs Container -->
+  <!-- 3-Column Documentation Layout -->
   <div class="docs-layout">
-    <!-- Sticky Sidebar -->
+    <!-- Left Sidebar -->
     <aside class="docs-sidebar">
+      <input type="text" class="sidebar-search" placeholder="Filter documentation..." oninput="filterDocsSidebar(this.value)">
+
       <div class="sidebar-group">
         <div class="sidebar-group-title">Getting Started</div>
         <div class="sidebar-links">
-          <a href="#installation" class="sidebar-link">📦 Installation</a>
-          <a href="#vscode-ext" class="sidebar-link">💻 VS Code Extension</a>
-          <a href="#quickstart" class="sidebar-link">⚡ Hello TinyTalk</a>
+          <a href="#installation" class="sidebar-link active">Installation &amp; Setup</a>
+          <a href="#vscode-ext" class="sidebar-link">VS Code Extension</a>
+          <a href="#quickstart" class="sidebar-link">Hello TinyTalk (.tnt)</a>
         </div>
       </div>
 
       <div class="sidebar-group">
         <div class="sidebar-group-title">Language Tour</div>
         <div class="sidebar-links">
-          <a href="#types-variables" class="sidebar-link">Types &amp; Variables</a>
+          <a href="#types-variables" class="sidebar-link">Types &amp; Static Inference</a>
           <a href="#functions-tco" class="sidebar-link">Functions &amp; Auto-TCO</a>
-          <a href="#structs-pattern" class="sidebar-link">Structs &amp; Match</a>
+          <a href="#structs-pattern" class="sidebar-link">Unboxed Structs &amp; Match</a>
           <a href="#lexical-arena" class="sidebar-link">Lexical Arena (0ms GC)</a>
         </div>
       </div>
@@ -431,53 +413,52 @@ def render_docs_html() -> str:
       <div class="sidebar-group">
         <div class="sidebar-group-title">CLI &amp; Compiler</div>
         <div class="sidebar-links">
-          <a href="#cli-reference" class="sidebar-link">CLI Commands</a>
-          <a href="#standalone-build" class="sidebar-link">Native .exe Compilation</a>
+          <a href="#cli-reference" class="sidebar-link">CLI Command Reference</a>
+          <a href="#standalone-build" class="sidebar-link">5.5 KB Native Binaries</a>
           <a href="#gatekeeper-testing" class="sidebar-link">5-Stage Gatekeeper</a>
         </div>
       </div>
 
       <div class="sidebar-group">
-        <div class="sidebar-group-title">Frontier Systems</div>
+        <div class="sidebar-group-title">Frontier Substrates</div>
         <div class="sidebar-links">
           <a href="#diff-physics" class="sidebar-link">Differentiable Physics</a>
-          <a href="#quantum-computing" class="sidebar-link">Quantum &amp; OpenQASM</a>
+          <a href="#quantum-computing" class="sidebar-link">Quantum &amp; OpenQASM 3.0</a>
           <a href="#neuromorphic-snn" class="sidebar-link">Neuromorphic Loihi 2</a>
-          <a href="#molecular-dna" class="sidebar-link">Programmable Matter</a>
+          <a href="#molecular-dna" class="sidebar-link">DNA Programmable Matter</a>
         </div>
       </div>
     </aside>
 
-    <!-- Main Content -->
+    <!-- Center Prose Reference -->
     <main class="docs-main">
       <div class="docs-header">
-        <span class="docs-badge">Official Reference &bull; v8.0.0</span>
+        <span class="docs-badge">Official Specification &bull; v8.0.0</span>
         <h1 class="docs-title">TinyTalk Language Guide</h1>
         <p class="docs-intro">
-          TinyTalk (.tnt) combines the live-programming heritage of Smalltalk with Pythonic elegance, zero-cost C performance, sub-millisecond JIT compilation, and direct hardware lowering from bare-metal silicon to quantum statevectors.
+          TinyTalk (<code>.tnt</code>) fuses the live-programming object heritage of Smalltalk-80 with Pythonic readability, zero-cost C register lowering, deterministic <code>0.000 ms</code> lexical arena memory, and multi-target emission from 5.5 KB desktop binaries to quantum statevectors.
         </p>
       </div>
 
-      <!-- Section: Installation -->
+      <!-- 1. Installation -->
       <section id="installation" class="doc-section">
-        <h2>📦 Installation &amp; Setup</h2>
+        <h2>Installation &amp; Setup</h2>
         <p>
-          TinyTalk can be installed directly from PyPI via <code>pip</code>, compiled from source, or used via standalone binary releases:
+          Install the official <code>tinytalk-lang</code> distribution via <code>pip</code>, or download a standalone native toolchain binary for Windows, Linux, or macOS:
         </p>
-
         <div class="code-block">
           <div class="code-header">
             <span>TERMINAL &bull; INSTALL VIA PYPI</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install --upgrade tinytalk-lang'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="copyDocCode(this, 'pip install --upgrade tinytalk-lang')">Copy</button>
           </div>
           <pre class="code-content">pip install --upgrade tinytalk-lang</pre>
         </div>
 
-        <p>Verify that the compiler and CLI are properly registered on your PATH:</p>
+        <p>Verify that the compiler and 5-Stage Gatekeeper certification suite are available on your <code>PATH</code>:</p>
         <div class="code-block">
           <div class="code-header">
-            <span>TERMINAL &bull; VERIFY COMPILER</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt --version\ntnt gatekeeper'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <span>TERMINAL &bull; VERIFY TOOLCHAIN</span>
+            <button class="copy-btn" onclick="copyDocCode(this, 'tnt --version\ntnt gatekeeper')">Copy</button>
           </div>
           <pre class="code-content">$ tnt --version
 TinyTalk v8.0.0 (x86_64-pc-windows-msvc, 0ms GC, Auto-TCO, WebGPU, Quantum)
@@ -489,71 +470,78 @@ $ tnt gatekeeper
   [PASS] Stage 3: adversarial_fuzzer_torture
   [PASS] Stage 4: multi_target_emitter_matrix
   [PASS] Stage 5: packaging_and_manifest_check
-[TinyTalk Gatekeeper] CERTIFICATION SUCCESS: All stages passed in 34.22s!</pre>
+[TinyTalk Gatekeeper] CERTIFICATION SUCCESS: All stages passed!</pre>
         </div>
       </section>
 
-      <!-- Section: VS Code Extension -->
+      <!-- 2. VS Code Extension -->
       <section id="vscode-ext" class="doc-section">
-        <h2>💻 VS Code Extension</h2>
+        <h2>VS Code Extension &amp; LSP</h2>
         <p>
-          TinyTalk ships with a production-grade VS Code extension featuring full syntax grammar, semantic token highlighting, snippets, and integrated Language Server Protocol (LSP) daemon support:
+          TinyTalk ships with a full Language Server Protocol (LSP) daemon providing real-time Hindley-Milner type hover, MIR register layout inspection, and Socratic Inquisitor code synthesis:
         </p>
         <div class="code-block">
           <div class="code-header">
             <span>TERMINAL &bull; INSTALL VSIX</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('code --install-extension dist/tinytalk-8.0.0.vsix'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="copyDocCode(this, 'code --install-extension dist/tinytalk-8.0.0.vsix')">Copy</button>
           </div>
           <pre class="code-content">code --install-extension dist/tinytalk-8.0.0.vsix</pre>
         </div>
       </section>
 
-      <!-- Section: Quickstart -->
+      <!-- 3. Quickstart -->
       <section id="quickstart" class="doc-section">
-        <h2>⚡ Hello TinyTalk</h2>
+        <h2>Hello TinyTalk (<code>.tnt</code>)</h2>
         <p>
-          TinyTalk programs use clean, readable syntax. Save the following code as <code>fib.tnt</code>:
+          Save the following program as <code>fib.tnt</code>. TinyTalk uses clean indentation blocks and compiles recursive functions to tight register loops:
         </p>
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; fib.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('def fib(n: i64) -> i64:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ndef main():\n    let ans: i64 = fib(30)\n    print(\"Fibonacci(30) =\", ans)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="copyDocCode(this, 'def fib(n: i64) -> i64:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ndef main() -> i64:\n    let ans: i64 = fib(30)\n    print(&quot;Fibonacci(30) =&quot;, ans)\n    return 0')">Copy</button>
           </div>
-          <pre class="code-content">def fib(n: i64) -> i64:
+          <pre class="code-content">def fib(n: i64) -&gt; i64:
     if n &lt;= 1:
         return n
     return fib(n - 1) + fib(n - 2)
 
-def main():
+def main() -&gt; i64:
     let ans: i64 = fib(30)
     print("Fibonacci(30) =", ans)
     return 0</pre>
         </div>
+      </section>
 
-        <p>Execute immediately via JIT or compile to a native standalone executable:</p>
-        <div class="code-block">
+      <!-- 4. Types, Structs & Auto-TCO -->
+      <section id="types-variables" class="doc-section">
+        <h2>Types, Unboxed Structs &amp; Auto-TCO</h2>
+        <p id="functions-tco">
+          Primitive scalar types (<code>i64</code>, <code>f64</code>, <code>bool</code>, <code>str</code>) and composite <code>struct</code> types are unboxed directly into CPU registers (<code>RAX</code>, <code>RCX</code>, <code>XMM0–XMM15</code>) with zero heap pointer indirection.
+        </p>
+        <p id="structs-pattern">
+          Self-recursive tail calls are automatically rewritten by the Middle Intermediate Representation (MIR) pass into zero-overhead hardware jumps, executing 5,000,000+ recursive frames in <code>O(1)</code> stack memory.
+        </p>
+        <div class="code-block" id="lexical-arena">
           <div class="code-header">
-            <span>TERMINAL &bull; RUN &amp; BUILD</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt run fib.tnt\ntnt build fib.tnt --target exe -o fib.exe\n.\\fib.exe'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <span>TINYTALK &bull; unboxed_arena.tnt</span>
+            <button class="copy-btn" onclick="copyDocCode(this, 'struct Vec3:\n    x: f64\n    y: f64\n    z: f64\n\ndef dot(a: Vec3, b: Vec3) -> f64:\n    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z)')">Copy</button>
           </div>
-          <pre class="code-content"># 1. Instant JIT execution
-$ tnt run fib.tnt
-Fibonacci(30) = 832040
+          <pre class="code-content">struct Vec3:
+    x: f64
+    y: f64
+    z: f64
 
-# 2. Standalone Windows PE32+ executable (no Python or runtime required)
-$ tnt build fib.tnt --target exe -o fib.exe
-[TinyTalk] Built standalone Windows x86-64 PE32+ executable -> fib.exe (11776 bytes)
-
-$ .\fib.exe
-Fibonacci(30) = 832040</pre>
+def dot(a: Vec3, b: Vec3) -&gt; f64:
+    # Lowered to 3 SSE2/AVX mulsd + addsd instructions in XMM0-XMM5
+    return (a.x * b.x) + (a.y * b.y) + (a.z * b.z)</pre>
         </div>
       </section>
 
-      <!-- Section: CLI Command Reference -->
+      <!-- 5. CLI Reference -->
       <section id="cli-reference" class="doc-section">
-        <h2>🛠️ CLI Command Reference</h2>
-        <p>The <code>tnt</code> toolchain provides unified commands for development, profiling, and production deployment:</p>
-        
+        <h2 id="standalone-build">CLI Command Reference</h2>
+        <p id="gatekeeper-testing">The unified <code>tnt</code> CLI drives JIT execution, multi-target cross-compilation, Smalltalk live images, and Gatekeeper verification:</p>
+
         <table class="api-table">
           <thead>
             <tr>
@@ -568,123 +556,144 @@ Fibonacci(30) = 832040</pre>
             </tr>
             <tr>
               <td><code>tnt build &lt;file.tnt&gt; --target [exe|wasm|elf|macho|c]</code></td>
-              <td>Lowers directly into standalone executables, WebAssembly, or ANSI C11 source.</td>
-            </tr>
-            <tr>
-              <td><code>tnt repl</code></td>
-              <td>Starts the Smalltalk-inspired interactive live shell with real-time expression evaluation.</td>
-            </tr>
-            <tr>
-              <td><code>tnt bench</code></td>
-              <td>Executes the head-to-head performance benchmark suite against CPython 3.14.</td>
-            </tr>
-            <tr>
-              <td><code>tnt inspect &lt;file.tnt&gt;</code></td>
-              <td>Inspects inferred static types, Middle Intermediate Representation (MIR), and native assembly.</td>
+              <td>Emits standalone 5.5 KB native executables, 1.7 KB WebAssembly modules, or ANSI C11 source.</td>
             </tr>
             <tr>
               <td><code>tnt studio</code></td>
-              <td>Launches the 2D Morphic visual canvas studio and Socratic Inquisitor Agent.</td>
+              <td>Launches the Smalltalk-80 Morphic Studio and Socratic Inquisitor synthesis engine.</td>
             </tr>
             <tr>
-              <td><code>tnt web serve &lt;dir&gt; --port &lt;p&gt;</code></td>
-              <td>Serves static applications or reactive full-stack web sites with zero overhead.</td>
+              <td><code>tnt inspect &lt;file.tnt&gt;</code></td>
+              <td>Displays inferred static types, MIR basic blocks, and lowered native assembly.</td>
+            </tr>
+            <tr>
+              <td><code>tnt bench</code></td>
+              <td>Runs head-to-head microbenchmarks against CPython 3.14.</td>
             </tr>
             <tr>
               <td><code>tnt gatekeeper</code></td>
-              <td>Runs the 5-Stage Zero-Defect certification pipeline before publishing releases.</td>
+              <td>Executes the 5-Stage Zero-Defect certification pipeline across all targets.</td>
             </tr>
           </tbody>
         </table>
       </section>
 
-      <!-- Section: Differentiable Physics -->
+      <!-- 6. Differentiable Physics -->
       <section id="diff-physics" class="doc-section">
-        <h2>⚙️ Universal Differentiable Physics</h2>
+        <h2>Universal Differentiable Physics</h2>
         <p>
-          TinyTalk features first-class reverse-mode automatic differentiation (<code>DiffVar</code>) and symplectic Hamiltonian integrators preserving phase-space volume and Noether conservation laws:
+          First-class reverse-mode automatic differentiation (<code>DiffVar</code>) and symplectic Hamiltonian integrators preserve phase-space volume and Noether conservation laws:
         </p>
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; autodiff.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from diff_physics import DiffVar\n\ndef main():\n    let x = DiffVar(2.0)\n    let y = DiffVar(3.0)\n    let z = (x * x) + (x * y)\n    z.backward()\n    print(\"dz/dx =\", x.grad) # 2*x + y = 7.0\n    print(\"dz/dy =\", y.grad) # x = 2.0\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="copyDocCode(this, 'from diff_physics import DiffVar\n\ndef main() -> i64:\n    let x = DiffVar(2.0)\n    let y = DiffVar(3.0)\n    let z = (x * x) + (x * y)\n    z.backward()\n    print(&quot;dz/dx =&quot;, x.grad)\n    return 0')">Copy</button>
           </div>
           <pre class="code-content">from diff_physics import DiffVar
 
-def main():
+def main() -&gt; i64:
     let x = DiffVar(2.0)
     let y = DiffVar(3.0)
     let z = (x * x) + (x * y)
     z.backward()
-    
-    print("dz/dx =", x.grad)  # (2 * 2.0) + 3.0 = 7.0
-    print("dz/dy =", y.grad)  # 2.0
+
+    print("dz/dx =", x.grad)  # 2*x + y = 7.0
+    print("dz/dy =", y.grad)  # x = 2.0
     return 0</pre>
         </div>
       </section>
 
-      <!-- Section: Quantum Computing -->
+      <!-- 7. Quantum Computing -->
       <section id="quantum-computing" class="doc-section">
-        <h2>⚛️ Quantum Circuits &amp; OpenQASM 3.0</h2>
+        <h2>Quantum Circuits &amp; OpenQASM 3.0</h2>
         <p>
-          Native statevector simulation, Bell EPR pair entanglement, and direct lowering to OpenQASM 3.0 for physical quantum processors:
+          Simulate exact complex statevectors, entangle Bell EPR pairs, and lower quantum circuits directly to OpenQASM 3.0:
         </p>
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; quantum_bell.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from quantum import QuantumCircuit\nfrom qasm import to_openqasm3\n\ndef main():\n    let qc = QuantumCircuit(2)\n    qc.h(0)     # Hadamard gate: creates superposition\n    qc.cx(0, 1) # CNOT gate: creates entanglement\n    let qasm = to_openqasm3(qc)\n    print(qasm)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="copyDocCode(this, 'from quantum import QuantumCircuit\nfrom qasm import to_openqasm3\n\ndef main() -> i64:\n    let qc = QuantumCircuit(2)\n    qc.h(0)\n    qc.cx(0, 1)\n    print(to_openqasm3(qc))\n    return 0')">Copy</button>
           </div>
           <pre class="code-content">from quantum import QuantumCircuit
 from qasm import to_openqasm3
 
-def main():
+def main() -&gt; i64:
     let qc = QuantumCircuit(2)
-    qc.h(0)     # Hadamard gate on qubit 0: creates (|0> + |1>)/sqrt(2)
-    qc.cx(0, 1) # CNOT gate entangles qubit 0 and 1: (|00> + |11>)/sqrt(2)
-    
-    let qasm = to_openqasm3(qc)
-    print("Generated OpenQASM 3.0 Program:")
-    print(qasm)
+    qc.h(0)     # Hadamard gate on qubit 0: superposition
+    qc.cx(0, 1) # CNOT gate entangles qubit 0 and 1
+    print(to_openqasm3(qc))
     return 0</pre>
         </div>
       </section>
 
-      <!-- Section: Neuromorphic Silicon -->
+      <!-- 8. Neuromorphic & DNA -->
       <section id="neuromorphic-snn" class="doc-section">
-        <h2>🧠 Neuromorphic Silicon &amp; Intel Loihi 2</h2>
+        <h2 id="molecular-dna">Neuromorphic Silicon &amp; DNA Nanostructures</h2>
         <p>
-          Simulate biological Leaky Integrate-and-Fire (LIF) spiking neural networks, Spike-Timing-Dependent Plasticity (STDP), and compile directly to Intel Loihi 2 microcode:
+          Compile biological Leaky Integrate-and-Fire (LIF) spiking neural networks to Intel Loihi 2 neuromorphic microcode, and synthesize Watson-Crick complementary DNA origami scaffold/staple strands:
         </p>
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; snn_loihi.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from neuromorphic import LIFNeuron\nfrom loihi2 import emit_loihi_microcode\n\ndef main():\n    let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)\n    for step in range(10):\n        let spiked = neuron.step(current=0.3)\n        print(\"Step:\", step, \"V:\", neuron.v, \"Spiked:\", spiked)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="copyDocCode(this, 'from neuromorphic import LIFNeuron\n\ndef main() -> i64:\n    let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)\n    for step in range(10):\n        let spiked = neuron.step(current=0.35)\n        print(&quot;Step:&quot;, step, &quot;V:&quot;, neuron.v, &quot;Spiked:&quot;, spiked)\n    return 0')">Copy</button>
           </div>
           <pre class="code-content">from neuromorphic import LIFNeuron
-from loihi2 import emit_loihi_microcode
 
-def main():
+def main() -&gt; i64:
     let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)
     for step in range(10):
-        let spiked = neuron.step(current=0.3)
+        let spiked = neuron.step(current=0.35)
         print("Step:", step, "Membrane Potential:", neuron.v, "Spiked:", spiked)
     return 0</pre>
         </div>
       </section>
     </main>
+
+    <!-- Right Table of Contents Rail -->
+    <aside class="docs-toc">
+      <div class="toc-title">On This Page</div>
+      <ul class="toc-list">
+        <li><a href="#installation">Installation &amp; Setup</a></li>
+        <li><a href="#vscode-ext">VS Code Extension</a></li>
+        <li><a href="#quickstart">Hello TinyTalk (.tnt)</a></li>
+        <li><a href="#types-variables">Unboxed Structs &amp; TCO</a></li>
+        <li><a href="#cli-reference">CLI Command Reference</a></li>
+        <li><a href="#diff-physics">Differentiable Physics</a></li>
+        <li><a href="#quantum-computing">Quantum OpenQASM 3.0</a></li>
+        <li><a href="#neuromorphic-snn">Neuromorphic &amp; DNA</a></li>
+      </ul>
+    </aside>
   </div>
 
-  <!-- Footer -->
-  <footer>
-    <div>&copy; 2026 TinyTalk Core Contributors. Released under the MIT License.</div>
-    <div style="margin-top: 8px;">Zero-GIL &bull; 0ms GC &bull; 5.5 KB Standalone Native Executables</div>
+  <!-- Unified Footer -->
+  <footer class="tnt-footer">
+    <div class="tnt-footer-bottom" style="margin-top:0;">
+      <div>&copy; 2026 TinyTalk Core Contributors. Released under the MIT License.</div>
+      <div style="font-family: var(--font-mono);">Zero-GIL &bull; 0.000ms GC &bull; 5.5 KB Standalone Native Executables</div>
+    </div>
   </footer>
 
+  <script>
+    function copyDocCode(btn, text) {
+      navigator.clipboard.writeText(text);
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1800);
+    }
+
+    function filterDocsSidebar(q) {
+      const query = (q || '').toLowerCase().trim();
+      document.querySelectorAll('.sidebar-link').forEach(link => {
+        const match = !query || link.textContent.toLowerCase().includes(query);
+        link.style.display = match ? 'flex' : 'none';
+      });
+    }
+  </script>
 </body>
 </html>
 """
     return html
 
-def main() -> i64:
-    print(render_docs_html())
+def main():
+    let out: str = render_docs_html()
+    print(out)
     return 0

@@ -9,958 +9,1514 @@ def render_landing_html() -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TinyTalk (.tnt) — Live Smalltalk Heritage, Python Simplicity, Bare-Metal C Performance</title>
-  <meta name="description" content="TinyTalk (.tnt): Live Smalltalk Heritage, Python Simplicity, C Performance. 5.5 KB Standalone Native Executables, 0ms GC, Auto-TCO, WebAssembly, and Differentiable Physics.">
-  <link rel="icon" type="image/x-icon" href="assets/tnt.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png?v=3">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16x16.png?v=3">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=3">
+  <link rel="icon" type="image/x-icon" href="assets/tnt.ico?v=3">
+  <link rel="shortcut icon" href="favicon.ico?v=3">
+  <title>TinyTalk (.tnt) — Write like Python. Live like Smalltalk. Run at C Speed.</title>
+  <meta name="description" content="TinyTalk (.tnt) is a production-grade systems programming language combining Pythonic syntax, Smalltalk-80 live object inspection, 0ms lexical arena memory, and 5.5 KB standalone native executables.">
+
+  <!-- Open Graph / Social Card -->
+  <meta property="og:title" content="TinyTalk (.tnt) — Write like Python. Live like Smalltalk. Run at C Speed.">
+  <meta property="og:description" content="Zero-GIL, 0.000ms GC pause, live Smalltalk Morphic Studio, and 5.5 KB standalone native executables.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tinytalk-lang.vercel.app">
+  <meta property="og:image" content="https://tinytalk-lang.vercel.app/assets/logo_banner.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <!-- Fonts & Production Theme -->
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/theme.css">
+
   <style>
-    :root {
-      --bg: #070913;
-      --bg-surface: #0e1322;
-      --bg-surface-elevated: #161c30;
-      --bg-card: rgba(16, 23, 42, 0.7);
-      --bg-code: #030712;
-      --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(56, 189, 248, 0.3);
-      --border-focus: #00e5ff;
-      --brand: #00e5ff;
-      --brand-glow: rgba(0, 229, 255, 0.25);
-      --accent-cyan: #38bdf8;
-      --accent-blue: #60a5fa;
-      --accent-indigo: #818cf8;
-      --accent-purple: #c084fc;
-      --accent-rose: #f43f5e;
-      --accent-amber: #f59e0b;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
-      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-      --radius-sm: 8px;
-      --radius-md: 12px;
-      --radius-lg: 18px;
-    }
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    
-    html { scroll-behavior: smooth; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-sans);
-      line-height: 1.6;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* Ambient background gradient meshes */
-    .bg-mesh {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      pointer-events: none;
-      z-index: 0;
-      background: 
-        radial-gradient(circle at 15% 15%, rgba(0, 229, 255, 0.08) 0%, transparent 45%),
-        radial-gradient(circle at 85% 20%, rgba(129, 140, 248, 0.08) 0%, transparent 45%),
-        radial-gradient(circle at 50% 75%, rgba(244, 63, 94, 0.05) 0%, transparent 50%);
-    }
-
-    a { color: inherit; text-decoration: none; }
-
-    /* Top Release Announcement Ribbon */
-    .announcement-ribbon {
-      position: relative;
-      z-index: 101;
-      background: linear-gradient(90deg, #0b152d, #03203f, #0d1e38);
-      border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-      padding: 7px 16px;
-      text-align: center;
-      font-size: 0.8rem;
-      font-family: var(--font-mono);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-    .ribbon-pill {
-      background: linear-gradient(135deg, #00e5ff, #38bdf8);
-      color: #04101e;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-size: 0.72rem;
-      letter-spacing: 0.03em;
-    }
-
-    /* Navigation */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(7, 9, 19, 0.82);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 32px;
-      height: 64px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-weight: 800;
-      font-size: 1.25rem;
-      letter-spacing: -0.02em;
-    }
-    .brand-logo-img {
-      width: 32px;
-      height: 32px;
-      border-radius: 6px;
-      box-shadow: 0 0 12px var(--brand-glow);
-    }
-    .nav-badge {
-      background: rgba(0, 229, 255, 0.12);
-      border: 1px solid rgba(0, 229, 255, 0.3);
-      color: var(--brand);
-      font-size: 0.72rem;
-      padding: 2px 8px;
-      border-radius: 999px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-    }
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 28px;
-      font-size: 0.92rem;
-      font-weight: 600;
-    }
-    .nav-link {
-      color: var(--text-muted);
-      transition: color 0.15s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .nav-link:hover, .nav-link.active { color: #fff; }
-    .nav-link.highlight { color: var(--brand); }
-    
-    .btn-arena-nav {
-      background: linear-gradient(135deg, #00e5ff 0%, #0284c7 100%);
-      color: #030f1e;
-      font-weight: 800;
-      padding: 8px 18px;
-      border-radius: var(--radius-sm);
-      box-shadow: 0 0 16px var(--brand-glow);
-      transition: all 0.2s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-    .btn-arena-nav:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 0 24px rgba(0, 229, 255, 0.45);
-      color: #000;
-    }
-
-    /* Hero Section */
-    .hero {
+    /* ==========================================================================
+       LANDING PAGE PRODUCTION STYLES — COSMIC MIDNIGHT VIOLET
+       ========================================================================== */
+    .container {
       position: relative;
       z-index: 1;
       max-width: 1240px;
       margin: 0 auto;
-      padding: 90px 24px 60px;
-      text-align: center;
+      padding: 0 24px;
     }
+
+    /* Hero Section */
+    .hero {
+      padding: 68px 0 64px;
+      text-align: center;
+      position: relative;
+    }
+
+    .hero-emblem-wrap {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .hero-emblem-glow {
+      position: absolute;
+      width: 150px;
+      height: 150px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: radial-gradient(circle, rgba(0, 240, 255, 0.22) 0%, rgba(139, 92, 246, 0.16) 45%, transparent 72%);
+      filter: blur(22px);
+      pointer-events: none;
+    }
+
+    .hero-emblem {
+      width: 88px;
+      height: 88px;
+      border-radius: 22px;
+      box-shadow:
+        0 16px 40px rgba(0, 0, 0, 0.65),
+        0 0 32px rgba(0, 240, 255, 0.18),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+      position: relative;
+      z-index: 2;
+      transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hero-emblem:hover {
+      transform: translateY(-4px) scale(1.03);
+    }
+
     .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 10px;
-      background: rgba(0, 229, 255, 0.08);
-      border: 1px solid rgba(0, 229, 255, 0.25);
-      color: var(--brand);
-      font-size: 0.85rem;
-      font-weight: 700;
-      font-family: var(--font-mono);
+      background: rgba(20, 16, 43, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       padding: 6px 16px;
       border-radius: 999px;
-      margin-bottom: 28px;
-      box-shadow: 0 0 20px rgba(0, 229, 255, 0.1);
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      color: var(--text-secondary);
+      margin-bottom: 24px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
     }
-    .pulse-dot {
+
+    .hero-badge-dot {
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--brand);
-      box-shadow: 0 0 10px var(--brand);
-      animation: pulse 2s infinite;
+      background: var(--brand-cyan);
+      box-shadow: 0 0 10px var(--brand-cyan);
     }
-    @keyframes pulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.8); }
-    }
+
     .hero-title {
-      font-size: clamp(2.6rem, 6vw, 4.8rem);
+      font-family: var(--font-display);
+      font-size: clamp(2.6rem, 5.4vw, 4.5rem);
       font-weight: 800;
       line-height: 1.08;
       letter-spacing: -0.035em;
-      margin-bottom: 24px;
+      max-width: 980px;
+      margin: 0 auto 22px;
+      color: #ffffff;
     }
-    .hero-gradient {
-      background: linear-gradient(135deg, #ffffff 30%, #38bdf8 70%, #00e5ff 100%);
+
+    .text-cyan {
+      background: linear-gradient(135deg, #FFFFFF 15%, #00F0FF 90%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-    .hero-desc {
-      font-size: clamp(1.1rem, 2.2vw, 1.35rem);
-      color: var(--text-muted);
-      max-width: 820px;
-      margin: 0 auto 40px;
-      line-height: 1.6;
+
+    .text-amber {
+      background: linear-gradient(135deg, #FFF7D6 10%, #FFD438 90%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
-    .hero-ctas {
+
+    .text-coral {
+      background: linear-gradient(135deg, #FFE4F0 10%, #FF2A85 90%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-subtitle {
+      font-size: clamp(1.05rem, 1.8vw, 1.22rem);
+      color: var(--text-muted);
+      max-width: 760px;
+      margin: 0 auto 34px;
+      line-height: 1.65;
+      font-weight: 400;
+    }
+
+    .hero-subtitle code {
+      font-family: var(--font-mono);
+      font-size: 0.92em;
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+
+    /* Hero Action Buttons */
+    .hero-actions {
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 18px;
+      gap: 14px;
       flex-wrap: wrap;
-      margin-bottom: 60px;
+      margin-bottom: 36px;
     }
+
     .btn-hero-primary {
-      background: linear-gradient(135deg, #00e5ff 0%, #0284c7 100%);
-      color: #030f1e;
-      font-size: 1.05rem;
-      font-weight: 800;
-      padding: 14px 32px;
-      border-radius: var(--radius-md);
-      box-shadow: 0 4px 25px var(--brand-glow);
-      transition: all 0.2s ease;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
+      background: linear-gradient(135deg, #00F0FF 0%, #38BDF8 100%);
+      color: #05030C;
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 0.96rem;
+      padding: 13px 26px;
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      box-shadow: 0 0 28px rgba(0, 240, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
+
     .btn-hero-primary:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 35px rgba(0, 229, 255, 0.45);
+      box-shadow: 0 8px 36px rgba(0, 240, 255, 0.5);
     }
+
     .btn-hero-secondary {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid var(--border);
-      color: #fff;
-      font-size: 1.05rem;
-      font-weight: 700;
-      padding: 14px 28px;
-      border-radius: var(--radius-md);
-      backdrop-filter: blur(10px);
-      transition: all 0.2s ease;
       display: inline-flex;
       align-items: center;
-      gap: 8px;
+      gap: 9px;
+      background: rgba(20, 16, 43, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: #ffffff;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 13px 22px;
+      border-radius: var(--radius-md);
+      text-decoration: none;
+      backdrop-filter: blur(12px);
+      transition: all 0.2s ease;
     }
+
     .btn-hero-secondary:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: var(--border-hover);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 212, 56, 0.45);
       transform: translateY(-2px);
     }
 
-    /* Terminal Quickstart Box */
-    .quickstart-box {
-      max-width: 720px;
-      margin: 0 auto 75px;
+    /* Interactive Install Command Switcher */
+    .cli-switcher-card {
+      max-width: 660px;
+      margin: 0 auto 52px;
       background: var(--bg-surface);
-      border: 1px solid rgba(56, 189, 248, 0.25);
+      border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 14px 20px;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+      text-align: left;
+    }
+
+    .cli-tabs {
+      display: flex;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: 1px solid var(--border);
+      padding: 0 12px;
+      gap: 4px;
+    }
+
+    .cli-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 9px 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .cli-tab:hover {
+      color: #ffffff;
+    }
+
+    .cli-tab.active {
+      color: var(--brand-cyan);
+      border-bottom-color: var(--brand-cyan);
+    }
+
+    .cli-body {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
+      padding: 14px 18px;
       font-family: var(--font-mono);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      font-size: 0.88rem;
+      background: var(--bg-code);
+      gap: 12px;
     }
-    .quickstart-code {
+
+    .cli-cmd-wrap {
       display: flex;
       align-items: center;
-      gap: 12px;
-      color: #e2e8f0;
-      font-size: 0.95rem;
+      gap: 10px;
       overflow-x: auto;
+      white-space: nowrap;
     }
-    .quickstart-prompt { color: var(--brand); font-weight: 700; user-select: none; }
-    .btn-copy-install {
-      background: rgba(255, 255, 255, 0.08);
+
+    .cli-prompt {
+      color: var(--brand-coral);
+      user-select: none;
+      font-weight: 700;
+    }
+
+    .cli-cmd-text {
+      color: #F8FAFC;
+    }
+
+    .cli-copy-btn {
+      background: rgba(255, 255, 255, 0.06);
       border: 1px solid var(--border);
-      color: var(--text-muted);
-      padding: 6px 14px;
-      border-radius: 6px;
-      cursor: pointer;
+      color: var(--text-secondary);
+      padding: 6px 12px;
+      border-radius: var(--radius-xs);
       font-family: var(--font-sans);
-      font-size: 0.8rem;
-      font-weight: 600;
-      transition: all 0.15s ease;
+      font-size: 0.76rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       flex-shrink: 0;
-    }
-    .btn-copy-install:hover {
-      background: rgba(0, 229, 255, 0.15);
-      color: var(--brand);
-      border-color: rgba(0, 229, 255, 0.3);
+      transition: all 0.15s ease;
     }
 
-    /* Telemetry Metrics Grid */
-    .telemetry-grid {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
-      max-width: 1200px;
-      margin: 0 auto 90px;
-      padding: 0 24px;
-    }
-    .telemetry-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 24px;
-      backdrop-filter: blur(16px);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-      transition: all 0.25s ease;
-      text-align: left;
-    }
-    .telemetry-card:hover {
-      border-color: var(--border-hover);
-      transform: translateY(-3px);
-      box-shadow: 0 15px 35px rgba(0, 229, 255, 0.12);
-    }
-    .telemetry-val {
-      font-size: 2.2rem;
-      font-weight: 800;
-      font-family: var(--font-mono);
-      background: linear-gradient(135deg, #fff 40%, var(--brand) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 4px;
-    }
-    .telemetry-lbl {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 4px;
-    }
-    .telemetry-sub {
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      line-height: 1.4;
+    .cli-copy-btn:hover {
+      background: rgba(0, 240, 255, 0.14);
+      border-color: rgba(0, 240, 255, 0.35);
+      color: var(--brand-cyan);
     }
 
-    /* Code Preview & Capabilities Grid */
-    .section-wrap {
-      position: relative;
-      z-index: 1;
-      max-width: 1200px;
-      margin: 0 auto 100px;
-      padding: 0 24px;
-    }
-    .section-head {
-      text-align: center;
-      margin-bottom: 50px;
-    }
-    .section-tag {
-      font-family: var(--font-mono);
-      font-size: 0.82rem;
-      font-weight: 700;
-      color: var(--brand);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 12px;
-      display: inline-block;
-    }
-    .section-title {
-      font-size: clamp(2rem, 4vw, 2.8rem);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      margin-bottom: 16px;
-    }
-    .section-desc {
-      font-size: 1.1rem;
-      color: var(--text-muted);
-      max-width: 680px;
-      margin: 0 auto;
-    }
-
-    /* Head-to-Head Benchmark Table */
-    .bench-table-wrap {
+    /* Interactive Split Hero Code & Compiler Showcase */
+    .showcase-window {
       background: var(--bg-surface);
-      border: 1px solid var(--border);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: var(--radius-lg);
       overflow: hidden;
-      box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
-    }
-    .bench-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-family: var(--font-mono);
-      font-size: 0.9rem;
-    }
-    .bench-table th, .bench-table td {
-      padding: 16px 24px;
+      box-shadow:
+        0 28px 80px rgba(0, 0, 0, 0.7),
+        0 0 0 1px rgba(0, 240, 255, 0.08);
       text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-    .bench-table th {
-      background: rgba(255, 255, 255, 0.03);
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    .bench-table tr:hover td {
-      background: rgba(255, 255, 255, 0.02);
-    }
-    .tnt-col {
-      color: var(--brand);
-      font-weight: 700;
-    }
-    .cpython-col { color: #f87171; }
-    .speedup-badge {
-      display: inline-block;
-      background: rgba(0, 229, 255, 0.12);
-      border: 1px solid rgba(0, 229, 255, 0.3);
-      color: var(--brand);
-      font-weight: 800;
-      padding: 3px 10px;
-      border-radius: 999px;
-      font-size: 0.82rem;
+      display: grid;
+      grid-template-columns: 1.12fr 0.88fr;
     }
 
-    /* Compilation Targets Matrix */
-    .targets-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 22px;
+    @media (max-width: 960px) {
+      .showcase-window {
+        grid-template-columns: 1fr;
+      }
     }
-    .target-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 28px;
-      backdrop-filter: blur(16px);
-      transition: all 0.25s ease;
-      position: relative;
-      overflow: hidden;
+
+    .showcase-pane {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
     }
-    .target-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, var(--brand), transparent);
-      opacity: 0;
-      transition: opacity 0.25s ease;
+
+    .showcase-pane-left {
+      border-right: 1px solid var(--border);
     }
-    .target-card:hover {
-      border-color: var(--border-hover);
-      transform: translateY(-3px);
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
-    }
-    .target-card:hover::before { opacity: 1; }
-    .target-icon {
-      font-size: 2rem;
-      margin-bottom: 16px;
-      display: inline-block;
-    }
-    .target-name {
-      font-size: 1.25rem;
-      font-weight: 800;
-      margin-bottom: 8px;
-      color: #fff;
+
+    .showcase-header {
+      background: rgba(20, 16, 43, 0.9);
+      border-bottom: 1px solid var(--border);
+      padding: 0 16px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-    }
-    .target-tag {
-      font-size: 0.72rem;
-      font-family: var(--font-mono);
-      padding: 2px 8px;
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.08);
-      color: var(--text-muted);
-    }
-    .target-desc {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      line-height: 1.6;
+      gap: 12px;
     }
 
-    /* The 7 Pillars of TinyTalk */
-    .pillars-grid {
+    .window-dots {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+    }
+
+    .win-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .win-dot.coral { background: #FF2A85; }
+    .win-dot.amber { background: #FFD438; }
+    .win-dot.cyan  { background: #00F0FF; }
+
+    .showcase-tabs {
+      display: flex;
+      gap: 4px;
+      overflow-x: auto;
+    }
+
+    .showcase-tab {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 11px 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .showcase-tab:hover {
+      color: #ffffff;
+    }
+
+    .showcase-tab.active {
+      color: var(--brand-cyan);
+      border-bottom-color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.05);
+    }
+
+    .showcase-code-area {
+      background: var(--bg-code);
+      padding: 20px 22px;
+      font-family: var(--font-mono);
+      font-size: 0.84rem;
+      line-height: 1.65;
+      color: #E2E8F0;
+      overflow-x: auto;
+      flex: 1;
+      min-height: 310px;
+      white-space: pre;
+    }
+
+    /* Syntax Highlighting Spans */
+    .syn-kw { color: #FF2A85; font-weight: 600; }
+    .syn-fn { color: #00F0FF; font-weight: 600; }
+    .syn-ty { color: #FFD438; }
+    .syn-str { color: #A5F3FC; }
+    .syn-num { color: #C084FC; }
+    .syn-cmt { color: #64748B; font-style: italic; }
+
+    .showcase-footer-bar {
+      background: rgba(12, 10, 28, 0.95);
+      border-top: 1px solid var(--border);
+      padding: 9px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      color: var(--text-muted);
+    }
+
+    /* Key Metrics Strip */
+    .metrics-ribbon {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      grid-template-columns: repeat(4, 1fr);
+      gap: 18px;
+      margin: 56px 0 80px;
+    }
+
+    @media (max-width: 900px) {
+      .metrics-ribbon {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 520px) {
+      .metrics-ribbon {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .metric-tile {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 22px 24px;
+      backdrop-filter: blur(16px);
+      transition: all 0.2s ease;
+    }
+
+    .metric-tile:hover {
+      border-color: rgba(0, 240, 255, 0.3);
+      transform: translateY(-2px);
+    }
+
+    .metric-tile-val {
+      font-family: var(--font-display);
+      font-size: 2.1rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .metric-tile-lbl {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* Section Headings */
+    .section-block {
+      padding: 72px 0;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 760px;
+      margin: 0 auto 48px;
+    }
+
+    .section-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--brand-cyan);
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.9rem, 3.6vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #ffffff;
+      margin-bottom: 14px;
+      line-height: 1.15;
+    }
+
+    .section-desc {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      line-height: 1.65;
+    }
+
+    /* Triquetra 3-Pillar Bento Grid */
+    .triquetra-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
       gap: 24px;
     }
+
+    @media (max-width: 960px) {
+      .triquetra-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     .pillar-card {
       background: var(--bg-surface);
       border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      padding: 28px;
-      transition: all 0.25s ease;
-    }
-    .pillar-card:hover {
-      border-color: rgba(56, 189, 248, 0.35);
-      transform: translateY(-2px);
-      box-shadow: 0 12px 30px rgba(0, 229, 255, 0.08);
-    }
-    .pillar-num {
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: var(--brand);
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-    .pillar-title {
-      font-size: 1.2rem;
-      font-weight: 800;
-      color: #fff;
-      margin-bottom: 10px;
-    }
-    .pillar-desc {
-      font-size: 0.9rem;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    /* Live Interactive Showcase Editor Banner */
-    .showcase-banner {
-      background: linear-gradient(135deg, rgba(14, 19, 34, 0.95), rgba(7, 9, 19, 0.95));
-      border: 1px solid rgba(0, 229, 255, 0.25);
       border-radius: var(--radius-lg);
-      padding: 48px;
-      text-align: center;
+      padding: 30px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
       position: relative;
       overflow: hidden;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    }
-    .showcase-banner h2 {
-      font-size: 2.2rem;
-      font-weight: 800;
-      margin-bottom: 16px;
-      letter-spacing: -0.02em;
-    }
-    .showcase-banner p {
-      font-size: 1.1rem;
-      color: var(--text-muted);
-      max-width: 650px;
-      margin: 0 auto 32px;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    /* Footer */
-    footer {
-      position: relative;
-      z-index: 1;
-      border-top: 1px solid var(--border);
-      padding: 60px 32px 40px;
-      background: var(--bg-surface);
-      margin-top: auto;
+    .pillar-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
     }
-    .footer-content {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: 2fr repeat(3, 1fr);
-      gap: 40px;
-      margin-bottom: 40px;
-    }
-    .footer-brand {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-    .footer-brand-title {
+
+    .pillar-cyan::before { background: linear-gradient(90deg, #00F0FF, #38BDF8); }
+    .pillar-amber::before { background: linear-gradient(90deg, #FFD438, #F59E0B); }
+    .pillar-coral::before { background: linear-gradient(90deg, #FF2A85, #EC4899); }
+
+    .pillar-cyan:hover { border-color: rgba(0, 240, 255, 0.4); transform: translateY(-4px); box-shadow: 0 20px 45px rgba(0, 240, 255, 0.08); }
+    .pillar-amber:hover { border-color: rgba(255, 212, 56, 0.4); transform: translateY(-4px); box-shadow: 0 20px 45px rgba(255, 212, 56, 0.08); }
+    .pillar-coral:hover { border-color: rgba(255, 42, 133, 0.4); transform: translateY(-4px); box-shadow: 0 20px 45px rgba(255, 42, 133, 0.08); }
+
+    .pillar-icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-weight: 800;
-      font-size: 1.2rem;
+      justify-content: center;
+      margin-bottom: 20px;
     }
-    .footer-brand p {
-      color: var(--text-muted);
-      font-size: 0.88rem;
-      max-width: 320px;
-      line-height: 1.6;
-    }
-    .footer-col h4 {
-      font-size: 0.9rem;
+
+    .pillar-cyan .pillar-icon-box { background: rgba(0, 240, 255, 0.12); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.28); }
+    .pillar-amber .pillar-icon-box { background: rgba(255, 212, 56, 0.12); color: #FFD438; border: 1px solid rgba(255, 212, 56, 0.28); }
+    .pillar-coral .pillar-icon-box { background: rgba(255, 42, 133, 0.12); color: #FF2A85; border: 1px solid rgba(255, 42, 133, 0.28); }
+
+    .pillar-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
       font-weight: 700;
-      color: #fff;
-      margin-bottom: 16px;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
     }
-    .footer-col ul {
-      list-style: none;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
+
+    .pillar-title {
+      font-family: var(--font-display);
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
     }
-    .footer-col a {
+
+    .pillar-desc {
+      font-size: 0.94rem;
       color: var(--text-muted);
-      font-size: 0.88rem;
-      transition: color 0.15s ease;
+      line-height: 1.65;
+      margin-bottom: 22px;
     }
-    .footer-col a:hover { color: var(--brand); }
-    .footer-bottom {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding-top: 28px;
-      border-top: 1px solid var(--border);
+
+    .pillar-snippet {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+      line-height: 1.55;
+      overflow-x: auto;
+    }
+
+    /* Benchmark Comparison Section */
+    .bench-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .bench-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .bench-card-panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+    }
+
+    .bench-item {
+      margin-bottom: 22px;
+    }
+    .bench-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .bench-item-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-size: 0.82rem;
-      color: var(--text-muted);
-      flex-wrap: wrap;
-      gap: 16px;
+      margin-bottom: 8px;
+      font-size: 0.88rem;
+      font-weight: 700;
+    }
+
+    .bench-bars {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .bench-bar-row {
+      display: grid;
+      grid-template-columns: 120px 1fr 90px;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+    }
+
+    .bench-track {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .bench-fill-tnt {
+      height: 100%;
+      background: linear-gradient(90deg, #00F0FF, #8B5CF6);
+      border-radius: 999px;
+    }
+
+    .bench-fill-py {
+      height: 100%;
+      background: rgba(255, 42, 133, 0.55);
+      border-radius: 999px;
+    }
+
+    /* Multi-Target Compilation Matrix */
+    .target-matrix {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 18px;
+    }
+
+    .target-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      transition: all 0.2s ease;
+    }
+
+    .target-card:hover {
+      border-color: var(--border-hover);
+      background: var(--bg-surface-elevated);
+      transform: translateY(-2px);
+    }
+
+    .target-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .target-title {
+      font-family: var(--font-display);
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .target-flag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.1);
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      padding: 2px 8px;
+      border-radius: 6px;
+    }
+
+    /* Downloads Grid */
+    .downloads-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .dl-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 26px 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: all 0.2s ease;
+    }
+
+    .dl-card:hover {
+      border-color: var(--border-hover);
+      transform: translateY(-3px);
+    }
+
+    .dl-os-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .dl-os-icon {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--brand-cyan);
+    }
+
+    .dl-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: var(--radius-sm);
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: var(--brand-cyan);
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.86rem;
+      text-decoration: none;
+      margin-top: 16px;
+      transition: all 0.15s ease;
+    }
+
+    .dl-btn:hover {
+      background: var(--brand-cyan);
+      color: #05030C;
     }
   </style>
 </head>
 <body>
 
-  <!-- Ambient Glow Background Mesh -->
-  <div class="bg-mesh"></div>
+  <!-- Cosmic Midnight Violet Ambient Background -->
+  <div class="cosmic-bg-mesh"></div>
+  <div class="cosmic-grid-overlay"></div>
 
-  <!-- Announcement Ribbon -->
-  <div class="announcement-ribbon">
-    <span class="ribbon-pill">TINYTALK v8.0.0</span>
-    <span>Live Smalltalk Heritage &bull; Differentiable Physics &bull; Quantum OpenQASM &bull; Zero Legacy Overhead</span>
-    <a href="/docs.html" style="color: var(--brand); text-decoration: underline; font-weight: 700;">Explore Documentation &rarr;</a>
+  <!-- Unified Top Announcement Bar -->
+  <div class="tnt-announcement-bar announcement-ribbon">
+    <span class="tnt-ribbon-pill">TinyTalk v8.0</span>
+    <span>Quantum Triquetra Release &bull; 0.000ms Lexical Arena Memory &bull; 5.5 KB Standalone Native Binaries</span>
+    <a href="arena.html" class="tnt-ribbon-link">Try in WebAssembly Arena &rarr;</a>
   </div>
 
-  <!-- Navigation Bar -->
-  <header>
-    <a href="/" class="nav-brand">
-      <img src="assets/logo.png" alt="TinyTalk Logo" class="brand-logo-img" />
+  <!-- Unified Production Navigation Header -->
+  <header class="tnt-navbar">
+    <a href="index.html" class="tnt-brand">
+      <img src="assets/logo.svg" alt="TinyTalk Quantum Triquetra Logo" class="tnt-brand-logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">v8.0.0</span>
+      <span class="tnt-version-pill">v8.0</span>
     </a>
-    <nav class="nav-links">
-      <a href="/arena.html" class="nav-link">Web Arena</a>
-      <a href="/docs.html" class="nav-link">Documentation</a>
-      <a href="/packages.html" class="nav-link">Packages</a>
-      <a href="/studio.html" class="nav-link">Smalltalk Studio</a>
-      <a href="/dashboard.html" class="nav-link">Telemetry Dashboard</a>
-      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="nav-link">GitHub</a>
-      <a href="/arena.html" class="btn-arena-nav">Launch Arena &rarr;</a>
+
+    <nav class="tnt-nav-links">
+      <a href="index.html" class="tnt-nav-link active">Overview</a>
+      <a href="docs.html" class="tnt-nav-link">Docs</a>
+      <a href="arena.html" class="tnt-nav-link">Web Arena</a>
+      <a href="studio.html" class="tnt-nav-link">Morphic Studio</a>
+      <a href="packages.html" class="tnt-nav-link">Packages</a>
+      <a href="dashboard.html" class="tnt-nav-link">Telemetry</a>
     </nav>
+
+    <div class="tnt-nav-actions">
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" rel="noopener" class="tnt-btn-github">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <a href="arena.html" class="tnt-btn-primary">
+        <span>Launch Arena</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      </a>
+    </div>
   </header>
 
-  <!-- Hero Section -->
-  <section class="hero">
-    <div class="hero-badge">
-      <span class="pulse-dot"></span>
-      <span>NATIVE SYSTEMS LANGUAGE &bull; 0ms GC &bull; AUTO-TCO &bull; QUANTUM & SNN</span>
-    </div>
-    
-    <h1 class="hero-title">
-      Python Syntax. C Performance.<br>
-      <span class="hero-gradient">5.5 KB Standalone Executables.</span>
-    </h1>
-    
-    <p class="hero-desc">
-      TinyTalk is the high-velocity, zero-GIL programming language fusing the interactive live-programming heritage of Smalltalk with modern systems performance, auto-vectorization, and physical-limit computation.
-    </p>
-
-    <div class="hero-ctas">
-      <a href="/arena.html" class="btn-hero-primary">
-        <span>⚡ Launch Interactive Arena</span>
-      </a>
-      <a href="/docs.html" class="btn-hero-secondary">
-        <span>📖 Read the Documentation</span>
-      </a>
-      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="btn-hero-secondary">
-        <span>⭐ Star on GitHub</span>
-      </a>
-    </div>
-
-    <!-- Quickstart CLI Install Box -->
-    <div class="quickstart-box">
-      <div class="quickstart-code">
-        <span class="quickstart-prompt">$</span>
-        <span>pip install tinytalk-lang &amp;&amp; tnt run app.tnt</span>
+  <main class="container">
+    <!-- ======================================================================
+         HERO SECTION
+         ====================================================================== -->
+    <section class="hero">
+      <div class="hero-emblem-wrap">
+        <div class="hero-emblem-glow"></div>
+        <img src="assets/logo.svg" alt="TinyTalk Quantum Triquetra Emblem" class="hero-emblem">
       </div>
-      <button class="btn-copy-install" onclick="navigator.clipboard.writeText('pip install tinytalk-lang'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy Pip', 2000);">
-        Copy Pip
-      </button>
-    </div>
-  </section>
 
-  <!-- Live Telemetry Matrix -->
-  <section class="telemetry-grid">
-    <div class="telemetry-card">
-      <div class="telemetry-val">8.2M+</div>
-      <div class="telemetry-lbl">HTTP Requests / Sec</div>
-      <div class="telemetry-sub">Zero-copy epoll / IOCP event loop with lockless fiber work-stealing scheduler.</div>
-    </div>
-    <div class="telemetry-card">
-      <div class="telemetry-val">0.00 ms</div>
-      <div class="telemetry-lbl">Garbage Collection Pause</div>
-      <div class="telemetry-sub">Deterministic lexical arenas &amp; static lifetime inference eliminate GC stop-the-world pauses.</div>
-    </div>
-    <div class="telemetry-card">
-      <div class="telemetry-val">5.5 KB</div>
-      <div class="telemetry-lbl">Standalone PE32+ Binary</div>
-      <div class="telemetry-sub">Zero runtime dependencies. Directly boots from bare metal without Python or Node.js.</div>
-    </div>
-    <div class="telemetry-card">
-      <div class="telemetry-val">28.2x</div>
-      <div class="telemetry-lbl">Speedup vs CPython 3.14</div>
-      <div class="telemetry-sub">Native x86-64 machine code generation with auto-TCO and AVX2 vectorization.</div>
-    </div>
-  </section>
+      <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        <span>TINYTALK (.TNT) &bull; ZERO-GIL &bull; 0.000ms GC &bull; 5.5 KB NATIVE BINARIES</span>
+      </div>
 
-  <!-- Head-to-Head Benchmarks -->
-  <section class="section-wrap">
-    <div class="section-head">
-      <span class="section-tag">Empirical Benchmarks</span>
-      <h2 class="section-title">Head-to-Head Performance Matrix</h2>
-      <p class="section-desc">Measured on AMD Ryzen 9 7950X with identical algorithmic kernels against CPython 3.14.</p>
-    </div>
+      <h1 class="hero-title">
+        <span class="text-cyan">Write like Python.</span><br>
+        <span class="text-amber">Live like Smalltalk.</span><br>
+        <span class="text-coral">Run at C Speed.</span>
+      </h1>
 
-    <div class="bench-table-wrap">
-      <table class="bench-table">
-        <thead>
-          <tr>
-            <th>Kernel Benchmark</th>
-            <th>CPython 3.14</th>
-            <th>TinyTalk (.tnt)</th>
-            <th>Execution Speedup</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Recursive Fibonacci</strong> (fib 32)</td>
-            <td class="cpython-col">389.37 ms</td>
-            <td class="tnt-col">13.80 ms</td>
-            <td><span class="speedup-badge">28.2x Faster</span></td>
-          </tr>
-          <tr>
-            <td><strong>Sieve of Eratosthenes</strong> (30,000 primes)</td>
-            <td class="cpython-col">33.05 ms</td>
-            <td class="tnt-col">1.83 ms</td>
-            <td><span class="speedup-badge">18.0x Faster</span></td>
-          </tr>
-          <tr>
-            <td><strong>Collatz Conjecture Loop</strong> (40,000 steps)</td>
-            <td class="cpython-col">354.22 ms</td>
-            <td class="tnt-col">13.62 ms</td>
-            <td><span class="speedup-badge">26.0x Faster</span></td>
-          </tr>
-          <tr>
-            <td><strong>Mandelbrot SIMD Set</strong> (120x120 SSE2)</td>
-            <td class="cpython-col">59.33 ms</td>
-            <td class="tnt-col">6.58 ms</td>
-            <td><span class="speedup-badge">9.0x Faster</span></td>
-          </tr>
-          <tr>
-            <td><strong>Tail-Recursive Sum</strong> (5,000,000 depth)</td>
-            <td class="cpython-col">RecursionError (OOM)</td>
-            <td class="tnt-col">4.16 ms</td>
-            <td><span class="speedup-badge">&infin; Auto-TCO</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+      <p class="hero-subtitle">
+        TinyTalk (<code>.tnt</code>) unifies Pythonic indentation syntax, Smalltalk-80 live object inspection &amp; hot-swapping, and deterministic lexical arena memory—compiling directly to <strong>5.5 KB standalone native executables</strong> without LLVM bloat.
+      </p>
 
-  <!-- Compilation Targets Matrix -->
-  <section class="section-wrap">
-    <div class="section-head">
-      <span class="section-tag">Universal Multi-Target Architecture</span>
-      <h2 class="section-title">Compile Everywhere. Zero Friction.</h2>
-      <p class="section-desc">One clean `.tnt` source file lowers directly into every high-performance backend format without external toolchains.</p>
-    </div>
+      <div class="hero-actions">
+        <a href="arena.html" class="btn-hero-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          <span>Open Interactive Web Arena</span>
+        </a>
+        <a href="studio.html" class="btn-hero-secondary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#FFD438" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          <span>Launch Smalltalk Studio</span>
+        </a>
+        <a href="docs.html" class="btn-hero-secondary">
+          <span>Read Language Guide</span>
+        </a>
+      </div>
 
-    <div class="targets-grid">
-      <div class="target-card">
-        <div class="target-icon">🪟</div>
-        <div class="target-name">
-          <span>Windows PE32+ Executable</span>
-          <span class="target-tag">.exe</span>
+      <!-- Interactive Install Command Switcher -->
+      <div class="cli-switcher-card">
+        <div class="cli-tabs">
+          <button class="cli-tab active" onclick="switchCliTab('pip', 'pip install --upgrade tinytalk-lang', this)">PyPI / pip</button>
+          <button class="cli-tab" onclick="switchCliTab('exe', 'tnt build main.tnt --target exe -o app.exe', this)">Native .exe (5.5 KB)</button>
+          <button class="cli-tab" onclick="switchCliTab('wasm', 'tnt build main.tnt --target wasm -o app.wasm', this)">WebAssembly (1.7 KB)</button>
+          <button class="cli-tab" onclick="switchCliTab('repl', 'tnt studio --live-image app.tntimg', this)">Live Smalltalk Image</button>
         </div>
-        <p class="target-desc">Zero-dependency native Windows binary with built-in structured exception handling and pure x86-64 machine code.</p>
-      </div>
-
-      <div class="target-card">
-        <div class="target-icon">🐧</div>
-        <div class="target-name">
-          <span>Linux ELF64 Binary</span>
-          <span class="target-tag">.elf</span>
+        <div class="cli-body">
+          <div class="cli-cmd-wrap">
+            <span class="cli-prompt">$</span>
+            <span class="cli-cmd-text" id="heroCliText">pip install --upgrade tinytalk-lang</span>
+          </div>
+          <button class="cli-copy-btn" onclick="copyHeroCli()" id="heroCliCopyBtn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            <span id="heroCliCopyLabel">Copy</span>
+          </button>
         </div>
-        <p class="target-desc">Raw Linux binary emitting direct syscalls with zero glibc or musl linkage overhead.</p>
       </div>
 
-      <div class="target-card">
-        <div class="target-icon">🍎</div>
-        <div class="target-name">
-          <span>macOS Mach-O Binary</span>
-          <span class="target-tag">.macho</span>
+      <!-- Interactive Dual-Pane Hero Code & Compiler Showcase -->
+      <div class="showcase-window">
+        <!-- Left Pane: Live .tnt Source Code -->
+        <div class="showcase-pane showcase-pane-left">
+          <div class="showcase-header">
+            <div class="window-dots">
+              <span class="win-dot coral"></span>
+              <span class="win-dot amber"></span>
+              <span class="win-dot cyan"></span>
+            </div>
+            <div class="showcase-tabs">
+              <button class="showcase-tab active" onclick="switchHeroCode('hft', this)">1. orderbook.tnt (C Speed)</button>
+              <button class="showcase-tab" onclick="switchHeroCode('morphic', this)">2. live_image.tnt (Smalltalk)</button>
+              <button class="showcase-tab" onclick="switchHeroCode('quantum', this)">3. quantum.tnt (Frontier)</button>
+            </div>
+          </div>
+
+          <div class="showcase-code-area" id="heroSourcePane"><span class="syn-cmt"># Zero-allocation unboxed struct packed in XMM0-XMM2 registers</span>
+<span class="syn-kw">struct</span> <span class="syn-ty">Order</span>:
+    id: <span class="syn-ty">i64</span>
+    price: <span class="syn-ty">f64</span>
+    qty: <span class="syn-ty">f64</span>
+
+<span class="syn-cmt"># Automatic Tail-Call Optimization: 5,000,000 depth in O(1) stack</span>
+<span class="syn-kw">def</span> <span class="syn-fn">sweep_vwap</span>(n: <span class="syn-ty">i64</span>, acc_notional: <span class="syn-ty">f64</span>, acc_qty: <span class="syn-ty">f64</span>) -&gt; <span class="syn-ty">f64</span>:
+    <span class="syn-kw">if</span> n &lt;= <span class="syn-num">0</span>:
+        <span class="syn-kw">return</span> acc_notional / acc_qty
+    <span class="syn-kw">let</span> tick = <span class="syn-ty">Order</span>(id=n, price=<span class="syn-num">94520.50</span>, qty=<span class="syn-num">1.25</span>)
+    <span class="syn-kw">return</span> <span class="syn-fn">sweep_vwap</span>(n - <span class="syn-num">1</span>, acc_notional + tick.price * tick.qty, acc_qty + tick.qty)
+
+<span class="syn-kw">def</span> <span class="syn-fn">main</span>() -&gt; <span class="syn-ty">i64</span>:
+    <span class="syn-kw">let</span> vwap: <span class="syn-ty">f64</span> = <span class="syn-fn">sweep_vwap</span>(<span class="syn-num">5000000</span>, <span class="syn-num">0.0</span>, <span class="syn-num">0.0</span>)
+    <span class="syn-fn">print</span>(<span class="syn-str">"Settled 5M ticks VWAP:"</span>, vwap)
+    <span class="syn-kw">return</span> <span class="syn-num">0</span></div>
+
+          <div class="showcase-footer-bar">
+            <span>Inferred Types: <strong style="color: var(--brand-cyan);">100% Static Unboxed</strong></span>
+            <span>Heap Allocations: <strong style="color: var(--brand-amber);">0 Bytes</strong></span>
+          </div>
         </div>
-        <p class="target-desc">Native ARM64 Apple Silicon and x86-64 executable targeting macOS Darwin with signed headers.</p>
-      </div>
 
-      <div class="target-card">
-        <div class="target-icon">🌐</div>
-        <div class="target-name">
-          <span>WebAssembly &amp; WAT</span>
-          <span class="target-tag">.wasm / .wat</span>
+        <!-- Right Pane: Lowered Machine Code & Telemetry -->
+        <div class="showcase-pane">
+          <div class="showcase-header">
+            <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--brand-amber); font-weight: 700;">COMPILER INSPECTOR &bull; WIN64 / WASM</span>
+            <a href="arena.html" style="font-family: var(--font-mono); font-size: 0.74rem; color: var(--brand-cyan); text-decoration: none; font-weight: 700;">Run Live in Arena &rarr;</a>
+          </div>
+
+          <div class="showcase-code-area" id="heroOutputPane" style="color: #A5F3FC;"><span class="syn-cmt">; TinyTalk Native x86-64 Backend (Zero LLVM Dependency)</span>
+<span class="syn-cmt">; Function: sweep_vwap (Auto-TCO Loop Lowering)</span>
+<span class="syn-fn">sweep_vwap_entry:</span>
+    <span class="syn-kw">xorpd</span>   xmm3, xmm3            <span class="syn-cmt">; 0.0 constant in register</span>
+<span class="syn-fn">.L_tail_loop:</span>
+    <span class="syn-kw">test</span>    rcx, rcx              <span class="syn-cmt">; n &lt;= 0 ?</span>
+    <span class="syn-kw">jle</span>     .L_done               <span class="syn-cmt">; branch if complete</span>
+    <span class="syn-kw">movsd</span>   xmm4, [rip + .LC_PRC] <span class="syn-cmt">; tick.price (unboxed XMM4)</span>
+    <span class="syn-kw">mulsd</span>   xmm4, [rip + .LC_QTY] <span class="syn-cmt">; tick.price * tick.qty</span>
+    <span class="syn-kw">addsd</span>   xmm1, xmm4            <span class="syn-cmt">; acc_notional += notional</span>
+    <span class="syn-kw">addsd</span>   xmm2, [rip + .LC_QTY] <span class="syn-cmt">; acc_qty += 1.25</span>
+    <span class="syn-kw">dec</span>     rcx                   <span class="syn-cmt">; n = n - 1 (O(1) stack!)</span>
+    <span class="syn-kw">jmp</span>     .L_tail_loop          <span class="syn-cmt">; zero-cost tail jump</span>
+<span class="syn-fn">.L_done:</span>
+    <span class="syn-kw">divsd</span>   xmm1, xmm2            <span class="syn-cmt">; return acc_notional / acc_qty</span>
+    <span class="syn-kw">movapd</span>  xmm0, xmm1
+    <span class="syn-kw">ret</span></div>
+
+          <div class="showcase-footer-bar">
+            <span>Execution: <strong style="color: #10B981;">2.68 ms</strong> (vs Python Crash)</span>
+            <span>PE32+ Output: <strong style="color: var(--brand-coral);">5,584 Bytes</strong></span>
+          </div>
         </div>
-        <p class="target-desc">Pure client-side browser execution with zero memory virtualization overhead and instant WebGPU interop.</p>
       </div>
 
-      <div class="target-card">
-        <div class="target-icon">⚡</div>
-        <div class="target-name">
-          <span>C11 Source &amp; LLVM IR</span>
-          <span class="target-tag">.c / .ll</span>
+      <!-- Key Metrics Strip -->
+      <div class="metrics-ribbon">
+        <div class="metric-tile">
+          <div class="metric-tile-val text-cyan">25.8x</div>
+          <div class="metric-tile-lbl">Faster than CPython 3.14 on ALU &amp; SIMD loops</div>
         </div>
-        <p class="target-desc">Human-readable, audit-ready ANSI C11 emission or LLVM bitcode for enterprise verification pipelines.</p>
-      </div>
-
-      <div class="target-card">
-        <div class="target-icon">🎮</div>
-        <div class="target-name">
-          <span>WebGPU &amp; Vulkan Shaders</span>
-          <span class="target-tag">.wgsl / .spv</span>
+        <div class="metric-tile">
+          <div class="metric-tile-val text-amber">0.000 ms</div>
+          <div class="metric-tile-lbl">Stop-the-world GC pause (Lexical Arena rewind)</div>
         </div>
-        <p class="target-desc">Direct compilation to WebGPU WGSL compute shaders and Vulkan SPIR-V binaries for hardware-accelerated tensor math.</p>
+        <div class="metric-tile">
+          <div class="metric-tile-val text-coral">5.5 KB</div>
+          <div class="metric-tile-lbl">Standalone Windows <code>.exe</code> &amp; 1.7 KB <code>.wasm</code></div>
+        </div>
+        <div class="metric-tile">
+          <div class="metric-tile-val" style="color: #ffffff;">40+ Pkgs</div>
+          <div class="metric-tile-lbl">Zero-defect standard library from HFT to Quantum</div>
+        </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- The 7 Pillars of TinyTalk -->
-  <section class="section-wrap">
-    <div class="section-head">
-      <span class="section-tag">Next-Generation Pillars</span>
-      <h2 class="section-title">Engineered to the Physical Limits</h2>
-      <p class="section-desc">From live Smalltalk reflection to neuromorphic silicon, quantum circuits, and programmable matter.</p>
-    </div>
-
-    <div class="pillars-grid">
-      <div class="pillar-card">
-        <div class="pillar-num">01 / FOUNDATION</div>
-        <div class="pillar-title">Live Smalltalk Morphic Studio</div>
-        <p class="pillar-desc">True live spatial 2D Morphic canvas, inspectable object graphs, and instant hot-reloading with sub-5ms image snapshot resumes.</p>
-      </div>
-
-      <div class="pillar-card">
-        <div class="pillar-num">02 / HARDWARE ACCELERATION</div>
-        <div class="pillar-title">Neuromorphic SNN &amp; Optical Matrix</div>
-        <p class="pillar-desc">Intel Loihi 2 spiking neural networks and coherent optical matrix multiplier compilation for sub-picosecond analog inference.</p>
+    <!-- ======================================================================
+         SECTION 1: THE QUANTUM TRIQUETRA (3 ARCHITECTURAL PILLARS)
+         ====================================================================== -->
+    <section class="section-block">
+      <div class="section-header">
+        <div class="section-eyebrow">The Quantum Triquetra Architecture</div>
+        <h2 class="section-title">Three paradigms fused into one coherent runtime</h2>
+        <p class="section-desc">
+          Every petal of the TinyTalk Triquetra represents a foundational pillar of the language—eliminating the traditional trade-off between developer velocity, live interactivity, and bare-metal speed.
+        </p>
       </div>
 
-      <div class="pillar-card">
-        <div class="pillar-num">03 / QUANTUM &amp; SPACE</div>
-        <div class="pillar-title">Fault-Tolerant Quantum &amp; Relativistic Sync</div>
-        <p class="pillar-desc">Native qubit entanglement Lowering to OpenQASM 3.0 and space-latency consensus for deep-space causal ordering.</p>
+      <div class="triquetra-grid">
+        <!-- Pillar 1: Cyan -->
+        <div class="pillar-card pillar-cyan">
+          <div>
+            <div class="pillar-icon-box">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <div class="pillar-tag" style="color: var(--brand-cyan);">Pillar I &bull; Electric Cyan</div>
+            <h3 class="pillar-title">Write like Python</h3>
+            <p class="pillar-desc">
+              Clean, readable indentation syntax enhanced with Hindley-Milner static type inference, algebraic <code>struct</code> &amp; exhaustive <code>match</code> pattern matching, and automatic tail-call optimization.
+            </p>
+          </div>
+          <div class="pillar-snippet">def fib_tco(n: i64, a: i64 = 0, b: i64 = 1) -&gt; i64:
+    if n == 0: return a
+    return fib_tco(n - 1, b, a + b)</div>
+        </div>
+
+        <!-- Pillar 2: Amber -->
+        <div class="pillar-card pillar-amber">
+          <div>
+            <div class="pillar-icon-box">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            </div>
+            <div class="pillar-tag" style="color: var(--brand-amber);">Pillar II &bull; Golden Amber</div>
+            <h3 class="pillar-title">Live like Smalltalk</h3>
+            <p class="pillar-desc">
+              Inspect and mutate live register-packed objects at 120 FPS in the Smalltalk-80 Morphic Studio. Hot-swap running methods in <code>0.08 ms</code> and snapshot entire execution worlds to <code>.tntimg</code>.
+            </p>
+          </div>
+          <div class="pillar-snippet">import tnt.canvas as morphic
+win = morphic.SystemWindow(title="Live Inspector")
+win.hot_swap(method="AppState.step", latency_ms=0.08)</div>
+        </div>
+
+        <!-- Pillar 3: Coral -->
+        <div class="pillar-card pillar-coral">
+          <div>
+            <div class="pillar-icon-box">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <div class="pillar-tag" style="color: var(--brand-coral);">Pillar III &bull; Neon Coral</div>
+            <h3 class="pillar-title">Run at C Speed</h3>
+            <p class="pillar-desc">
+              Zero-GIL 16-core work-stealing scheduler and deterministic lexical arena memory (<code>0.000 ms</code> GC pause). Emits direct x86-64, ARM64, and WASM machine code without external linkers.
+            </p>
+          </div>
+          <div class="pillar-snippet">$ tnt build hft.tnt --target exe -o hft.exe
+[OK] Emitted standalone PE32+ binary (5,584 bytes)</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         SECTION 2: VERIFIED PERFORMANCE BENCHMARKS
+         ====================================================================== -->
+    <section class="section-block">
+      <div class="section-header">
+        <div class="section-eyebrow">Verified Hardware Telemetry</div>
+        <h2 class="section-title">Engineered for sub-microsecond determinism</h2>
+        <p class="section-desc">
+          By unboxing structs into CPU vector registers (<code>XMM0–XMM15</code>) and replacing stop-the-world garbage collection with lexical arena pointer rewinds, TinyTalk eliminates runtime jitter.
+        </p>
       </div>
 
-      <div class="pillar-card">
-        <div class="pillar-num">04 / DIGITAL TWINS</div>
-        <div class="pillar-title">Universal Differentiable Physics</div>
-        <p class="pillar-desc">Reverse-mode automatic differentiation across all language primitives with multiscale digital twin physical simulation.</p>
+      <div class="bench-grid">
+        <div class="bench-card-panel">
+          <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: 20px; color: #fff;">Execution Latency (Lower is Better)</h3>
+
+          <div class="bench-item">
+            <div class="bench-item-header">
+              <span>1. 5,000,000 Depth Tail Recursion</span>
+              <span style="color: var(--brand-cyan); font-family: var(--font-mono); font-size: 0.78rem;">O(1) Stack vs Crash</span>
+            </div>
+            <div class="bench-bars">
+              <div class="bench-bar-row">
+                <span style="color: var(--brand-cyan); font-weight: 700;">TinyTalk v8.0</span>
+                <div class="bench-track"><div class="bench-fill-tnt" style="width: 8%;"></div></div>
+                <span style="text-align: right; color: #fff;">2.68 ms</span>
+              </div>
+              <div class="bench-bar-row">
+                <span style="color: var(--text-muted);">CPython 3.14</span>
+                <div class="bench-track"><div class="bench-fill-py" style="width: 100%;"></div></div>
+                <span style="text-align: right; color: var(--brand-coral);">RecursionError</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bench-item">
+            <div class="bench-item-header">
+              <span>2. 1M Unboxed Vec3 Struct Dot Products</span>
+              <span style="color: var(--brand-cyan); font-family: var(--font-mono); font-size: 0.78rem;">27.1x Faster</span>
+            </div>
+            <div class="bench-bars">
+              <div class="bench-bar-row">
+                <span style="color: var(--brand-cyan); font-weight: 700;">TinyTalk v8.0</span>
+                <div class="bench-track"><div class="bench-fill-tnt" style="width: 6%;"></div></div>
+                <span style="text-align: right; color: #fff;">3.12 ms</span>
+              </div>
+              <div class="bench-bar-row">
+                <span style="color: var(--text-muted);">CPython 3.14</span>
+                <div class="bench-track"><div class="bench-fill-py" style="width: 94%;"></div></div>
+                <span style="text-align: right; color: var(--text-muted);">84.50 ms</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="bench-item">
+            <div class="bench-item-header">
+              <span>3. Prime Sieve &amp; Integer ALU Loop</span>
+              <span style="color: var(--brand-cyan); font-family: var(--font-mono); font-size: 0.78rem;">16.9x Faster</span>
+            </div>
+            <div class="bench-bars">
+              <div class="bench-bar-row">
+                <span style="color: var(--brand-cyan); font-weight: 700;">TinyTalk v8.0</span>
+                <div class="bench-track"><div class="bench-fill-tnt" style="width: 9%;"></div></div>
+                <span style="text-align: right; color: #fff;">4.80 ms</span>
+              </div>
+              <div class="bench-bar-row">
+                <span style="color: var(--text-muted);">CPython 3.14</span>
+                <div class="bench-track"><div class="bench-fill-py" style="width: 88%;"></div></div>
+                <span style="text-align: right; color: var(--text-muted);">81.12 ms</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bench-card-panel" style="display: flex; flex-direction: column; justify-content: space-between;">
+          <div>
+            <h3 style="font-family: var(--font-display); font-size: 1.2rem; margin-bottom: 12px; color: #fff;">Standalone Binary Footprint Comparison</h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 24px;">
+              TinyTalk synthesizes PE32+, ELF64, Mach-O, and WASM headers directly from MIR without bundling a heavy VM or garbage collector.
+            </p>
+
+            <div class="bench-item">
+              <div class="bench-item-header">
+                <span style="color: var(--brand-cyan);">TinyTalk Standalone (.exe)</span>
+                <span style="font-family: var(--font-mono); color: #fff;">5.5 KB (0.4ms Cold Start)</span>
+              </div>
+              <div class="bench-track" style="height: 10px;"><div class="bench-fill-tnt" style="width: 2%;"></div></div>
+            </div>
+
+            <div class="bench-item">
+              <div class="bench-item-header">
+                <span style="color: var(--brand-amber);">TinyTalk WebAssembly (.wasm)</span>
+                <span style="font-family: var(--font-mono); color: #fff;">1.7 KB (Zero JS Glue)</span>
+              </div>
+              <div class="bench-track" style="height: 10px;"><div style="height:100%; width: 1%; background: var(--brand-amber); border-radius:999px;"></div></div>
+            </div>
+
+            <div class="bench-item">
+              <div class="bench-item-header">
+                <span style="color: var(--text-muted);">Go 1.23 Static Binary</span>
+                <span style="font-family: var(--font-mono); color: var(--text-muted);">~2,100 KB (380x Larger)</span>
+              </div>
+              <div class="bench-track" style="height: 10px;"><div class="bench-fill-py" style="width: 38%;"></div></div>
+            </div>
+
+            <div class="bench-item">
+              <div class="bench-item-header">
+                <span style="color: var(--text-muted);">PyInstaller / CPython Bundle</span>
+                <span style="font-family: var(--font-mono); color: var(--brand-coral);">~48,000 KB (8,700x Larger)</span>
+              </div>
+              <div class="bench-track" style="height: 10px;"><div class="bench-fill-py" style="width: 100%;"></div></div>
+            </div>
+          </div>
+
+          <div style="margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--font-mono); font-size: 0.78rem; color: var(--text-muted);">Run live speed duels in your browser</span>
+            <a href="arena.html" style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--brand-cyan); font-weight: 700; text-decoration: none;">Launch Speed Duel &rarr;</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         SECTION 3: UNIVERSAL MULTI-TARGET COMPILATION MATRIX
+         ====================================================================== -->
+    <section class="section-block">
+      <div class="section-header">
+        <div class="section-eyebrow">Universal Hardware Lowering</div>
+        <h2 class="section-title">One source file. Every computational substrate.</h2>
+        <p class="section-desc">
+          Compile standard <code>.tnt</code> modules across desktop silicon, browser WebAssembly, GPU compute shaders, and frontier scientific architectures.
+        </p>
       </div>
 
-      <div class="pillar-card">
-        <div class="pillar-num">05 / SYNTHESIS</div>
-        <div class="pillar-title">MCTS Superoptimizing Compiler</div>
-        <p class="pillar-desc">Monte-Carlo Tree Search kernel synthesis with Z3 SMT machine-checkable BitVector equivalence proofs.</p>
+      <div class="target-matrix">
+        <div class="target-card">
+          <div class="target-card-head">
+            <span class="target-title">Windows PE32+</span>
+            <span class="target-flag">--target exe</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted);">Direct x86-64 Win64 ABI machine code synthesis into 5.5 KB standalone <code>.exe</code> binaries with zero external DLL bloat.</p>
+        </div>
+
+        <div class="target-card">
+          <div class="target-card-head">
+            <span class="target-title">Linux ELF64 &amp; macOS</span>
+            <span class="target-flag">--target elf | macho</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted);">Native System V AMD64 and Apple Silicon ARM64 executables ready for scratch OCI containers with 0.4 ms cold start.</p>
+        </div>
+
+        <div class="target-card">
+          <div class="target-card-head">
+            <span class="target-title">WebAssembly &amp; Edge</span>
+            <span class="target-flag">--target wasm</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted);">Emits 1.7 KB standalone Wasm32 modules running at 120 FPS in browsers, Cloudflare Workers, and edge microVMs.</p>
+        </div>
+
+        <div class="target-card">
+          <div class="target-card-head">
+            <span class="target-title">WebGPU &amp; Vulkan SPIR-V</span>
+            <span class="target-flag">--target wgsl | spirv</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted);">Lowers parallel <code>@gpu.kernel</code> functions directly into WGSL and SPIR-V 1.5 compute shaders for N-body physics and tensor math.</p>
+        </div>
+
+        <div class="target-card">
+          <div class="target-card-head">
+            <span class="target-title">Quantum OpenQASM 3.0</span>
+            <span class="target-flag">tnt/quantum</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted);">First-class statevector simulation, Bell pair entanglement, and gate-level lowering to OpenQASM 3.0 quantum processors.</p>
+        </div>
+
+        <div class="target-card">
+          <div class="target-card-head">
+            <span class="target-title">Neuromorphic &amp; DNA</span>
+            <span class="target-flag">tnt/loihi2 | dna</span>
+          </div>
+          <p style="font-size: 0.88rem; color: var(--text-muted);">Compile Leaky Integrate-and-Fire spiking neural networks to Intel Loihi 2 microcode and synthesize CaDNAno nanostructures.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======================================================================
+         SECTION 4: STANDALONE COMPILER TOOLCHAIN DOWNLOADS
+         ====================================================================== -->
+    <section class="section-block" id="downloads">
+      <div class="section-header">
+        <div class="section-eyebrow">Official Release Artifacts &bull; v8.0.0</div>
+        <h2 class="section-title">Download the TinyTalk Toolchain</h2>
+        <p class="section-desc">
+          Get the self-contained native compiler, Smalltalk Morphic Studio, and 5-Stage Gatekeeper test suite for your platform.
+        </p>
       </div>
 
-      <div class="pillar-card">
-        <div class="pillar-num">06 / BIOLOGY &amp; MOLECULES</div>
-        <div class="pillar-title">Programmable Matter &amp; DNA Origami</div>
-        <p class="pillar-desc">Molecular lattice compilation, DNA strand routing, and microfluidic spatial control flow via the bio standard library.</p>
-      </div>
-    </div>
-  </section>
+      <div class="downloads-grid">
+        <!-- Windows -->
+        <div class="dl-card">
+          <div>
+            <div class="dl-os-header">
+              <div class="dl-os-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801"/></svg>
+              </div>
+              <div>
+                <div style="font-family: var(--font-display); font-weight: 800; color: #fff; font-size: 1.05rem;">Windows x86_64</div>
+                <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">PE32+ Native &bull; Win10 / Win11</div>
+              </div>
+            </div>
+            <p style="font-size: 0.86rem; color: var(--text-muted);">Includes <code>tnt.exe</code> native CLI, x86-64 JIT, PE32+ emitter, and Morphic Studio.</p>
+          </div>
+          <a href="https://github.com/kicode01/tinytalk-lang/releases" target="_blank" rel="noopener" class="dl-btn">
+            <span>Download Windows Installer</span>
+            <span>&darr;</span>
+          </a>
+        </div>
 
-  <!-- Interactive Call to Action Banner -->
-  <section class="section-wrap">
-    <div class="showcase-banner">
-      <h2>Experience TinyTalk in Your Browser</h2>
-      <p>Test the native compiler right now. Write `.tnt` code, inspect generated assembly, and run programs in WebAssembly with zero setup.</p>
-      <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap;">
-        <a href="/arena.html" class="btn-hero-primary">Launch Web Arena &rarr;</a>
-        <a href="/docs.html" class="btn-hero-secondary">View Documentation</a>
-      </div>
-    </div>
-  </section>
+        <!-- Linux -->
+        <div class="dl-card">
+          <div>
+            <div class="dl-os-header">
+              <div class="dl-os-icon" style="color: var(--brand-amber);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              </div>
+              <div>
+                <div style="font-family: var(--font-display); font-weight: 800; color: #fff; font-size: 1.05rem;">Linux x86_64 / ARM64</div>
+                <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">ELF64 Static &bull; glibc / musl</div>
+              </div>
+            </div>
+            <p style="font-size: 0.86rem; color: var(--text-muted);">Zero-dependency ELF64 binary with epoll/io_uring async HTTP engine and RDMA support.</p>
+          </div>
+          <a href="https://github.com/kicode01/tinytalk-lang/releases" target="_blank" rel="noopener" class="dl-btn">
+            <span>Download Linux Tarball</span>
+            <span>&darr;</span>
+          </a>
+        </div>
 
-  <!-- Footer -->
-  <footer>
-    <div class="footer-content">
-      <div class="footer-brand">
-        <div class="footer-brand-title">
-          <img src="assets/logo.png" alt="TinyTalk" style="width: 26px; height: 26px; border-radius: 4px;" />
+        <!-- macOS -->
+        <div class="dl-card">
+          <div>
+            <div class="dl-os-header">
+              <div class="dl-os-icon" style="color: var(--brand-coral);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.33c.64-.78 1.08-1.86.96-2.94-.93.04-2.06.62-2.72 1.4-.58.68-1.1 1.79-.96 2.84 1.04.08 2.08-.52 2.72-1.3"/></svg>
+              </div>
+              <div>
+                <div style="font-family: var(--font-display); font-weight: 800; color: #fff; font-size: 1.05rem;">macOS Universal</div>
+                <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">Mach-O &bull; Apple Silicon M1–M4</div>
+              </div>
+            </div>
+            <p style="font-size: 0.86rem; color: var(--text-muted);">Native ARM64 NEON &amp; Metal/WebGPU compute acceleration for macOS 13+.</p>
+          </div>
+          <a href="https://github.com/kicode01/tinytalk-lang/releases" target="_blank" rel="noopener" class="dl-btn">
+            <span>Download macOS Universal</span>
+            <span>&darr;</span>
+          </a>
+        </div>
+
+        <!-- In-Browser WebAssembly -->
+        <div class="dl-card">
+          <div>
+            <div class="dl-os-header">
+              <div class="dl-os-icon" style="color: #A855F7;">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>
+              </div>
+              <div>
+                <div style="font-family: var(--font-display); font-weight: 800; color: #fff; font-size: 1.05rem;">WebAssembly SDK</div>
+                <div style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-muted);">tntc.wasm &bull; Zero Install</div>
+              </div>
+            </div>
+            <p style="font-size: 0.86rem; color: var(--text-muted);">Compile and run TinyTalk directly in your browser or embed the 1.7 KB runtime anywhere.</p>
+          </div>
+          <a href="arena.html" class="dl-btn">
+            <span>Launch Browser Arena</span>
+            <span>&rarr;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Unified Production Footer -->
+  <footer class="tnt-footer">
+    <div class="tnt-footer-inner">
+      <div class="tnt-footer-brand-col">
+        <a href="index.html" class="tnt-brand">
+          <img src="assets/logo.svg" alt="TinyTalk Logo" class="tnt-brand-logo">
           <span>TinyTalk</span>
+          <span class="tnt-version-pill">v8.0</span>
+        </a>
+        <p class="tnt-footer-tagline">
+          Write like Python. Live like Smalltalk. Run at C Speed. Built with deterministic lexical arena memory and zero-GIL native concurrency.
+        </p>
+        <div class="tnt-footer-triquetra-badges">
+          <span class="tnt-pillar-dot"><span style="color:#00F0FF;">●</span> Python Syntax</span>
+          <span class="tnt-pillar-dot"><span style="color:#FFD438;">●</span> Smalltalk Live</span>
+          <span class="tnt-pillar-dot"><span style="color:#FF2A85;">●</span> 5.5 KB Native C Speed</span>
         </div>
-        <p>The expressive, high-velocity programming language fusing live Smalltalk heritage with modern systems performance.</p>
       </div>
 
-      <div class="footer-col">
-        <h4>Ecosystem</h4>
+      <div class="tnt-footer-col">
+        <h4>Platform</h4>
         <ul>
-          <li><a href="/arena.html">Interactive Arena</a></li>
-          <li><a href="/studio.html">Smalltalk Studio</a></li>
-          <li><a href="/packages.html">Package Registry</a></li>
-          <li><a href="/dashboard.html">Cloud Telemetry</a></li>
+          <li><a href="arena.html">Interactive Web Arena</a></li>
+          <li><a href="studio.html">Smalltalk Morphic Studio</a></li>
+          <li><a href="packages.html">Official Package Registry</a></li>
+          <li><a href="dashboard.html">Cloud &amp; Telemetry Mesh</a></li>
         </ul>
       </div>
 
-      <div class="footer-col">
-        <h4>Resources</h4>
+      <div class="tnt-footer-col">
+        <h4>Documentation</h4>
         <ul>
-          <li><a href="/docs.html">Documentation</a></li>
-          <li><a href="https://github.com/kicode01/tinytalk-lang" target="_blank">GitHub Repository</a></li>
-          <li><a href="https://pypi.org/project/tinytalk-lang/" target="_blank">PyPI Package</a></li>
-          <li><a href="https://github.com/kicode01/tinytalk-lang/releases" target="_blank">Releases &amp; VSIX</a></li>
+          <li><a href="docs.html#installation">Installation &amp; Setup</a></li>
+          <li><a href="docs.html#quickstart">Language Quickstart</a></li>
+          <li><a href="docs.html#cli-reference">CLI Command Reference</a></li>
+          <li><a href="docs.html#quantum-computing">Quantum &amp; Diff Physics</a></li>
         </ul>
       </div>
 
-      <div class="footer-col">
-        <h4>Community</h4>
+      <div class="tnt-footer-col">
+        <h4>Community &amp; Source</h4>
         <ul>
-          <li><a href="https://github.com/kicode01/tinytalk-lang/discussions" target="_blank">Discussions</a></li>
-          <li><a href="https://github.com/kicode01/tinytalk-lang/issues" target="_blank">Issue Tracker</a></li>
-          <li><a href="/docs.html#license">MIT License</a></li>
+          <li><a href="https://github.com/kicode01/tinytalk-lang" target="_blank" rel="noopener">GitHub Repository</a></li>
+          <li><a href="https://pypi.org/project/tinytalk-lang/" target="_blank" rel="noopener">PyPI Package (tinytalk-lang)</a></li>
+          <li><a href="https://github.com/kicode01/tinytalk-lang/releases" target="_blank" rel="noopener">Release Notes &amp; Binaries</a></li>
         </ul>
       </div>
     </div>
 
-    <div class="footer-bottom">
+    <div class="tnt-footer-bottom">
       <div>&copy; 2026 TinyTalk Core Contributors. Released under the MIT License.</div>
-      <div>Zero-GIL &bull; 0ms GC &bull; 5.5 KB Standalone Native Executables</div>
+      <div style="font-family: var(--font-mono);">Zero-GIL &bull; 0.000ms GC &bull; 5.5 KB PE32+ / 1.7 KB WASM</div>
     </div>
   </footer>
 
+  <script>
+    function switchCliTab(mode, cmdText, btn) {
+      document.querySelectorAll('.cli-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('heroCliText').textContent = cmdText;
+    }
+
+    function copyHeroCli() {
+      const cmd = document.getElementById('heroCliText').textContent;
+      navigator.clipboard.writeText(cmd);
+      const lbl = document.getElementById('heroCliCopyLabel');
+      lbl.textContent = 'Copied!';
+      setTimeout(() => { lbl.textContent = 'Copy'; }, 1800);
+    }
+
+    const HERO_SAMPLES = {
+      hft: {
+        source: `<span class="syn-cmt"># Zero-allocation unboxed struct packed in XMM0-XMM2 registers</span>
+<span class="syn-kw">struct</span> <span class="syn-ty">Order</span>:
+    id: <span class="syn-ty">i64</span>
+    price: <span class="syn-ty">f64</span>
+    qty: <span class="syn-ty">f64</span>
+
+<span class="syn-cmt"># Automatic Tail-Call Optimization: 5,000,000 depth in O(1) stack</span>
+<span class="syn-kw">def</span> <span class="syn-fn">sweep_vwap</span>(n: <span class="syn-ty">i64</span>, acc_notional: <span class="syn-ty">f64</span>, acc_qty: <span class="syn-ty">f64</span>) -&gt; <span class="syn-ty">f64</span>:
+    <span class="syn-kw">if</span> n &lt;= <span class="syn-num">0</span>:
+        <span class="syn-kw">return</span> acc_notional / acc_qty
+    <span class="syn-kw">let</span> tick = <span class="syn-ty">Order</span>(id=n, price=<span class="syn-num">94520.50</span>, qty=<span class="syn-num">1.25</span>)
+    <span class="syn-kw">return</span> <span class="syn-fn">sweep_vwap</span>(n - <span class="syn-num">1</span>, acc_notional + tick.price * tick.qty, acc_qty + tick.qty)
+
+<span class="syn-kw">def</span> <span class="syn-fn">main</span>() -&gt; <span class="syn-ty">i64</span>:
+    <span class="syn-kw">let</span> vwap: <span class="syn-ty">f64</span> = <span class="syn-fn">sweep_vwap</span>(<span class="syn-num">5000000</span>, <span class="syn-num">0.0</span>, <span class="syn-num">0.0</span>)
+    <span class="syn-fn">print</span>(<span class="syn-str">"Settled 5M ticks VWAP:"</span>, vwap)
+    <span class="syn-kw">return</span> <span class="syn-num">0</span>`,
+        output: `<span class="syn-cmt">; TinyTalk Native x86-64 Backend (Zero LLVM Dependency)</span>
+<span class="syn-cmt">; Function: sweep_vwap (Auto-TCO Loop Lowering)</span>
+<span class="syn-fn">sweep_vwap_entry:</span>
+    <span class="syn-kw">xorpd</span>   xmm3, xmm3            <span class="syn-cmt">; 0.0 constant in register</span>
+<span class="syn-fn">.L_tail_loop:</span>
+    <span class="syn-kw">test</span>    rcx, rcx              <span class="syn-cmt">; n &lt;= 0 ?</span>
+    <span class="syn-kw">jle</span>     .L_done               <span class="syn-cmt">; branch if complete</span>
+    <span class="syn-kw">movsd</span>   xmm4, [rip + .LC_PRC] <span class="syn-cmt">; tick.price (unboxed XMM4)</span>
+    <span class="syn-kw">mulsd</span>   xmm4, [rip + .LC_QTY] <span class="syn-cmt">; tick.price * tick.qty</span>
+    <span class="syn-kw">addsd</span>   xmm1, xmm4            <span class="syn-cmt">; acc_notional += notional</span>
+    <span class="syn-kw">addsd</span>   xmm2, [rip + .LC_QTY] <span class="syn-cmt">; acc_qty += 1.25</span>
+    <span class="syn-kw">dec</span>     rcx                   <span class="syn-cmt">; n = n - 1 (O(1) stack!)</span>
+    <span class="syn-kw">jmp</span>     .L_tail_loop          <span class="syn-cmt">; zero-cost tail jump</span>
+<span class="syn-fn">.L_done:</span>
+    <span class="syn-kw">divsd</span>   xmm1, xmm2            <span class="syn-cmt">; return acc_notional / acc_qty</span>
+    <span class="syn-kw">movapd</span>  xmm0, xmm1
+    <span class="syn-kw">ret</span>`
+      },
+      morphic: {
+        source: `<span class="syn-cmt"># Smalltalk-80 Live Reactive Morphic System Window</span>
+<span class="syn-kw">import</span> tnt.canvas <span class="syn-kw">as</span> morphic
+
+<span class="syn-kw">struct</span> <span class="syn-ty">AppState</span>:
+    counter: <span class="syn-ty">i64</span>
+    frequency_ghz: <span class="syn-ty">f64</span>
+
+<span class="syn-kw">def</span> <span class="syn-fn">step_morph</span>(state: <span class="syn-ty">AppState</span>, delta: <span class="syn-ty">i64</span>) -&gt; <span class="syn-ty">AppState</span>:
+    <span class="syn-cmt"># Live hot-swappable in 0.08 ms without losing object state!</span>
+    <span class="syn-kw">return</span> <span class="syn-ty">AppState</span>(
+        counter=state.counter + delta,
+        frequency_ghz=<span class="syn-num">3.60</span>
+    )
+
+<span class="syn-kw">def</span> <span class="syn-fn">main</span>() -&gt; <span class="syn-ty">i64</span>:
+    <span class="syn-kw">let</span> world = morphic.<span class="syn-fn">World</span>(fps=<span class="syn-num">120</span>)
+    world.<span class="syn-fn">snapshot</span>(<span class="syn-str">"studio_session.tntimg"</span>)
+    <span class="syn-kw">return</span> <span class="syn-num">0</span>`,
+        output: `<span class="syn-cmt">; Smalltalk Live Object Image Telemetry (.tntimg)</span>
+<span class="syn-fn">[Live Object Inspector — Instance of AppState]</span>
+  Slot 0 (counter)       : <span class="syn-ty">i64</span> @ RAX   = <span class="syn-num">42</span> (Unboxed Register)
+  Slot 1 (frequency_ghz) : <span class="syn-ty">f64</span> @ XMM0  = <span class="syn-num">3.60 GHz</span>
+  Heap Allocation        : <span class="syn-num">0 Bytes</span> (Lexical Arena Frame #0)
+
+<span class="syn-fn">[Hot-Swap Dispatch Table]</span>
+  Symbol: AppState::step_morph
+  Atomic Pointer Patch   : <span class="syn-str">0x00007FF6A1001040 -> 0x00007FF6A1001080</span>
+  Recompile Latency      : <span class="syn-num">0.08 ms</span> (Zero downtime, state preserved)`
+      },
+      quantum: {
+        source: `<span class="syn-cmt"># First-class Quantum Statevector &amp; Reverse-Mode Autodiff</span>
+<span class="syn-kw">from</span> quantum <span class="syn-kw">import</span> <span class="syn-ty">QuantumCircuit</span>
+<span class="syn-kw">from</span> qasm <span class="syn-kw">import</span> to_openqasm3
+<span class="syn-kw">from</span> diff_physics <span class="syn-kw">import</span> <span class="syn-ty">DiffVar</span>
+
+<span class="syn-kw">def</span> <span class="syn-fn">main</span>() -&gt; <span class="syn-ty">i64</span>:
+    <span class="syn-kw">let</span> qc = <span class="syn-ty">QuantumCircuit</span>(<span class="syn-num">2</span>)
+    qc.<span class="syn-fn">h</span>(<span class="syn-num">0</span>)       <span class="syn-cmt"># Hadamard superposition: (|0&gt; + |1&gt;)/sqrt(2)</span>
+    qc.<span class="syn-fn">cx</span>(<span class="syn-num">0</span>, <span class="syn-num">1</span>)   <span class="syn-cmt"># CNOT entanglement: Bell state |Phi+&gt;</span>
+
+    <span class="syn-kw">let</span> x = <span class="syn-ty">DiffVar</span>(<span class="syn-num">2.0</span>)
+    <span class="syn-kw">let</span> energy = (x * x) + (<span class="syn-num">3.0</span> * x)
+    energy.<span class="syn-fn">backward</span>()
+    <span class="syn-fn">print</span>(to_openqasm3(qc), <span class="syn-str">"dE/dx ="</span>, x.grad)
+    <span class="syn-kw">return</span> <span class="syn-num">0</span>`,
+        output: `<span class="syn-cmt">// Emitted OpenQASM 3.0 Hardware Target + Autodiff Tape</span>
+<span class="syn-kw">OPENQASM</span> <span class="syn-num">3.0</span>;
+<span class="syn-kw">include</span> <span class="syn-str">"stdgates.inc"</span>;
+<span class="syn-ty">qubit</span>[<span class="syn-num">2</span>] q;
+<span class="syn-ty">bit</span>[<span class="syn-num">2</span>] c;
+
+<span class="syn-fn">h</span> q[<span class="syn-num">0</span>];
+<span class="syn-fn">cx</span> q[<span class="syn-num">0</span>], q[<span class="syn-num">1</span>];
+c = <span class="syn-fn">measure</span> q;
+
+<span class="syn-cmt">// Reverse-Mode Hamiltonian Gradient Tape:</span>
+<span class="syn-cmt">// P(|00&gt;) = 0.5000, P(|11&gt;) = 0.5000 | dE/dx = 7.0000</span>`
+      }
+    };
+
+    function switchHeroCode(key, btn) {
+      document.querySelectorAll('.showcase-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('heroSourcePane').innerHTML = HERO_SAMPLES[key].source;
+      document.getElementById('heroOutputPane').innerHTML = HERO_SAMPLES[key].output;
+    }
+  </script>
 </body>
 </html>
 """
     return html
 
 def main():
-    print(render_landing_html())
+    let out: str = render_landing_html()
+    print(out)
     return 0
