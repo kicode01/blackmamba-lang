@@ -300,7 +300,10 @@ def main():
 
     def test_zero_copy_numpy_tensor_exchange(self):
         import mamba
-        import numpy as np
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy is not installed in the environment")
 
         # 1. Test mamba.compile with in-place NumPy array mutation
         mod = mamba.compile("""
