@@ -1,0 +1,18 @@
+# TinyTalk Profile-Guided Optimization Standard Library (pgo.tnt)
+# Hot-Path Profiling and Persistent Kernel Disk Cache
+
+struct ProfileSummary:
+    func_name: str
+    invocations: i64
+    is_hot: bool
+
+def is_block_hot(invocations: i64, loop_iters: i64) -> bool:
+    if invocations >= 100:
+        return True
+    if loop_iters >= 1000:
+        return True
+    return False
+
+def make_profile_summary(name: str, count: i64) -> ProfileSummary:
+    hot = is_block_hot(count, 0)
+    return ProfileSummary(name, count, hot)

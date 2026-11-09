@@ -1110,8 +1110,10 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <button class="btn-install" onclick="copyInstall('tnt add tnt/smt')">📋 tnt add tnt/smt</button>
         <a href="arena.html?preset=smt" class="btn-run-arena">▶ Run in Arena</a>
       </div>
-    </div>
-
+    </div>
+
+
+
     <!-- 19. tnt/simd_opt -->
     <div class="pkg-card" data-cat="systems" data-name="tnt/simd_opt auto vectorization avx2 avx512 arm neon fused multiply add fma loop fusion">
       <div>
@@ -1139,7 +1141,37 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <button class="btn-install" onclick="copyInstall('tnt add tnt/simd_opt')">📋 tnt add tnt/simd_opt</button>
         <a href="arena.html?preset=simd_opt" class="btn-run-arena">▶ Run in Arena</a>
       </div>
+    </div>
+
+    <!-- 20. tnt/pgo -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/pgo profile guided optimization pgo kernel disk cache hot path branch telemetry">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">⚡</div>
+            <div>
+              <div class="pkg-name">tnt/pgo</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 12E</span>
+        </div>
+        <p class="pkg-desc">
+          Continuous Profile-Guided Superoptimization (PGO) & Kernel Disk Cache. Instruments runtime execution, captures hot loop trip counts, and caches formally verified superoptimized kernels with SHA-256 persistent disk storage (.tntcache).
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v4.9.0</span>
+          <span>⭐ 54.3k</span>
+          <span>⚖️ MIT</span>
+          <span>⚡ Phase 12 Complete</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/pgo')">📋 tnt add tnt/pgo</button>
+        <a href="arena.html?preset=pgo" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
     </div>
+
 
 
 

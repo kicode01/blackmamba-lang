@@ -13,4 +13,4 @@ def calculate_ucb1(q_value: f64, parent_visits: i64, visits: i64, c: f64) -> f64
         return 999999.0
     if parent_visits <= 0:
         return q_value
-    return q_value + (c * 1.5) / (visits as f64)
+    return q_value + (c * 1.5) / (visits * 1.0)

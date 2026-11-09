@@ -16,4 +16,4 @@ def get_simd_spec(arch: str) -> SIMDSpec:
     return SIMDSpec(128, 4, False)
 
 def estimate_vector_speedup(lanes: i64, fma_count: i64) -> f64:
-    return (lanes as f64) * 0.75 + (fma_count as f64) * 0.5
+    return (lanes * 0.75) + (fma_count * 0.5)
