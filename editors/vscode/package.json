@@ -2,7 +2,7 @@
   "name": "vscode-tinytalk",
   "displayName": "TinyTalk & Black Mamba Language Support",
   "description": "Rich language support and Language Server Protocol client for TinyTalk (.tnt) and Black Mamba (.bmb)",
-  "version": "4.0.0",
+  "version": "8.0.0",
   "publisher": "tinytalk",
   "icon": "icon.png",
   "engines": {

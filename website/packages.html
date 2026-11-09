@@ -438,7 +438,7 @@
   <!-- Top Ribbon -->
   <div class="top-ribbon">
     <span class="ribbon-pill">OFFICIAL PACKAGE REGISTRY</span>
-    <span>Explore modular zero-cost packages for TinyTalk v4.4.0. All packages compile down to raw registers with 0ms GC pause.</span>
+    <span>Explore modular zero-cost packages for TinyTalk v8.0.0. All packages compile down to raw registers with 0ms GC pause.</span>
   </div>
 
   <!-- Header Navigation -->
@@ -446,10 +446,11 @@
     <div class="nav-brand">
       <img src="assets/logo.png" alt="TinyTalk Logo">
       <span>TinyTalk</span>
-      <span class="nav-badge">v4.4.0 NATIVE</span>
+      <span class="nav-badge">v8.0.0 NATIVE</span>
     </div>
     <div class="nav-links">
       <a href="index.html" class="nav-link">Home</a>
+      <a href="docs.html" class="nav-link">Docs</a>
       <a href="arena.html" class="nav-link">Playground</a>
       <a href="packages.html" class="nav-link active" style="color: var(--brand);">Packages</a>
       <a href="studio.html" class="nav-link">Smalltalk Studio</a>
@@ -867,7 +868,7 @@ leader_id = cluster.elect_leader("node-1")
 leader = cluster.get_node(leader_id)
 leader.propose("SET", ("balance", 5000000))</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.4.0</span>
+          <span>🏷️ v8.0.0</span>
           <span>⭐ 28.4k</span>
           <span>⚖️ MIT</span>
           <span>🛡️ Linearizable Quorum</span>
@@ -903,7 +904,7 @@ client = rpc.RPCClient()
 req = client.call(1, b"PING")
 res = dispatcher.dispatch(req)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.4.0</span>
+          <span>🏷️ v8.0.0</span>
           <span>⭐ 31.9k</span>
           <span>⚖️ MIT</span>
           <span>⚡ 32B Zero-Copy Frame</span>
@@ -936,7 +937,7 @@ store = cas.ContentAddressedStore(default_chunk_size=4096)
 root, chunk_ids = store.put(b"IMMUTABLE_BLOCKCHAIN_STATE_SNAPSHOT")
 data = store.get(root)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.4.0</span>
+          <span>🏷️ v8.0.0</span>
           <span>⭐ 35.2k</span>
           <span>⚖️ MIT</span>
           <span>🌳 Cryptographic Merkle CAS</span>
@@ -971,7 +972,7 @@ bob = mesh.PeerIdentity.generate("bob")
 tunnel = mesh.MeshTunnel(alice, bob.public_key, "shared_key")
 pkt = tunnel.encrypt(bob.node_id, b"CONFIDENTIAL_PAYLOAD")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.4.0</span>
+          <span>🏷️ v8.0.0</span>
           <span>⭐ 38.7k</span>
           <span>⚖️ MIT</span>
           <span>🔒 Zero-Trust Tunnel</span>
@@ -1007,7 +1008,7 @@ circuit.add_constraint({x: 1}, {x: 1}, {y: 1})
 prover = zk.ZKProver(circuit)
 proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.4.0</span>
+          <span>🏷️ v8.0.0</span>
           <span>⭐ 42.1k</span>
           <span>⚖️ MIT</span>
           <span>🛡️ Non-Interactive ZK Proof</span>

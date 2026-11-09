@@ -92,7 +92,7 @@
       "patterns": [
         {
           "name": "keyword.control.tnt",
-          "match": "\\b(def|fn|struct|class|if|elif|else|for|while|par_for|return|break|continue|pass|import|from|as|match|case|let)\\b"
+          "match": "\\b(def|fn|struct|class|if|elif|else|for|while|par_for|return|break|continue|pass|import|from|as|match|case|let|qubit|diff|hamiltonian|origami|staple|reaction|spikeneuron|opticalmesh)\\b"
         }
       ]
     },
@@ -100,7 +100,7 @@
       "patterns": [
         {
           "name": "entity.name.type.primitive.tnt",
-          "match": "\\b(i64|f64|bool|str|void)\\b"
+          "match": "\\b(i64|f64|bool|str|void|Qubit|QState|DiffVar|Vec3|Particle|SpikeNeuron|OpticalMesh|DNAStaple|Droplet|Tile|CRDTCounter|SpacetimePoint)\\b"
         },
         {
           "name": "entity.name.type.user.tnt",
@@ -112,7 +112,7 @@
       "patterns": [
         {
           "name": "support.function.builtin.tnt",
-          "match": "\\b(print|len|range|abs|min|max|sqrt|sin|cos|clock_ns)\\b"
+          "match": "\\b(print|len|range|abs|min|max|sqrt|sin|cos|clock_ns|superpose|entangle|measure|backward|grad|integrate|simulate|transduce|verify_noether|zk_prove|zk_verify|synthesize_staples|route_droplet|run_ssa)\\b"
         }
       ]
     },
