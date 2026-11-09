@@ -19,22 +19,22 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
+      <style>
     :root {
       --bg: #070510;
-      --bg-surface: #0C0A1C;
+      --bg-surface: rgba(12, 10, 28, 0.82);
       --bg-surface-elevated: #14102B;
       --bg-code: #05030C;
       --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(0, 240, 255, 0.32);
+      --border-hover: rgba(0, 240, 255, 0.35);
       --brand: #00F0FF;
-      --brand-glow: rgba(0, 240, 255, 0.25);
+      --brand-glow: rgba(0, 240, 255, 0.22);
       --accent-cyan: #00F0FF;
       --accent-amber: #FFD438;
-      --accent-purple: #A855F7;
-      --text: #F8FAFC;
-      --text-muted: #94A3B8;
-      --font-sans: 'Open Runde', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+      --accent-coral: #FF2A85;
+      --text: #F8F7FF;
+      --text-muted: #A59EC4;
+      --font-sans: 'Open Runde', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "SF Pro Text", sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
       --radius-sm: 6px;
       --radius-md: 10px;
@@ -53,123 +53,65 @@
     }
     a { color: inherit; text-decoration: none; }
 
-    /* Top Ribbon */
-    .top-ribbon {
-      background: linear-gradient(90deg, #052e16, #064e3b, #083344);
-      border-bottom: 1px solid rgba(0, 229, 255, 0.3);
-      padding: 6px 16px;
-      text-align: center;
-      font-size: 0.78rem;
-      font-family: var(--font-mono);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-    }
-    .ribbon-pill {
-      background: var(--brand);
-      color: #03120b;
-      font-weight: 800;
-      padding: 2px 7px;
-      border-radius: 4px;
-      font-size: 0.7rem;
-    }
-
-    /* Navigation */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(6, 6, 9, 0.9);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-    }
-    .nav-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 800;
-      font-size: 1.1rem;
-    }
-    .nav-brand img { width: 26px; height: 26px; }
-    .nav-badge {
-      background: rgba(0, 229, 255, 0.12);
-      color: var(--brand);
-      font-size: 0.72rem;
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: var(--font-mono);
-      font-weight: 700;
-    }
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: 20px;
-      font-size: 0.88rem;
-      font-weight: 600;
-    }
-    .nav-link:hover, .nav-link.active { color: var(--brand); }
-    .btn-arena {
-      background: var(--brand);
-      color: #03120b;
-      font-weight: 700;
-      padding: 7px 15px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      transition: all 0.15s;
-    }
-    .btn-arena:hover { background: #38bdf8; transform: translateY(-1px); }
-
     /* Hero Section */
     .hero {
-      max-width: 1200px;
+      max-width: 1240px;
       margin: 0 auto;
-      padding: 48px 24px 24px;
+      padding: 56px 24px 28px;
       text-align: center;
+      position: relative;
+      z-index: 1;
     }
     .hero-badge {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(0, 229, 255, 0.1);
-      border: 1px solid rgba(0, 229, 255, 0.25);
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.25);
       color: var(--brand);
-      font-size: 0.8rem;
+      font-size: 0.76rem;
       font-weight: 700;
       font-family: var(--font-mono);
-      padding: 4px 12px;
+      padding: 5px 14px;
       border-radius: 999px;
-      margin-bottom: 16px;
+      margin-bottom: 18px;
+      letter-spacing: 0.04em;
     }
     .hero-title {
-      font-size: clamp(2rem, 4.5vw, 3.2rem);
+      font-size: clamp(2rem, 4.2vw, 3.1rem);
       font-weight: 800;
-      line-height: 1.15;
-      letter-spacing: -0.025em;
-      margin-bottom: 12px;
+      line-height: 1.14;
+      letter-spacing: -0.03em;
+      margin-bottom: 14px;
     }
     .hero-gradient {
-      background: linear-gradient(135deg, #ffffff 40%, var(--brand) 85%);
+      background: linear-gradient(135deg, #FFFFFF 15%, #00F0FF 55%, #FFD438 95%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
     .hero-desc {
-      font-size: 1.05rem;
+      font-size: 1.02rem;
       color: var(--text-muted);
       max-width: 720px;
-      margin: 0 auto 32px;
+      margin: 0 auto 28px;
+    }
+    .hero-desc code {
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--brand);
+      padding: 2px 7px;
+      border-radius: 5px;
+      font-family: var(--font-mono);
+      font-size: 0.88em;
     }
 
     /* Registry Search & Category Toolbar */
     .toolbar-container {
-      max-width: 1200px;
-      margin: 0 auto 32px;
+      max-width: 1240px;
+      width: 100%;
+      margin: 0 auto 28px;
       padding: 0 24px;
+      position: relative;
+      z-index: 1;
     }
     .search-box-wrap {
       position: relative;
@@ -178,11 +120,12 @@
     .search-input {
       width: 100%;
       background: var(--bg-surface);
+      backdrop-filter: blur(16px);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 14px 18px 14px 44px;
+      padding: 13px 18px 13px 44px;
       color: #fff;
-      font-size: 0.95rem;
+      font-size: 0.92rem;
       font-family: var(--font-sans);
       outline: none;
       transition: all 0.2s;
@@ -193,11 +136,12 @@
     }
     .search-icon {
       position: absolute;
-      left: 16px;
+      left: 15px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--text-muted);
-      font-size: 1.1rem;
+      display: flex;
+      align-items: center;
       pointer-events: none;
     }
 
@@ -211,46 +155,67 @@
       background: var(--bg-surface);
       border: 1px solid var(--border);
       color: var(--text-muted);
-      padding: 6px 14px;
+      padding: 7px 14px;
       border-radius: 999px;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.78rem;
+      font-weight: 700;
+      font-family: var(--font-sans);
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
       transition: all 0.15s;
     }
     .cat-btn:hover {
       color: #fff;
       border-color: var(--border-hover);
+      background: rgba(20, 16, 43, 0.9);
     }
     .cat-btn.active {
-      background: rgba(0, 229, 255, 0.15);
-      border-color: var(--brand);
+      background: rgba(0, 240, 255, 0.14);
+      border-color: rgba(0, 240, 255, 0.45);
       color: var(--brand);
+      box-shadow: 0 0 16px rgba(0, 240, 255, 0.12);
+    }
+    .cat-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: currentColor;
+      opacity: 0.85;
     }
 
     /* Registry Metrics Banner */
     .metrics-strip {
-      max-width: 1200px;
-      margin: 0 auto 40px;
+      max-width: 1240px;
+      width: 100%;
+      margin: 0 auto 36px;
       padding: 0 24px;
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(4, 1fr);
       gap: 16px;
+      position: relative;
+      z-index: 1;
+    }
+    @media (max-width: 900px) {
+      .metrics-strip { grid-template-columns: repeat(2, 1fr); }
     }
     .metric-card {
       background: var(--bg-surface);
+      backdrop-filter: blur(16px);
       border: 1px solid var(--border);
       border-radius: var(--radius-md);
-      padding: 14px 18px;
+      padding: 16px 20px;
       display: flex;
       flex-direction: column;
       gap: 4px;
     }
     .metric-val {
-      font-size: 1.3rem;
+      font-size: 1.35rem;
       font-weight: 800;
       font-family: var(--font-mono);
       color: var(--brand);
+      letter-spacing: -0.02em;
     }
     .metric-label {
       font-size: 0.78rem;
@@ -260,20 +225,24 @@
 
     /* Packages Grid */
     .packages-container {
-      max-width: 1200px;
+      max-width: 1240px;
+      width: 100%;
       margin: 0 auto;
-      padding: 0 24px 60px;
+      padding: 0 24px 64px;
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-      gap: 24px;
+      gap: 20px;
       flex: 1;
+      position: relative;
+      z-index: 1;
     }
 
     .pkg-card {
       background: var(--bg-surface);
+      backdrop-filter: blur(16px);
       border: 1px solid var(--border);
       border-radius: var(--radius-lg);
-      padding: 24px;
+      padding: 22px;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
@@ -282,80 +251,100 @@
       overflow: hidden;
     }
     .pkg-card:hover {
-      border-color: var(--brand);
+      border-color: var(--border-hover);
       transform: translateY(-3px);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.5), 0 0 24px rgba(0, 240, 255, 0.06);
     }
     .pkg-header {
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-bottom: 12px;
+      gap: 12px;
+      margin-bottom: 14px;
     }
     .pkg-name-wrap {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
     .pkg-icon {
-      font-size: 1.6rem;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border);
-      width: 44px;
-      height: 44px;
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      background: rgba(0, 240, 255, 0.07);
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      color: var(--brand);
       display: flex;
       align-items: center;
       justify-content: center;
-      border-radius: var(--radius-sm);
+      border-radius: 9px;
     }
-    .pkg-title {
-      font-size: 1.15rem;
+    .pkg-title, .pkg-name {
+      font-size: 1.05rem;
       font-weight: 800;
       color: #fff;
       font-family: var(--font-mono);
+      letter-spacing: -0.02em;
     }
-    .pkg-category {
-      font-size: 0.72rem;
+    .pkg-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .pkg-category, .pkg-tag {
+      font-size: 0.68rem;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.05em;
       padding: 3px 8px;
-      border-radius: 4px;
+      border-radius: 5px;
       background: rgba(255, 255, 255, 0.05);
-      color: var(--text-muted);
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      color: var(--accent-amber);
+      font-family: var(--font-mono);
+      white-space: nowrap;
     }
     .pkg-desc {
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       color: var(--text-muted);
-      line-height: 1.5;
-      margin-bottom: 16px;
-      min-height: 48px;
+      line-height: 1.55;
+      margin-bottom: 14px;
     }
     .pkg-code {
       background: var(--bg-code);
-      border: 1px solid rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: var(--radius-sm);
       padding: 10px 12px;
       font-family: var(--font-mono);
-      font-size: 0.75rem;
-      color: #cbd5e1;
+      font-size: 0.74rem;
+      color: #E2E8F0;
       white-space: pre;
       overflow-x: auto;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       line-height: 1.45;
     }
     .pkg-meta {
       display: flex;
       align-items: center;
-      gap: 14px;
-      font-size: 0.75rem;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.72rem;
       color: var(--text-muted);
       font-family: var(--font-mono);
-      margin-bottom: 18px;
-      padding-top: 10px;
-      border-top: 1px solid rgba(255, 255, 255, 0.04);
+      margin-bottom: 16px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
-    .pkg-meta span { display: flex; align-items: center; gap: 4px; }
+    .pkg-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
 
     .pkg-actions {
       display: flex;
@@ -364,13 +353,13 @@
     }
     .btn-install {
       flex: 1;
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
-      color: #e2e8f0;
+      color: #E2E8F0;
       padding: 8px 12px;
       border-radius: var(--radius-sm);
       font-family: var(--font-mono);
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       font-weight: 600;
       cursor: pointer;
       display: flex;
@@ -380,17 +369,17 @@
       transition: all 0.15s;
     }
     .btn-install:hover {
-      background: rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.09);
       color: #fff;
       border-color: var(--border-hover);
     }
     .btn-run-arena {
-      background: rgba(0, 229, 255, 0.15);
-      border: 1px solid rgba(0, 229, 255, 0.35);
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(0, 240, 255, 0.35);
       color: var(--brand);
       padding: 8px 14px;
       border-radius: var(--radius-sm);
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       font-weight: 700;
       display: flex;
       align-items: center;
@@ -400,7 +389,7 @@
     }
     .btn-run-arena:hover {
       background: var(--brand);
-      color: #03120b;
+      color: #05050B;
       transform: translateY(-1px);
     }
 
@@ -409,14 +398,14 @@
       position: fixed;
       bottom: 24px;
       right: 24px;
-      background: #111827;
+      background: #14102B;
       border: 1px solid var(--brand);
       color: #fff;
       padding: 10px 18px;
       border-radius: 8px;
-      font-size: 0.85rem;
+      font-size: 0.82rem;
       font-family: var(--font-mono);
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.75);
       opacity: 0;
       pointer-events: none;
       transition: opacity 0.2s ease, transform 0.2s ease;
@@ -430,17 +419,6 @@
       opacity: 1;
       transform: translateY(0);
     }
-
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 32px 24px;
-      text-align: center;
-      font-size: 0.85rem;
-      color: var(--text-muted);
-      background: var(--bg-surface);
-      margin-top: auto;
-    }
   </style>
 </head>
 <body>
@@ -450,7 +428,7 @@
   <div class="cosmic-grid-overlay"></div>
 
   <!-- Unified Announcement Bar -->
-  <div class="tnt-announcement-bar">
+  <div class="tnt-announcement-bar announcement-ribbon">
     <span class="tnt-ribbon-pill">Official Registry</span>
     <span>40 Zero-Cost Native Packages &bull; Compiled to Unboxed Registers with 0.000ms GC Pause</span>
     <a href="arena.html" class="tnt-ribbon-link">Run Live in Web Arena &rarr;</a>
@@ -497,18 +475,20 @@
   <!-- Registry Search & Category Filters -->
   <div class="toolbar-container">
     <div class="search-box-wrap">
-      <span class="search-icon">🔍</span>
-      <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
+      <span class="search-icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search 40 packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (40)</button>
-      <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
-      <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
-      <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
-      <button class="cat-btn" data-cat="ai" onclick="selectCategory('ai')">🧠 AI & Tensor Math</button>
-      <button class="cat-cat-btn cat-btn" data-cat="gui" onclick="selectCategory('gui')">🎨 Smalltalk Morphic</button>
-      <button class="cat-btn" data-cat="crypto" onclick="selectCategory('crypto')">🔒 Cryptography</button>
-      <button class="cat-btn" data-cat="planet" onclick="selectCategory('planet')">🪐 Planetary &amp; RDMA</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')"><span class="cat-dot"></span>All Packages (40)</button>
+      <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')"><span class="cat-dot"></span>Systems &amp; HFT</button>
+      <button class="cat-btn" data-cat="web" onclick="selectCategory('web')"><span class="cat-dot"></span>Network &amp; Web</button>
+      <button class="cat-btn" data-cat="database" onclick="selectCategory('database')"><span class="cat-dot"></span>Database &amp; Vector</button>
+      <button class="cat-btn" data-cat="ai" onclick="selectCategory('ai')"><span class="cat-dot"></span>AI &amp; Tensor Math</button>
+      <button class="cat-btn" data-cat="gui" onclick="selectCategory('gui')"><span class="cat-dot"></span>Smalltalk Morphic</button>
+      <button class="cat-btn" data-cat="crypto" onclick="selectCategory('crypto')"><span class="cat-dot"></span>Cryptography</button>
+      <button class="cat-btn" data-cat="planet" onclick="selectCategory('planet')"><span class="cat-dot"></span>Planetary &amp; RDMA</button>
     </div>
   </div>
 
@@ -539,7 +519,7 @@
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-title">tnt/hft</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">High-Frequency Trading & Order Book</div>
@@ -555,14 +535,14 @@ book.insert(hft.Order(id=1, price=94500.50, qty=1.5, side=hft.BUY))
 vwap = book.calculate_vwap()
 print(f"VWAP: {vwap}")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 14.2k</span>
-          <span>⚖️ MIT</span>
-          <span>⚡ Zero-Allocation</span>
+          <span>v4.0.0</span>
+          <span>Stars: 14.2k</span>
+          <span>MIT</span>
+          <span>Zero-Allocation</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/hft')">📋 tnt add tnt/hft</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/hft')">$ tnt add tnt/hft</button>
         <a href="arena.html?preset=hft" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -572,7 +552,7 @@ print(f"VWAP: {vwap}")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🌐</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
             <div>
               <div class="pkg-title">tnt/http</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Asynchronous Non-Blocking HTTP/1.1</div>
@@ -591,14 +571,14 @@ def quote(req: http.Request) -> http.Response:
 
 app.listen(port=8080)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 28.6k</span>
-          <span>⚖️ MIT</span>
-          <span>🚀 8.2M req/s</span>
+          <span>v4.0.0</span>
+          <span>Stars: 28.6k</span>
+          <span>MIT</span>
+          <span>8.2M req/s</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/http')">📋 tnt add tnt/http</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/http')">$ tnt add tnt/http</button>
         <a href="arena.html?preset=http" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -608,7 +588,7 @@ app.listen(port=8080)</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">💾</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
             <div>
               <div class="pkg-title">tnt/db</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Embedded Columnar & Vector Store</div>
@@ -624,14 +604,14 @@ store.create_table("ticks", fields={"ts": "i64", "val": "f64"})
 store.insert("ticks", ts=1729000000, val=94520.0)
 results = store.query("SELECT val FROM ticks WHERE val > 94000")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 19.4k</span>
-          <span>⚖️ MIT</span>
-          <span>🔍 SIMD Vector Scan</span>
+          <span>v4.0.0</span>
+          <span>Stars: 19.4k</span>
+          <span>MIT</span>
+          <span>SIMD Vector Scan</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/db')">📋 tnt add tnt/db</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/db')">$ tnt add tnt/db</button>
         <a href="arena.html?preset=db" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -641,7 +621,7 @@ results = store.query("SELECT val FROM ticks WHERE val > 94000")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🧠</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-title">tnt/tensor</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Hardware-Accelerated SIMD Tensors</div>
@@ -657,14 +637,14 @@ B = tt.eye(1024)
 C = A @ B  # SIMD FMA-accelerated GEMM
 print(f"Matrix Norm: {C.norm()}")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 22.1k</span>
-          <span>⚖️ MIT</span>
-          <span>⚡ AVX-512 / NEON</span>
+          <span>v4.0.0</span>
+          <span>Stars: 22.1k</span>
+          <span>MIT</span>
+          <span>AVX-512 / NEON</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/tensor')">📋 tnt add tnt/tensor</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/tensor')">$ tnt add tnt/tensor</button>
         <a href="arena.html?preset=tensor" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -674,7 +654,7 @@ print(f"Matrix Norm: {C.norm()}")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🎨</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg></div>
             <div>
               <div class="pkg-title">tnt/canvas</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Smalltalk-80 Reactive Morphic UI</div>
@@ -690,14 +670,14 @@ slider = morphic.SliderMorph(min=0, max=100, on_change=lambda v: print(v))
 window.add_morph(slider)
 window.open_in_world()</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 16.7k</span>
-          <span>⚖️ MIT</span>
-          <span>✨ 60 FPS Morphic</span>
+          <span>v4.0.0</span>
+          <span>Stars: 16.7k</span>
+          <span>MIT</span>
+          <span>60 FPS Morphic</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/canvas')">📋 tnt add tnt/canvas</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/canvas')">$ tnt add tnt/canvas</button>
         <a href="arena.html?preset=canvas" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -707,7 +687,7 @@ window.open_in_world()</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🔒</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
             <div>
               <div class="pkg-title">tnt/crypto</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Constant-Time Cryptographic Primitives</div>
@@ -723,14 +703,14 @@ hasher.update(b"high-speed-blockchain-block")
 digest = hasher.finalize()
 print(f"Hash: {digest.hex()}")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 11.3k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Constant-Time</span>
+          <span>v4.0.0</span>
+          <span>Stars: 11.3k</span>
+          <span>MIT</span>
+          <span>Constant-Time</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/crypto')">📋 tnt add tnt/crypto</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/crypto')">$ tnt add tnt/crypto</button>
         <a href="arena.html?preset=crypto" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -740,7 +720,7 @@ print(f"Hash: {digest.hex()}")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🕹️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-title">tnt/wasm</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Client-Side WebAssembly & WebGPU</div>
@@ -756,14 +736,14 @@ def render_frame(delta_ms: f64) -> i32:
     wasm.draw_particles(count=10000, dt=delta_ms)
     return 0</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 34.9k</span>
-          <span>⚖️ MIT</span>
-          <span>📦 1.7 KB WASM</span>
+          <span>v4.0.0</span>
+          <span>Stars: 34.9k</span>
+          <span>MIT</span>
+          <span>1.7 KB WASM</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/wasm')">📋 tnt add tnt/wasm</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/wasm')">$ tnt add tnt/wasm</button>
         <a href="arena.html?preset=particles" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -773,7 +753,7 @@ def render_frame(delta_ms: f64) -> i32:
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-title">tnt/actor</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Lock-Free Concurrent Actor System</div>
@@ -791,14 +771,14 @@ class Worker(actor.Behavior):
 pid = actor.spawn(Worker())
 pid.send("ping")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.0.0</span>
-          <span>⭐ 15.8k</span>
-          <span>⚖️ MIT</span>
-          <span>📬 Lock-Free MPSC</span>
+          <span>v4.0.0</span>
+          <span>Stars: 15.8k</span>
+          <span>MIT</span>
+          <span>Lock-Free MPSC</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/actor')">📋 tnt add tnt/actor</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/actor')">$ tnt add tnt/actor</button>
         <a href="arena.html?preset=serverless" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -807,7 +787,7 @@ pid.send("ping")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🪐</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M2.5 14.5c2.5 2 6.5 3 10.5 1.5s7.5-4.5 8.5-7.5"/></svg></div>
             <div>
               <div class="pkg-title">tnt/planet</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Planetary CRDT Actor Substrate</div>
@@ -823,14 +803,14 @@ counter.increment(10)
 actor = planet.PlanetaryActor("trader-1", "us-east")
 actor.migrate_to("eu-west")</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.1.0</span>
-          <span>⭐ 18.9k</span>
-          <span>⚖️ MIT</span>
-          <span>🌐 Zero-Coordinator</span>
+          <span>v4.1.0</span>
+          <span>Stars: 18.9k</span>
+          <span>MIT</span>
+          <span>Zero-Coordinator</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/planet')">📋 tnt add tnt/planet</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/planet')">$ tnt add tnt/planet</button>
         <a href="arena.html?preset=planet" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -840,7 +820,7 @@ actor.migrate_to("eu-west")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-title">tnt/rdma</div>
               <div style="font-size: 0.72rem; color: var(--text-muted);">Sub-Microsecond Kernel-Bypass RDMA</div>
@@ -855,14 +835,14 @@ ring = rdma.KernelBypassRing(capacity=4096)
 ring.enqueue(b"HFT_MARKET_TICK")
 packets = ring.rx_burst(max_packets=32)</div>
         <div class="pkg-meta">
-          <span>🏷️ v4.1.0</span>
-          <span>⭐ 24.1k</span>
-          <span>⚖️ MIT</span>
-          <span>🚀 &lt; 1.0 µs Wire Latency</span>
+          <span>v4.1.0</span>
+          <span>Stars: 24.1k</span>
+          <span>MIT</span>
+          <span>&lt; 1.0 µs Wire Latency</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/rdma')">📋 tnt add tnt/rdma</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/rdma')">$ tnt add tnt/rdma</button>
         <a href="arena.html?preset=rdma" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -871,7 +851,7 @@ packets = ring.rx_burst(max_packets=32)</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🏛️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M2.5 14.5c2.5 2 6.5 3 10.5 1.5s7.5-4.5 8.5-7.5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/consensus</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -889,14 +869,14 @@ leader_id = cluster.elect_leader("node-1")
 leader = cluster.get_node(leader_id)
 leader.propose("SET", ("balance", 5000000))</div>
         <div class="pkg-meta">
-          <span>🏷️ v8.0.0</span>
-          <span>⭐ 28.4k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Linearizable Quorum</span>
+          <span>v8.0.0</span>
+          <span>Stars: 28.4k</span>
+          <span>MIT</span>
+          <span>Linearizable Quorum</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/consensus')">📋 tnt add tnt/consensus</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/consensus')">$ tnt add tnt/consensus</button>
         <a href="arena.html?preset=consensus" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -906,7 +886,7 @@ leader.propose("SET", ("balance", 5000000))</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">📡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/rpc</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -925,14 +905,14 @@ client = rpc.RPCClient()
 req = client.call(1, b"PING")
 res = dispatcher.dispatch(req)</div>
         <div class="pkg-meta">
-          <span>🏷️ v8.0.0</span>
-          <span>⭐ 31.9k</span>
-          <span>⚖️ MIT</span>
-          <span>⚡ 32B Zero-Copy Frame</span>
+          <span>v8.0.0</span>
+          <span>Stars: 31.9k</span>
+          <span>MIT</span>
+          <span>32B Zero-Copy Frame</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/rpc')">📋 tnt add tnt/rpc</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/rpc')">$ tnt add tnt/rpc</button>
         <a href="arena.html?preset=rpc" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -941,7 +921,7 @@ res = dispatcher.dispatch(req)</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">📦</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/cas</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -958,14 +938,14 @@ store = cas.ContentAddressedStore(default_chunk_size=4096)
 root, chunk_ids = store.put(b"IMMUTABLE_BLOCKCHAIN_STATE_SNAPSHOT")
 data = store.get(root)</div>
         <div class="pkg-meta">
-          <span>🏷️ v8.0.0</span>
-          <span>⭐ 35.2k</span>
-          <span>⚖️ MIT</span>
-          <span>🌳 Cryptographic Merkle CAS</span>
+          <span>v8.0.0</span>
+          <span>Stars: 35.2k</span>
+          <span>MIT</span>
+          <span>Cryptographic Merkle CAS</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/cas')">📋 tnt add tnt/cas</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/cas')">$ tnt add tnt/cas</button>
         <a href="arena.html?preset=cas" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -975,7 +955,7 @@ data = store.get(root)</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🕸️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></div>
             <div>
               <div class="pkg-name">tnt/mesh</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -993,14 +973,14 @@ bob = mesh.PeerIdentity.generate("bob")
 tunnel = mesh.MeshTunnel(alice, bob.public_key, "shared_key")
 pkt = tunnel.encrypt(bob.node_id, b"CONFIDENTIAL_PAYLOAD")</div>
         <div class="pkg-meta">
-          <span>🏷️ v8.0.0</span>
-          <span>⭐ 38.7k</span>
-          <span>⚖️ MIT</span>
-          <span>🔒 Zero-Trust Tunnel</span>
+          <span>v8.0.0</span>
+          <span>Stars: 38.7k</span>
+          <span>MIT</span>
+          <span>Zero-Trust Tunnel</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/mesh')">📋 tnt add tnt/mesh</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/mesh')">$ tnt add tnt/mesh</button>
         <a href="arena.html?preset=mesh" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1009,7 +989,7 @@ pkt = tunnel.encrypt(bob.node_id, b"CONFIDENTIAL_PAYLOAD")</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛡️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
             <div>
               <div class="pkg-name">tnt/zk</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1029,14 +1009,14 @@ circuit.add_constraint({x: 1}, {x: 1}, {y: 1})
 prover = zk.ZKProver(circuit)
 proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <div class="pkg-meta">
-          <span>🏷️ v8.0.0</span>
-          <span>⭐ 42.1k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Non-Interactive ZK Proof</span>
+          <span>v8.0.0</span>
+          <span>Stars: 42.1k</span>
+          <span>MIT</span>
+          <span>Non-Interactive ZK Proof</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/zk')">📋 tnt add tnt/zk</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/zk')">$ tnt add tnt/zk</button>
         <a href="arena.html?preset=zk" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1048,7 +1028,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/superopt</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1060,14 +1040,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Superoptimizing Neuro-Symbolic Compiler Engine. Precise hardware CPU cycle cost modeling (Zen 4, Skylake, Apple Silicon), SSA algebraic simplifications, and bitwise strength reduction.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v4.5.0</span>
-          <span>⭐ 45.8k</span>
-          <span>⚖️ MIT</span>
-          <span>⚡ Hardware Calibrated</span>
+          <span>v4.5.0</span>
+          <span>Stars: 45.8k</span>
+          <span>MIT</span>
+          <span>Hardware Calibrated</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/superopt')">📋 tnt add tnt/superopt</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/superopt')">$ tnt add tnt/superopt</button>
         <a href="arena.html?preset=superopt" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1079,7 +1059,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🌲</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/mcts</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1091,14 +1071,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           AlphaDev-style Monte-Carlo Tree Search Assembly Synthesizer. Explores combinatorial instruction permutations, branchless bitwise tricks, and register schedules with UCB1 search.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v4.6.0</span>
-          <span>⭐ 47.2k</span>
-          <span>⚖️ MIT</span>
-          <span>🌲 UCB1 Guided</span>
+          <span>v4.6.0</span>
+          <span>Stars: 47.2k</span>
+          <span>MIT</span>
+          <span>UCB1 Guided</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/mcts')">📋 tnt add tnt/mcts</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/mcts')">$ tnt add tnt/mcts</button>
         <a href="arena.html?preset=mcts" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1110,7 +1090,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛡️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
             <div>
               <div class="pkg-name">tnt/smt</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1122,14 +1102,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           SMT Bitvector Equivalence Engine. Formally proves semantic equivalence between baseline and superoptimized sequences, detecting 100% of invalid transformations and emitting cryptographic proof certificates.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v4.7.0</span>
-          <span>⭐ 49.5k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Machine Verified</span>
+          <span>v4.7.0</span>
+          <span>Stars: 49.5k</span>
+          <span>MIT</span>
+          <span>Machine Verified</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/smt')">📋 tnt add tnt/smt</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/smt')">$ tnt add tnt/smt</button>
         <a href="arena.html?preset=smt" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1141,7 +1121,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🚀</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/simd_opt</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1153,14 +1133,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Auto-Vectorization & SIMD Superoptimizer. Compiles parallel scalar arithmetic loops into AVX2, AVX-512, and ARM Neon 128/256/512-bit wide registers with single-cycle Fused Multiply-Add (FMA) loop fusion.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v4.8.0</span>
-          <span>⭐ 51.9k</span>
-          <span>⚖️ MIT</span>
-          <span>🚀 AVX-512 & Neon</span>
+          <span>v4.8.0</span>
+          <span>Stars: 51.9k</span>
+          <span>MIT</span>
+          <span>AVX-512 & Neon</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/simd_opt')">📋 tnt add tnt/simd_opt</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/simd_opt')">$ tnt add tnt/simd_opt</button>
         <a href="arena.html?preset=simd_opt" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1172,7 +1152,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/pgo</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1184,14 +1164,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Continuous Profile-Guided Superoptimization (PGO) & Kernel Disk Cache. Instruments runtime execution, captures hot loop trip counts, and caches formally verified superoptimized kernels with SHA-256 persistent disk storage (.tntcache).
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v4.9.0</span>
-          <span>⭐ 54.3k</span>
-          <span>⚖️ MIT</span>
-          <span>⚡ Phase 12 Complete</span>
+          <span>v4.9.0</span>
+          <span>Stars: 54.3k</span>
+          <span>MIT</span>
+          <span>Phase 12 Complete</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/pgo')">📋 tnt add tnt/pgo</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/pgo')">$ tnt add tnt/pgo</button>
         <a href="arena.html?preset=pgo" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1201,7 +1181,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🧠</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/neuromorphic</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1213,14 +1193,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Spiking Neural Network (SNN) Leaky Integrate-and-Fire (LIF) Kernel. Event-driven membrane potential dynamics, temporal spike train simulation, and ASCII raster visualization with zero garbage collection overhead.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v5.0.0</span>
-          <span>⭐ 56.1k</span>
-          <span>⚖️ MIT</span>
-          <span>⚡ SNN Silicon</span>
+          <span>v5.0.0</span>
+          <span>Stars: 56.1k</span>
+          <span>MIT</span>
+          <span>SNN Silicon</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/neuromorphic')">📋 tnt add tnt/neuromorphic</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/neuromorphic')">$ tnt add tnt/neuromorphic</button>
         <a href="arena.html?preset=neuromorphic" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1230,7 +1210,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/loihi2</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1242,14 +1222,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Intel Loihi 2 Synaptic Routing & Axonal Microcode Emitter. Low-level core compartment allocation, Spike-Timing-Dependent Plasticity (STDP) learning dynamics, and direct microcode compilation for asynchronous neuromorphic silicon.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v5.1.0</span>
-          <span>⭐ 58.4k</span>
-          <span>⚖️ MIT</span>
-          <span>🧠 Loihi 2 Silicon</span>
+          <span>v5.1.0</span>
+          <span>Stars: 58.4k</span>
+          <span>MIT</span>
+          <span>Loihi 2 Silicon</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/loihi2')">📋 tnt add tnt/loihi2</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/loihi2')">$ tnt add tnt/loihi2</button>
         <a href="arena.html?preset=loihi2" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1259,7 +1239,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">💡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/optical</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1271,14 +1251,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Coherent Optical Matrix Multiplier & Mach-Zehnder Interferometer (MZI) Photonic Mesh. Clements unitary matrix decomposition, speed-of-light optical propagation, and 15-attojoule/MAC ultra-low-energy matrix acceleration.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v5.2.0</span>
-          <span>⭐ 60.8k</span>
-          <span>⚖️ MIT</span>
-          <span>💡 15 aJ / MAC</span>
+          <span>v5.2.0</span>
+          <span>Stars: 60.8k</span>
+          <span>MIT</span>
+          <span>15 aJ / MAC</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/optical')">📋 tnt add tnt/optical</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/optical')">$ tnt add tnt/optical</button>
         <a href="arena.html?preset=optical" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1288,7 +1268,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🔬</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/hybrid_neuro_optic</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1300,14 +1280,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Hybrid Neuromorphic-Optical Electro-Photonic Real-Time Pipeline. Connects passive coherent optical matrix multipliers with asynchronous LIF spiking neurons via photodiode power transduction (picosecond latency).
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v5.3.0</span>
-          <span>⭐ 63.2k</span>
-          <span>⚖️ MIT</span>
-          <span>🔬 Electro-Photonic</span>
+          <span>v5.3.0</span>
+          <span>Stars: 63.2k</span>
+          <span>MIT</span>
+          <span>Electro-Photonic</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/hybrid_neuro_optic')">📋 tnt add tnt/hybrid_neuro_optic</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/hybrid_neuro_optic')">$ tnt add tnt/hybrid_neuro_optic</button>
         <a href="arena.html?preset=hybrid_neuro_optic" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1317,7 +1297,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛡️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/neuro_verify</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1329,14 +1309,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Neuromorphic Event-Driven Spike Fuzzer & Formal Verification Engine. Enforces refractory rate violation bounds, energy consumption caps, silent network warnings, and synchronous epileptic avalanche prevention.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v5.4.0</span>
-          <span>⭐ 65.7k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Phase 13 Complete</span>
+          <span>v5.4.0</span>
+          <span>Stars: 65.7k</span>
+          <span>MIT</span>
+          <span>Phase 13 Complete</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/neuro_verify')">📋 tnt add tnt/neuro_verify</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/neuro_verify')">$ tnt add tnt/neuro_verify</button>
         <a href="arena.html?preset=neuro_verify" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1346,7 +1326,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🧬</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/bio</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1358,14 +1338,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           DNA-Origami Scaffold Routing & Staple Strand Synthesizer. Nanoscale 2D/3D geometry compilation, Holliday junction crossover routing, melting temperature (Tm) prediction, and FASTA sequence generation for robotic synthesis.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v6.0.0</span>
-          <span>⭐ 67.9k</span>
-          <span>⚖️ MIT</span>
-          <span>🧬 DNA Origami</span>
+          <span>v6.0.0</span>
+          <span>Stars: 67.9k</span>
+          <span>MIT</span>
+          <span>DNA Origami</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/bio')">📋 tnt add tnt/bio</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/bio')">$ tnt add tnt/bio</button>
         <a href="arena.html?preset=bio" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1375,7 +1355,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">💧</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/microfluidics</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1387,14 +1367,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Microfluidic Spatial Droplet Control Flow & Lab-on-a-Chip Routing. Digital Microfluidics (DMF) 2D electrode array kinematics, electrowetting-on-dielectric (EWOD) transport, splitting, coalescence, and strict volume conservation.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v6.1.0</span>
-          <span>⭐ 70.1k</span>
-          <span>⚖️ MIT</span>
-          <span>💧 Lab-on-a-Chip</span>
+          <span>v6.1.0</span>
+          <span>Stars: 70.1k</span>
+          <span>MIT</span>
+          <span>Lab-on-a-Chip</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/microfluidics')">📋 tnt add tnt/microfluidics</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/microfluidics')">$ tnt add tnt/microfluidics</button>
         <a href="arena.html?preset=microfluidics" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1404,7 +1384,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🧱</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/molecular</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1416,14 +1396,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Reconfigurable Molecular Lattice Topology & Self-Assembly Compiler. 2D/3D abstract Tile Assembly Model (aTAM), Wang tile edge glue binding strengths, and seed-driven algorithmic crystal nucleation.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v6.2.0</span>
-          <span>⭐ 72.5k</span>
-          <span>⚖️ MIT</span>
-          <span>🧱 aTAM Lattices</span>
+          <span>v6.2.0</span>
+          <span>Stars: 72.5k</span>
+          <span>MIT</span>
+          <span>aTAM Lattices</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/molecular')">📋 tnt add tnt/molecular</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/molecular')">$ tnt add tnt/molecular</button>
         <a href="arena.html?preset=molecular" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1433,7 +1413,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🧪</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/crn</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1445,14 +1425,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Chemical Reaction Network (CRN) Kinetic Rate Simulator. Gillespie Stochastic Simulation Algorithm (SSA) and Mass Action kinetics for molecular logic gates (AND, OR, Inverters, and Bistable memory switches).
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v6.3.0</span>
-          <span>⭐ 74.8k</span>
-          <span>⚖️ MIT</span>
-          <span>🧪 Gillespie SSA</span>
+          <span>v6.3.0</span>
+          <span>Stars: 74.8k</span>
+          <span>MIT</span>
+          <span>Gillespie SSA</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/crn')">📋 tnt add tnt/crn</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/crn')">$ tnt add tnt/crn</button>
         <a href="arena.html?preset=crn" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1462,7 +1442,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛡️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/bio_verify</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1474,14 +1454,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Biocomputation Mutation Fuzzer & Thermodynamic Free Energy Checker. Certifies negative Gibbs free energy (spontaneous hybridization), rejects synthesis-breaking homopolymers, and enforces GC window bounds.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v6.4.0</span>
-          <span>⭐ 77.2k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Phase 14 Complete</span>
+          <span>v6.4.0</span>
+          <span>Stars: 77.2k</span>
+          <span>MIT</span>
+          <span>Phase 14 Complete</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/bio_verify')">📋 tnt add tnt/bio_verify</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/bio_verify')">$ tnt add tnt/bio_verify</button>
         <a href="arena.html?preset=bio_verify" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1491,7 +1471,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚛️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/quantum</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1503,14 +1483,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Fault-Tolerant Quantum Circuit & Statevector Engine. Native qubit superposition, universal unitary gates (H, X, Z, CNOT), EPR Bell-pair entanglement, and Born rule projective measurements with exact L2-norm preservation.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v7.0.0</span>
-          <span>⭐ 79.5k</span>
-          <span>⚖️ MIT</span>
-          <span>⚛️ 16-Qubit Statevector</span>
+          <span>v7.0.0</span>
+          <span>Stars: 79.5k</span>
+          <span>MIT</span>
+          <span>16-Qubit Statevector</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/quantum')">📋 tnt add tnt/quantum</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/quantum')">$ tnt add tnt/quantum</button>
         <a href="arena.html?preset=quantum" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1520,7 +1500,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚡</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/qasm</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1532,14 +1512,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           OpenQASM 3.0 & Surface-17 Topological QEC Emitter. Compiles TinyTalk quantum circuits to standardized OpenQASM 3.0 and generates distance-3 rotated surface code syndrome extraction circuits (9 data + 8 ancilla qubits).
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v7.1.0</span>
-          <span>⭐ 81.9k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Surface-17 QEC</span>
+          <span>v7.1.0</span>
+          <span>Stars: 81.9k</span>
+          <span>MIT</span>
+          <span>Surface-17 QEC</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/qasm')">📋 tnt add tnt/qasm</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/qasm')">$ tnt add tnt/qasm</button>
         <a href="arena.html?preset=qasm" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1549,7 +1529,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🪐</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M2.5 14.5c2.5 2 6.5 3 10.5 1.5s7.5-4.5 8.5-7.5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/space</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1561,14 +1541,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Relativistic Deep-Space Causal State Sync. 4D Minkowski spacetime intervals (s^2), timelike/spacelike light-cone partitioning, and planetary light-speed propagation modeling across Earth, Moon, and Mars.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v7.2.0</span>
-          <span>⭐ 84.3k</span>
-          <span>⚖️ MIT</span>
-          <span>🪐 Interplanetary Sync</span>
+          <span>v7.2.0</span>
+          <span>Stars: 84.3k</span>
+          <span>MIT</span>
+          <span>Interplanetary Sync</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/space')">📋 tnt add tnt/space</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/space')">$ tnt add tnt/space</button>
         <a href="arena.html?preset=space" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1578,7 +1558,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛰️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8"/><path d="M2.5 14.5c2.5 2 6.5 3 10.5 1.5s7.5-4.5 8.5-7.5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/relativistic</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1590,14 +1570,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Minkowski Light-Cone Clock Sync & Interplanetary CRDT. Conflict-Free Replicated Data Types (PN-Counters and LWW-Registers) with commutative lattice merge and Lorentz-invariant timestamp ordering.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v7.3.0</span>
-          <span>⭐ 86.8k</span>
-          <span>⚖️ MIT</span>
-          <span>🛰️ Relativistic CRDT</span>
+          <span>v7.3.0</span>
+          <span>Stars: 86.8k</span>
+          <span>MIT</span>
+          <span>Relativistic CRDT</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/relativistic')">📋 tnt add tnt/relativistic</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/relativistic')">$ tnt add tnt/relativistic</button>
         <a href="arena.html?preset=relativistic" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1607,7 +1587,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛡️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/quantum_verify</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1619,14 +1599,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Quantum Circuit State Fuzzer & Clifford+T Fault-Tolerant Verification. Certifies unitary L2-norm preservation, computes Bell-state concurrence, and detects probability leaks or no-cloning violations.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v7.4.0</span>
-          <span>⭐ 89.4k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Phase 15 Complete</span>
+          <span>v7.4.0</span>
+          <span>Stars: 89.4k</span>
+          <span>MIT</span>
+          <span>Phase 15 Complete</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/quantum_verify')">📋 tnt add tnt/quantum_verify</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/quantum_verify')">$ tnt add tnt/quantum_verify</button>
         <a href="arena.html?preset=quantum_verify" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1636,7 +1616,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">∇</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/diff_physics</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1648,14 +1628,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Universal Differentiable Physics & Reverse-Mode Autograd Tape. Automatic differentiation (∇f) across all language primitives, topological reverse-mode gradient backpropagation, and physical parameter optimization.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v8.0.0</span>
-          <span>⭐ 92.1k</span>
-          <span>⚖️ MIT</span>
+          <span>v8.0.0</span>
+          <span>Stars: 92.1k</span>
+          <span>MIT</span>
           <span>∇ Autograd Tape</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/diff_physics')">📋 tnt add tnt/diff_physics</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/diff_physics')">$ tnt add tnt/diff_physics</button>
         <a href="arena.html?preset=diff_physics" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1665,7 +1645,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">⚙️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/hamiltonian</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1677,14 +1657,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Hamiltonian Classical Mechanics & Symplectic Integrator. Velocity-Verlet phase-space symplectic integration preserving Liouville volume and total mechanical energy H(q, p) over billions of steps with zero artificial drift.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v8.1.0</span>
-          <span>⭐ 94.7k</span>
-          <span>⚖️ MIT</span>
-          <span>⚙️ Symplectic Verlet</span>
+          <span>v8.1.0</span>
+          <span>Stars: 94.7k</span>
+          <span>MIT</span>
+          <span>Symplectic Verlet</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/hamiltonian')">📋 tnt add tnt/hamiltonian</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/hamiltonian')">$ tnt add tnt/hamiltonian</button>
         <a href="arena.html?preset=hamiltonian" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1694,7 +1674,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🌐</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/world_twin</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1706,14 +1686,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Multi-Scale Digital Twin Physical Simulation & Rigid/Soft Body Dynamics. Mass-spring-damper cloth/soft-body lattices, 6-DOF kinematics, ground plane restitution collisions, and real-time physical sandbox updates.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v8.2.0</span>
-          <span>⭐ 97.3k</span>
-          <span>⚖️ MIT</span>
-          <span>🌐 Digital Twin</span>
+          <span>v8.2.0</span>
+          <span>Stars: 97.3k</span>
+          <span>MIT</span>
+          <span>Digital Twin</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/world_twin')">📋 tnt add tnt/world_twin</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/world_twin')">$ tnt add tnt/world_twin</button>
         <a href="arena.html?preset=world_twin" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1723,7 +1703,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🎮</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg></div>
             <div>
               <div class="pkg-name">tnt/gpu_physics</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1735,14 +1715,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Multi-GPU Physical Particle Field Emitter. Compiles mass-scale N-body gravitational fields and SPH fluid dynamics into WebGPU WGSL and Vulkan SPIR-V 1.5 parallel compute shader kernels.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v8.3.0</span>
-          <span>⭐ 99.8k</span>
-          <span>⚖️ MIT</span>
-          <span>🎮 GPU Compute</span>
+          <span>v8.3.0</span>
+          <span>Stars: 99.8k</span>
+          <span>MIT</span>
+          <span>GPU Compute</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/gpu_physics')">📋 tnt add tnt/gpu_physics</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/gpu_physics')">$ tnt add tnt/gpu_physics</button>
         <a href="arena.html?preset=gpu_physics" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1752,7 +1732,7 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
       <div>
         <div class="pkg-header">
           <div class="pkg-name-wrap">
-            <div class="pkg-icon">🛡️</div>
+            <div class="pkg-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
             <div>
               <div class="pkg-name">tnt/physics_verify</div>
               <div class="pkg-badge badge-official">Official Stdlib</div>
@@ -1764,14 +1744,14 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
           Conservation Law Energy/Momentum Invariant Fuzzer & Noether Certification Engine. Enforces continuous conservation of linear momentum, angular momentum, and bounded numerical energy drift in physical simulations.
         </p>
         <div class="pkg-meta">
-          <span>🏷️ v8.4.0</span>
-          <span>⭐ 102.5k</span>
-          <span>⚖️ MIT</span>
-          <span>🛡️ Phase 16 Complete</span>
+          <span>v8.4.0</span>
+          <span>Stars: 102.5k</span>
+          <span>MIT</span>
+          <span>Phase 16 Complete</span>
         </div>
       </div>
       <div class="pkg-actions">
-        <button class="btn-install" onclick="copyInstall('tnt add tnt/physics_verify')">📋 tnt add tnt/physics_verify</button>
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/physics_verify')">$ tnt add tnt/physics_verify</button>
         <a href="arena.html?preset=physics_verify" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
@@ -1791,23 +1771,25 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
 
   <!-- Clipboard Toast -->
   <div class="toast" id="clipboardToast">
-    <span>✅</span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
     <span id="toastMessage">Copied to clipboard!</span>
   </div>
 
-  <!-- Footer -->
-  <footer>
-    <div style="max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <span style="font-weight: 700; color: #fff;">TinyTalk</span>
-        <span>&bull;</span>
-        <span>Smalltalk Live Heritage, Python Simplicity, C Performance</span>
+  <!-- Unified Footer -->
+  <footer class="tnt-footer">
+    <div class="tnt-footer-inner">
+      <div class="tnt-footer-brand">
+        <img src="assets/logo.svg" alt="TinyTalk" width="22" height="22">
+        <span>TinyTalk (.tnt) v4.0.0</span>
+        <span style="color:var(--text-muted);">&bull; Official Zero-Cost Native Package Registry</span>
       </div>
-      <div style="display: flex; gap: 20px;">
-        <a href="index.html" style="color: var(--text-muted); hover: color: #fff;">Home</a>
-        <a href="arena.html" style="color: var(--text-muted);">Arena</a>
-        <a href="studio.html" style="color: var(--text-muted);">Studio</a>
-        <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" style="color: var(--text-muted);">GitHub</a>
+      <div class="tnt-footer-links">
+        <a href="index.html">Overview</a>
+        <a href="docs.html">Documentation</a>
+        <a href="arena.html">Web Arena</a>
+        <a href="studio.html">Morphic Studio</a>
+        <a href="packages.html">Packages</a>
+        <a href="dashboard.html">Telemetry</a>
       </div>
     </div>
   </footer>

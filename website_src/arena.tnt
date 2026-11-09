@@ -7,11 +7,6 @@ def render_arena_html() -> str:
     html = """<!DOCTYPE html>
 <html lang="en">
 <head>
-  <link rel="stylesheet" href="assets/fonts/fonts.css">
-  <link rel="stylesheet" href="assets/theme.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32x32.png?v=3">
@@ -19,342 +14,198 @@ def render_arena_html() -> str:
   <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png?v=3">
   <link rel="icon" type="image/x-icon" href="assets/tnt.ico?v=3">
   <link rel="shortcut icon" href="favicon.ico?v=3">
-  <title>Interactive Web Arena — TinyTalk (.tnt)</title>
-  
-  
+  <title>Web Arena — TinyTalk (.tnt) Interactive WebAssembly Compiler & Speed Duel</title>
+  <meta name="description" content="Compile and execute TinyTalk (.tnt) directly in your browser via tntc.wasm. Inspect lowered x86-64 assembly, unboxed register memory, and run live Speed Duels against CPython 3.14.">
+
+  <!-- Fonts & Unified Production Theme -->
+  <link rel="stylesheet" href="assets/fonts/fonts.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  
-  <style>
-    /* ==========================================================================
-       RESET & HIGH-CRAFT DESIGN SYSTEM TOKENS
-       ========================================================================== */
-    *, *::before, *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-    
-    :root {
-      --bg: #070510;
-      --bg-surface: #0C0A1C;
-      --bg-surface-elevated: #14102B;
-      --bg-code: #05030C;
-      --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(0, 240, 255, 0.32);
-      --border-accent: rgba(0, 240, 255, 0.45);
-      
-      --text: #F8FAFC;
-      --text-muted: #94A3B8;
-      --text-dim: #64748B;
-      
-      --brand: #00F0FF;
-      --brand-dark: #0284C7;
-      --brand-glow: rgba(0, 240, 255, 0.25);
-      
-      --accent-gold: #FFD438;
-      --accent-blue: #00F0FF;
-      --accent-purple: #A855F7;
-      --accent-red: #FF2A85;
-      
-      --font-sans: 'Open Runde', 'Inter', -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
-      --font-mono: "JetBrains Mono", Menlo, Consolas, monospace;
-      
-      --radius-sm: 6px;
-      --radius-md: 10px;
-      --radius-lg: 14px;
-    }
+  <link rel="stylesheet" href="assets/theme.css">
 
+  <style>
     html, body {
       height: 100vh;
       max-height: 100vh;
       overflow: hidden;
       margin: 0;
       padding: 0;
-    }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-sans);
       display: flex;
       flex-direction: column;
+      background: var(--bg);
+      color: var(--text);
     }
 
-    /* Sleek Dark Scrollbars */
-    *::-webkit-scrollbar {
-      width: 5px;
-      height: 5px;
-    }
-    *::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    *::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.14);
-      border-radius: 999px;
-    }
-    *::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.28);
-    }
-    * {
-      scrollbar-width: thin;
-      scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
-    }
-
-    /* Header (Fixed 48px) */
-    header {
-      background: rgba(12, 10, 28, 0.94);
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
-      padding: 8px 20px;
-      height: 48px;
-      flex-shrink: 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .brand-link {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      color: #fff;
-      font-weight: 700;
-      font-size: 1rem;
-      letter-spacing: -0.02em;
-    }
-
-    .brand-logo {
-      width: 24px;
-      height: 24px;
-      border-radius: 5px;
-    }
-
-    .version-tag {
-      background: rgba(0, 229, 255, 0.1);
-      border: 1px solid rgba(0, 229, 255, 0.25);
-      color: #38bdf8;
-      font-size: 0.72rem;
-      font-weight: 700;
-      font-family: var(--font-mono);
-      padding: 2px 7px;
-      border-radius: 999px;
-    }
-
-    .stats-ribbon {
-      display: flex;
-      gap: 16px;
-      align-items: center;
-      font-size: 0.78rem;
-    }
-
-    @media (max-width: 980px) {
-      .stats-ribbon { display: none; }
-    }
-
-    .stat-pill {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-    }
-
-    .stat-val {
-      color: #fff;
-      font-weight: 600;
-    }
-    .stat-val.green { color: #38bdf8; }
-    .stat-val.gold { color: var(--accent-gold); }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .back-btn {
-      color: var(--text-muted);
-      font-size: 0.8rem;
-      text-decoration: none;
-      padding: 5px 10px;
-      border-radius: var(--radius-sm);
-      border: 1px solid var(--border);
-      background: rgba(255, 255, 255, 0.03);
-      transition: all 0.15s;
-    }
-    .back-btn:hover {
-      color: #fff;
-      border-color: var(--border-hover);
-    }
-
-    /* Subheader Toolbar (Fixed 42px) */
+    /* Arena Command Sub-Toolbar */
     .playground-toolbar {
-      background: var(--bg-surface);
+      position: relative;
+      z-index: 10;
+      background: rgba(12, 10, 28, 0.92);
       border-bottom: 1px solid var(--border);
-      padding: 6px 20px;
-      height: 42px;
+      padding: 0 24px;
+      height: 50px;
       flex-shrink: 0;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 14px;
+      gap: 16px;
     }
 
     .preset-selector-wrap {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
     }
 
     .toolbar-label {
-      font-size: 0.76rem;
-      color: var(--text-muted);
+      font-size: 0.72rem;
+      color: var(--brand-cyan);
       font-family: var(--font-mono);
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
+      flex-shrink: 0;
     }
 
     .preset-select {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
-      color: #fff;
+      color: #ffffff;
       font-family: var(--font-mono);
-      font-size: 0.8rem;
-      padding: 5px 10px;
-      border-radius: var(--radius-sm);
+      font-size: 0.78rem;
+      padding: 6px 12px;
+      border-radius: var(--radius-xs);
       outline: none;
       cursor: pointer;
-      min-width: 300px;
-      max-width: 420px;
+      min-width: 280px;
+      max-width: 390px;
+      transition: border-color 0.15s ease;
     }
+
     .preset-select:focus {
-      border-color: var(--brand);
-    }
-
-    .run-btn {
-      background: var(--brand);
-      color: #03120b;
-      font-weight: 700;
-      border: none;
-      padding: 5px 15px;
-      border-radius: var(--radius-sm);
-      font-size: 0.8rem;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.15s;
-      font-family: var(--font-sans);
-    }
-    .run-btn:hover {
-      background: #38bdf8;
-    }
-
-    .duel-btn {
-      background: rgba(245, 158, 11, 0.12);
-      color: #fbbf24;
-      font-weight: 700;
-      border: 1px solid rgba(245, 158, 11, 0.38);
-      padding: 5px 12px;
-      border-radius: var(--radius-sm);
-      font-size: 0.78rem;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      transition: all 0.15s;
-      font-family: var(--font-sans);
-      white-space: nowrap;
-    }
-    .duel-btn:hover {
-      background: rgba(245, 158, 11, 0.22);
-      color: #fff;
-      border-color: #f59e0b;
+      border-color: var(--brand-cyan);
+      box-shadow: 0 0 0 2px rgba(0, 240, 255, 0.15);
     }
 
     .challenge-pills {
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       overflow-x: auto;
       scrollbar-width: none !important;
+      padding: 2px 0;
     }
-    .challenge-pills::-webkit-scrollbar {
-      display: none !important;
-    }
+    .challenge-pills::-webkit-scrollbar { display: none !important; }
 
     .challenge-pill {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid var(--border);
       color: var(--text-muted);
       font-family: var(--font-mono);
-      font-size: 0.69rem;
-      padding: 3px 8px;
+      font-size: 0.71rem;
+      font-weight: 600;
+      padding: 4px 10px;
       border-radius: 999px;
       cursor: pointer;
       white-space: nowrap;
-      transition: all 0.15s;
-    }
-    .challenge-pill:hover, .challenge-pill.active {
-      border-color: var(--brand);
-      color: #38bdf8;
-      background: rgba(0, 229, 255, 0.1);
+      transition: all 0.15s ease;
     }
 
-    .duel-race-wrap {
+    .challenge-pill:hover {
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.22);
+    }
+
+    .challenge-pill.active {
+      border-color: var(--brand-cyan);
+      color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.12);
+    }
+
+    .toolbar-right-group {
       display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 8px;
-      padding-bottom: 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    .duel-race-row {
-      display: grid;
-      grid-template-columns: 135px 1fr 95px;
       align-items: center;
-      gap: 8px;
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
-    }
-    .duel-bar-track {
-      height: 7px;
-      background: rgba(255, 255, 255, 0.06);
-      border-radius: 999px;
-      overflow: hidden;
-      position: relative;
-    }
-    .duel-bar-fill {
-      height: 100%;
-      border-radius: 999px;
-      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .duel-bar-tnt {
-      background: linear-gradient(90deg, #10b981, #38bdf8);
-      width: 100%;
-    }
-    .duel-bar-py {
-      background: linear-gradient(90deg, #f59e0b, #ef4444);
-      width: 18%;
+      gap: 12px;
+      flex-shrink: 0;
     }
 
-    /* Main Split Layout: Fills 100% Remaining Height */
+    .arena-telemetry-pills {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+      color: var(--text-muted);
+      padding-right: 8px;
+      border-right: 1px solid var(--border);
+    }
+
+    @media (max-width: 1200px) {
+      .arena-telemetry-pills { display: none; }
+    }
+
+    .duel-btn {
+      background: rgba(255, 212, 56, 0.1);
+      color: var(--brand-amber);
+      font-family: var(--font-display);
+      font-weight: 700;
+      border: 1px solid rgba(255, 212, 56, 0.35);
+      padding: 6px 14px;
+      border-radius: var(--radius-xs);
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .duel-btn:hover {
+      background: rgba(255, 212, 56, 0.2);
+      border-color: var(--brand-amber);
+      color: #ffffff;
+    }
+
+    .run-btn {
+      background: linear-gradient(135deg, #00F0FF 0%, #38BDF8 100%);
+      color: #05030C;
+      font-family: var(--font-display);
+      font-weight: 800;
+      border: none;
+      padding: 7px 16px;
+      border-radius: var(--radius-xs);
+      font-size: 0.82rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      box-shadow: 0 0 18px rgba(0, 240, 255, 0.25);
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .run-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 24px rgba(0, 240, 255, 0.45);
+    }
+
+    /* Main 50/50 Split Workspace */
     .playground-grid {
+      position: relative;
+      z-index: 1;
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px;
-      padding: 10px 16px;
+      gap: 12px;
+      padding: 12px 20px;
       flex: 1;
       min-height: 0;
-      height: calc(100vh - 48px - 42px - 120px);
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 960px) {
       .playground-grid {
         grid-template-columns: 1fr;
         height: auto;
@@ -362,11 +213,11 @@ def render_arena_html() -> str:
       }
       html, body {
         height: auto;
+        max-height: none;
         overflow-y: auto;
       }
     }
 
-    /* Panel Base */
     .panel-card {
       background: var(--bg-surface);
       border: 1px solid var(--border);
@@ -376,36 +227,29 @@ def render_arena_html() -> str:
       overflow: hidden;
       height: 100%;
       min-height: 0;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
     }
 
     .panel-header-tabs {
-      background: rgba(12, 10, 28, 0.94);
+      background: var(--bg-surface-elevated);
       border-bottom: 1px solid var(--border);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0 10px;
-      height: 38px;
+      padding: 0 12px;
+      height: 40px;
       flex-shrink: 0;
       overflow-x: auto;
       scrollbar-width: none !important;
-      -ms-overflow-style: none !important;
     }
-
     .panel-header-tabs::-webkit-scrollbar,
-    .tab-group::-webkit-scrollbar {
-      display: none !important;
-      width: 0 !important;
-      height: 0 !important;
-    }
+    .tab-group::-webkit-scrollbar { display: none !important; }
 
     .tab-group {
       display: flex;
       gap: 2px;
       overflow-x: auto;
       scrollbar-width: none !important;
-      -ms-overflow-style: none !important;
     }
 
     .panel-tab {
@@ -414,29 +258,29 @@ def render_arena_html() -> str:
       border-bottom: 2px solid transparent;
       color: var(--text-muted);
       font-family: var(--font-mono);
-      font-size: 0.78rem;
-      padding: 8px 11px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 9px 12px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
       white-space: nowrap;
       flex-shrink: 0;
     }
 
-    .panel-tab:hover {
-      color: #fff;
-    }
+    .panel-tab:hover { color: #ffffff; }
 
     .panel-tab.active {
-      color: #fff;
-      border-bottom-color: var(--brand);
-      background: rgba(255, 255, 255, 0.04);
+      color: #ffffff;
+      border-bottom-color: var(--brand-cyan);
+      background: rgba(0, 240, 255, 0.06);
     }
 
     .panel-tab.active.tab-python {
-      border-bottom-color: var(--accent-gold);
+      border-bottom-color: var(--brand-amber);
+      background: rgba(255, 212, 56, 0.06);
     }
 
     .panel-controls {
@@ -449,20 +293,23 @@ def render_arena_html() -> str:
     .mini-btn {
       background: rgba(255, 255, 255, 0.04);
       border: 1px solid var(--border);
-      color: var(--text-muted);
+      color: var(--text-secondary);
       font-size: 0.72rem;
       font-family: var(--font-mono);
-      padding: 3px 8px;
-      border-radius: var(--radius-sm);
+      font-weight: 600;
+      padding: 4px 9px;
+      border-radius: 5px;
       cursor: pointer;
-      transition: all 0.15s;
-    }
-    .mini-btn:hover {
-      color: #fff;
-      border-color: var(--border-hover);
+      transition: all 0.15s ease;
     }
 
-    /* Editor View */
+    .mini-btn:hover {
+      color: var(--brand-cyan);
+      border-color: rgba(0, 240, 255, 0.35);
+      background: rgba(0, 240, 255, 0.08);
+    }
+
+    /* Code Editor Surface */
     .editor-wrapper {
       flex: 1;
       min-height: 0;
@@ -472,16 +319,16 @@ def render_arena_html() -> str:
     }
 
     .line-gutter {
-      width: 40px;
-      padding: 12px 6px;
+      width: 44px;
+      padding: 14px 8px;
       text-align: right;
       color: var(--text-dim);
       font-family: var(--font-mono);
       font-size: 0.8rem;
-      line-height: 1.6;
+      line-height: 1.65;
       user-select: none;
       border-right: 1px solid rgba(255, 255, 255, 0.05);
-      background: #04030A;
+      background: #04020A;
       flex-shrink: 0;
     }
 
@@ -490,11 +337,11 @@ def render_arena_html() -> str:
       min-height: 0;
       background: transparent;
       border: none;
-      color: #e2e8f0;
+      color: #F1F5F9;
       font-family: var(--font-mono);
       font-size: 0.82rem;
-      line-height: 1.6;
-      padding: 12px 14px;
+      line-height: 1.65;
+      padding: 14px 16px;
       outline: none;
       resize: none;
       white-space: pre;
@@ -505,18 +352,18 @@ def render_arena_html() -> str:
     .python-code-view {
       flex: 1;
       min-height: 0;
-      padding: 12px 14px;
+      padding: 14px 16px;
       font-family: var(--font-mono);
       font-size: 0.82rem;
-      line-height: 1.6;
-      color: #94a3b8;
+      line-height: 1.65;
+      color: var(--text-secondary);
       overflow: auto;
       white-space: pre;
-      background: #05030C;
+      background: var(--bg-code);
       display: none;
     }
 
-    /* Right Panel Inspector Views */
+    /* Right Panel Views */
     .inspector-body {
       flex: 1;
       min-height: 0;
@@ -532,16 +379,13 @@ def render_arena_html() -> str:
       flex-direction: column;
       overflow: hidden;
     }
-    .inspector-view.active {
-      display: flex;
-    }
+    .inspector-view.active { display: flex; }
 
-    /* View 1: Canvas & Visual Execution */
     .canvas-container {
       background: #05030C;
       position: relative;
       flex: 1;
-      min-height: 120px;
+      min-height: 140px;
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -556,9 +400,9 @@ def render_arena_html() -> str:
 
     .canvas-overlay-bar {
       position: absolute;
-      top: 8px;
-      left: 10px;
-      right: 10px;
+      top: 10px;
+      left: 12px;
+      right: 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -566,14 +410,15 @@ def render_arena_html() -> str:
     }
 
     .canvas-telemetry {
-      background: rgba(7, 7, 9, 0.85);
+      background: rgba(7, 5, 16, 0.88);
       border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
-      padding: 3px 8px;
+      border-radius: 6px;
+      padding: 4px 10px;
       font-family: var(--font-mono);
       font-size: 0.72rem;
-      color: #38bdf8;
+      color: var(--brand-cyan);
       pointer-events: auto;
+      backdrop-filter: blur(8px);
     }
 
     .canvas-controls-inline {
@@ -583,71 +428,113 @@ def render_arena_html() -> str:
     }
 
     .canvas-ctrl-btn {
-      background: rgba(14, 14, 18, 0.85);
+      background: rgba(12, 10, 28, 0.88);
       border: 1px solid var(--border);
-      color: var(--text-muted);
+      color: var(--text-secondary);
       font-family: var(--font-mono);
       font-size: 0.7rem;
-      padding: 2px 7px;
-      border-radius: var(--radius-sm);
+      padding: 4px 9px;
+      border-radius: 5px;
       cursor: pointer;
+      transition: all 0.15s ease;
     }
     .canvas-ctrl-btn:hover {
-      color: #fff;
+      color: #ffffff;
+      border-color: var(--brand-cyan);
     }
 
-    /* Execution Benchmark Table */
+    /* Speed Duel & Benchmark Card */
     .bench-card {
       background: var(--bg-surface-elevated);
       border-top: 1px solid var(--border);
-      padding: 10px 14px;
+      padding: 12px 16px;
       flex-shrink: 0;
+    }
+
+    .duel-race-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-bottom: 10px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .duel-race-row {
+      display: grid;
+      grid-template-columns: 135px 1fr 95px;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
+    }
+
+    .duel-bar-track {
+      height: 8px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .duel-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .duel-bar-tnt {
+      background: linear-gradient(90deg, #00F0FF, #8B5CF6);
+      width: 100%;
+    }
+
+    .duel-bar-py {
+      background: linear-gradient(90deg, #FFD438, #FF2A85);
+      width: 18%;
     }
 
     .bench-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.8rem;
+      font-size: 0.78rem;
     }
 
     .bench-table th {
       text-align: left;
       color: var(--text-dim);
       font-family: var(--font-mono);
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       text-transform: uppercase;
+      letter-spacing: 0.04em;
       padding: 4px 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
     .bench-table td {
       padding: 6px 8px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
       font-family: var(--font-mono);
     }
 
-    .bench-table tr:last-child td {
-      border-bottom: none;
-    }
+    .bench-table tr:last-child td { border-bottom: none; }
 
     .speedup-badge {
       display: inline-flex;
       align-items: center;
-      padding: 2px 7px;
+      padding: 2px 8px;
       border-radius: 4px;
-      background: rgba(0, 229, 255, 0.12);
-      border: 1px solid rgba(0, 229, 255, 0.3);
-      color: #38bdf8;
+      background: rgba(0, 240, 255, 0.12);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      color: var(--brand-cyan);
       font-weight: 700;
-      font-size: 0.76rem;
+      font-size: 0.74rem;
     }
 
-    /* View 2: Deep Difference Breakdown */
+    /* Diff, Disasm & Memory Views */
     .diff-view-content {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 14px 16px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
       gap: 12px;
@@ -657,43 +544,39 @@ def render_arena_html() -> str:
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      padding: 12px;
+      padding: 14px;
     }
 
     .diff-item-title {
       font-size: 0.88rem;
       font-weight: 700;
-      color: #fff;
-      margin-bottom: 6px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
+      color: #ffffff;
+      margin-bottom: 8px;
     }
 
     .diff-item-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 10px;
-      margin-top: 8px;
       font-size: 0.78rem;
     }
 
     .diff-box-cpython {
-      background: rgba(239, 68, 68, 0.05);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: var(--radius-sm);
-      padding: 8px 10px;
+      background: rgba(255, 42, 133, 0.06);
+      border: 1px solid rgba(255, 42, 133, 0.24);
+      border-radius: var(--radius-xs);
+      padding: 10px 12px;
     }
 
     .diff-box-tnt {
-      background: rgba(0, 229, 255, 0.05);
-      border: 1px solid rgba(0, 229, 255, 0.2);
-      border-radius: var(--radius-sm);
-      padding: 8px 10px;
+      background: rgba(0, 240, 255, 0.06);
+      border: 1px solid rgba(0, 240, 255, 0.24);
+      border-radius: var(--radius-xs);
+      padding: 10px 12px;
     }
 
     .diff-tag-cpython {
-      color: #f87171;
+      color: var(--brand-coral);
       font-weight: 700;
       font-family: var(--font-mono);
       font-size: 0.72rem;
@@ -701,28 +584,26 @@ def render_arena_html() -> str:
     }
 
     .diff-tag-tnt {
-      color: #38bdf8;
+      color: var(--brand-cyan);
       font-weight: 700;
       font-family: var(--font-mono);
       font-size: 0.72rem;
       margin-bottom: 4px;
     }
 
-    /* View 3: Disassembly / WASM Bytecode */
     .disasm-view-content {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 12px 14px;
+      padding: 14px 16px;
       background: var(--bg-code);
       font-family: var(--font-mono);
       font-size: 0.78rem;
-      line-height: 1.6;
-      color: #7dd3fc;
+      line-height: 1.65;
+      color: #A5F3FC;
       white-space: pre;
     }
 
-    /* View 4: Memory / Stack Layout */
     .memory-view-content {
       flex: 1;
       min-height: 0;
@@ -743,87 +624,93 @@ def render_arena_html() -> str:
     .schema-title {
       font-size: 0.84rem;
       font-weight: 700;
-      color: #fff;
+      color: #ffffff;
       margin-bottom: 10px;
     }
 
     .schema-blocks {
       display: flex;
-      gap: 4px;
+      gap: 6px;
       margin-bottom: 8px;
       flex-wrap: wrap;
     }
 
     .schema-block {
       padding: 6px 10px;
-      border-radius: 4px;
+      border-radius: 5px;
       font-family: var(--font-mono);
       font-size: 0.74rem;
-      text-align: center;
     }
-    .sb-red { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
-    .sb-green { background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.3); color: #86efac; }
-    .sb-blue { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: #bae6fd; }
 
-        /* Inquisitor & Web Component Studio Styles */
+    .sb-red { background: rgba(255, 42, 133, 0.14); border: 1px solid rgba(255, 42, 133, 0.32); color: #FDA4AF; }
+    .sb-green { background: rgba(0, 240, 255, 0.14); border: 1px solid rgba(0, 240, 255, 0.32); color: #A5F3FC; }
+    .sb-blue { background: rgba(255, 212, 56, 0.14); border: 1px solid rgba(255, 212, 56, 0.32); color: #FDE68A; }
+
+    /* Inquisitor Wizard Cards */
     .inquisitor-step-box {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
       padding: 14px;
     }
+
     .inq-choice-card {
       display: flex;
       gap: 10px;
       align-items: flex-start;
       background: rgba(255, 255, 255, 0.02);
       border: 1px solid var(--border);
-      border-radius: var(--radius-sm);
+      border-radius: var(--radius-xs);
       padding: 10px;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
     }
+
     .inq-choice-card:hover {
       background: rgba(255, 255, 255, 0.05);
       border-color: var(--border-hover);
     }
-    .inq-choice-card input[type="radio"]:checked ~ .inq-choice-body .inq-choice-title {
-      color: #38bdf8;
+
+    .inq-choice-card input[type="radio"] {
+      accent-color: var(--brand-cyan);
+      margin-top: 2px;
     }
-    .inq-choice-card input[type="radio"]:checked {
-      accent-color: #10b981;
-    }
+
     .inq-choice-body {
       display: flex;
       flex-direction: column;
       gap: 2px;
     }
+
     .inq-choice-title {
       font-size: 0.78rem;
       font-weight: 700;
-      color: #fff;
+      color: #ffffff;
     }
+
     .inq-choice-desc {
       font-size: 0.7rem;
       color: var(--text-muted);
-      line-height: 1.3;
+      line-height: 1.35;
     }
 
-    /* Bottom Terminal (Fixed 120px) */
+    /* Bottom Terminal Trace (Proportional 126px) */
     .terminal-section {
-      background: #05030C;
+      position: relative;
+      z-index: 10;
+      background: #04020A;
       border-top: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      height: 120px;
+      height: 126px;
       flex-shrink: 0;
     }
 
     .term-bar {
-      background: rgba(12, 10, 28, 0.94);
+      background: var(--bg-surface);
       border-bottom: 1px solid var(--border);
-      padding: 4px 16px;
-      height: 26px;
+      padding: 0 20px;
+      height: 28px;
       flex-shrink: 0;
       display: flex;
       justify-content: space-between;
@@ -836,55 +723,58 @@ def render_arena_html() -> str:
     .term-body {
       flex: 1;
       min-height: 0;
-      padding: 8px 16px;
+      padding: 8px 20px;
       font-family: var(--font-mono);
       font-size: 0.78rem;
-      line-height: 1.5;
-      color: #38bdf8;
+      line-height: 1.55;
+      color: var(--brand-cyan);
       overflow-y: auto;
       white-space: pre-wrap;
     }
-
-    .t-dim { color: #64748b; }
-    .t-gold { color: var(--accent-gold); font-weight: 700; }
-    .t-blue { color: var(--accent-blue); }
-    .t-white { color: #fff; font-weight: 600; }
-    .t-err { color: #f87171; }
   </style>
 </head>
 <body>
 
-  <!-- Top Application Header -->
-  <header>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <a href="index.html" class="brand-link">
-        <img src="assets/logo.svg" alt="TinyTalk" class="brand-logo" style="width:28px;height:28px;border-radius:7px;box-shadow:0 0 14px rgba(0,240,255,0.22);">
-        <span>TinyTalk</span>
+  <!-- Cosmic Background -->
+  <div class="cosmic-bg-mesh"></div>
+
+  <!-- Unified Top Announcement Bar -->
+  <div class="tnt-announcement-bar announcement-ribbon">
+    <span class="tnt-ribbon-pill">WebAssembly Arena</span>
+    <span>In-Browser Native Compiler (tntc.wasm) &bull; 0.000ms Lexical Arena &bull; 120 FPS Simulation</span>
+    <a href="studio.html" class="tnt-ribbon-link">Open Smalltalk Morphic Studio &rarr;</a>
+  </div>
+
+  <!-- Unified Navigation Header -->
+  <header class="tnt-navbar">
+    <a href="index.html" class="tnt-brand">
+      <img src="assets/logo.svg" alt="TinyTalk Logo" class="tnt-brand-logo">
+      <span>TinyTalk</span>
+      <span class="tnt-version-pill">Arena</span>
+    </a>
+
+    <nav class="tnt-nav-links">
+      <a href="index.html" class="tnt-nav-link">Overview</a>
+      <a href="docs.html" class="tnt-nav-link">Docs</a>
+      <a href="arena.html" class="tnt-nav-link active">Web Arena</a>
+      <a href="studio.html" class="tnt-nav-link">Morphic Studio</a>
+      <a href="packages.html" class="tnt-nav-link">Packages</a>
+      <a href="dashboard.html" class="tnt-nav-link">Telemetry</a>
+    </nav>
+
+    <div class="tnt-nav-actions">
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" rel="noopener" class="tnt-btn-github">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        <span>GitHub</span>
       </a>
-      <span class="version-tag">v8.0 ARENA</span>
-    </div>
-
-    <div class="stats-ribbon">
-      <div class="stat-pill">Engine: <span class="stat-val green">tntc.wasm (0.000ms GC)</span></div>
-      <div class="stat-pill">Targets: <span class="stat-val">WASM &bull; PE32+ &bull; WebGPU &bull; Quantum</span></div>
-      <div class="stat-pill">Binary: <span class="stat-val" id="headerWasmSize">1.7 KB</span></div>
-      <div class="stat-pill">Framerate: <span class="stat-val green" id="headerFps">120.0 FPS</span></div>
-    </div>
-
-    <div class="header-actions">
-      <a href="index.html" class="back-btn">Overview</a>
-      <a href="docs.html" class="back-btn">Docs</a>
-      <a href="studio.html" class="back-btn" style="color: #FFD438; border-color: rgba(255,212,56,0.35); font-weight: 700;">Morphic Studio</a>
-      <a href="packages.html" class="back-btn" style="color: #00F0FF; border-color: rgba(0,240,255,0.35); font-weight: 700;">Packages</a>
-      <a href="dashboard.html" class="back-btn">Telemetry</a>
-      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="back-btn">GitHub</a>
+      <a href="studio.html" class="tnt-btn-primary">Launch Studio &rarr;</a>
     </div>
   </header>
 
-  <!-- Subheader Toolbar -->
+  <!-- Arena Command Sub-Toolbar -->
   <div class="playground-toolbar">
     <div class="preset-selector-wrap">
-      <span class="toolbar-label">Preset:</span>
+      <span class="toolbar-label">Workload</span>
       <select class="preset-select" id="presetSelect" onchange="onPresetChange()">
         <option value="tco">1. [Challenge] 5M Recursion Crash Test (Auto-TCO vs Crash)</option>
         <option value="unboxed">2. [Challenge] 0-Byte Register Structs (XMM0-2 vs 224B Heap)</option>
@@ -893,10 +783,10 @@ def render_arena_html() -> str:
         <option value="primes">5. Integer ALU Loop &amp; Prime Sieve (16.9x Speedup)</option>
         <option value="fastapi">6. High-Throughput HTTP / FastAPI (8.2M req/sec)</option>
         <option value="gguf">7. Q8_0 SIMD Vector GEMV Dot Product (Edge AI)</option>
-        <option value="webgpu">8. [Pillar 0] Native WebGPU / SPIR-V Shader Kernel (gpu.tnt)</option>
-        <option value="jupyter">9. [Pillar 0] Interactive Jupyter Notebook Kernel (tnt-kernel)</option>
-        <option value="serverless">10. [Pillar 0] 0.4ms Serverless Cloud Engine (tnt deploy)</option>
-        <option value="web_component">11. [Agentic GUI] Declarative Web &amp; CSS Component (web.tnt)</option>
+        <option value="webgpu">8. Native WebGPU / SPIR-V Shader Kernel (gpu.tnt)</option>
+        <option value="jupyter">9. Interactive Jupyter Notebook Kernel (tnt-kernel)</option>
+        <option value="serverless">10. 0.4ms Serverless Cloud Engine (tnt deploy)</option>
+        <option value="web_component">11. Declarative Web &amp; CSS Component (web.tnt)</option>
         <option value="hft">12. [tnt/hft] High-Frequency Trading &amp; Order Book (VWAP)</option>
         <option value="http">13. [tnt/http] 8.2M Req/Sec Async HTTP Microservice</option>
         <option value="db">14. [tnt/db] Embedded Columnar &amp; SIMD Vector Store</option>
@@ -911,73 +801,59 @@ def render_arena_html() -> str:
         <option value="mesh">23. [tnt/mesh] Zero-Trust Encrypted Mesh</option>
         <option value="zk">24. [tnt/zk] Zero-Knowledge State Verifier</option>
       </select>
+
       <div class="challenge-pills">
         <button class="challenge-pill active" data-preset="tco" onclick="selectPresetPill('tco')">5M Recursion</button>
         <button class="challenge-pill" data-preset="unboxed" onclick="selectPresetPill('unboxed')">0B Struct</button>
-        <button class="challenge-pill" data-preset="redos" onclick="selectPresetPill('redos')">ReDoS Trap</button>
+        <button class="challenge-pill" data-preset="redos" onclick="selectPresetPill('redos')">Linear Regex</button>
+        <button class="challenge-pill" data-preset="hft" onclick="selectPresetPill('hft')">HFT Engine</button>
+        <button class="challenge-pill" data-preset="http" onclick="selectPresetPill('http')">8.2M HTTP</button>
+        <button class="challenge-pill" data-preset="tensor" onclick="selectPresetPill('tensor')">SIMD Tensor</button>
+        <button class="challenge-pill" data-preset="canvas" onclick="selectPresetPill('canvas')">Morphic UI</button>
         <button class="challenge-pill" data-preset="webgpu" onclick="selectPresetPill('webgpu')">WebGPU</button>
-        <button class="challenge-pill" data-preset="jupyter" onclick="selectPresetPill('jupyter')">Jupyter</button>
-        <button class="challenge-pill" data-preset="serverless" onclick="selectPresetPill('serverless')">0.4ms Cloud</button>
-        <button class="challenge-pill" data-preset="web_component" onclick="selectPresetPill('web_component')">Web/CSS</button>
-        <button class="challenge-pill" data-preset="hft" onclick="selectPresetPill('hft')">⚡ HFT Engine</button>
-        <button class="challenge-pill" data-preset="http" onclick="selectPresetPill('http')">🌐 8.2M HTTP</button>
-        <button class="challenge-pill" data-preset="db" onclick="selectPresetPill('db')">💾 SIMD DB</button>
-        <button class="challenge-pill" data-preset="tensor" onclick="selectPresetPill('tensor')">🧠 Tensor</button>
-        <button class="challenge-pill" data-preset="canvas" onclick="selectPresetPill('canvas')">🎨 Morphic</button>
-        <button class="challenge-pill" data-preset="crypto" onclick="selectPresetPill('crypto')">🔒 BLAKE3</button>
-        <button class="challenge-pill" data-preset="planet" onclick="selectPresetPill('planet')">🪐 Planet CRDT</button>
-        <button class="challenge-pill" data-preset="rdma" onclick="selectPresetPill('rdma')">⚡ RDMA Bypass</button>
-        <button class="challenge-pill" data-preset="consensus" onclick="selectPresetPill('consensus')">🏛️ Quorum</button>
-        <button class="challenge-pill" data-preset="rpc" onclick="selectPresetPill('rpc')">📡 Wire RPC</button>
-        <button class="challenge-pill" data-preset="cas" onclick="selectPresetPill('cas')">📦 Merkle CAS</button>
-        <button class="challenge-pill" data-preset="mesh" onclick="selectPresetPill('mesh')">🕸️ Peer Mesh</button>
-        <button class="challenge-pill" data-preset="zk" onclick="selectPresetPill('zk')">🛡️ ZK Verifier</button>
-        <button class="challenge-pill" data-preset="inquisitor" onclick="openInquisitorTab()" style="background: rgba(0, 229, 255, 0.15); color: #38bdf8; border-color: rgba(0, 229, 255, 0.35); font-weight: 700;">🤖 Ask Inquisitor</button>
+        <button class="challenge-pill" data-preset="zk" onclick="selectPresetPill('zk')">ZK Verifier</button>
+        <button class="challenge-pill" data-preset="inquisitor" onclick="openInquisitorTab()" style="border-color: rgba(255, 212, 56, 0.4); color: var(--brand-amber);">Inquisitor Architect</button>
       </div>
     </div>
 
-    <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-      <button class="duel-btn" onclick="runSpeedDuel()" title="Pit TinyTalk against Python 3.14 side-by-side">
-        Speed Duel vs Python
+    <div class="toolbar-right-group">
+      <div class="arena-telemetry-pills">
+        <span>Binary: <strong style="color:#fff;" id="headerWasmSize">1.7 KB</strong></span>
+        <span>Rate: <strong style="color:var(--brand-cyan);" id="headerFps">120 FPS</strong></span>
+      </div>
+      <button class="duel-btn" onclick="runSpeedDuel()" title="Pit TinyTalk against CPython 3.14 side-by-side">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <span>Speed Duel vs Python</span>
       </button>
       <button class="run-btn" onclick="executeCurrentPreset()" title="Compile &amp; Execute in Client-Side WebAssembly (Ctrl+Enter)">
-        ▶ Run in WASM
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span>Run in WASM</span>
       </button>
     </div>
   </div>
 
-  <!-- Playground Main Split Workspace -->
+  <!-- Main 50/50 Split Workspace -->
   <div class="playground-grid">
-    <!-- Left Column: Dual Code Editor (TinyTalk vs Python) -->
+    <!-- Left Column: Dual Code Editor -->
     <div class="panel-card">
       <div class="panel-header-tabs">
         <div class="tab-group">
           <button class="panel-tab active" id="tabBmb" onclick="switchEditorTab('tnt')">
             <span>main.tnt</span>
-            <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 700;">[NATIVE]</span>
+            <span style="font-size: 0.68rem; color: var(--brand-cyan); font-weight: 700;">[NATIVE]</span>
           </button>
           <button class="panel-tab tab-python" id="tabPy" onclick="switchEditorTab('py')">
             <span>cpython_equiv.py</span>
-            <span style="font-size: 0.68rem; color: var(--accent-gold);">[CPYTHON 3.14]</span>
+            <span style="font-size: 0.68rem; color: var(--brand-amber);">[CPYTHON 3.14]</span>
           </button>
         </div>
 
         <div class="panel-controls">
-          <button class="mini-btn" onclick="downloadCompiledWasm()" title="Compile &amp; Download 1.7 KB standalone WebAssembly module (.wasm)">
-            ⬇ .wasm
-          </button>
-          <button class="mini-btn" onclick="downloadCompiledExe()" title="Compile &amp; Download 5.5 KB standalone Windows x86-64 executable (.exe)">
-            ⬇ .exe
-          </button>
-          <button class="mini-btn" onclick="shareCurrentPlayground()" title="Copy permanent shareable URL with your code">
-            <span id="shareBtnLabel">Share</span>
-          </button>
-          <button class="mini-btn" onclick="copyCurrentCode()">
-            <span id="copyBtnLabel">Copy</span>
-          </button>
-          <button class="mini-btn" onclick="resetCurrentCode()">
-            Reset
-          </button>
+          <button class="mini-btn" onclick="downloadCompiledWasm()" title="Compile &amp; Download 1.7 KB standalone WebAssembly module (.wasm)">.wasm</button>
+          <button class="mini-btn" onclick="downloadCompiledExe()" title="Compile &amp; Download 5.5 KB standalone Windows x86-64 executable (.exe)">.exe</button>
+          <button class="mini-btn" onclick="shareCurrentPlayground()" title="Copy permanent shareable URL with your code"><span id="shareBtnLabel">Share</span></button>
+          <button class="mini-btn" onclick="copyCurrentCode()"><span id="copyBtnLabel">Copy</span></button>
+          <button class="mini-btn" onclick="resetCurrentCode()">Reset</button>
         </div>
       </div>
 
@@ -992,28 +868,16 @@ def render_arena_html() -> str:
     <div class="panel-card">
       <div class="panel-header-tabs">
         <div class="tab-group">
-          <button class="panel-tab active" id="tabViewCanvas" onclick="switchInspectorTab('canvas')">
-            Canvas &amp; Simulation
-          </button>
-          <button class="panel-tab" id="tabViewWebPreview" onclick="switchInspectorTab('web')">
-            🎨 Live Web Preview
-          </button>
-          <button class="panel-tab" id="tabViewInquisitor" onclick="switchInspectorTab('inquisitor')">
-            🤖 Inquisitor Agent
-          </button>
-          <button class="panel-tab" id="tabViewDiff" onclick="switchInspectorTab('diff')">
-            Language Diff
-          </button>
-          <button class="panel-tab" id="tabViewDisasm" onclick="switchInspectorTab('disasm')">
-            Machine Code
-          </button>
-          <button class="panel-tab" id="tabViewMemory" onclick="switchInspectorTab('memory')">
-            Memory Layout
-          </button>
+          <button class="panel-tab active" id="tabViewCanvas" onclick="switchInspectorTab('canvas')">Simulation &amp; Duel</button>
+          <button class="panel-tab" id="tabViewDisasm" onclick="switchInspectorTab('disasm')">Machine Code</button>
+          <button class="panel-tab" id="tabViewMemory" onclick="switchInspectorTab('memory')">Memory Layout</button>
+          <button class="panel-tab" id="tabViewDiff" onclick="switchInspectorTab('diff')">Architecture Diff</button>
+          <button class="panel-tab" id="tabViewWebPreview" onclick="switchInspectorTab('web')">Web DOM Preview</button>
+          <button class="panel-tab" id="tabViewInquisitor" onclick="switchInspectorTab('inquisitor')">Inquisitor</button>
         </div>
 
         <div class="panel-controls">
-          <span style="font-size: 0.72rem; color: #38bdf8; font-family: var(--font-mono);" id="inspectorStatus">● Active</span>
+          <span style="font-size: 0.72rem; color: var(--brand-cyan); font-family: var(--font-mono);" id="inspectorStatus">● Ready</span>
         </div>
       </div>
 
@@ -1023,9 +887,7 @@ def render_arena_html() -> str:
           <div class="canvas-container">
             <canvas id="simCanvas"></canvas>
             <div class="canvas-overlay-bar">
-              <div class="canvas-telemetry" id="canvasTelemetry">
-                120 FPS | 140 Particles | Zero-GC
-              </div>
+              <div class="canvas-telemetry" id="canvasTelemetry">120 FPS | 140 Particles | Zero-GC</div>
               <div class="canvas-controls-inline">
                 <button class="canvas-ctrl-btn" onclick="toggleSimMode()">Mode: Repel</button>
                 <button class="canvas-ctrl-btn" onclick="cycleParticleCount()">Count: 140</button>
@@ -1033,20 +895,20 @@ def render_arena_html() -> str:
             </div>
           </div>
 
-          <!-- Benchmark Metrics Table & Live Speed Duel Bars -->
           <div class="bench-card">
             <div class="duel-race-wrap" id="duelRaceContainer">
               <div class="duel-race-row">
-                <span style="color: #38bdf8; font-weight: 700;">TinyTalk (.tnt)</span>
+                <span style="color: var(--brand-cyan); font-weight: 700;">TinyTalk (.tnt)</span>
                 <div class="duel-bar-track"><div class="duel-bar-fill duel-bar-tnt" id="mambaRaceBar"></div></div>
-                <span style="color: #fff; text-align: right;" id="duelMambaLabel">2.68 ms</span>
+                <span style="color: #ffffff; text-align: right;" id="duelMambaLabel">2.68 ms</span>
               </div>
               <div class="duel-race-row">
-                <span style="color: #94a3b8;">CPython 3.14</span>
+                <span style="color: var(--text-muted);">CPython 3.14</span>
                 <div class="duel-bar-track"><div class="duel-bar-fill duel-bar-py" id="pyRaceBar"></div></div>
-                <span style="color: #f87171; text-align: right;" id="duelPyLabel">CRASH</span>
+                <span style="color: var(--brand-coral); text-align: right;" id="duelPyLabel">CRASH</span>
               </div>
             </div>
+
             <table class="bench-table">
               <thead>
                 <tr>
@@ -1058,15 +920,15 @@ def render_arena_html() -> str:
               </thead>
               <tbody>
                 <tr>
-                  <td style="color: #38bdf8; font-weight: 700;">TinyTalk (.tnt)</td>
-                  <td id="mambaExecTime" style="color: #fff;">2.68 ms</td>
-                  <td id="mambaHeapAlloc" style="color: #fff;">0 Bytes (Unboxed)</td>
+                  <td style="color: var(--brand-cyan); font-weight: 700;">TinyTalk (.tnt)</td>
+                  <td id="mambaExecTime" style="color: #ffffff;">2.68 ms</td>
+                  <td id="mambaHeapAlloc" style="color: #ffffff;">0 Bytes (Unboxed)</td>
                   <td><span class="speedup-badge" id="mambaAdvantage">25.8x Faster</span></td>
                 </tr>
                 <tr>
-                  <td style="color: #94a3b8;">CPython 3.14 (Pyodide)</td>
-                  <td id="pyExecTime" style="color: #f87171;">RecursionError</td>
-                  <td id="pyHeapAlloc" style="color: #94a3b8;">28B per Int (Heap)</td>
+                  <td style="color: var(--text-muted);">CPython 3.14</td>
+                  <td id="pyExecTime" style="color: var(--brand-coral);">RecursionError</td>
+                  <td id="pyHeapAlloc" style="color: var(--text-muted);">28B per Int (Heap)</td>
                   <td style="color: var(--text-dim);">Baseline Bottleneck</td>
                 </tr>
               </tbody>
@@ -1074,151 +936,139 @@ def render_arena_html() -> str:
           </div>
         </div>
 
-        <!-- View 2: Deep Difference Breakdown -->
+        <!-- View 2: Architecture Diff -->
         <div class="inspector-view" id="viewDiff">
-          <div class="diff-view-content" id="diffContent">
-            <!-- Injected by JavaScript based on preset -->
-          </div>
+          <div class="diff-view-content" id="diffContent"></div>
         </div>
 
-        <!-- View 3: Disassembly / WASM Bytecode -->
+        <!-- View 3: Machine Code Disassembly -->
         <div class="inspector-view" id="viewDisasm">
-          <div class="disasm-view-content" id="disasmContent">
-            <!-- Injected by JavaScript based on preset -->
-          </div>
+          <div class="disasm-view-content" id="disasmContent"></div>
         </div>
 
-        <!-- View 4: Memory & Stack Layout Visualizer -->
+        <!-- View 4: Memory Layout -->
         <div class="inspector-view" id="viewMemory">
-          <div class="memory-view-content" id="memoryContent">
-            <!-- Injected by JavaScript based on preset -->
-          </div>
+          <div class="memory-view-content" id="memoryContent"></div>
         </div>
 
-        <!-- View 5: Live Declarative Web & CSS Preview -->
+        <!-- View 5: Live Web DOM Preview -->
         <div class="inspector-view" id="viewWebPreview">
-          <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: #0b0e14; overflow-y: auto; padding: 18px;">
+          <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg-code); overflow-y: auto; padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <span style="font-family: var(--font-mono); font-size: 0.78rem; color: #38bdf8; font-weight: 700;">● RENDERED VIRTUAL DOM &amp; ATOMIC CSS</span>
+              <span style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--brand-cyan); font-weight: 700;">● RENDERED VIRTUAL DOM &amp; ATOMIC CSS</span>
               <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">Engine: web.tnt &bull; 1.7 KB WASM</span>
             </div>
-            <div id="webPreviewMount" style="display: flex; justify-content: center; align-items: center; min-height: 220px; padding: 20px; border: 1px dashed rgba(255,255,255,0.12); border-radius: var(--radius-sm); background: rgba(0,0,0,0.3);">
-              <!-- Live HTML rendered here -->
-            </div>
+            <div id="webPreviewMount" style="display: flex; justify-content: center; align-items: center; min-height: 220px; padding: 20px; border: 1px dashed rgba(255,255,255,0.14); border-radius: var(--radius-sm); background: rgba(12,10,28,0.5);"></div>
             <div style="margin-top: 14px;">
-              <div style="font-size: 0.75rem; font-family: var(--font-mono); color: var(--text-muted); margin-bottom: 6px;">DOM Output HTML5:</div>
-              <pre id="webRawHtmlOutput" style="background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px; font-family: var(--font-mono); font-size: 0.72rem; color: #7dd3fc; overflow-x: auto; white-space: pre-wrap; margin: 0;"></pre>
+              <div style="font-size: 0.74rem; font-family: var(--font-mono); color: var(--text-muted); margin-bottom: 6px;">Lowered HTML5 Output:</div>
+              <pre id="webRawHtmlOutput" style="background: #04020A; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 12px; font-family: var(--font-mono); font-size: 0.72rem; color: #A5F3FC; overflow-x: auto; white-space: pre-wrap; margin: 0;"></pre>
             </div>
           </div>
         </div>
 
-        <!-- View 6: Offline Inquisitor Symbolic Synthesis Wizard -->
+        <!-- View 6: Socratic Inquisitor Architect -->
         <div class="inspector-view" id="viewInquisitor">
           <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg-surface); overflow-y: auto; padding: 18px; gap: 14px;">
             <div style="border-bottom: 1px solid var(--border); padding-bottom: 10px;">
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 1.1rem;">🤖</span>
-                <span style="font-size: 0.95rem; font-weight: 700; color: #fff;">TinyTalk Inquisitor: Offline App Architect</span>
-                <span style="background: rgba(16,185,129,0.15); color: #38bdf8; font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 6px; border-radius: 4px; font-weight: 700;">100% OFFLINE &bull; ZERO APIS</span>
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                <span style="font-family: var(--font-display); font-size: 0.98rem; font-weight: 800; color: #ffffff;">TinyTalk Inquisitor: Symbolic App Architect</span>
+                <span style="background: rgba(0,240,255,0.12); border: 1px solid rgba(0,240,255,0.28); color: var(--brand-cyan); font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 8px; border-radius: 999px; font-weight: 700;">100% OFFLINE &bull; DETERMINISTIC</span>
               </div>
-              <p style="font-size: 0.76rem; color: var(--text-muted); margin-top: 5px; line-height: 1.4;">
-                Unlike passive compilers that spit red errors, the Inquisitor interviews you to establish exact system invariants, synthesizing guaranteed bug-free TinyTalk software in 0.01 ms.
+              <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 5px; line-height: 1.45;">
+                Select your system invariants below to synthesize type-verified, zero-allocation TinyTalk (<code>.tnt</code>) code in 0.01 ms.
               </p>
             </div>
 
-            <!-- Question 1 -->
             <div class="inquisitor-step-box">
-              <div style="font-size: 0.78rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-family: var(--font-mono);">1. What system or application are you building?</div>
+              <div style="font-size: 0.76rem; font-weight: 700; color: var(--brand-cyan); margin-bottom: 8px; font-family: var(--font-mono);">1. Target Application Architecture</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_domain" value="web_dashboard" checked onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🎨 Declarative Web/CSS Component</span>
-                    <span class="inq-choice-desc">Native type-safe HTML/CSS virtual DOM in 1.7 KB WASM.</span>
+                    <span class="inq-choice-title">Declarative Web/CSS Component</span>
+                    <span class="inq-choice-desc">Type-safe HTML/CSS virtual DOM in 1.7 KB WASM.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_domain" value="quant_terminal" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">⚡ High-Frequency Trading Terminal</span>
+                    <span class="inq-choice-title">High-Frequency Order Book</span>
                     <span class="inq-choice-desc">Zero-latency streaming orderbook with AVX2 SIMD.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_domain" value="edge_ai" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🧠 Local Edge AI &amp; GGUF Engine</span>
-                    <span class="inq-choice-desc">Q8_0 matrix-vector dot product without PyTorch bloat.</span>
+                    <span class="inq-choice-title">Local Edge AI &amp; GGUF Engine</span>
+                    <span class="inq-choice-desc">Q8_0 matrix-vector dot product without runtime bloat.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_domain" value="serverless_api" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">☁️ 0.4ms Serverless Microservice</span>
+                    <span class="inq-choice-title">0.4ms Serverless Microservice</span>
                     <span class="inq-choice-desc">Zero-cold-start cloud microservice routing in 0.4 ms.</span>
                   </div>
                 </label>
               </div>
             </div>
 
-            <!-- Question 2 -->
             <div class="inquisitor-step-box">
-              <div style="font-size: 0.78rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-family: var(--font-mono);">2. How should data flow into your application?</div>
+              <div style="font-size: 0.76rem; font-weight: 700; color: var(--brand-amber); margin-bottom: 8px; font-family: var(--font-mono);">2. Memory &amp; Dataflow Strategy</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_bridge" value="reactive_state" checked onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🌊 Reactive State</span>
+                    <span class="inq-choice-title">Reactive Signals</span>
                     <span class="inq-choice-desc">Sub-millisecond updates without DOM thrashing.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_bridge" value="python_ffi" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🐍 Python Bridge</span>
-                    <span class="inq-choice-desc">Calls existing Python packages via direct FFI.</span>
+                    <span class="inq-choice-title">Zero-Copy FFI</span>
+                    <span class="inq-choice-desc">Bridges C/Python buffers via direct register ABI.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_bridge" value="simd_buffer" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🚀 AVX2 SIMD Arena</span>
+                    <span class="inq-choice-title">AVX2 Lexical Arena</span>
                     <span class="inq-choice-desc">Raw 64-bit hardware registers with 0ms GC.</span>
                   </div>
                 </label>
               </div>
             </div>
 
-            <!-- Question 3 -->
             <div class="inquisitor-step-box">
-              <div style="font-size: 0.78rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-family: var(--font-mono);">3. Choose Visual Theme &amp; Design Language</div>
+              <div style="font-size: 0.76rem; font-weight: 700; color: var(--brand-coral); margin-bottom: 8px; font-family: var(--font-mono);">3. Visual Surface Token</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_theme" value="emerald" checked onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🟢 Cyberpunk Emerald</span>
-                    <span class="inq-choice-desc">#0d1117 with #00ff88 neon.</span>
+                    <span class="inq-choice-title">Cosmic Cyan</span>
+                    <span class="inq-choice-desc">Midnight violet with electric cyan accents.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_theme" value="titanium" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🔵 Minimalist Titanium</span>
-                    <span class="inq-choice-desc">#0f172a with #38bdf8 cyan.</span>
+                    <span class="inq-choice-title">Minimalist Titanium</span>
+                    <span class="inq-choice-desc">High-contrast obsidian slate surface.</span>
                   </div>
                 </label>
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_theme" value="amber" onchange="updateInquisitorSelection()">
                   <div class="inq-choice-body">
-                    <span class="inq-choice-title">🟠 Amber Terminal</span>
-                    <span class="inq-choice-desc">#18181b with #f59e0b hacker.</span>
+                    <span class="inq-choice-title">Solaris Amber</span>
+                    <span class="inq-choice-desc">Warm golden telemetry instrumentation.</span>
                   </div>
                 </label>
               </div>
             </div>
 
-            <button class="run-btn" style="padding: 10px 20px; font-size: 0.88rem; justify-content: center; gap: 8px; margin-top: 4px;" onclick="runInquisitorSynthesis()">
-              ✨ Synthesize Application in 0.01ms (Zero APIs / 100% Offline)
+            <button class="run-btn" style="padding: 11px 20px; font-size: 0.86rem; justify-content: center; margin-top: 2px;" onclick="runInquisitorSynthesis()">
+              <span>Synthesize &amp; Execute Application in 0.01 ms</span>
             </button>
           </div>
         </div>
@@ -1229,15 +1079,12 @@ def render_arena_html() -> str:
   <!-- Bottom Terminal Execution Trace -->
   <div class="terminal-section">
     <div class="term-bar">
-      <span>NATIVE COMPILER PIPELINE &amp; EXECUTION OUTPUT</span>
-      <span id="termStatusBadge" style="color: #38bdf8;">● READY</span>
+      <span>NATIVE COMPILER PIPELINE &amp; EXECUTION OUTPUT (tntc.wasm)</span>
+      <span id="termStatusBadge" style="color: var(--brand-cyan);">● READY</span>
     </div>
     <div class="term-body" id="termLog"></div>
   </div>
 
-  <!-- ==========================================================================
-       PLAYGROUND LOGIC: IN-BROWSER WASM COMPILER, PRESETS, DUEL, SHARE
-       ========================================================================== -->
   <script src="bmbc_wasm.js"></script>
   <script src="arena_client.js"></script>
 </body>

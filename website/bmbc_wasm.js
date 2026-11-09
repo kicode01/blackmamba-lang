@@ -1132,22 +1132,22 @@
           options: [
             {
               id: "web_dashboard",
-              label: "🎨 Declarative Web & CSS Component",
+              label: "Declarative Web & CSS Component",
               description: "Native type-safe HTML/CSS virtual DOM component in 1.7 KB WASM."
             },
             {
               id: "quant_terminal",
-              label: "⚡ High-Frequency Trading & Market Ticks",
+              label: "High-Frequency Trading & Market Ticks",
               description: "Zero-latency streaming orderbook with AVX2 SIMD calculations."
             },
             {
               id: "edge_ai",
-              label: "🧠 Local Edge AI & GGUF Quantized Engine",
+              label: "Local Edge AI & GGUF Quantized Engine",
               description: "Q8_0 matrix-vector dot product without PyTorch or CUDA bloat."
             },
             {
               id: "serverless_api",
-              label: "☁️ 0.4ms Serverless Microservice API",
+              label: "0.4ms Serverless Microservice API",
               description: "Zero-cold-start cloud microservice routing requests in 0.4 ms."
             }
           ]
@@ -1158,17 +1158,17 @@
           options: [
             {
               id: "reactive_state",
-              label: "🌊 Real-Time WebSocket / Reactive State",
+              label: "Real-Time WebSocket / Reactive State",
               description: "Sub-millisecond updates without full page reloads or DOM thrashing."
             },
             {
               id: "python_ffi",
-              label: "🐍 Zero-Copy Python PyPI Bridge",
+              label: "Zero-Copy Python PyPI Bridge",
               description: "Calls existing Python packages (NumPy, PyTorch) via direct FFI."
             },
             {
               id: "simd_buffer",
-              label: "🚀 In-Memory AVX2 SIMD Hardware Buffer",
+              label: "In-Memory AVX2 SIMD Hardware Buffer",
               description: "Raw 64-bit hardware registers with 0ms GC lexical arena rewind."
             }
           ]
@@ -1179,17 +1179,17 @@
           options: [
             {
               id: "emerald",
-              label: "🟢 Cyberpunk Emerald Glass",
+              label: "Cyberpunk Emerald Glass",
               description: "Dark background (#0d1117) with glowing emerald neon (#00ff88)."
             },
             {
               id: "titanium",
-              label: "🔵 Minimalist Titanium SaaS",
+              label: "Minimalist Titanium SaaS",
               description: "Sleek deep navy (#0f172a) with electric cyan accents (#38bdf8)."
             },
             {
               id: "amber",
-              label: "🟠 Retro Amber Terminal",
+              label: "Retro Amber Terminal",
               description: "Monochrome high-contrast hacker display (#18181b & #f59e0b)."
             }
           ]
@@ -1240,8 +1240,8 @@ def app_view() -> Div:
             Text("Frame Latency: 0.012 ms", color="#38bdf8", font_size=14)
         ),
         Flex(direction="row", gap=10, padding=4)(
-            Button("🚀 Deploy Micro-WASM", background="${primaryColor}", color="#0d1117", on_click="alert('Deployed Black Mamba WASM!')"),
-            Button("⚡ Trigger SIMD Pipeline", background="rgba(255,255,255,0.08)", color="#ffffff", on_click="console.log('SIMD cycle dispatched')")
+            Button("Deploy Micro-WASM", background="${primaryColor}", color="#0d1117", on_click="alert('Deployed Black Mamba WASM!')"),
+            Button("Trigger SIMD Pipeline", background="rgba(255,255,255,0.08)", color="#ffffff", on_click="console.log('SIMD cycle dispatched')")
         )
     )
 

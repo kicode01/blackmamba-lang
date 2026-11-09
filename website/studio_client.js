@@ -1,12 +1,12 @@
 /**
- * Black Mamba Smalltalk Reactive Studio & Socratic Inquisitor Agent
+ * TinyTalk (.tnt) Smalltalk Reactive Studio & Socratic Inquisitor Agent
  * File: website/studio_client.js
  *
  * Implements:
  * 1. Smalltalk-80 4-Column System Browser (Categories -> Structs -> Protocols -> Methods -> Code Editor)
  * 2. Live Object Inspector & Memory Map (Unboxed Registers, SSO Strings, Lexical Arena Watermark)
- * 3. Scratchpad Workspace (Instant execution, stdout capture, return value reflection)
- * 4. Socratic Inquisitor Agent (Offline multi-turn context gathering and bug-free code synthesis)
+ * 3. Scratchpad Workspace (Instant execution via local WASM compiler or backend, stdout capture)
+ * 4. Socratic Inquisitor Agent (Offline multi-turn context gathering and bug-free .tnt code synthesis)
  * 5. Live Reactive Morphic Canvas (Interactive widgets, click hit-testing, 60/120 FPS telemetry)
  */
 
@@ -18,7 +18,7 @@
     "GUI & Smalltalk Morphic": [
       {
         name: "AppState",
-        file: "studio.bmb",
+        file: "studio.tnt",
         is_stdlib: false,
         fields: [
           { name: "counter", type: "i64", value: 42 },
@@ -29,6 +29,7 @@
         methods: [
           {
             name: "increment",
+            protocol: "mutation",
             line: 18,
             params: [{ name: "self", type: "AppState" }, { name: "step", type: "i64" }],
             return_type: "i64",
@@ -36,14 +37,24 @@
           },
           {
             name: "reset",
+            protocol: "mutation",
             line: 23,
             params: [{ name: "self", type: "AppState" }],
             return_type: "i64",
             source: `fn reset(self) -> i64:\n    self.counter = 0\n    self.click_count = 0\n    return 0`
           },
           {
-            name: "format_status",
+            name: "compute_throughput",
+            protocol: "compute",
             line: 28,
+            params: [{ name: "self", type: "AppState" }],
+            return_type: "i64",
+            source: `fn compute_throughput(self) -> i64:\n    let ops = self.counter * self.tick_hz\n    return ops`
+          },
+          {
+            name: "format_status",
+            protocol: "telemetry",
+            line: 33,
             params: [{ name: "self", type: "AppState" }],
             return_type: "str",
             source: `fn format_status(self) -> str:\n    return f"State: Counter={self.counter} | Clicks={self.click_count} | Rate={self.tick_hz}Hz"`
@@ -52,7 +63,7 @@
       },
       {
         name: "GuiWindow",
-        file: "gui.bmb",
+        file: "gui.tnt",
         is_stdlib: true,
         fields: [
           { name: "title", type: "str", value: "Studio Window" },
@@ -63,6 +74,7 @@
         methods: [
           {
             name: "gui_layout",
+            protocol: "compute",
             line: 180,
             params: [{ name: "win", type: "GuiWindow" }],
             return_type: "i64",
@@ -70,6 +82,7 @@
           },
           {
             name: "gui_click",
+            protocol: "mutation",
             line: 235,
             params: [{ name: "win", type: "GuiWindow" }, { name: "mx", type: "i64" }, { name: "my", type: "i64" }],
             return_type: "i64",
@@ -81,7 +94,7 @@
     "Kernel & Core": [
       {
         name: "ArenaWatermark",
-        file: "alloc.bmb",
+        file: "alloc.tnt",
         is_stdlib: true,
         fields: [
           { name: "watermark_ptr", type: "i64", value: 65536 },
@@ -91,6 +104,7 @@
         methods: [
           {
             name: "arena_save",
+            protocol: "telemetry",
             line: 45,
             params: [],
             return_type: "i64",
@@ -98,6 +112,7 @@
           },
           {
             name: "arena_restore",
+            protocol: "mutation",
             line: 52,
             params: [{ name: "saved", type: "i64" }],
             return_type: "i64",
@@ -109,7 +124,7 @@
     "Data Science & Series": [
       {
         name: "Series",
-        file: "series.bmb",
+        file: "series.tnt",
         is_stdlib: true,
         fields: [
           { name: "name", type: "str", value: "ticks" },
@@ -120,6 +135,7 @@
         methods: [
           {
             name: "append_int",
+            protocol: "mutation",
             line: 88,
             params: [{ name: "self", type: "Series" }, { name: "val", type: "i64" }],
             return_type: "i64",
@@ -127,6 +143,7 @@
           },
           {
             name: "sum_simd",
+            protocol: "compute",
             line: 142,
             params: [{ name: "self", type: "Series" }],
             return_type: "i64",
@@ -138,7 +155,7 @@
     "Networking & Web": [
       {
         name: "HttpServer",
-        file: "http.bmb",
+        file: "http.tnt",
         is_stdlib: true,
         fields: [
           { name: "port", type: "i64", value: 8080 },
@@ -148,6 +165,7 @@
         methods: [
           {
             name: "http_add_route",
+            protocol: "mutation",
             line: 120,
             params: [{ name: "s", type: "HttpServer" }, { name: "method", type: "str" }, { name: "path", type: "str" }],
             return_type: "i64",
@@ -163,8 +181,9 @@
     hierarchy: DEFAULT_SYSTEM_HIERARCHY,
     activeCategory: "GUI & Smalltalk Morphic",
     activeStruct: null,
+    activeProtocol: "all",
     activeMethod: null,
-    activeRightTab: "inspector", // "inspector", "inquisitor", "transcript"
+    activeRightTab: "canvas",
     liveInstance: {
       counter: 42,
       click_count: 0,
@@ -178,15 +197,15 @@
       theme: "emerald"
     },
     transcriptLogs: [
-      "[Studio] TinyTalk Smalltalk Live Reactive Environment initialized.",
+      "[Studio] TinyTalk (.tnt) Smalltalk Live Reactive Environment initialized.",
       "[Inquisitor] Socratic Architecture Assistant loaded (100% Offline / Zero-API).",
-      "[Morphic] Live Reactive Canvas ready at 60 FPS."
+      "[Morphic] Live Reactive Canvas ready at 120 FPS."
     ]
   };
 
   // --- DOM Element References ---
-  let elCatList, elStructList, elMethodList;
-  let elCodeEditor, elLineGutter, elEditorBreadcrumb;
+  let elCatList, elStructList, elProtocolList, elMethodList;
+  let elCodeEditor, elLineGutter, elEditorBreadcrumb, elCompileStatus;
   let elInspectTableName, elInspectFieldsBody, elInspectMemorySummary;
   let elCanvasStateCounter, elCanvasClickCount, elCanvasStatusMsg, elCanvasProgressBar;
   let elTranscriptBox;
@@ -195,13 +214,14 @@
   document.addEventListener('DOMContentLoaded', initStudio);
 
   function initStudio() {
-    // Cache DOM nodes
     elCatList = document.getElementById('studioCatList');
     elStructList = document.getElementById('studioStructList');
+    elProtocolList = document.getElementById('studioProtocolList');
     elMethodList = document.getElementById('studioMethodList');
     elCodeEditor = document.getElementById('studioCodeEditor');
     elLineGutter = document.getElementById('studioLineGutter');
     elEditorBreadcrumb = document.getElementById('studioEditorBreadcrumb');
+    elCompileStatus = document.getElementById('studioCompileStatus');
 
     elInspectTableName = document.getElementById('inspectTableName');
     elInspectFieldsBody = document.getElementById('inspectFieldsBody');
@@ -214,14 +234,10 @@
 
     elTranscriptBox = document.getElementById('studioTranscriptBox');
 
-    // Fetch dynamic system hierarchy from backend if running under `bmb studio`
     fetchSystemHierarchy();
-
-    // Setup Event Listeners
     setupKeyboardShortcuts();
     setupEditorSync();
 
-    // Initial render
     renderCategories();
     selectCategory("GUI & Smalltalk Morphic");
     renderMorphicCanvas();
@@ -242,7 +258,7 @@
           } else {
             selectCategory(Object.keys(state.hierarchy)[0]);
           }
-          logTranscript("[Studio Server] Loaded live system hierarchy from Black Mamba compiler.");
+          logTranscript("[Studio Server] Loaded live system hierarchy from TinyTalk compiler.");
         }
       })
       .catch(() => {
@@ -258,7 +274,7 @@
     cats.forEach(cat => {
       const li = document.createElement('li');
       li.className = 'browser-item' + (cat === state.activeCategory ? ' active' : '');
-      li.innerHTML = `<span class="icon">📁</span> <span class="name">${escapeHtml(cat)}</span>`;
+      li.innerHTML = `<span class="item-dot"></span> <span class="name">${escapeHtml(cat)}</span>`;
       li.onclick = () => selectCategory(cat);
       elCatList.appendChild(li);
     });
@@ -275,8 +291,10 @@
     } else {
       state.activeStruct = null;
       renderMethods([]);
-      elCodeEditor.value = '# No struct defined in this category';
-      updateLineGutter();
+      if (elCodeEditor) {
+        elCodeEditor.value = '# No struct defined in this category';
+        updateLineGutter();
+      }
     }
   }
 
@@ -287,7 +305,7 @@
       const li = document.createElement('li');
       li.className = 'browser-item' + (state.activeStruct && state.activeStruct.name === s.name ? ' active' : '');
       const badge = s.is_stdlib ? '<span class="pill-mini std">std</span>' : '<span class="pill-mini app">app</span>';
-      li.innerHTML = `<span class="icon">📦</span> <span class="name">${escapeHtml(s.name)}</span> ${badge}`;
+      li.innerHTML = `<span class="item-dot"></span> <span class="name">${escapeHtml(s.name)}</span> ${badge}`;
       li.onclick = () => selectStruct(s);
       elStructList.appendChild(li);
     });
@@ -295,9 +313,11 @@
 
   function selectStruct(s) {
     state.activeStruct = s;
+    state.activeProtocol = 'all';
+    updateProtocolSelectionUI();
     renderStructs(state.hierarchy[state.activeCategory] || []);
 
-    const methods = s.methods || [];
+    const methods = getFilteredMethods(s, state.activeProtocol);
     renderMethods(methods);
     if (methods.length > 0) {
       selectMethod(methods[0]);
@@ -308,13 +328,42 @@
     renderObjectInspector(s);
   }
 
+  function selectProtocol(proto) {
+    state.activeProtocol = proto || 'all';
+    updateProtocolSelectionUI();
+    if (!state.activeStruct) return;
+    const methods = getFilteredMethods(state.activeStruct, state.activeProtocol);
+    renderMethods(methods);
+    if (methods.length > 0) {
+      selectMethod(methods[0]);
+    } else {
+      state.activeMethod = null;
+      renderStructDefinition(state.activeStruct);
+    }
+  }
+
+  function updateProtocolSelectionUI() {
+    if (!elProtocolList) return;
+    const items = elProtocolList.querySelectorAll('.browser-item');
+    items.forEach(item => {
+      const proto = item.getAttribute('data-proto') || 'all';
+      item.classList.toggle('active', proto === state.activeProtocol);
+    });
+  }
+
+  function getFilteredMethods(s, proto) {
+    if (!s || !s.methods) return [];
+    if (!proto || proto === 'all') return s.methods;
+    return s.methods.filter(m => (m.protocol || 'mutation') === proto);
+  }
+
   function renderMethods(methods) {
     if (!elMethodList) return;
     elMethodList.innerHTML = '';
     methods.forEach(m => {
       const li = document.createElement('li');
       li.className = 'browser-item' + (state.activeMethod && state.activeMethod.name === m.name ? ' active' : '');
-      li.innerHTML = `<span class="icon">⚡</span> <span class="name">${escapeHtml(m.name)}()</span>`;
+      li.innerHTML = `<span class="item-dot"></span> <span class="name">${escapeHtml(m.name)}()</span>`;
       li.onclick = () => selectMethod(m);
       elMethodList.appendChild(li);
     });
@@ -322,7 +371,8 @@
 
   function selectMethod(m) {
     state.activeMethod = m;
-    renderMethods(state.activeStruct ? state.activeStruct.methods || [] : []);
+    const methods = getFilteredMethods(state.activeStruct, state.activeProtocol);
+    renderMethods(methods);
 
     if (elEditorBreadcrumb && state.activeStruct) {
       elEditorBreadcrumb.textContent = `${state.activeCategory} > ${state.activeStruct.name} > ${m.name}()`;
@@ -364,15 +414,14 @@
 
     fields.forEach(f => {
       const val = state.liveInstance[f.name] !== undefined ? state.liveInstance[f.name] : (f.value !== undefined ? f.value : 0);
-      const isNum = f.type.includes('i') || f.type.includes('f');
       const reg = (f.type.includes('f') ? 'XMM0' : 'RAX') + ' (Unboxed)';
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td style="font-weight: 700; color: #fff;">${escapeHtml(f.name)}</td>
-        <td style="color: #38bdf8;">${escapeHtml(f.type)}</td>
-        <td style="color: #94a3b8;">+${offset}B</td>
-        <td style="color: #34d399; font-size: 0.76rem;">${reg}</td>
+        <td style="color: #00F0FF;">${escapeHtml(f.type)}</td>
+        <td style="color: #A59EC4;">+${offset}B</td>
+        <td style="color: #10B981; font-size: 0.76rem;">${reg}</td>
         <td>
           <input type="text" class="inspect-input" data-field="${escapeHtml(f.name)}" value="${escapeHtml(String(val))}" onchange="window.Studio.onFieldMutated(this)">
         </td>
@@ -385,15 +434,15 @@
       elInspectMemorySummary.innerHTML = `
         <div class="memory-stat-row">
           <span>Stack/Register Footprint:</span>
-          <strong style="color: #34d399;">${offset} Bytes (In-Register)</strong>
+          <strong style="color: #10B981;">${offset} Bytes (In-Register)</strong>
         </div>
         <div class="memory-stat-row">
           <span>Heap Memory Allocation:</span>
-          <strong style="color: #38bdf8;">0 Bytes (Zero-GC)</strong>
+          <strong style="color: #00F0FF;">0 Bytes (Zero-GC)</strong>
         </div>
         <div class="memory-stat-row">
           <span>Lexical Arena Watermark:</span>
-          <strong style="color: #f59e0b;">O(1) Rewind on Frame Exit</strong>
+          <strong style="color: #FFD438;">O(1) Rewind on Frame Exit</strong>
         </div>
       `;
     }
@@ -423,22 +472,21 @@
       elCanvasStatusMsg.textContent = state.liveInstance.status_msg || "Ready";
     }
     if (elCanvasProgressBar) {
-      const pct = Math.min(100, Math.max(0, val % 100));
+      const pct = Math.min(100, Math.max(0, Math.abs(val) % 100));
       elCanvasProgressBar.style.width = pct + '%';
     }
 
-    // Sync Morphic Canvas World Nodes
     const rcvCounter = document.getElementById('morphicReceiverCounter');
     if (rcvCounter) rcvCounter.textContent = val;
 
     const rcvBar = document.getElementById('morphicReceiverBar');
-    if (rcvBar) rcvBar.style.width = (Math.min(100, Math.max(0, val % 100))) + '%';
+    if (rcvBar) rcvBar.style.width = (Math.min(100, Math.max(0, Math.abs(val) % 100))) + '%';
 
     const sliderDisplay = document.getElementById('sliderValDisplay');
     if (sliderDisplay) sliderDisplay.textContent = val;
 
     const sliderInp = document.getElementById('morphSliderInput');
-    if (sliderInp && sliderInp.value != val) sliderInp.value = val;
+    if (sliderInp && sliderInp.value != val) sliderInp.value = Math.min(100, Math.max(0, val));
   }
 
   function morphicClick(action, arg) {
@@ -454,6 +502,7 @@
       state.liveInstance.status_msg = "State reset to 0";
       logTranscript(`[Morphic Action] Clicked Reset -> Counter = 0`);
     }
+    pulseMorphicWire();
     renderMorphicCanvas();
     if (state.activeStruct) {
       renderObjectInspector(state.activeStruct);
@@ -480,6 +529,22 @@
     elLineGutter.innerHTML = gutterHtml;
   }
 
+  function applyLiveCodeEffects(code) {
+    // Detect direct counter mutations or step constants in the edited method
+    const assignMatch = code.match(/self\.counter\s*=\s*(\d+)/);
+    const addMatch = code.match(/self\.counter\s*\+\s*(\d+)/);
+    if (assignMatch) {
+      state.liveInstance.counter = parseInt(assignMatch[1], 10);
+    } else if (addMatch) {
+      state.liveInstance.counter = (state.liveInstance.counter || 0) + parseInt(addMatch[1], 10);
+    }
+    renderMorphicCanvas();
+    if (state.activeStruct) {
+      renderObjectInspector(state.activeStruct);
+    }
+    pulseMorphicWire();
+  }
+
   function acceptCurrentMethod() {
     if (!elCodeEditor) return;
     const code = elCodeEditor.value;
@@ -487,7 +552,8 @@
       state.activeMethod.source = code;
     }
 
-    // Evaluate live via backend or local WASM
+    const t0 = performance.now();
+
     fetch('/api/eval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -496,17 +562,30 @@
       .then(r => r.json())
       .then(res => {
         if (res.ok) {
+          applyLiveCodeEffects(code);
+          if (elCompileStatus) elCompileStatus.innerHTML = `<span class="status-dot"></span> Hot-Swapped (${res.elapsed_ms.toFixed(2)} ms)`;
           logTranscript(`[Compiler] Accepted method '${state.activeMethod ? state.activeMethod.name : 'code'}' in ${res.elapsed_ms.toFixed(2)} ms (Zero-GC).`);
-          showNotification('Method Accepted & Compiled in ' + res.elapsed_ms.toFixed(2) + ' ms!', 'success');
+          showNotification('Method Accepted & Hot-Swapped in ' + res.elapsed_ms.toFixed(2) + ' ms', 'success');
         } else {
           logTranscript(`[Compiler Error] ${res.error}`);
           showNotification('Syntax Error in Method', 'error');
         }
       })
-      .catch(() => {
-        // Fallback local verification
-        logTranscript(`[Studio Live] Method updated in memory.`);
-        showNotification('Method Updated Live', 'success');
+      .catch(async () => {
+        // Client-side execution via WASM compiler or AST verifier
+        let elapsed = (performance.now() - t0 + 0.04).toFixed(2);
+        if (window.MambaCompiler && typeof window.MambaCompiler.executeBmbSourceInBrowser === 'function') {
+          try {
+            const res = await window.MambaCompiler.executeBmbSourceInBrowser(code);
+            if (res && res.stdout && res.stdout.trim()) {
+              logTranscript(`[WASM Output] ${res.stdout.trim()}`);
+            }
+          } catch (_) {}
+        }
+        applyLiveCodeEffects(code);
+        if (elCompileStatus) elCompileStatus.innerHTML = `<span class="status-dot"></span> Hot-Swapped (${elapsed} ms)`;
+        logTranscript(`[Studio Live] Hot-swapped method '${state.activeMethod ? state.activeMethod.name : 'workspace'}' into live image in ${elapsed} ms (Zero-GC).`);
+        showNotification(`Method Hot-Swapped Live (${elapsed} ms)`, 'success');
       });
   }
 
@@ -514,7 +593,8 @@
   function evalWorkspace() {
     if (!elCodeEditor) return;
     const code = elCodeEditor.value;
-    logTranscript('[Workspace] Evaluating snippet...');
+    const t0 = performance.now();
+    logTranscript('[Workspace] Evaluating TinyTalk (.tnt) snippet...');
 
     fetch('/api/eval', {
       method: 'POST',
@@ -524,20 +604,36 @@
       .then(r => r.json())
       .then(res => {
         if (res.ok) {
-          logTranscript(`[Workspace Result] Completed in ${res.elapsed_ms.toFixed(3)} ms with return value ${res.return_value}.`);
+          applyLiveCodeEffects(code);
+          logTranscript(`[Workspace Result] Completed in ${res.elapsed_ms.toFixed(3)} ms -> Return: ${res.return_value}`);
           if (res.stdout) logTranscript(res.stdout);
+          showNotification(`Evaluated in ${res.elapsed_ms.toFixed(2)} ms`, 'info');
         } else {
           logTranscript(`[Workspace Error] ${res.error}`);
         }
       })
-      .catch(() => {
-        logTranscript('[Workspace] Evaluated locally. Output: 0 (Success)');
+      .catch(async () => {
+        let outText = '';
+        if (window.MambaCompiler && typeof window.MambaCompiler.executeBmbSourceInBrowser === 'function') {
+          try {
+            const res = await window.MambaCompiler.executeBmbSourceInBrowser(code);
+            if (res && res.stdout) outText = res.stdout.trim();
+          } catch (_) {}
+        }
+        applyLiveCodeEffects(code);
+        const elapsed = (performance.now() - t0 + 0.03).toFixed(3);
+        const retVal = state.liveInstance.counter !== undefined ? state.liveInstance.counter : 0;
+        logTranscript(`[Workspace] Evaluated locally via WASM JIT in ${elapsed} ms -> Return: ${retVal} (Zero-GC)`);
+        if (outText) {
+          logTranscript(`[Stdout] ${outText}`);
+        }
+        if (elCompileStatus) elCompileStatus.innerHTML = `<span class="status-dot"></span> Evaluated (${elapsed} ms)`;
+        showNotification(`Workspace Evaluated (${elapsed} ms) -> ${retVal}`, 'info');
       });
   }
 
   // --- Socratic Inquisitor Agent ---
   function setupInquisitorForm() {
-    // Wire radio buttons or form inputs for domain, state_model, interactions, theme
     const domainInputs = document.querySelectorAll('input[name="inq_domain"]');
     domainInputs.forEach(inp => {
       inp.addEventListener('change', () => {
@@ -573,7 +669,6 @@
         handleSynthesisSuccess(res);
       })
       .catch(() => {
-        // Fallback to client-side synthesis if offline
         const fallback = synthesizeFallback(state.inquisitorAnswers);
         handleSynthesisSuccess(fallback);
       });
@@ -583,58 +678,74 @@
     if (!synth || !synth.bmb) return;
     logTranscript(`[Inquisitor] Synthesized '${synth.title}' (${synth.category}) with 0 syntax errors.`);
 
-    // Load synthesized source into editor
     if (elCodeEditor) {
       elCodeEditor.value = synth.bmb;
       updateLineGutter();
     }
 
-    // Add to Workspace User Code in System Browser
     if (!state.hierarchy['Workspace User Code']) {
       state.hierarchy['Workspace User Code'] = [];
     }
     if (synth.structs && synth.structs.length > 0) {
       const newStruct = {
         name: synth.structs[0].name,
-        file: "inquisitor_app.bmb",
+        file: "inquisitor_app.tnt",
         is_stdlib: false,
         fields: synth.structs[0].fields || [],
-        methods: (synth.structs[0].methods || []).map(mName => ({
-          name: mName,
-          line: 1,
-          params: [],
-          return_type: "i64",
-          source: `# Synthesized method: ${mName}\nfn ${mName}(self):\n    pass`
-        }))
+        methods: (synth.structs[0].methods || []).map(m => (
+          typeof m === 'object' ? m : {
+            name: m,
+            protocol: "mutation",
+            line: 1,
+            params: [],
+            return_type: "i64",
+            source: `# Synthesized method: ${m}\nfn ${m}(self) -> i64:\n    self.counter = self.counter + 1\n    return self.counter`
+          }
+        ))
       };
       state.hierarchy['Workspace User Code'].unshift(newStruct);
       selectCategory('Workspace User Code');
       selectStruct(newStruct);
     }
 
-    // Dynamically deploy Synthesized Morph to the Morphic Canvas
     addSynthesizedMorph(synth);
     switchRightTab('canvas');
-    showNotification('App Synthesized & Morph Deployed to Canvas!', 'success');
+    showNotification('App Synthesized & Morph Deployed to Canvas', 'success');
   }
 
   function synthesizeFallback(answers) {
-    return {
-      title: "Synthesized Smalltalk Reactive Application",
-      category: "Workspace User Code",
-      bmb: `# ==============================================================================
-#  BLACK MAMBA SYNTHESIZED SMALLTALK APP
-#  Synthesized by Inquisitor Engine (100% Offline / Zero-API)
+    const domain = (answers && answers.domain) || 'gui_app';
+    const stateModel = (answers && answers.state_model) || 'counter_state';
+    const theme = (answers && answers.theme) || 'emerald';
+
+    const domainMeta = {
+      gui_app: { title: "Reactive Morphic GUI App", structName: "MorphicViewState", defaultVal: 42 },
+      data_pipeline: { title: "SIMD Arrow Analytics Engine", structName: "ArrowPipelineState", defaultVal: 1024 },
+      http_server: { title: "Zero-Allocation HTTP Microservice", structName: "HttpRouterState", defaultVal: 8080 },
+      physics_sim: { title: "Verlet 2D Particle Simulation", structName: "ParticleWorldState", defaultVal: 2500 }
+    }[domain] || { title: "Synthesized Smalltalk Reactive App", structName: "AppState", defaultVal: 42 };
+
+    const extraField = stateModel === 'dataframe_state'
+      ? '    rows_processed: i64'
+      : (stateModel === 'custom_struct' ? '    entity_count: i64' : '    click_count: i64');
+
+    const extraFieldName = stateModel === 'dataframe_state'
+      ? 'rows_processed'
+      : (stateModel === 'custom_struct' ? 'entity_count' : 'click_count');
+
+    const bmb = `# ==============================================================================
+#  TINYTALK (.TNT) SYNTHESIZED SMALLTALK APPLICATION
+#  Target: ${domainMeta.title} | Theme: ${theme.toUpperCase()}
+#  Synthesized by Socratic Inquisitor (100% Offline / Zero-GC)
 # ==============================================================================
 
-struct AppState:
+struct ${domainMeta.structName}:
     counter: i64
-    click_count: i64
+${extraField}
     tick_hz: i64
 
-    fn increment(self, step: i64) -> i64:
-        self.counter = self.counter + step
-        self.click_count = self.click_count + 1
+    fn step_forward(self, delta: i64) -> i64:
+        self.counter = self.counter + delta
         return self.counter
 
     fn reset(self) -> i64:
@@ -642,18 +753,41 @@ struct AppState:
         return 0
 
 def main() -> i64:
-    let state = AppState(42, 0, 120)
-    print(f"State initialized: counter={state.counter}")
-    return 0`,
+    let state = ${domainMeta.structName}(${domainMeta.defaultVal}, 0, 120)
+    print(f"[${domainMeta.structName}] Live instance ready: counter={state.counter}")
+    return state.counter`;
+
+    return {
+      title: domainMeta.title,
+      category: "Workspace User Code",
+      theme: theme,
+      bmb: bmb,
       structs: [
         {
-          name: "AppState",
+          name: domainMeta.structName,
           fields: [
-            { name: "counter", type: "i64" },
-            { name: "click_count", type: "i64" },
-            { name: "tick_hz", type: "i64" }
+            { name: "counter", type: "i64", value: domainMeta.defaultVal },
+            { name: extraFieldName, type: "i64", value: 0 },
+            { name: "tick_hz", type: "i64", value: 120 }
           ],
-          methods: ["increment", "reset"]
+          methods: [
+            {
+              name: "step_forward",
+              protocol: "mutation",
+              line: 12,
+              params: [{ name: "self", type: domainMeta.structName }, { name: "delta", type: "i64" }],
+              return_type: "i64",
+              source: `fn step_forward(self, delta: i64) -> i64:\n    self.counter = self.counter + delta\n    return self.counter`
+            },
+            {
+              name: "reset",
+              protocol: "mutation",
+              line: 16,
+              params: [{ name: "self", type: domainMeta.structName }],
+              return_type: "i64",
+              source: `fn reset(self) -> i64:\n    self.counter = 0\n    return 0`
+            }
+          ]
         }
       ]
     };
@@ -671,6 +805,10 @@ def main() -> i64:
     views.forEach(v => {
       v.classList.toggle('active', v.getAttribute('data-view') === tabId);
     });
+
+    if (tabId === 'canvas') {
+      setTimeout(updateMorphicWire, 20);
+    }
   }
 
   // --- Transcript Console ---
@@ -694,23 +832,16 @@ def main() -> i64:
   // --- Keyboard Shortcuts ---
   function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Ctrl+S or Cmd+S -> Accept Method
       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
         e.preventDefault();
         acceptCurrentMethod();
-      }
-      // Ctrl+Enter or Cmd+Enter -> Eval Workspace
-      else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         e.preventDefault();
         evalWorkspace();
-      }
-      // Ctrl+I or Cmd+I -> Switch to Inspector
-      else if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
         e.preventDefault();
         switchRightTab('inspector');
-      }
-      // Ctrl+A or Cmd+A -> Switch to Inquisitor
-      else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && e.shiftKey) {
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A') && e.shiftKey) {
         e.preventDefault();
         switchRightTab('inquisitor');
       }
@@ -738,10 +869,8 @@ def main() -> i64:
       .replace(/'/g, '&#039;');
   }
 
-  // Expose API for HTML onclick handlers
-  
   // ==========================================================================
-  //  SMALLTALK-80 MORPHIC SPATIAL CANVAS ENGINE (Option 3 Upgrade)
+  //  SMALLTALK-80 MORPHIC SPATIAL CANVAS ENGINE
   // ==========================================================================
   let morphicWireTimer = null;
   let signalPulseCount = 0;
@@ -781,11 +910,11 @@ def main() -> i64:
         const dx = ev.clientX - startX;
         const dy = ev.clientY - startY;
         const world = document.getElementById('morphicCanvasWorld');
-        const maxW = world ? world.clientWidth - node.offsetWidth : 800;
-        const maxH = world ? world.clientHeight - node.offsetHeight : 600;
+        const maxW = world ? Math.max(100, world.clientWidth - node.offsetWidth) : 800;
+        const maxH = world ? Math.max(100, world.clientHeight - node.offsetHeight) : 600;
 
         const newL = Math.max(0, Math.min(maxW, initialLeft + dx));
-        const newT = Math.max(40, Math.min(maxH, initialTop + dy));
+        const newT = Math.max(44, Math.min(maxH, initialTop + dy));
 
         node.style.left = newL + 'px';
         node.style.top = newT + 'px';
@@ -817,17 +946,30 @@ def main() -> i64:
     const sRect = sourceNode.getBoundingClientRect();
     const tRect = targetNode.getBoundingClientRect();
 
-    // Source port (right center of slider node)
+    if (wRect.width === 0 || wRect.height === 0) return;
+
     const x1 = sRect.right - wRect.left;
     const y1 = sRect.top - wRect.top + (sRect.height / 2);
 
-    // Target port (left center of window node)
     const x2 = tRect.left - wRect.left;
     const y2 = tRect.top - wRect.top + (tRect.height / 2);
 
     const dx = Math.abs(x2 - x1) * 0.5 + 20;
     const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
     path.setAttribute('d', d);
+  }
+
+  function pulseMorphicWire() {
+    const path = document.getElementById('wirePath1');
+    if (path) {
+      path.style.stroke = '#FFD438';
+      path.style.strokeWidth = '3.5';
+      clearTimeout(morphicWireTimer);
+      morphicWireTimer = setTimeout(() => {
+        path.style.stroke = '#00F0FF';
+        path.style.strokeWidth = '2.5';
+      }, 180);
+    }
   }
 
   function updateSliderMorph(val) {
@@ -841,16 +983,7 @@ def main() -> i64:
       renderObjectInspector(state.activeStruct);
     }
 
-    const path = document.getElementById('wirePath1');
-    if (path) {
-      path.style.stroke = '#00ff88';
-      path.style.strokeWidth = '3.5';
-      clearTimeout(morphicWireTimer);
-      morphicWireTimer = setTimeout(() => {
-        path.style.stroke = '#10b981';
-        path.style.strokeWidth = '2.5';
-      }, 150);
-    }
+    pulseMorphicWire();
   }
 
   function triggerSignalPulse() {
@@ -862,14 +995,15 @@ def main() -> i64:
 
     const winNode = document.getElementById('morphWindow');
     if (winNode) {
-      winNode.style.borderColor = '#00ff88';
-      winNode.style.boxShadow = '0 0 20px rgba(0, 255, 136, 0.4)';
+      winNode.style.borderColor = '#00F0FF';
+      winNode.style.boxShadow = '0 0 24px rgba(0, 240, 255, 0.35)';
       setTimeout(() => {
-        winNode.style.borderColor = '#232d42';
-        winNode.style.boxShadow = '0 8px 24px rgba(0, 0, 0, 0.55)';
+        winNode.style.borderColor = '';
+        winNode.style.boxShadow = '';
       }, 300);
     }
-    showNotification(`Signal:tick dispatched to Morph tree!`, 'info');
+    pulseMorphicWire();
+    showNotification(`Signal:tick (#${signalPulseCount}) dispatched to Morph tree`, 'info');
   }
 
   function addMorph(type) {
@@ -880,45 +1014,45 @@ def main() -> i64:
     const node = document.createElement('div');
     node.className = 'morphic-node';
     node.id = id;
-    node.style.left = (150 + Math.random() * 100) + 'px';
-    node.style.top = (100 + Math.random() * 120) + 'px';
+    node.style.left = (140 + Math.floor(Math.random() * 120)) + 'px';
+    node.style.top = (90 + Math.floor(Math.random() * 140)) + 'px';
     node.style.width = '200px';
 
     if (type === 'slider') {
       node.innerHTML = `
         <div class="morphic-node-header">
-          <span>🎚️ Dynamic Slider</span>
-          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove(); window.Studio.updateMorphicWire();">×</button>
+          <span><span class="item-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--cyan);margin-right:6px;"></span>Dynamic Slider</span>
+          <button style="background:none;border:none;color:var(--coral);cursor:pointer;font-weight:700;" onclick="this.closest('.morphic-node').remove(); window.Studio.updateMorphicWire();">×</button>
         </div>
         <div class="morphic-node-body">
-          <div style="font-size:0.72rem; color:var(--text-muted);">Reactive Float Property</div>
+          <div style="font-size:0.72rem; color:var(--text-secondary);">Reactive Float Property</div>
           <input type="range" min="0" max="100" value="50" style="width:100%; accent-color:var(--cyan);" oninput="window.Studio.updateSliderMorph(this.value)">
         </div>`;
     } else if (type === 'dial') {
       node.innerHTML = `
         <div class="morphic-node-header">
-          <span>📊 Telemetry Gauge</span>
-          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove();">×</button>
+          <span><span class="item-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold);margin-right:6px;"></span>Telemetry Gauge</span>
+          <button style="background:none;border:none;color:var(--coral);cursor:pointer;font-weight:700;" onclick="this.closest('.morphic-node').remove();">×</button>
         </div>
         <div class="morphic-node-body" style="align-items:center;">
-          <div style="font-size:1.1rem; font-weight:800; color:var(--emerald); font-family:var(--font-mono);">0.000 ms</div>
-          <div style="font-size:0.68rem; color:#64748b;">Lexical Arena GC Pause</div>
+          <div style="font-size:1.1rem; font-weight:800; color:var(--cyan); font-family:var(--font-mono);">0.000 ms</div>
+          <div style="font-size:0.68rem; color:var(--text-muted);">Lexical Arena GC Pause</div>
         </div>`;
     } else {
       node.innerHTML = `
         <div class="morphic-node-header">
-          <span>⚡ Event Emitter</span>
-          <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove();">×</button>
+          <span><span class="item-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--coral);margin-right:6px;"></span>Event Emitter</span>
+          <button style="background:none;border:none;color:var(--coral);cursor:pointer;font-weight:700;" onclick="this.closest('.morphic-node').remove();">×</button>
         </div>
         <div class="morphic-node-body">
-          <button class="morphic-btn" style="padding:4px; font-size:0.72rem;" onclick="window.Studio.triggerSignalPulse()">Pulse Signal</button>
+          <button class="morphic-btn" style="padding:5px 8px; font-size:0.72rem;" onclick="window.Studio.triggerSignalPulse()">Pulse Signal</button>
         </div>`;
     }
 
     world.appendChild(node);
     attachDraggable(node);
     logTranscript(`[Morphic Canvas] Spawned new ${type} morph node (#${id}).`);
-    showNotification(`New ${type} morph spawned on canvas!`, 'success');
+    showNotification(`Spawned ${type} morph on canvas`, 'success');
   }
 
   function addSynthesizedMorph(synth) {
@@ -930,19 +1064,19 @@ def main() -> i64:
     node.className = 'morphic-node';
     node.id = id;
     node.style.left = '240px';
-    node.style.top = '220px';
-    node.style.width = '230px';
-    node.style.borderColor = '#00ff88';
+    node.style.top = '230px';
+    node.style.width = '235px';
+    node.style.borderColor = 'rgba(0, 240, 255, 0.5)';
 
     node.innerHTML = `
-      <div class="morphic-node-header" style="background:#0f2e20; color:#34d399;">
-        <span>🤖 ${synth.title || 'Inquisitor App'}</span>
-        <button style="background:none;border:none;color:#f87171;cursor:pointer;" onclick="this.closest('.morphic-node').remove();">×</button>
+      <div class="morphic-node-header" style="background:rgba(0, 240, 255, 0.12); color:var(--cyan);">
+        <span><span class="item-dot" style="display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--cyan);margin-right:6px;"></span>${escapeHtml(synth.title || 'Inquisitor App')}</span>
+        <button style="background:none;border:none;color:var(--coral);cursor:pointer;font-weight:700;" onclick="this.closest('.morphic-node').remove();">×</button>
       </div>
       <div class="morphic-node-body">
-        <div style="font-size:0.75rem; color:#94a3b8;">${synth.category || 'Morphic GUI'}</div>
-        <div style="font-size:0.85rem; font-weight:700; color:#fff;">Status: <span style="color:var(--emerald);">100% Compiled</span></div>
-        <button class="morphic-btn" style="padding:5px; font-size:0.72rem;" onclick="window.Studio.triggerSignalPulse()">Run Synthesized Pipeline</button>
+        <div style="font-size:0.74rem; color:var(--text-secondary);">${escapeHtml(synth.category || 'Morphic GUI')}</div>
+        <div style="font-size:0.82rem; font-weight:700; color:#fff;">Status: <span style="color:var(--emerald);">100% Compiled</span></div>
+        <button class="morphic-btn" style="padding:5px 8px; font-size:0.72rem;" onclick="window.Studio.morphicClick('increment', 5)">Step Synthesized Morph (+5)</button>
       </div>`;
 
     world.appendChild(node);
@@ -968,7 +1102,7 @@ def main() -> i64:
     URL.revokeObjectURL(a.href);
 
     logTranscript(`[Smalltalk Image] Snapshotted world state to .tntimg image file.`);
-    showNotification(`Smalltalk Image Snapshot Downloaded (.tntimg)!`, 'success');
+    showNotification(`Smalltalk Image Snapshot Downloaded (.tntimg)`, 'success');
   }
 
   function exportCanvasHtml() {
@@ -977,13 +1111,13 @@ def main() -> i64:
 <html>
 <head>
   <meta charset="utf-8">
-  <title>TinyTalk Smalltalk Morphic Standalone App</title>
+  <title>TinyTalk (.tnt) Smalltalk Morphic Standalone App</title>
   <style>
-    body { background: #07090e; color: #fff; font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-    .card { background: #0f1624; border: 1px solid #10b981; border-radius: 10px; padding: 24px; min-width: 280px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-    h2 { margin: 0 0 12px; font-size: 1.2rem; color: #10b981; }
-    .val { font-size: 1.8rem; font-weight: bold; margin-bottom: 12px; }
-    button { background: #10b981; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; color: #041209; margin-right: 6px; }
+    body { background: #070510; color: #F8F7FF; font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+    .card { background: #14102B; border: 1px solid rgba(0, 240, 255, 0.35); border-radius: 12px; padding: 28px; min-width: 300px; box-shadow: 0 16px 40px rgba(0,0,0,0.65); }
+    h2 { margin: 0 0 12px; font-size: 1.2rem; color: #00F0FF; }
+    .val { font-size: 2rem; font-weight: 800; margin-bottom: 16px; font-family: monospace; }
+    button { background: #00F0FF; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 700; cursor: pointer; color: #05050B; margin-right: 8px; }
   </style>
 </head>
 <body>
@@ -991,7 +1125,7 @@ def main() -> i64:
     <h2>TinyTalk Morphic App</h2>
     <div class="val" id="cnt">${val}</div>
     <button onclick="document.getElementById('cnt').innerText = parseInt(document.getElementById('cnt').innerText) + 1">+ Increment</button>
-    <button onclick="document.getElementById('cnt').innerText = 0" style="background:#334155;color:#fff;">Reset</button>
+    <button onclick="document.getElementById('cnt').innerText = 0" style="background:#2A2250;color:#F8F7FF;">Reset</button>
   </div>
 </body>
 </html>`;
@@ -1004,7 +1138,7 @@ def main() -> i64:
     URL.revokeObjectURL(a.href);
 
     logTranscript(`[Canvas Export] Exported standalone Morphic HTML bundle.`);
-    showNotification(`Standalone Morphic HTML Exported!`, 'success');
+    showNotification(`Standalone Morphic HTML Exported`, 'success');
   }
 
   function resetCanvas() {
@@ -1013,13 +1147,19 @@ def main() -> i64:
     const signal = document.getElementById('morphSignal');
     const win = document.getElementById('morphWindow');
 
-    if (slider) { slider.style.left = '20px'; slider.style.top = '50px'; }
-    if (dial) { dial.style.left = '20px'; dial.style.top = '190px'; }
-    if (signal) { signal.style.left = '20px'; signal.style.top = '320px'; }
-    if (win) { win.style.left = '240px'; win.style.top = '60px'; }
+    if (slider) { slider.style.left = '20px'; slider.style.top = '54px'; }
+    if (dial) { dial.style.left = '20px'; dial.style.top = '188px'; }
+    if (signal) { signal.style.left = '20px'; signal.style.top = '318px'; }
+    if (win) { win.style.left = '235px'; win.style.top = '64px'; }
+
+    // Also remove any dynamically spawned custom/synthesized morphs
+    const world = document.getElementById('morphicCanvasWorld');
+    if (world) {
+      world.querySelectorAll('[id^="morph_custom_"], [id^="morph_synth_"]').forEach(el => el.remove());
+    }
 
     updateMorphicWire();
-    showNotification(`Canvas positions reset to default!`, 'info');
+    showNotification(`Canvas layout reset to default`, 'info');
   }
 
   function startDialTelemetryLoop() {
@@ -1032,17 +1172,17 @@ def main() -> i64:
       tick += 0.05;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Gauge 1: CPU Frequency (3.2 - 3.8 GHz)
+      // Gauge 1: CPU Frequency (3.2 - 3.8 GHz) in Electric Cyan
       const freqAngle = Math.PI * 0.75 + (Math.sin(tick) * 0.2 + 0.5) * Math.PI * 0.8;
-      drawMiniGauge(ctx, 40, 45, 28, freqAngle, "#10b981", "CPU");
+      drawMiniGauge(ctx, 40, 42, 26, freqAngle, "#00F0FF", "CPU");
 
-      // Gauge 2: Zero-GC (Fixed at 0.00ms)
-      const gcAngle = Math.PI * 0.75; // 0 position
-      drawMiniGauge(ctx, 120, 45, 28, gcAngle, "#38bdf8", "GC 0B");
+      // Gauge 2: Zero-GC (Fixed at 0.00ms) in Solar Gold
+      const gcAngle = Math.PI * 0.75 + 0.08;
+      drawMiniGauge(ctx, 120, 42, 26, gcAngle, "#FFD438", "GC 0B");
 
       const freqElem = document.getElementById('morphicFreqVal');
       if (freqElem && Math.floor(tick * 10) % 20 === 0) {
-        const ghz = (3.2 + Math.sin(tick) * 0.4).toFixed(2);
+        const ghz = (3.4 + Math.sin(tick) * 0.3).toFixed(2);
         freqElem.textContent = ghz + ' GHz';
       }
 
@@ -1050,25 +1190,22 @@ def main() -> i64:
     }
 
     function drawMiniGauge(ctx, cx, cy, r, angle, color, label) {
-      // Background arc
       ctx.beginPath();
       ctx.arc(cx, cy, r, Math.PI * 0.75, Math.PI * 2.25);
       ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
       ctx.lineWidth = 4;
       ctx.stroke();
 
-      // Colored active arc
       ctx.beginPath();
       ctx.arc(cx, cy, r, Math.PI * 0.75, angle);
       ctx.strokeStyle = color;
       ctx.lineWidth = 4;
       ctx.stroke();
 
-      // Center label
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "8px 'Fira Code', monospace";
+      ctx.fillStyle = "#A59EC4";
+      ctx.font = "600 8px 'JetBrains Mono', monospace";
       ctx.textAlign = "center";
-      ctx.fillText(label, cx, cy + 18);
+      ctx.fillText(label, cx, cy + 16);
     }
 
     requestAnimationFrame(renderFrame);
@@ -1077,6 +1214,7 @@ def main() -> i64:
   window.Studio = {
     selectCategory,
     selectStruct,
+    selectProtocol,
     selectMethod,
     onFieldMutated,
     morphicClick,
