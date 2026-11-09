@@ -471,7 +471,8 @@
         <div class="code-block">
           <div class="code-header">
             <span>TERMINAL &bull; VERIFY COMPILER</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt --version\ntnt gatekeeper'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt --version
+tnt gatekeeper'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
           <pre class="code-content">$ tnt --version
 TinyTalk v8.0.0 (x86_64-pc-windows-msvc, 0ms GC, Auto-TCO, WebGPU, Quantum)
@@ -511,7 +512,15 @@ $ tnt gatekeeper
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; fib.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('def fib(n: i64) -> i64:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ndef main():\n    let ans: i64 = fib(30)\n    print(\"Fibonacci(30) =\", ans)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('def fib(n: i64) -> i64:
+    if n <= 1:
+        return n
+    return fib(n - 1) + fib(n - 2)
+
+def main():
+    let ans: i64 = fib(30)
+    print("Fibonacci(30) =", ans)
+    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
           <pre class="code-content">def fib(n: i64) -> i64:
     if n &lt;= 1:
@@ -528,7 +537,9 @@ def main():
         <div class="code-block">
           <div class="code-header">
             <span>TERMINAL &bull; RUN &amp; BUILD</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt run fib.tnt\ntnt build fib.tnt --target exe -o fib.exe\n.\\fib.exe'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt run fib.tnt
+tnt build fib.tnt --target exe -o fib.exe
+.\fib.exe'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
           <pre class="code-content"># 1. Instant JIT execution
 $ tnt run fib.tnt
@@ -538,7 +549,7 @@ Fibonacci(30) = 832040
 $ tnt build fib.tnt --target exe -o fib.exe
 [TinyTalk] Built standalone Windows x86-64 PE32+ executable -> fib.exe (11776 bytes)
 
-$ .\fib.exe
+$ .fib.exe
 Fibonacci(30) = 832040</pre>
         </div>
       </section>
@@ -601,7 +612,16 @@ Fibonacci(30) = 832040</pre>
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; autodiff.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from diff_physics import DiffVar\n\ndef main():\n    let x = DiffVar(2.0)\n    let y = DiffVar(3.0)\n    let z = (x * x) + (x * y)\n    z.backward()\n    print(\"dz/dx =\", x.grad) # 2*x + y = 7.0\n    print(\"dz/dy =\", y.grad) # x = 2.0\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('from diff_physics import DiffVar
+
+def main():
+    let x = DiffVar(2.0)
+    let y = DiffVar(3.0)
+    let z = (x * x) + (x * y)
+    z.backward()
+    print("dz/dx =", x.grad) # 2*x + y = 7.0
+    print("dz/dy =", y.grad) # x = 2.0
+    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
           <pre class="code-content">from diff_physics import DiffVar
 
@@ -626,7 +646,16 @@ def main():
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; quantum_bell.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from quantum import QuantumCircuit\nfrom qasm import to_openqasm3\n\ndef main():\n    let qc = QuantumCircuit(2)\n    qc.h(0)     # Hadamard gate: creates superposition\n    qc.cx(0, 1) # CNOT gate: creates entanglement\n    let qasm = to_openqasm3(qc)\n    print(qasm)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('from quantum import QuantumCircuit
+from qasm import to_openqasm3
+
+def main():
+    let qc = QuantumCircuit(2)
+    qc.h(0)     # Hadamard gate: creates superposition
+    qc.cx(0, 1) # CNOT gate: creates entanglement
+    let qasm = to_openqasm3(qc)
+    print(qasm)
+    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
           <pre class="code-content">from quantum import QuantumCircuit
 from qasm import to_openqasm3
@@ -652,7 +681,15 @@ def main():
         <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; snn_loihi.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from neuromorphic import LIFNeuron\nfrom loihi2 import emit_loihi_microcode\n\ndef main():\n    let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)\n    for step in range(10):\n        let spiked = neuron.step(current=0.3)\n        print(\"Step:\", step, \"V:\", neuron.v, \"Spiked:\", spiked)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('from neuromorphic import LIFNeuron
+from loihi2 import emit_loihi_microcode
+
+def main():
+    let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)
+    for step in range(10):
+        let spiked = neuron.step(current=0.3)
+        print("Step:", step, "V:", neuron.v, "Spiked:", spiked)
+    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
           <pre class="code-content">from neuromorphic import LIFNeuron
 from loihi2 import emit_loihi_microcode

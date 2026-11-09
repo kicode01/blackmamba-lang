@@ -631,10 +631,14 @@
       
       setTimeout(() => {
         const time = new Date().toISOString().split('T')[1].slice(0, 8);
-        consoleBox.innerHTML += `\n[${time}] &gt;&gt; Building bundle for '${name}' targeting ${target}...`;
-        consoleBox.innerHTML += `\n[${time}] [OK] Lowered MIR to native machine code in 0.008 ms.`;
-        consoleBox.innerHTML += `\n[${time}] [OK] OCI container image signed with HMAC-SHA256.`;
-        consoleBox.innerHTML += `\n[${time}] <span class="log-success">SUCCESS: '${name}' successfully deployed to ${target} (Cold Start: 0.38 ms)!</span>`;
+        consoleBox.innerHTML += `
+[${time}] &gt;&gt; Building bundle for '${name}' targeting ${target}...`;
+        consoleBox.innerHTML += `
+[${time}] [OK] Lowered MIR to native machine code in 0.008 ms.`;
+        consoleBox.innerHTML += `
+[${time}] [OK] OCI container image signed with HMAC-SHA256.`;
+        consoleBox.innerHTML += `
+[${time}] <span class="log-success">SUCCESS: '${name}' successfully deployed to ${target} (Cold Start: 0.38 ms)!</span>`;
         consoleBox.scrollTop = consoleBox.scrollHeight;
         
         btn.innerText = '⚡ Synthesize & Deploy Bundle Now';

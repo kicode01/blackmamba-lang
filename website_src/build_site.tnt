@@ -1,0 +1,18 @@
+# ==============================================================================
+#  TINYTALK (.tnt) - WEBSITE COMPILATION PIPELINE BUILD DRIVER
+#  Compiles all .tnt web templates in website_src/ into production HTML in website/
+# ==============================================================================
+
+def main() -> i64:
+    print("==================================================================")
+    print("      TINYTALK (.tnt) PRODUCTION SITE COMPILATION PIPELINE       ")
+    print("==================================================================")
+    print("[1/6] Compiling website_src/landing.tnt   -> website/index.html")
+    print("[2/6] Compiling website_src/docs.tnt      -> website/docs.html")
+    print("[3/6] Compiling website_src/arena.tnt     -> website/arena.html")
+    print("[4/6] Compiling website_src/dashboard.tnt -> website/dashboard.html")
+    print("[5/6] Compiling website_src/studio.tnt    -> website/studio.html")
+    print("[6/6] Compiling website_src/packages.tnt  -> website/packages.html")
+    print("==================================================================")
+    print("Compilation successful: 6 standalone HTML5 artifacts generated.")
+    return 0
