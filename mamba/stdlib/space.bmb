@@ -1,0 +1,17 @@
+# Black Mamba Relativistic Spacetime Standard Library (space.bmb)
+# Minkowski Intervals and Planetary Light-Delay Accounting
+
+struct SpacetimeCoord:
+    t_sec: f64
+    x_km: f64
+    y_km: f64
+    z_km: f64
+
+def compute_light_delay_sec(dist_km: f64) -> f64:
+    # c = 299792.458 km/s
+    return dist_km / 299792.458
+
+def is_timelike_interval(s_squared: f64) -> bool:
+    if s_squared > 0.0:
+        return True
+    return False

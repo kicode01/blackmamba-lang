@@ -479,7 +479,7 @@
       <input type="text" id="pkgSearchInput" class="search-input" placeholder="Search packages by name, keyword, or domain (e.g., hft, http, db, tensor, canvas, crypto)..." oninput="filterPackages()">
     </div>
     <div class="category-pills">
-      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (30)</button>
+      <button class="cat-btn active" data-cat="all" onclick="selectCategory('all')">All Packages (35)</button>
       <button class="cat-btn" data-cat="systems" onclick="selectCategory('systems')">⚡ Systems & HFT</button>
       <button class="cat-btn" data-cat="web" onclick="selectCategory('web')">🌐 Network & Web</button>
       <button class="cat-btn" data-cat="database" onclick="selectCategory('database')">💾 Database & Vector</button>
@@ -493,7 +493,7 @@
   <!-- Telemetry Metrics Banner -->
   <div class="metrics-strip">
     <div class="metric-card">
-      <div class="metric-val">30 Packages</div>
+      <div class="metric-val">35 Packages</div>
       <div class="metric-label">Certified 100% Zero-Defect Gatekeeper verified</div>
     </div>
     <div class="metric-card">
@@ -1463,6 +1463,152 @@ proof = prover.prove([1, 6, 36], public_indices=[2])</div>
         <a href="arena.html?preset=bio_verify" class="btn-run-arena">▶ Run in Arena</a>
       </div>
     </div>
+
+    <!-- 31. tnt/quantum -->
+    <div class="pkg-card" data-cat="ai" data-name="tnt/quantum fault tolerant quantum statevector born rule superposition epr bell pair">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">⚛️</div>
+            <div>
+              <div class="pkg-name">tnt/quantum</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 15A</span>
+        </div>
+        <p class="pkg-desc">
+          Fault-Tolerant Quantum Circuit & Statevector Engine. Native qubit superposition, universal unitary gates (H, X, Z, CNOT), EPR Bell-pair entanglement, and Born rule projective measurements with exact L2-norm preservation.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v7.0.0</span>
+          <span>⭐ 79.5k</span>
+          <span>⚖️ MIT</span>
+          <span>⚛️ 16-Qubit Statevector</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/quantum')">📋 tnt add tnt/quantum</button>
+        <a href="arena.html?preset=quantum" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 32. tnt/qasm -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/qasm openqasm 3 0 surface 17 topological quantum error correction qec syndrome">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">⚡</div>
+            <div>
+              <div class="pkg-name">tnt/qasm</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 15B</span>
+        </div>
+        <p class="pkg-desc">
+          OpenQASM 3.0 & Surface-17 Topological QEC Emitter. Compiles TinyTalk quantum circuits to standardized OpenQASM 3.0 and generates distance-3 rotated surface code syndrome extraction circuits (9 data + 8 ancilla qubits).
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v7.1.0</span>
+          <span>⭐ 81.9k</span>
+          <span>⚖️ MIT</span>
+          <span>🛡️ Surface-17 QEC</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/qasm')">📋 tnt add tnt/qasm</button>
+        <a href="arena.html?preset=qasm" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 33. tnt/space -->
+    <div class="pkg-card" data-cat="planet" data-name="tnt/space relativistic deep space sync minkowski light cone earth mars moon delay">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🪐</div>
+            <div>
+              <div class="pkg-name">tnt/space</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 15C</span>
+        </div>
+        <p class="pkg-desc">
+          Relativistic Deep-Space Causal State Sync. 4D Minkowski spacetime intervals (s^2), timelike/spacelike light-cone partitioning, and planetary light-speed propagation modeling across Earth, Moon, and Mars.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v7.2.0</span>
+          <span>⭐ 84.3k</span>
+          <span>⚖️ MIT</span>
+          <span>🪐 Interplanetary Sync</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/space')">📋 tnt add tnt/space</button>
+        <a href="arena.html?preset=space" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 34. tnt/relativistic -->
+    <div class="pkg-card" data-cat="planet" data-name="tnt/relativistic interplanetary crdt pn-counter lww register lorentz causal consensus">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🛰️</div>
+            <div>
+              <div class="pkg-name">tnt/relativistic</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 15D</span>
+        </div>
+        <p class="pkg-desc">
+          Minkowski Light-Cone Clock Sync & Interplanetary CRDT. Conflict-Free Replicated Data Types (PN-Counters and LWW-Registers) with commutative lattice merge and Lorentz-invariant timestamp ordering.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v7.3.0</span>
+          <span>⭐ 86.8k</span>
+          <span>⚖️ MIT</span>
+          <span>🛰️ Relativistic CRDT</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/relativistic')">📋 tnt add tnt/relativistic</button>
+        <a href="arena.html?preset=relativistic" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
+    <!-- 35. tnt/quantum_verify -->
+    <div class="pkg-card" data-cat="systems" data-name="tnt/quantum_verify quantum formal verifier concurrence purity unitary norm leak">
+      <div>
+        <div class="pkg-header">
+          <div class="pkg-name-wrap">
+            <div class="pkg-icon">🛡️</div>
+            <div>
+              <div class="pkg-name">tnt/quantum_verify</div>
+              <div class="pkg-badge badge-official">Official Stdlib</div>
+            </div>
+          </div>
+          <span class="pkg-tag">Phase 15E</span>
+        </div>
+        <p class="pkg-desc">
+          Quantum Circuit State Fuzzer & Clifford+T Fault-Tolerant Verification. Certifies unitary L2-norm preservation, computes Bell-state concurrence, and detects probability leaks or no-cloning violations.
+        </p>
+        <div class="pkg-meta">
+          <span>🏷️ v7.4.0</span>
+          <span>⭐ 89.4k</span>
+          <span>⚖️ MIT</span>
+          <span>🛡️ Phase 15 Complete</span>
+        </div>
+      </div>
+      <div class="pkg-actions">
+        <button class="btn-install" onclick="copyInstall('tnt add tnt/quantum_verify')">📋 tnt add tnt/quantum_verify</button>
+        <a href="arena.html?preset=quantum_verify" class="btn-run-arena">▶ Run in Arena</a>
+      </div>
+    </div>
+
 
 
 

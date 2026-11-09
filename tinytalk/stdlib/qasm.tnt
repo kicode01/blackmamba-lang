@@ -1,0 +1,14 @@
+# TinyTalk OpenQASM 3.0 & Surface-17 QEC Standard Library (qasm.tnt)
+# Topological Code Distance and Syndrome Round Accounting
+
+struct QECSpec:
+    code_distance: i64
+    physical_qubits: i64
+    logical_qubits: i64
+
+def default_surface17_spec() -> QECSpec:
+    return QECSpec(3, 17, 1)
+
+def compute_correctable_errors(distance: i64) -> i64:
+    # d = 2t + 1 => t = (d - 1) // 2
+    return (distance - 1) // 2

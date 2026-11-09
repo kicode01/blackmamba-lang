@@ -1,0 +1,23 @@
+# TinyTalk Quantum Circuit Standard Library (quantum.tnt)
+# Qubit Statevector Amplitudes and Born Rule Normalization
+
+struct QubitSpec:
+    num_qubits: i64
+    statevector_dimension: i64
+
+def default_qubit_spec(n: i64) -> QubitSpec:
+    # 2^n dimension
+    dim = 1
+    i = 0
+    while i < n:
+        dim = dim * 2
+        i = i + 1
+    return QubitSpec(n, dim)
+
+def check_unitary_norm(prob_sum: f64) -> bool:
+    diff = prob_sum - 1.0
+    if diff < 0.0:
+        diff = 0.0 - diff
+    if diff < 0.000001:
+        return True
+    return False
