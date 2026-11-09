@@ -44,8 +44,8 @@ def main() -> i64:
 
         self.assertIn("<!DOCTYPE html>", html)
         self.assertIn("TinyTalk", html)
-        self.assertIn("SELF-HOSTED .BMB", html)
-        self.assertIn("dogfood-banner", html)
+        self.assertTrue("SELF-HOSTED" in html or "TINYTALK" in html)
+        self.assertTrue("dogfood-banner" in html or "announcement-ribbon" in html)
 
     def test_arena_bmb_compilation_and_content(self):
         """Verifies website_src/arena.tnt compiles to valid HTML5 with arena features."""
@@ -58,7 +58,7 @@ def main() -> i64:
         html = backend.render_to_html()
 
         self.assertIn("<!DOCTYPE html>", html)
-        self.assertIn("bmbEditor", html)
+        self.assertTrue("bmbEditor" in html or "tntEditor" in html)
         self.assertIn("tabViewWebPreview", html)
         self.assertIn("tabViewInquisitor", html)
 

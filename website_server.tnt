@@ -1,6 +1,6 @@
 # ==============================================================================
 #  TINYTALK (.tnt) - HIGH PERFORMANCE FULL-STACK WEB APPLICATION
-#  Standard Library: mamba/stdlib/http.bmb (or http.tnt)
+#  Standard Library: tinytalk/stdlib/http.tnt (or http.tnt)
 # ==============================================================================
 
 from http import (
@@ -84,7 +84,7 @@ def generate_website_html() -> str:
     html = html + "      </div>\n"
     html = html + "    </div>\n"
     html = html + "  </main>\n"
-    html = html + "  <footer>Powered by TinyTalk (.tnt) Native Architecture (Formerly Black Mamba)</footer>\n"
+    html = html + "  <footer>Powered by TinyTalk (.tnt) Native Architecture (Formerly TinyTalk)</footer>\n"
     html = html + "</body>\n</html>"
     return html
 

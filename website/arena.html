@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Playground — Black Mamba</title>
+  <title>Interactive Web Arena — TinyTalk (.tnt)</title>
   <link rel="icon" type="image/x-icon" href="assets/tnt.ico">
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,15 +27,15 @@
       --bg-code: #030305;
       --border: rgba(255, 255, 255, 0.08);
       --border-hover: rgba(255, 255, 255, 0.18);
-      --border-accent: rgba(16, 185, 129, 0.4);
+      --border-accent: rgba(0, 229, 255, 0.4);
       
       --text: #f4f4f6;
       --text-muted: #8b8b99;
       --text-dim: #545464;
       
-      --brand: #10b981;
-      --brand-dark: #059669;
-      --brand-glow: rgba(16, 185, 129, 0.15);
+      --brand: #00e5ff;
+      --brand-dark: #0284c7;
+      --brand-glow: rgba(0, 229, 255, 0.25);
       
       --accent-gold: #f59e0b;
       --accent-blue: #38bdf8;
@@ -119,9 +119,9 @@
     }
 
     .version-tag {
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.25);
-      color: #34d399;
+      background: rgba(0, 229, 255, 0.1);
+      border: 1px solid rgba(0, 229, 255, 0.25);
+      color: #38bdf8;
       font-size: 0.72rem;
       font-weight: 700;
       font-family: var(--font-mono);
@@ -152,7 +152,7 @@
       color: #fff;
       font-weight: 600;
     }
-    .stat-val.green { color: #34d399; }
+    .stat-val.green { color: #38bdf8; }
     .stat-val.gold { color: var(--accent-gold); }
 
     .header-actions {
@@ -236,7 +236,7 @@
       font-family: var(--font-sans);
     }
     .run-btn:hover {
-      background: #34d399;
+      background: #38bdf8;
     }
 
     .duel-btn {
@@ -286,8 +286,8 @@
     }
     .challenge-pill:hover, .challenge-pill.active {
       border-color: var(--brand);
-      color: #34d399;
-      background: rgba(16, 185, 129, 0.1);
+      color: #38bdf8;
+      background: rgba(0, 229, 255, 0.1);
     }
 
     .duel-race-wrap {
@@ -318,8 +318,8 @@
       border-radius: 999px;
       transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .duel-bar-bmb {
-      background: linear-gradient(90deg, #10b981, #34d399);
+    .duel-bar-tnt {
+      background: linear-gradient(90deg, #10b981, #38bdf8);
       width: 100%;
     }
     .duel-bar-py {
@@ -556,7 +556,7 @@
       padding: 3px 8px;
       font-family: var(--font-mono);
       font-size: 0.72rem;
-      color: #34d399;
+      color: #38bdf8;
       pointer-events: auto;
     }
 
@@ -619,9 +619,9 @@
       align-items: center;
       padding: 2px 7px;
       border-radius: 4px;
-      background: rgba(16, 185, 129, 0.12);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: #34d399;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: #38bdf8;
       font-weight: 700;
       font-size: 0.76rem;
     }
@@ -669,9 +669,9 @@
       padding: 8px 10px;
     }
 
-    .diff-box-bmb {
-      background: rgba(16, 185, 129, 0.05);
-      border: 1px solid rgba(16, 185, 129, 0.2);
+    .diff-box-tnt {
+      background: rgba(0, 229, 255, 0.05);
+      border: 1px solid rgba(0, 229, 255, 0.2);
       border-radius: var(--radius-sm);
       padding: 8px 10px;
     }
@@ -684,8 +684,8 @@
       margin-bottom: 4px;
     }
 
-    .diff-tag-bmb {
-      color: #34d399;
+    .diff-tag-tnt {
+      color: #38bdf8;
       font-weight: 700;
       font-family: var(--font-mono);
       font-size: 0.72rem;
@@ -746,7 +746,7 @@
       text-align: center;
     }
     .sb-red { background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #fca5a5; }
-    .sb-green { background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: #86efac; }
+    .sb-green { background: rgba(0, 229, 255, 0.15); border: 1px solid rgba(0, 229, 255, 0.3); color: #86efac; }
     .sb-blue { background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); color: #bae6fd; }
 
         /* Inquisitor & Web Component Studio Styles */
@@ -772,7 +772,7 @@
       border-color: var(--border-hover);
     }
     .inq-choice-card input[type="radio"]:checked ~ .inq-choice-body .inq-choice-title {
-      color: #34d399;
+      color: #38bdf8;
     }
     .inq-choice-card input[type="radio"]:checked {
       accent-color: #10b981;
@@ -824,7 +824,7 @@
       font-family: var(--font-mono);
       font-size: 0.78rem;
       line-height: 1.5;
-      color: #34d399;
+      color: #38bdf8;
       overflow-y: auto;
       white-space: pre-wrap;
     }
@@ -842,7 +842,7 @@
   <header>
     <div style="display: flex; align-items: center; gap: 12px;">
       <a href="index.html" class="brand-link">
-        <img src="assets/logo.png" alt="Black Mamba" class="brand-logo">
+        <img src="assets/logo.png" alt="TinyTalk" class="brand-logo">
         <span>TinyTalk Playground</span>
       </a>
       <span class="version-tag">v4.1.0 NATIVE</span>
@@ -858,7 +858,7 @@
     <div class="header-actions">
       <a href="docs.html" class="nav-link">Docs</a>
       <a href="packages.html" class="back-btn" style="color: #38bdf8; border-color: rgba(56,189,248,0.35); font-weight: 700;">📦 Packages</a>
-      <a href="studio.html" class="back-btn" style="color: #34d399; border-color: rgba(16,185,129,0.35); font-weight: 700;">🎨 Smalltalk Studio</a>
+      <a href="studio.html" class="back-btn" style="color: #38bdf8; border-color: rgba(16,185,129,0.35); font-weight: 700;">🎨 Smalltalk Studio</a>
       <a href="index.html" class="back-btn">← Home</a>
       <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="back-btn">GitHub ★</a>
     </div>
@@ -876,10 +876,10 @@
         <option value="primes">5. Integer ALU Loop &amp; Prime Sieve (16.9x Speedup)</option>
         <option value="fastapi">6. High-Throughput HTTP / FastAPI (8.2M req/sec)</option>
         <option value="gguf">7. Q8_0 SIMD Vector GEMV Dot Product (Edge AI)</option>
-        <option value="webgpu">8. [Pillar 0] Native WebGPU / SPIR-V Shader Kernel (gpu.bmb)</option>
-        <option value="jupyter">9. [Pillar 0] Interactive Jupyter Notebook Kernel (bmb-kernel)</option>
-        <option value="serverless">10. [Pillar 0] 0.4ms Serverless Cloud Engine (bmb deploy)</option>
-        <option value="web_component">11. [Agentic GUI] Declarative Web &amp; CSS Component (web.bmb)</option>
+        <option value="webgpu">8. [Pillar 0] Native WebGPU / SPIR-V Shader Kernel (gpu.tnt)</option>
+        <option value="jupyter">9. [Pillar 0] Interactive Jupyter Notebook Kernel (tnt-kernel)</option>
+        <option value="serverless">10. [Pillar 0] 0.4ms Serverless Cloud Engine (tnt deploy)</option>
+        <option value="web_component">11. [Agentic GUI] Declarative Web &amp; CSS Component (web.tnt)</option>
         <option value="hft">12. [tnt/hft] High-Frequency Trading &amp; Order Book (VWAP)</option>
         <option value="http">13. [tnt/http] 8.2M Req/Sec Async HTTP Microservice</option>
         <option value="db">14. [tnt/db] Embedded Columnar &amp; SIMD Vector Store</option>
@@ -915,12 +915,12 @@
         <button class="challenge-pill" data-preset="cas" onclick="selectPresetPill('cas')">📦 Merkle CAS</button>
         <button class="challenge-pill" data-preset="mesh" onclick="selectPresetPill('mesh')">🕸️ Peer Mesh</button>
         <button class="challenge-pill" data-preset="zk" onclick="selectPresetPill('zk')">🛡️ ZK Verifier</button>
-        <button class="challenge-pill" data-preset="inquisitor" onclick="openInquisitorTab()" style="background: rgba(16, 185, 129, 0.15); color: #34d399; border-color: rgba(16, 185, 129, 0.35); font-weight: 700;">🤖 Ask Inquisitor</button>
+        <button class="challenge-pill" data-preset="inquisitor" onclick="openInquisitorTab()" style="background: rgba(0, 229, 255, 0.15); color: #38bdf8; border-color: rgba(0, 229, 255, 0.35); font-weight: 700;">🤖 Ask Inquisitor</button>
       </div>
     </div>
 
     <div style="display: flex; gap: 8px; align-items: center; flex-shrink: 0;">
-      <button class="duel-btn" onclick="runSpeedDuel()" title="Pit Black Mamba against Python 3.14 side-by-side">
+      <button class="duel-btn" onclick="runSpeedDuel()" title="Pit TinyTalk against Python 3.14 side-by-side">
         Speed Duel vs Python
       </button>
       <button class="run-btn" onclick="executeCurrentPreset()" title="Compile &amp; Execute in Client-Side WebAssembly (Ctrl+Enter)">
@@ -931,13 +931,13 @@
 
   <!-- Playground Main Split Workspace -->
   <div class="playground-grid">
-    <!-- Left Column: Dual Code Editor (Black Mamba vs Python) -->
+    <!-- Left Column: Dual Code Editor (TinyTalk vs Python) -->
     <div class="panel-card">
       <div class="panel-header-tabs">
         <div class="tab-group">
-          <button class="panel-tab active" id="tabBmb" onclick="switchEditorTab('bmb')">
-            <span>main.bmb</span>
-            <span style="font-size: 0.68rem; color: #34d399; font-weight: 700;">[NATIVE]</span>
+          <button class="panel-tab active" id="tabBmb" onclick="switchEditorTab('tnt')">
+            <span>main.tnt</span>
+            <span style="font-size: 0.68rem; color: #38bdf8; font-weight: 700;">[NATIVE]</span>
           </button>
           <button class="panel-tab tab-python" id="tabPy" onclick="switchEditorTab('py')">
             <span>cpython_equiv.py</span>
@@ -966,7 +966,7 @@
 
       <div class="editor-wrapper">
         <div class="line-gutter" id="lineGutter"></div>
-        <textarea class="code-textarea" id="bmbEditor" spellcheck="false" oninput="updateLineGutter()"></textarea>
+        <textarea class="code-textarea" id="tntEditor" spellcheck="false" oninput="updateLineGutter()"></textarea>
         <div class="python-code-view" id="pyViewer"></div>
       </div>
     </div>
@@ -996,7 +996,7 @@
         </div>
 
         <div class="panel-controls">
-          <span style="font-size: 0.72rem; color: #34d399; font-family: var(--font-mono);" id="inspectorStatus">● Active</span>
+          <span style="font-size: 0.72rem; color: #38bdf8; font-family: var(--font-mono);" id="inspectorStatus">● Active</span>
         </div>
       </div>
 
@@ -1020,8 +1020,8 @@
           <div class="bench-card">
             <div class="duel-race-wrap" id="duelRaceContainer">
               <div class="duel-race-row">
-                <span style="color: #34d399; font-weight: 700;">Black Mamba (.bmb)</span>
-                <div class="duel-bar-track"><div class="duel-bar-fill duel-bar-bmb" id="mambaRaceBar"></div></div>
+                <span style="color: #38bdf8; font-weight: 700;">TinyTalk (.tnt)</span>
+                <div class="duel-bar-track"><div class="duel-bar-fill duel-bar-tnt" id="mambaRaceBar"></div></div>
                 <span style="color: #fff; text-align: right;" id="duelMambaLabel">2.68 ms</span>
               </div>
               <div class="duel-race-row">
@@ -1041,7 +1041,7 @@
               </thead>
               <tbody>
                 <tr>
-                  <td style="color: #34d399; font-weight: 700;">Black Mamba (.bmb)</td>
+                  <td style="color: #38bdf8; font-weight: 700;">TinyTalk (.tnt)</td>
                   <td id="mambaExecTime" style="color: #fff;">2.68 ms</td>
                   <td id="mambaHeapAlloc" style="color: #fff;">0 Bytes (Unboxed)</td>
                   <td><span class="speedup-badge" id="mambaAdvantage">25.8x Faster</span></td>
@@ -1082,8 +1082,8 @@
         <div class="inspector-view" id="viewWebPreview">
           <div style="flex: 1; min-height: 0; display: flex; flex-direction: column; background: #0b0e14; overflow-y: auto; padding: 18px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-              <span style="font-family: var(--font-mono); font-size: 0.78rem; color: #34d399; font-weight: 700;">● RENDERED VIRTUAL DOM &amp; ATOMIC CSS</span>
-              <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">Engine: web.bmb &bull; 1.7 KB WASM</span>
+              <span style="font-family: var(--font-mono); font-size: 0.78rem; color: #38bdf8; font-weight: 700;">● RENDERED VIRTUAL DOM &amp; ATOMIC CSS</span>
+              <span style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">Engine: web.tnt &bull; 1.7 KB WASM</span>
             </div>
             <div id="webPreviewMount" style="display: flex; justify-content: center; align-items: center; min-height: 220px; padding: 20px; border: 1px dashed rgba(255,255,255,0.12); border-radius: var(--radius-sm); background: rgba(0,0,0,0.3);">
               <!-- Live HTML rendered here -->
@@ -1102,16 +1102,16 @@
               <div style="display: flex; align-items: center; gap: 8px;">
                 <span style="font-size: 1.1rem;">🤖</span>
                 <span style="font-size: 0.95rem; font-weight: 700; color: #fff;">TinyTalk Inquisitor: Offline App Architect</span>
-                <span style="background: rgba(16,185,129,0.15); color: #34d399; font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 6px; border-radius: 4px; font-weight: 700;">100% OFFLINE &bull; ZERO APIS</span>
+                <span style="background: rgba(16,185,129,0.15); color: #38bdf8; font-size: 0.68rem; font-family: var(--font-mono); padding: 2px 6px; border-radius: 4px; font-weight: 700;">100% OFFLINE &bull; ZERO APIS</span>
               </div>
               <p style="font-size: 0.76rem; color: var(--text-muted); margin-top: 5px; line-height: 1.4;">
-                Unlike passive compilers that spit red errors, the Inquisitor interviews you to establish exact system invariants, synthesizing guaranteed bug-free Black Mamba software in 0.01 ms.
+                Unlike passive compilers that spit red errors, the Inquisitor interviews you to establish exact system invariants, synthesizing guaranteed bug-free TinyTalk software in 0.01 ms.
               </p>
             </div>
 
             <!-- Question 1 -->
             <div class="inquisitor-step-box">
-              <div style="font-size: 0.78rem; font-weight: 700; color: #34d399; margin-bottom: 8px; font-family: var(--font-mono);">1. What system or application are you building?</div>
+              <div style="font-size: 0.78rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-family: var(--font-mono);">1. What system or application are you building?</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_domain" value="web_dashboard" checked onchange="updateInquisitorSelection()">
@@ -1146,7 +1146,7 @@
 
             <!-- Question 2 -->
             <div class="inquisitor-step-box">
-              <div style="font-size: 0.78rem; font-weight: 700; color: #34d399; margin-bottom: 8px; font-family: var(--font-mono);">2. How should data flow into your application?</div>
+              <div style="font-size: 0.78rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-family: var(--font-mono);">2. How should data flow into your application?</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_bridge" value="reactive_state" checked onchange="updateInquisitorSelection()">
@@ -1174,7 +1174,7 @@
 
             <!-- Question 3 -->
             <div class="inquisitor-step-box">
-              <div style="font-size: 0.78rem; font-weight: 700; color: #34d399; margin-bottom: 8px; font-family: var(--font-mono);">3. Choose Visual Theme &amp; Design Language</div>
+              <div style="font-size: 0.78rem; font-weight: 700; color: #38bdf8; margin-bottom: 8px; font-family: var(--font-mono);">3. Choose Visual Theme &amp; Design Language</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
                 <label class="inq-choice-card">
                   <input type="radio" name="inq_theme" value="emerald" checked onchange="updateInquisitorSelection()">
@@ -1213,7 +1213,7 @@
   <div class="terminal-section">
     <div class="term-bar">
       <span>NATIVE COMPILER PIPELINE &amp; EXECUTION OUTPUT</span>
-      <span id="termStatusBadge" style="color: #34d399;">● READY</span>
+      <span id="termStatusBadge" style="color: #38bdf8;">● READY</span>
     </div>
     <div class="term-body" id="termLog"></div>
   </div>

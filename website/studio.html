@@ -13,9 +13,9 @@
       --bg: #07090e;
       --card-bg: #0c1017;
       --border: #1e2638;
-      --border-focus: #10b981;
-      --emerald: #10b981;
-      --emerald-glow: rgba(16, 185, 129, 0.22);
+      --border-focus: #00e5ff;
+      --emerald: #00e5ff;
+      --emerald-glow: rgba(0, 229, 255, 0.25);
       --cyan: #38bdf8;
       --amber: #f59e0b;
       --purple: #a855f7;
@@ -62,7 +62,7 @@
     .brand-badge {
       background: var(--emerald-glow);
       color: var(--emerald);
-      border: 1px solid rgba(16, 185, 129, 0.4);
+      border: 1px solid rgba(0, 229, 255, 0.4);
       padding: 2px 7px;
       border-radius: 4px;
       font-size: 0.72rem;
@@ -219,12 +219,12 @@
     }
 
     .browser-item:hover {
-      background: rgba(16, 185, 129, 0.08);
+      background: rgba(0, 229, 255, 0.08);
       color: #fff;
     }
 
     .browser-item.active {
-      background: rgba(16, 185, 129, 0.2);
+      background: rgba(0, 229, 255, 0.2);
       color: var(--emerald);
       font-weight: 600;
       border-left: 3px solid var(--emerald);
@@ -239,7 +239,7 @@
       font-weight: 700;
     }
     .pill-mini.std { background: rgba(56, 189, 248, 0.2); color: var(--cyan); }
-    .pill-mini.app { background: rgba(16, 185, 129, 0.2); color: var(--emerald); }
+    .pill-mini.app { background: rgba(0, 229, 255, 0.2); color: var(--emerald); }
 
     /* Bottom Work Area (Editor + Inspector/Canvas) */
     .workspace-split {
@@ -362,7 +362,7 @@
     .right-tab-btn.active {
       background: #161f30;
       color: var(--emerald);
-      border-color: rgba(16, 185, 129, 0.4);
+      border-color: rgba(0, 229, 255, 0.4);
     }
 
     .right-panel-view {
@@ -463,8 +463,8 @@
     }
 
     .opt-label:hover {
-      border-color: rgba(16, 185, 129, 0.3);
-      background: rgba(16, 185, 129, 0.05);
+      border-color: rgba(0, 229, 255, 0.3);
+      background: rgba(0, 229, 255, 0.05);
     }
 
     /* Live Morphic Canvas Container */
@@ -692,7 +692,7 @@
       <button class="btn-tool" onclick="window.Studio.switchRightTab('inspector')" title="Inspect live object memory (Ctrl+I)">
         🔍 Inspect (Ctrl+I)
       </button>
-      <button class="btn-tool" onclick="window.Studio.switchRightTab('inquisitor')" style="color: #34d399; border-color: rgba(16,185,129,0.35);">
+      <button class="btn-tool" onclick="window.Studio.switchRightTab('inquisitor')" style="color: #38bdf8; border-color: rgba(0,229,255,0.35);">
         🤖 Ask Inquisitor
       </button>
       <button class="btn-tool" onclick="window.Studio.switchRightTab('canvas')" style="color: #38bdf8; border-color: rgba(56,189,248,0.35); font-weight: 700;">
@@ -818,7 +818,7 @@
           <div class="morphic-container">
             <div class="morphic-window">
               <div class="morphic-header">
-                <span style="color: var(--emerald);">●</span> Smalltalk Live Window (gui.bmb)
+                <span style="color: var(--emerald);">●</span> Smalltalk Live Window (gui.tnt)
               </div>
               <div class="morphic-body">
                 <div style="font-size: 0.95rem; font-weight: 700;">

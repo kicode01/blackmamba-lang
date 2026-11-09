@@ -4,30 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TinyTalk Documentation — Official Language Guide & Standard Library</title>
-  <meta name="description" content="Comprehensive official guide for TinyTalk (.tnt) & Black Mamba (.bmb): installation, syntax, quantum computing, differentiable physics, neuromorphic silicon, DNA origami, and CLI.">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
+  <meta name="description" content="Comprehensive official guide for TinyTalk (.tnt): installation, syntax, quantum computing, differentiable physics, neuromorphic silicon, DNA origami, and CLI reference.">
+  <link rel="icon" type="image/x-icon" href="assets/tnt.ico">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #060609;
-      --bg-surface: #0e0e14;
-      --bg-surface-elevated: #161622;
-      --bg-code: #030306;
+      --bg: #070913;
+      --bg-surface: #0e1322;
+      --bg-surface-elevated: #161c30;
+      --bg-card: rgba(16, 23, 42, 0.7);
+      --bg-code: #030712;
       --border: rgba(255, 255, 255, 0.08);
-      --border-hover: rgba(255, 255, 255, 0.18);
-      --brand: #00ff88;
-      --brand-glow: rgba(0, 255, 136, 0.22);
+      --border-hover: rgba(56, 189, 248, 0.3);
+      --border-focus: #00e5ff;
+      --brand: #00e5ff;
+      --brand-glow: rgba(0, 229, 255, 0.25);
       --accent-cyan: #38bdf8;
+      --accent-indigo: #818cf8;
       --accent-purple: #c084fc;
+      --accent-rose: #f43f5e;
       --accent-amber: #f59e0b;
       --text: #f8fafc;
       --text-muted: #94a3b8;
       --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 18px;
     }
+
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
     body {
       background: var(--bg);
       color: var(--text);
@@ -38,40 +48,60 @@
       flex-direction: column;
       min-height: 100vh;
     }
+
+    /* Ambient background gradient meshes */
+    .bg-mesh {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      background: 
+        radial-gradient(circle at 10% 20%, rgba(0, 229, 255, 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 90% 15%, rgba(129, 140, 248, 0.06) 0%, transparent 45%),
+        radial-gradient(circle at 50% 80%, rgba(244, 63, 94, 0.04) 0%, transparent 50%);
+    }
+
     a { color: inherit; text-decoration: none; }
 
-    /* Top Ribbon */
-    .top-ribbon {
-      background: linear-gradient(90deg, #052e16, #064e3b, #083344);
-      border-bottom: 1px solid rgba(0, 255, 136, 0.3);
-      padding: 6px 16px;
+    /* Top Announcement Ribbon */
+    .announcement-ribbon {
+      position: relative;
+      z-index: 101;
+      background: linear-gradient(90deg, #0b152d, #03203f, #0d1e38);
+      border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+      padding: 7px 16px;
       text-align: center;
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       font-family: var(--font-mono);
       display: flex;
       justify-content: center;
       align-items: center;
       gap: 12px;
+      flex-wrap: wrap;
     }
     .ribbon-pill {
-      background: var(--brand);
-      color: #03120b;
+      background: linear-gradient(135deg, #00e5ff, #38bdf8);
+      color: #04101e;
       font-weight: 800;
-      padding: 2px 7px;
-      border-radius: 4px;
-      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.72rem;
     }
 
-    /* Header */
+    /* Navigation Header */
     header {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(6, 6, 9, 0.9);
-      backdrop-filter: blur(16px);
+      background: rgba(7, 9, 19, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      height: 60px;
+      padding: 0 32px;
+      height: 64px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -79,366 +109,503 @@
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       font-weight: 800;
-      font-size: 1.1rem;
+      font-size: 1.25rem;
     }
-    .nav-brand span.logo-glyph {
-      color: var(--brand);
-      font-size: 1.3rem;
+    .brand-logo-img {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      box-shadow: 0 0 12px var(--brand-glow);
     }
     .nav-badge {
-      background: rgba(0,255,136,0.12);
-      color: #34d399;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      color: var(--brand);
       font-size: 0.72rem;
-      padding: 2px 6px;
-      border-radius: 4px;
+      padding: 2px 8px;
+      border-radius: 999px;
       font-family: var(--font-mono);
+      font-weight: 700;
     }
     .nav-links {
       display: flex;
       align-items: center;
-      gap: 20px;
-      font-size: 0.9rem;
+      gap: 28px;
+      font-size: 0.92rem;
       font-weight: 600;
     }
-    .nav-link:hover, .nav-link.active { color: var(--brand); }
-    .btn-arena {
-      background: var(--brand);
-      color: #03120b;
-      font-weight: 700;
-      padding: 7px 14px;
-      border-radius: 6px;
-      transition: all 0.15s;
+    .nav-link {
+      color: var(--text-muted);
+      transition: color 0.15s ease;
     }
-    .btn-arena:hover { background: #34d399; }
+    .nav-link:hover, .nav-link.active { color: #fff; }
+    .btn-arena-nav {
+      background: linear-gradient(135deg, #00e5ff 0%, #0284c7 100%);
+      color: #030f1e;
+      font-weight: 800;
+      padding: 8px 18px;
+      border-radius: var(--radius-sm);
+      box-shadow: 0 0 16px var(--brand-glow);
+      transition: all 0.2s ease;
+    }
+    .btn-arena-nav:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.45);
+      color: #000;
+    }
 
     /* Docs Layout */
-    .docs-container {
-      display: flex;
-      flex: 1;
+    .docs-layout {
+      position: relative;
+      z-index: 1;
       max-width: 1400px;
-      margin: 0 auto;
       width: 100%;
-    }
-    .docs-sidebar {
-      width: 280px;
-      border-right: 1px solid var(--border);
-      padding: 30px 20px;
-      position: sticky;
-      top: 60px;
-      height: calc(100vh - 60px);
-      overflow-y: auto;
-      background: var(--bg);
-    }
-    .sidebar-section {
-      margin-bottom: 24px;
-    }
-    .sidebar-title {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: var(--text-muted);
-      font-weight: 700;
-      margin-bottom: 10px;
-    }
-    .sidebar-link {
-      display: block;
-      padding: 6px 10px;
-      font-size: 0.88rem;
-      color: #cbd5e1;
-      border-radius: 6px;
-      margin-bottom: 2px;
-      transition: all 0.15s;
-    }
-    .sidebar-link:hover, .sidebar-link.active {
-      color: var(--brand);
-      background: rgba(0, 255, 136, 0.08);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 280px minmax(0, 1fr);
+      gap: 40px;
+      padding: 40px 32px;
+      flex: 1;
     }
 
-    .docs-content {
-      flex: 1;
-      padding: 40px 48px 80px;
-      max-width: 960px;
+    /* Sidebar Navigation */
+    .docs-sidebar {
+      position: sticky;
+      top: 96px;
+      height: calc(100vh - 120px);
+      overflow-y: auto;
+      padding-right: 16px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
     }
-    .docs-h1 {
-      font-size: 2.6rem;
+    .sidebar-group-title {
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--brand);
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .sidebar-links {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .sidebar-link {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sidebar-link:hover {
+      color: #fff;
+      background: rgba(255, 255, 255, 0.04);
+      transform: translateX(3px);
+    }
+    .sidebar-link.active {
+      color: var(--brand);
+      background: rgba(0, 229, 255, 0.1);
+      font-weight: 700;
+    }
+
+    /* Main Content */
+    .docs-main {
+      max-width: 960px;
+      min-width: 0;
+    }
+    .docs-header {
+      margin-bottom: 48px;
+      padding-bottom: 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    .docs-badge {
+      display: inline-block;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      color: var(--brand);
+      font-weight: 700;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .docs-title {
+      font-size: clamp(2.2rem, 4vw, 3.2rem);
       font-weight: 800;
       letter-spacing: -0.03em;
-      margin-bottom: 12px;
-      background: linear-gradient(135deg, #ffffff 40%, var(--brand) 85%);
+      margin-bottom: 16px;
+      background: linear-gradient(135deg, #fff 40%, var(--brand) 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
-    .docs-subtitle {
+    .docs-intro {
       font-size: 1.15rem;
       color: var(--text-muted);
-      margin-bottom: 36px;
-      line-height: 1.6;
+      line-height: 1.7;
     }
-    .docs-h2 {
+
+    /* Document Sections */
+    .doc-section {
+      margin-bottom: 64px;
+      scroll-margin-top: 96px;
+    }
+    .doc-section h2 {
       font-size: 1.8rem;
       font-weight: 800;
       letter-spacing: -0.02em;
-      margin: 48px 0 16px;
-      padding-bottom: 10px;
-      border-bottom: 1px solid var(--border);
+      color: #fff;
+      margin-bottom: 16px;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
     }
-    .docs-h3 {
-      font-size: 1.25rem;
+    .doc-section h3 {
+      font-size: 1.3rem;
       font-weight: 700;
+      color: var(--accent-cyan);
       margin: 28px 0 12px;
-      color: #f1f5f9;
     }
-    .docs-p {
-      color: #cbd5e1;
-      margin-bottom: 16px;
+    .doc-section p {
+      font-size: 1rem;
+      color: var(--text-muted);
+      margin-bottom: 18px;
       line-height: 1.7;
-      font-size: 0.95rem;
     }
-    .docs-card {
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 20px 24px;
-      margin: 20px 0;
-    }
-    .code-block-wrap {
-      position: relative;
+
+    /* Code Blocks */
+    .code-block {
       background: var(--bg-code);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin: 16px 0 24px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+      border-radius: var(--radius-md);
       overflow: hidden;
+      margin: 20px 0 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
     }
     .code-header {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 10px 18px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 14px;
-      background: rgba(255, 255, 255, 0.03);
-      border-bottom: 1px solid var(--border);
       font-family: var(--font-mono);
       font-size: 0.75rem;
       color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+    .code-content {
+      padding: 18px 20px;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: #e2e8f0;
     }
     .copy-btn {
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid var(--border);
-      color: #e2e8f0;
-      padding: 4px 8px;
+      color: var(--text-muted);
+      padding: 4px 10px;
       border-radius: 4px;
-      font-family: var(--font-mono);
-      font-size: 0.72rem;
       cursor: pointer;
-      transition: all 0.15s;
+      font-family: var(--font-sans);
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.15s ease;
     }
     .copy-btn:hover {
-      background: var(--brand);
-      color: #03120b;
+      background: rgba(0, 229, 255, 0.15);
+      color: var(--brand);
+      border-color: rgba(0, 229, 255, 0.3);
     }
-    pre.code-pre {
-      padding: 16px;
-      font-family: var(--font-mono);
-      font-size: 0.85rem;
-      color: #e2e8f0;
-      overflow-x: auto;
-      line-height: 1.55;
+
+    /* Command & API Tables */
+    .api-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0 32px;
+      font-size: 0.9rem;
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      overflow: hidden;
     }
-    .pill-tag {
-      font-size: 0.72rem;
+    .api-table th, .api-table td {
+      padding: 14px 18px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    .api-table th {
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--brand);
       font-family: var(--font-mono);
-      font-weight: 700;
-      padding: 2px 7px;
-      border-radius: 4px;
+      font-size: 0.8rem;
       text-transform: uppercase;
     }
-    .pill-green { background: rgba(0, 255, 136, 0.12); color: #34d399; border: 1px solid rgba(0, 255, 136, 0.3); }
-    .pill-blue { background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
-    .pill-purple { background: rgba(192, 132, 252, 0.12); color: #c084fc; border: 1px solid rgba(192, 132, 252, 0.3); }
+    .api-table td code {
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      background: rgba(56, 189, 248, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
 
     /* Footer */
     footer {
       border-top: 1px solid var(--border);
-      padding: 32px 24px;
+      padding: 40px 32px;
       text-align: center;
       font-size: 0.85rem;
       color: var(--text-muted);
       background: var(--bg-surface);
-      margin-top: auto;
     }
   </style>
 </head>
 <body>
 
-  <!-- Top Ribbon -->
-  <div class="top-ribbon">
-    <span class="ribbon-pill">OFFICIAL DOCUMENTATION</span>
-    <span>TinyTalk v8.0.0 — Live Smalltalk Heritage &bull; Universal Differentiable Physics &bull; Fault-Tolerant Quantum &bull; 0ms GC</span>
+  <!-- Ambient Glow Background Mesh -->
+  <div class="bg-mesh"></div>
+
+  <!-- Announcement Ribbon -->
+  <div class="announcement-ribbon">
+    <span class="ribbon-pill">TINYTALK v8.0.0</span>
+    <span>Official Documentation &bull; Pure .tnt Language Specification</span>
+    <a href="/arena.html" style="color: var(--brand); text-decoration: underline; font-weight: 700;">Open In-Browser Arena &rarr;</a>
   </div>
 
   <!-- Header -->
   <header>
-    <div class="nav-brand">
-      <span class="logo-glyph">⚡</span>
+    <a href="/" class="nav-brand">
+      <img src="assets/logo.png" alt="TinyTalk Logo" class="brand-logo-img" />
       <span>TinyTalk</span>
-      <span class="nav-badge">v8.0.0 NATIVE</span>
-    </div>
-    <div class="nav-links">
-      <a href="index.html" class="nav-link">Home</a>
-      <a href="docs.html" class="nav-link active">Docs</a>
-      <a href="packages.html" class="nav-link">Packages</a>
-      <a href="arena.html" class="nav-link">Playground</a>
-      <a href="studio.html" class="nav-link">Smalltalk Studio</a>
-      <a href="dashboard.html" class="nav-link">Dashboard</a>
-      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="nav-link">GitHub ↗</a>
-      <a href="arena.html" class="btn-arena">▶ Launch Arena</a>
-    </div>
+      <span class="nav-badge">Docs</span>
+    </a>
+    <nav class="nav-links">
+      <a href="/" class="nav-link">Home</a>
+      <a href="/arena.html" class="nav-link">Web Arena</a>
+      <a href="/docs.html" class="nav-link active">Documentation</a>
+      <a href="/packages.html" class="nav-link">Packages</a>
+      <a href="/studio.html" class="nav-link">Smalltalk Studio</a>
+      <a href="/dashboard.html" class="nav-link">Telemetry Dashboard</a>
+      <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" class="nav-link">GitHub</a>
+      <a href="/arena.html" class="btn-arena-nav">Launch Arena &rarr;</a>
+    </nav>
   </header>
 
   <!-- Docs Container -->
-  <div class="docs-container">
-    <!-- Sidebar -->
+  <div class="docs-layout">
+    <!-- Sticky Sidebar -->
     <aside class="docs-sidebar">
-      <div class="sidebar-section">
-        <div class="sidebar-title">Getting Started</div>
-        <a href="#installation" class="sidebar-link">Installation & Setup</a>
-        <a href="#vscode-extension" class="sidebar-link">VS Code Extension (v8.0.0)</a>
-        <a href="#quickstart" class="sidebar-link">Quickstart: Hello TinyTalk</a>
+      <div class="sidebar-group">
+        <div class="sidebar-group-title">Getting Started</div>
+        <div class="sidebar-links">
+          <a href="#installation" class="sidebar-link">📦 Installation</a>
+          <a href="#vscode-ext" class="sidebar-link">💻 VS Code Extension</a>
+          <a href="#quickstart" class="sidebar-link">⚡ Hello TinyTalk</a>
+        </div>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-title">Core Language</div>
-        <a href="#syntax-primitives" class="sidebar-link">Syntax & Typing</a>
-        <a href="#lexical-arena" class="sidebar-link">Lexical Arena (0ms GC)</a>
-        <a href="#pipeline-operator" class="sidebar-link">Pipeline Operator (|>)</a>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-title">Language Tour</div>
+        <div class="sidebar-links">
+          <a href="#types-variables" class="sidebar-link">Types &amp; Variables</a>
+          <a href="#functions-tco" class="sidebar-link">Functions &amp; Auto-TCO</a>
+          <a href="#structs-pattern" class="sidebar-link">Structs &amp; Match</a>
+          <a href="#lexical-arena" class="sidebar-link">Lexical Arena (0ms GC)</a>
+        </div>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-title">Supercomputing Frontiers</div>
-        <a href="#diff-physics" class="sidebar-link">Differentiable Physics</a>
-        <a href="#quantum-computing" class="sidebar-link">Quantum & OpenQASM 3.0</a>
-        <a href="#neuromorphic-silicon" class="sidebar-link">Neuromorphic LIF & Loihi 2</a>
-        <a href="#programmable-matter" class="sidebar-link">DNA Origami & Molecular</a>
-        <a href="#superoptimizer" class="sidebar-link">E-Graph Superoptimizer</a>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-title">CLI &amp; Compiler</div>
+        <div class="sidebar-links">
+          <a href="#cli-reference" class="sidebar-link">CLI Commands</a>
+          <a href="#standalone-build" class="sidebar-link">Native .exe Compilation</a>
+          <a href="#gatekeeper-testing" class="sidebar-link">5-Stage Gatekeeper</a>
+        </div>
       </div>
-      <div class="sidebar-section">
-        <div class="sidebar-title">CLI & Compilation</div>
-        <a href="#cli-reference" class="sidebar-link">CLI Commands & Flags</a>
-        <a href="#multi-target" class="sidebar-link">Target Architectures</a>
+
+      <div class="sidebar-group">
+        <div class="sidebar-group-title">Frontier Systems</div>
+        <div class="sidebar-links">
+          <a href="#diff-physics" class="sidebar-link">Differentiable Physics</a>
+          <a href="#quantum-computing" class="sidebar-link">Quantum &amp; OpenQASM</a>
+          <a href="#neuromorphic-snn" class="sidebar-link">Neuromorphic Loihi 2</a>
+          <a href="#molecular-dna" class="sidebar-link">Programmable Matter</a>
+        </div>
       </div>
     </aside>
 
     <!-- Main Content -->
-    <main class="docs-content">
-      <h1 class="docs-h1">TinyTalk Language Guide</h1>
-      <p class="docs-subtitle">
-        TinyTalk (.tnt) and Black Mamba (.bmb) combine Smalltalk live-programming heritage with Pythonic readability, zero-cost C performance, sub-millisecond compilation, and universal hardware backends from silicon to quantum statevectors.
-      </p>
+    <main class="docs-main">
+      <div class="docs-header">
+        <span class="docs-badge">Official Reference &bull; v8.0.0</span>
+        <h1 class="docs-title">TinyTalk Language Guide</h1>
+        <p class="docs-intro">
+          TinyTalk (.tnt) combines the live-programming heritage of Smalltalk with Pythonic elegance, zero-cost C performance, sub-millisecond JIT compilation, and direct hardware lowering from bare-metal silicon to quantum statevectors.
+        </p>
+      </div>
 
       <!-- Section: Installation -->
-      <section id="installation">
-        <h2 class="docs-h2">📦 Installation &amp; Setup</h2>
-        <p class="docs-p">
-          TinyTalk can be installed via PyPI, direct standalone binary download, or cloned directly from GitHub.
+      <section id="installation" class="doc-section">
+        <h2>📦 Installation &amp; Setup</h2>
+        <p>
+          TinyTalk can be installed directly from PyPI via <code>pip</code>, compiled from source, or used via standalone binary releases:
         </p>
 
-        <div class="code-block-wrap">
+        <div class="code-block">
           <div class="code-header">
-            <span>TERMINAL &bull; PyPI INSTALLATION</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install --upgrade tinytalk-lang')">Copy</button>
+            <span>TERMINAL &bull; INSTALL VIA PYPI</span>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install --upgrade tinytalk-lang'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">pip install --upgrade tinytalk-lang</pre>
+          <pre class="code-content">pip install --upgrade tinytalk-lang</pre>
         </div>
 
-        <p class="docs-p">Once installed, verify the installation and compiler version:</p>
-        <div class="code-block-wrap">
+        <p>Verify that the compiler and CLI are properly registered on your PATH:</p>
+        <div class="code-block">
           <div class="code-header">
             <span>TERMINAL &bull; VERIFY COMPILER</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt --version')">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt --version\ntnt gatekeeper'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">$ tnt --version
+          <pre class="code-content">$ tnt --version
 TinyTalk v8.0.0 (x86_64-pc-windows-msvc, 0ms GC, Auto-TCO, WebGPU, Quantum)
 
 $ tnt gatekeeper
-[Stage 1/5] Validating Standard Library & AST integrity... [OK]
-[Stage 2/5] Running Zero-Defect Unit Test Suite... [362/362 PASSED]
-[Stage 3/5] Verifying Self-Hosting Compiler AST... [OK]
-[Stage 4/5] Cross-Platform Module Resolution... [OK]
-[Stage 5/5] Stress Testing Memory Allocations... [OK]
-=== GATEKEEPER CERTIFIED: TinyTalk v8.0.0 is 100% PRODUCTION READY ===</pre>
+[TinyTalk Gatekeeper] Running 5-Stage Zero-Defect Pre-Release Quality Pipeline...
+  [PASS] Stage 1: stdlib_and_selfhost_syntax_mir_check
+  [PASS] Stage 2: unit_test_suite_discovery
+  [PASS] Stage 3: adversarial_fuzzer_torture
+  [PASS] Stage 4: multi_target_emitter_matrix
+  [PASS] Stage 5: packaging_and_manifest_check
+[TinyTalk Gatekeeper] CERTIFICATION SUCCESS: All stages passed in 34.22s!</pre>
         </div>
       </section>
 
       <!-- Section: VS Code Extension -->
-      <section id="vscode-extension">
-        <h2 class="docs-h2">💻 VS Code Extension (v8.0.0)</h2>
-        <p class="docs-p">
-          TinyTalk includes a first-class Visual Studio Code extension providing full syntax highlighting for both <code>.tnt</code> and <code>.bmb</code> files, autocompletion, error squiggles, and integrated Language Server Protocol (LSP) daemon support.
+      <section id="vscode-ext" class="doc-section">
+        <h2>💻 VS Code Extension</h2>
+        <p>
+          TinyTalk ships with a production-grade VS Code extension featuring full syntax grammar, semantic token highlighting, snippets, and integrated Language Server Protocol (LSP) daemon support:
         </p>
-        <div class="code-block-wrap">
+        <div class="code-block">
           <div class="code-header">
             <span>TERMINAL &bull; INSTALL VSIX</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('code --install-extension dist/tinytalk-8.0.0.vsix')">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('code --install-extension dist/tinytalk-8.0.0.vsix'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">code --install-extension dist/tinytalk-8.0.0.vsix</pre>
+          <pre class="code-content">code --install-extension dist/tinytalk-8.0.0.vsix</pre>
         </div>
       </section>
 
       <!-- Section: Quickstart -->
-      <section id="quickstart">
-        <h2 class="docs-h2">🚀 Quickstart: Hello TinyTalk</h2>
-        <p class="docs-p">Create a file named <code>hello.tnt</code>:</p>
-        <div class="code-block-wrap">
+      <section id="quickstart" class="doc-section">
+        <h2>⚡ Hello TinyTalk</h2>
+        <p>
+          TinyTalk programs use clean, readable syntax. Save the following code as <code>fib.tnt</code>:
+        </p>
+        <div class="code-block">
           <div class="code-header">
-            <span>TINYTALK &bull; hello.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('def fib(n: i64) -> i64:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ndef main():\n    let result: i64 = fib(30)\n    print(\"Fibonacci(30) =\", result)\n    return 0')">Copy</button>
+            <span>TINYTALK &bull; fib.tnt</span>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('def fib(n: i64) -> i64:\n    if n <= 1:\n        return n\n    return fib(n - 1) + fib(n - 2)\n\ndef main():\n    let ans: i64 = fib(30)\n    print(\"Fibonacci(30) =\", ans)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">def fib(n: i64) -> i64:
-    if n <= 1:
+          <pre class="code-content">def fib(n: i64) -> i64:
+    if n &lt;= 1:
         return n
     return fib(n - 1) + fib(n - 2)
 
 def main():
-    let result: i64 = fib(30)
-    print("Fibonacci(30) =", result)
+    let ans: i64 = fib(30)
+    print("Fibonacci(30) =", ans)
     return 0</pre>
         </div>
 
-        <p class="docs-p">Run it with instantaneous JIT execution or compile it directly to a 5.5 KB native standalone executable:</p>
-        <div class="code-block-wrap">
+        <p>Execute immediately via JIT or compile to a native standalone executable:</p>
+        <div class="code-block">
           <div class="code-header">
-            <span>TERMINAL &bull; RUN & BUILD</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt run hello.tnt\ntnt build hello.tnt --target pe -o hello.exe')">Copy</button>
+            <span>TERMINAL &bull; RUN &amp; BUILD</span>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('tnt run fib.tnt\ntnt build fib.tnt --target exe -o fib.exe\n.\\fib.exe'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre"># Direct Instant JIT:
-$ tnt run hello.tnt
+          <pre class="code-content"># 1. Instant JIT execution
+$ tnt run fib.tnt
 Fibonacci(30) = 832040
 
-# Native 5.5 KB Standalone Executable (.exe / .elf / .macho):
-$ tnt build hello.tnt --target pe -o hello.exe
-[TinyTalk Compiler] Built standalone PE32+ executable (5,584 bytes) in 0.04s.</pre>
+# 2. Standalone Windows PE32+ executable (no Python or runtime required)
+$ tnt build fib.tnt --target exe -o fib.exe
+[TinyTalk] Built standalone Windows x86-64 PE32+ executable -> fib.exe (11776 bytes)
+
+$ .\fib.exe
+Fibonacci(30) = 832040</pre>
         </div>
       </section>
 
+      <!-- Section: CLI Command Reference -->
+      <section id="cli-reference" class="doc-section">
+        <h2>🛠️ CLI Command Reference</h2>
+        <p>The <code>tnt</code> toolchain provides unified commands for development, profiling, and production deployment:</p>
+        
+        <table class="api-table">
+          <thead>
+            <tr>
+              <th>Command</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>tnt run &lt;file.tnt&gt;</code></td>
+              <td>Compiles and executes a <code>.tnt</code> file immediately via the native x86-64 JIT engine.</td>
+            </tr>
+            <tr>
+              <td><code>tnt build &lt;file.tnt&gt; --target [exe|wasm|elf|macho|c]</code></td>
+              <td>Lowers directly into standalone executables, WebAssembly, or ANSI C11 source.</td>
+            </tr>
+            <tr>
+              <td><code>tnt repl</code></td>
+              <td>Starts the Smalltalk-inspired interactive live shell with real-time expression evaluation.</td>
+            </tr>
+            <tr>
+              <td><code>tnt bench</code></td>
+              <td>Executes the head-to-head performance benchmark suite against CPython 3.14.</td>
+            </tr>
+            <tr>
+              <td><code>tnt inspect &lt;file.tnt&gt;</code></td>
+              <td>Inspects inferred static types, Middle Intermediate Representation (MIR), and native assembly.</td>
+            </tr>
+            <tr>
+              <td><code>tnt studio</code></td>
+              <td>Launches the 2D Morphic visual canvas studio and Socratic Inquisitor Agent.</td>
+            </tr>
+            <tr>
+              <td><code>tnt web serve &lt;dir&gt; --port &lt;p&gt;</code></td>
+              <td>Serves static applications or reactive full-stack web sites with zero overhead.</td>
+            </tr>
+            <tr>
+              <td><code>tnt gatekeeper</code></td>
+              <td>Runs the 5-Stage Zero-Defect certification pipeline before publishing releases.</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+
       <!-- Section: Differentiable Physics -->
-      <section id="diff-physics">
-        <h2 class="docs-h2">⚙️ Universal Differentiable Physics (Phase 16)</h2>
-        <p class="docs-p">
-          TinyTalk features first-class reverse-mode automatic differentiation graph tape (`DiffVar`) and symplectic Hamiltonian Velocity-Verlet integrators that strictly preserve phase-space volume and Noether's conservation laws.
+      <section id="diff-physics" class="doc-section">
+        <h2>⚙️ Universal Differentiable Physics</h2>
+        <p>
+          TinyTalk features first-class reverse-mode automatic differentiation (<code>DiffVar</code>) and symplectic Hamiltonian integrators preserving phase-space volume and Noether conservation laws:
         </p>
-        <div class="code-block-wrap">
+        <div class="code-block">
           <div class="code-header">
-            <span>TINYTALK &bull; physics_tape.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from tnt.diff_physics import DiffVar\nfrom tnt.hamiltonian import HamiltonianSystem, Particle\nfrom tnt.physics_verify import verify_noether\n\ndef main():\n    let x = DiffVar(2.0)\n    let y = DiffVar(3.0)\n    let z = (x * x) + (x * y)\n    z.backward()\n    print(\"dz/dx =\", x.grad) # 2*x + y = 7.0\n    return 0')">Copy</button>
+            <span>TINYTALK &bull; autodiff.tnt</span>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('from diff_physics import DiffVar\n\ndef main():\n    let x = DiffVar(2.0)\n    let y = DiffVar(3.0)\n    let z = (x * x) + (x * y)\n    z.backward()\n    print(\"dz/dx =\", x.grad) # 2*x + y = 7.0\n    print(\"dz/dy =\", y.grad) # x = 2.0\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">from tnt.diff_physics import DiffVar
-from tnt.hamiltonian import HamiltonianSystem, Particle
-from tnt.physics_verify import verify_noether
+          <pre class="code-content">from diff_physics import DiffVar
 
 def main():
-    # Reverse-Mode Automatic Differentiation Graph
     let x = DiffVar(2.0)
     let y = DiffVar(3.0)
     let z = (x * x) + (x * y)
@@ -451,23 +618,23 @@ def main():
       </section>
 
       <!-- Section: Quantum Computing -->
-      <section id="quantum-computing">
-        <h2 class="docs-h2">⚛️ Fault-Tolerant Quantum &amp; OpenQASM 3.0 (Phase 15)</h2>
-        <p class="docs-p">
-          TinyTalk natively manages complex statevectors, Bell EPR entanglement pairs, and quantum circuit lowering to OpenQASM 3.0 compatible with physical superconducting and trapped-ion quantum QPUs.
+      <section id="quantum-computing" class="doc-section">
+        <h2>⚛️ Quantum Circuits &amp; OpenQASM 3.0</h2>
+        <p>
+          Native statevector simulation, Bell EPR pair entanglement, and direct lowering to OpenQASM 3.0 for physical quantum processors:
         </p>
-        <div class="code-block-wrap">
+        <div class="code-block">
           <div class="code-header">
-            <span>TINYTALK &bull; epr_bell.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from tnt.quantum import QuantumCircuit\nfrom tnt.qasm import to_openqasm3\n\ndef main():\n    let qc = QuantumCircuit(2)\n    qc.h(0)           # Hadamard gate creates superposition (|0> + |1>)/sqrt(2)\n    qc.cx(0, 1)       # CNOT gate entangles qubit 0 and 1 -> (|00> + |11>)/sqrt(2)\n    \n    let qasm = to_openqasm3(qc)\n    print(qasm)\n    return 0')">Copy</button>
+            <span>TINYTALK &bull; quantum_bell.tnt</span>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('from quantum import QuantumCircuit\nfrom qasm import to_openqasm3\n\ndef main():\n    let qc = QuantumCircuit(2)\n    qc.h(0)     # Hadamard gate: creates superposition\n    qc.cx(0, 1) # CNOT gate: creates entanglement\n    let qasm = to_openqasm3(qc)\n    print(qasm)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">from tnt.quantum import QuantumCircuit
-from tnt.qasm import to_openqasm3
+          <pre class="code-content">from quantum import QuantumCircuit
+from qasm import to_openqasm3
 
 def main():
     let qc = QuantumCircuit(2)
-    qc.h(0)           # Hadamard gate creates superposition (|0> + |1>)/sqrt(2)
-    qc.cx(0, 1)       # CNOT gate entangles qubit 0 and 1 -> (|00> + |11>)/sqrt(2)
+    qc.h(0)     # Hadamard gate on qubit 0: creates (|0> + |1>)/sqrt(2)
+    qc.cx(0, 1) # CNOT gate entangles qubit 0 and 1: (|00> + |11>)/sqrt(2)
     
     let qasm = to_openqasm3(qc)
     print("Generated OpenQASM 3.0 Program:")
@@ -477,18 +644,18 @@ def main():
       </section>
 
       <!-- Section: Neuromorphic Silicon -->
-      <section id="neuromorphic-silicon">
-        <h2 class="docs-h2">🧠 Neuromorphic Silicon &amp; Intel Loihi 2 (Phase 13)</h2>
-        <p class="docs-p">
-          Simulate biological Leaky Integrate-and-Fire (LIF) spiking neural networks, Spike-Timing-Dependent Plasticity (STDP) learning, and compile directly to microcode for neuromorphic silicon processors.
+      <section id="neuromorphic-snn" class="doc-section">
+        <h2>🧠 Neuromorphic Silicon &amp; Intel Loihi 2</h2>
+        <p>
+          Simulate biological Leaky Integrate-and-Fire (LIF) spiking neural networks, Spike-Timing-Dependent Plasticity (STDP), and compile directly to Intel Loihi 2 microcode:
         </p>
-        <div class="code-block-wrap">
+        <div class="code-block">
           <div class="code-header">
             <span>TINYTALK &bull; snn_loihi.tnt</span>
-            <button class="copy-btn" onclick="navigator.clipboard.writeText('from tnt.neuromorphic import LIFNeuron\nfrom tnt.loihi2 import emit_loihi_microcode\n\ndef main():\n    let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)\n    for step in range(10):\n        let spiked = neuron.step(current=0.3)\n        print(\"Step:\", step, \"V:\", neuron.v, \"Spike:\", spiked)\n    return 0')">Copy</button>
+            <button class="copy-btn" onclick="navigator.clipboard.writeText('from neuromorphic import LIFNeuron\nfrom loihi2 import emit_loihi_microcode\n\ndef main():\n    let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)\n    for step in range(10):\n        let spiked = neuron.step(current=0.3)\n        print(\"Step:\", step, \"V:\", neuron.v, \"Spiked:\", spiked)\n    return 0'); this.innerText = 'Copied!'; setTimeout(() => this.innerText = 'Copy', 2000);">Copy</button>
           </div>
-          <pre class="code-pre">from tnt.neuromorphic import LIFNeuron
-from tnt.loihi2 import emit_loihi_microcode
+          <pre class="code-content">from neuromorphic import LIFNeuron
+from loihi2 import emit_loihi_microcode
 
 def main():
     let neuron = LIFNeuron(v_thresh=1.0, tau_m=20.0, v_rest=0.0)
@@ -498,52 +665,13 @@ def main():
     return 0</pre>
         </div>
       </section>
-
-      <!-- Section: CLI Reference -->
-      <section id="cli-reference">
-        <h2 class="docs-h2">🛠️ CLI Command Reference</h2>
-        <p class="docs-p">
-          The <code>tnt</code> executable exposes zero-friction commands for development, testing, and production deployment:
-        </p>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 16px; font-family: var(--font-mono); font-size: 0.85rem;">
-          <thead>
-            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--brand);">
-              <th style="padding: 10px;">Command</th>
-              <th style="padding: 10px;">Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 10px; color: #38bdf8;">tnt run &lt;file.tnt&gt;</td>
-              <td style="padding: 10px; color: #cbd5e1;">Executes TinyTalk source code instantly via the native JIT engine.</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 10px; color: #38bdf8;">tnt build &lt;file.tnt&gt; --target [pe|elf|macho|wasm|all]</td>
-              <td style="padding: 10px; color: #cbd5e1;">Compiles to standalone executables or WebAssembly with 0 dependencies.</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 10px; color: #38bdf8;">tnt gatekeeper</td>
-              <td style="padding: 10px; color: #cbd5e1;">Executes the 5-Stage Zero-Defect certification test suite.</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 10px; color: #38bdf8;">tnt web dev &lt;app.tnt&gt;</td>
-              <td style="padding: 10px; color: #cbd5e1;">Starts zero-cold-start web development server with live reload.</td>
-            </tr>
-            <tr style="border-bottom: 1px solid var(--border);">
-              <td style="padding: 10px; color: #38bdf8;">tnt lsp --stdio</td>
-              <td style="padding: 10px; color: #cbd5e1;">Spawns the Language Server Protocol daemon for editor integration.</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
     </main>
   </div>
 
   <!-- Footer -->
   <footer>
-    <p>TinyTalk (.tnt) & Black Mamba (.bmb) &bull; Open-Source under the MIT License</p>
-    <p style="margin-top: 8px;">GitHub: <a href="https://github.com/kicode01/tinytalk-lang" target="_blank" style="color: var(--brand);">github.com/kicode01/tinytalk-lang</a> &bull; Live Playground: <a href="arena.html" style="color: var(--brand);">tinytalk-lang.vercel.app/arena.html</a></p>
+    <div>&copy; 2026 TinyTalk Core Contributors. Released under the MIT License.</div>
+    <div style="margin-top: 8px;">Zero-GIL &bull; 0ms GC &bull; 5.5 KB Standalone Native Executables</div>
   </footer>
 
 </body>
